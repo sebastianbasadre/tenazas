@@ -20,6 +20,7 @@ services:
       - ./auto-heal.sh:/home/tenazas/auto-heal.sh
       - ./ollama-check.sh:/home/tenazas/ollama-check.sh
       - ./tests:/home/tenazas/tests
+      - ./workspace/runtime:/home/tenazas/runtime
       - ./himalaya-config:/home/tenazas/.config/himalaya
       - ./gcal-token.json:/home/tenazas/.openclaw/gcal-token.json:ro
     command: ["bash", "/home/tenazas/startup.sh"]

@@ -37,3 +37,5 @@ workspace/runtime/logs/
 
 # IDE / tools
 .claude/
+__pycache__/
+@eaDir/
