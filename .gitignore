@@ -1,0 +1,39 @@
+# Secrets & credentials
+openclaw.json
+gcal-creds.json
+gcal-token.json
+gcal-auth.py
+credentials/
+gogcli-config/
+
+# State (runtime data, not code)
+state/
+
+# Junk files from early experiments
+=
+-d
+CACHED
+exporting
+naming
+transferring
+writing
+[openclaw
+[openclaw]
+
+# Backups
+*.bak
+*.bak2
+
+# Media
+media/
+
+# Runtime JSON state (regenerated)
+workspace/runtime/state.json
+workspace/runtime/events.json
+workspace/runtime/tasks.json
+workspace/runtime/memory_log.json
+workspace/runtime/patterns.json
+workspace/runtime/logs/
+
+# IDE / tools
+.claude/

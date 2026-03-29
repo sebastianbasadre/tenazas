@@ -1,0 +1,28 @@
+version: "3.8"
+services:
+  openclaw:
+    build: .
+    container_name: openclaw
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=America/Buenos_Aires
+      - NODE_OPTIONS=--dns-result-order=ipv4first
+      - OLLAMA_API_KEY=ollama-local
+      - GOG_KEYRING_PASSWORD=tenazas2026
+      - GOG_ACCOUNT=sebastian.basadre@gmail.com
+      - GOOGLE_API_KEY=AIzaSyCvTd7GkJDfntrcYRww9LaijPWvHD4B0pg
+    volumes:
+      - ./state:/home/tenazas/.openclaw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /volume1/docker/piper/data:/home/tenazas/piper
+      - ./startup.sh:/home/tenazas/startup.sh
+      - ./auto-heal.sh:/home/tenazas/auto-heal.sh
+      - ./ollama-check.sh:/home/tenazas/ollama-check.sh
+      - ./tests:/home/tenazas/tests
+      - ./himalaya-config:/home/tenazas/.config/himalaya
+      - ./gcal-token.json:/home/tenazas/.openclaw/gcal-token.json:ro
+    command: ["bash", "/home/tenazas/startup.sh"]
+    stop_grace_period: 10s
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
