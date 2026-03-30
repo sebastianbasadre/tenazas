@@ -639,6 +639,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 test
 docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
 docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 tests
 docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 31 tests
+docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -708,6 +709,18 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_planner.py** (35 tests — unittest + mock)
+- Known problems: container_down→restart, vpn_down/leak→recovery, internet→diagnostic, ollama→failover, arr→arr_recovery
+- Generic plans: unknown problems get diagnose+notify, no approval needed
+- Context substitution: container name in targets, arr recovery substitution
+- Plan structure: required keys (problem, template, steps, generated_at, requires_any_approval)
+- Step structure: required keys (action, target, requires_approval, estimated_duration, description)
+- Approval flag: restart plans require approval, diagnostics don't
+- get_plan_for_event(): arr vs non-arr routing, vpn events, unknown events, missing type
+- list_templates(): returns all templates with descriptions
+- PROBLEM_MAP: all mapped templates exist, expected problems covered
+- Logging: plan generation logged with template, problem, steps_count
 
 **test_model_router.py** (31 tests — unittest + mock)
 - Backend ping: success, failure, timeout, unknown backend, curl flags
