@@ -2,6 +2,9 @@
 openclaw gateway &
 OC_PID=$!
 
+# Start Prometheus metrics server (persistent background process)
+cd /home/tenazas && python3 -c "from runtime.metrics_exporter import start_server; start_server(); import time; time.sleep(999999)" &
+
 sleep 20
 
 LOCKFILE="/tmp/tenazas-startup.lock"

@@ -220,3 +220,10 @@ def calculate_health(
         score -= 10
 
     return max(round(score, 1), 0.0)
+
+
+# ── Auto-start server on import ──────────────────────────────────
+# The metrics server must persist for the container lifetime.
+# Auto-starting on import ensures it's up whenever runtime runs.
+
+start_server()

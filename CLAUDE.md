@@ -333,7 +333,9 @@ workspace/runtime/
 - **Step profiling:** cada fase del runtime se cronometra y exporta
 - **Health score:** 0-100 basado en duracion, freezes, restarts
 - **Metricas:** runtime_runs_total, runtime_duration_seconds, container_restarts_total, vpn_disconnects_total, runtime_freeze_detected, runtime_health_score
-- **Grafana:** `prometheus.yml` incluido para scraping
+- **metrics_server.py** — proceso persistente que arranca desde startup.sh
+- **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
+- **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
