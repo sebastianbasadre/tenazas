@@ -41,7 +41,7 @@ Smart Home (LAN)
 | Componente | Descripcion |
 |---|---|
 | **Orchestrator** | Clasifica queries y routea al pipeline + modelo optimo (keyword+regex, sin LLM) |
-| **Runtime Layer** | 31 modulos: monitoreo, diagnosticos, razonamiento, aprendizaje, simulacion |
+| **Runtime Layer** | 41 modulos: monitoreo, diagnosticos, razonamiento, aprendizaje, simulacion |
 | **RAG Pipeline** | Query rewrite → hybrid retrieval → rerank → confidence → memory fusion → compress → actions → LLM |
 | **Reasoning** | Multi-agent (Qwen+Phi), agent lab, planner, predictive engine |
 | **Learning** | Metrics engine, self-optimizer, idle learning, model distillation, dataset builder |
@@ -136,7 +136,7 @@ openclaw/
 │   └── workspace/skills/    — 22 skills con SKILL.md cada una
 │
 ├── workspace/
-│   ├── runtime/               — Runtime layer (31 modulos)
+│   ├── runtime/               — Runtime layer (41 modulos)
 │   │   ├── orchestrator.py    — Central AI routing
 │   │   ├── runtime.py         — Loop principal event-driven
 │   │   ├── safety_guard.py    — Validacion central de seguridad
@@ -146,7 +146,10 @@ openclaw/
 │   │   ├── predictive_engine.py, world_model.py, shared_memory.py
 │   │   ├── self_optimizer.py, self_debugger.py, self_dev_engine.py
 │   │   ├── model_router.py, model_distillation.py, self_benchmark.py
-│   │   ├── simulation_lab.py, architecture_evolution.py
+│   │   ├── context_manager.py, decision_trace.py, agent_conflict.py
+│   │   ├── retrieval_quality.py, adaptive_router.py, prompt_optimizer.py
+│   │   ├── knowledge_graph.py, failure_simulator.py, experiment_engine.py
+│   │   ├── skill_analytics.py, simulation_lab.py, architecture_evolution.py
 │   │   └── ... (background_agents, idle_learning, research, etc.)
 │   ├── runtime.py             — Runtime legacy (coexiste)
 │   └── executors.py           — Executors legacy
@@ -157,6 +160,8 @@ openclaw/
 │   ├── test_query.py          — 34 tests del RAG pipeline
 │   ├── test_confidence.py     — 40 tests confidence + actions + diagnostics
 │   ├── test_orchestrator.py   — 43 tests del orchestrator
+│   ├── test_advanced.py       — 41 tests metrics + memory + runbooks + multi-agent
+│   ├── test_intelligence.py   — 33 tests context + trace + conflict + graph
 │   ├── test_compact.py        — 11 tests de compactacion
 │   ├── test_auto_heal.sh      — Tests de auto-heal
 │   └── test_ollama_check.sh   — Tests de ollama routing

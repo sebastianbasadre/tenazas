@@ -248,39 +248,67 @@ Flow: Guardian primero (siempre) → Reasoner+Executor en paralelo → Analyst �
 
 Sistema de monitoreo inteligente en `workspace/runtime/`.
 
-### Arquitectura (31 modulos, reemplaza auto-heal.sh)
+### Arquitectura (41 modulos, reemplaza auto-heal.sh)
 ```
 workspace/runtime/
+│
+│ ── Core ──
 ├── orchestrator.py            — Central AI routing (classify + model select)
 ├── runtime.py                 — Loop principal event-driven (cada 5 min)
 ├── docker_wrapper.py          — Capa de seguridad Docker
 ├── executors.py               — Probes de monitoreo + dispatch
+├── safety_guard.py            — Validacion central de seguridad
+│
+│ ── RAG & Confidence ──
 ├── confidence_engine.py       — Scoring de confianza para RAG
-├── action_mapper.py           — Mapeo de problemas a skills
+├── retrieval_quality.py       — Calidad de retrieval (overlap, diversity, recency)
+├── context_manager.py         — Token budget allocation y context pruning
+│
+│ ── Diagnostics & Actions ──
 ├── infra_diagnostics.py       — Diagnosticos rule-based
+├── action_mapper.py           — Mapeo de problemas a skills
+├── runbook_generator.py       — Runbooks de reparacion reutilizables
+├── knowledge_graph.py         — Grafo de dependencias de infraestructura
+│
+│ ── Reasoning ──
+├── multi_agent_engine.py      — Razonamiento cooperativo Qwen+Phi
+├── agent_lab.py               — Lab de agentes distribuidos
+├── agent_conflict.py          — Deteccion de desacuerdo entre agentes
+├── decision_trace.py          — Log estructurado de decisiones
+│
+│ ── Intelligence & Memory ──
 ├── metrics_engine.py          — Metricas operacionales + agregacion
 ├── infra_memory.py            — Deteccion de patrones recurrentes
-├── runbook_generator.py       — Runbooks de reparacion reutilizables
-├── multi_agent_engine.py      — Razonamiento cooperativo Qwen+Phi
-├── self_optimizer.py          — Aprende mejores pipeline+modelo combos
-├── agent_lab.py               — Lab de agentes distribuidos
 ├── shared_memory.py           — Memoria compartida (semantic/episodic/procedural/working)
 ├── world_model.py             — Modelo del mundo (containers, red, servicios)
+├── predictive_engine.py       — Prediccion de fallas de infra
+│
+│ ── Optimization & Learning ──
+├── self_optimizer.py          — Aprende mejores pipeline+modelo combos
+├── adaptive_router.py         — Routing aprendido por metricas historicas
+├── prompt_optimizer.py        — Analisis de eficiencia de prompts
+├── experiment_engine.py       — A/B testing de pipelines y modelos
+├── idle_learning_engine.py    — Aprendizaje en periodos idle
+├── model_distillation.py      — Transferencia de conocimiento entre modelos
+│
+│ ── Autonomous ──
 ├── goal_engine.py             — Sistema de objetivos (stability, uptime, accuracy)
 ├── planner.py                 — Planificacion de tareas complejas
-├── predictive_engine.py       — Prediccion de fallas de infra
 ├── model_router.py            — Seleccion de modelos por hardware disponible
 ├── skill_generator.py         — Propuesta de nuevos skills (requiere aprobacion)
-├── safety_guard.py            — Validacion central de seguridad
-├── idle_learning_engine.py    — Aprendizaje en periodos idle
+├── skill_analytics.py         — Analisis de uso de skills
 ├── background_agents.py       — Agentes persistentes (watcher, pattern, metrics)
 ├── research_engine.py         — Investigacion autonoma de problemas
+│
+│ ── Self-improvement ──
 ├── self_debugger.py           — Auto-diagnostico de errores de Tenazas
 ├── self_dev_engine.py         — Propuestas de mejora de codigo
-├── model_distillation.py      — Transferencia de conocimiento entre modelos
-├── dataset_builder.py         — Generacion de datasets operacionales
 ├── self_benchmark.py          — Benchmarking de rendimiento
+├── dataset_builder.py         — Generacion de datasets operacionales
+│
+│ ── Testing & Evolution ──
 ├── simulation_lab.py          — Simulacion de escenarios de infra
+├── failure_simulator.py       — Escenarios de falla granulares
 ├── architecture_evolution.py  — Deteccion de limitaciones arquitecturales
 └── __init__.py
 ```
@@ -576,6 +604,8 @@ docker exec openclaw python3 /home/tenazas/tests/test_runtime.py       # 54 test
 docker exec openclaw python3 /home/tenazas/tests/test_query.py         # 34 tests
 docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 40 tests
 docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 43 tests
+docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 tests
+docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
@@ -616,6 +646,22 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - Event to action: maps runtime events, deduplicates
 - Infra diagnostics: healthy, container_down, internet_down, vpn_leak, crash_loop, high_latency
 - Diagnostic report formatting, quick_health_check, severity sorting
+
+**test_advanced.py** (41 tests — unittest)
+- Metrics: recording, aggregation (avg confidence, distributions, latency, escalation rate, timer)
+- Infra memory: pattern detection, confidence calculation, update/save, target filtering
+- Runbooks: generation por tipo (crash loop, VPN, network, ollama), save/get/list, formatting
+- Multi-agent: full pipeline mock, offline fallback, verification failure continues
+- Self-optimizer: preferences, escalation detection, expand retrieval, preferred model
+
+**test_intelligence.py** (33 tests — unittest)
+- Context manager: budget allocation, prune low value, budget respect, prioritize sources
+- Decision trace: create/get/filter entries, escalations, summary
+- Agent conflict: agreement/disagreement, contradiction detection, multi-agent check
+- Retrieval quality: good/poor/empty results, diversity scoring
+- Knowledge graph: nodes, dependencies, dependents, impact analysis, build
+- Failure simulator: scenarios (crash loop, network, VPN), run, list
+- Experiment engine: create, record results, analyze winner, list
 
 **test_orchestrator.py** (43 tests — unittest)
 - Classification: chat, knowledge, infra, automation, diagnostic, reasoning, context boost
