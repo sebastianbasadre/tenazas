@@ -251,6 +251,7 @@ Sistema de monitoreo inteligente en `workspace/runtime/`.
 ### Arquitectura (nueva, reemplaza auto-heal.sh)
 ```
 workspace/runtime/
+├── orchestrator.py         — Central AI routing (classify + model select)
 ├── runtime.py              — Loop principal event-driven
 ├── docker_wrapper.py       — Capa de seguridad Docker
 ├── executors.py            — Probes de monitoreo + dispatch
@@ -285,6 +286,18 @@ workspace/runtime/
 - Deduplicacion de tareas
 - **Cooldown de 20 min** por target (no re-reinicia si ya se reinicio recientemente)
 - Cooldown solo cuenta restarts exitosos (fallidos no cuentan)
+
+### orchestrator.py — Central AI routing
+- Clasifica queries en: chat, knowledge_query, infrastructure_issue, automation_command, diagnostic_request, complex_reasoning
+- **Clasificacion lightweight:** keyword + regex rules (sin LLM)
+- **Model selection:** elige modelo segun categoria + disponibilidad de backends
+- **Pipeline routing:** cada categoria tiene modulos asignados (rag, diagnostics, action_mapper)
+- **Context-aware:** recent_events, working_memory, ollama_available influyen en routing
+- **Escalation:** low confidence → escala a pipeline mas capaz (knowledge→reasoning, etc.)
+- **Fallback chain:** si GPU offline → cloud, si cloud offline → local
+- **Telemetria:** `logs/orchestrator.log` (JSON por linea)
+- `route_query(query, context)` → {classification, pipeline, model, parameters}
+- `escalate(original_route, reason)` → ruta escalada
 
 ### confidence_engine.py — Scoring de confianza
 - Score 0-1 combinando: similarity (0.35), agreement (0.25), recency (0.20), source_quality (0.20)
@@ -538,6 +551,7 @@ docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 docker exec openclaw python3 /home/tenazas/tests/test_runtime.py       # 54 tests
 docker exec openclaw python3 /home/tenazas/tests/test_query.py         # 34 tests
 docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 40 tests
+docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 43 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
@@ -578,6 +592,14 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - Event to action: maps runtime events, deduplicates
 - Infra diagnostics: healthy, container_down, internet_down, vpn_leak, crash_loop, high_latency
 - Diagnostic report formatting, quick_health_check, severity sorting
+
+**test_orchestrator.py** (43 tests — unittest)
+- Classification: chat, knowledge, infra, automation, diagnostic, reasoning, context boost
+- Model selection: per-category, GPU offline fallback, cloud offline fallback, all offline
+- Pipeline assembly: modules per category, unknown defaults
+- Route query: complete output, logging, context signals, temperature tuning
+- Escalation: knowledge→reasoning, chat→knowledge, infra→reasoning, logs, model change
+- Context signals: events, ollama_offline, previous_classification
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
