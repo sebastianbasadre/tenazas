@@ -1,0 +1,179 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "tenazas-runtime",
+    "title": "Tenazas Runtime",
+    "tags": ["tenazas", "runtime", "infrastructure"],
+    "timezone": "America/Argentina/Buenos_Aires",
+    "refresh": "30s",
+    "time": { "from": "now-6h", "to": "now" },
+    "panels": [
+      {
+        "id": 1, "title": "Health Score", "type": "gauge",
+        "gridPos": { "h": 6, "w": 4, "x": 0, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "runtime_health_score", "legendFormat": "Health" }],
+        "fieldConfig": { "defaults": { "min": 0, "max": 100, "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "red", "value": null }, { "color": "orange", "value": 50 },
+          { "color": "yellow", "value": 70 }, { "color": "green", "value": 85 }
+        ]}}}
+      },
+      {
+        "id": 2, "title": "Ciclos completados", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 4, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "runtime_runs_total", "legendFormat": "Total runs" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }]}}}
+      },
+      {
+        "id": 3, "title": "Failures", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 8, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "runtime_failures_total", "legendFormat": "Failures" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "red", "value": 1 }
+        ]}}}
+      },
+      {
+        "id": 4, "title": "Container Restarts", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 12, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "container_restarts_total", "legendFormat": "Restarts" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 10 }
+        ]}}}
+      },
+      {
+        "id": 5, "title": "VPN Disconnects", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 16, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "vpn_disconnects_total", "legendFormat": "VPN drops" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }
+        ]}}}
+      },
+      {
+        "id": 6, "title": "Freezes / Watchdog", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 20, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "runtime_freeze_detected", "legendFormat": "Freezes" },
+          { "expr": "runtime_watchdog_triggered", "legendFormat": "Watchdog" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "red", "value": 1 }
+        ]}}}
+      },
+      {
+        "id": 10, "title": "Duracion del ciclo", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "runtime_last_duration_seconds", "legendFormat": "Last duration" }],
+        "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "pointSize": 5, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 30 }, { "color": "red", "value": 60 }
+          ]}}}
+      },
+      {
+        "id": 11, "title": "Health Score (historia)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "runtime_health_score", "legendFormat": "Health" }],
+        "fieldConfig": { "defaults": { "unit": "none", "min": 0, "max": 100,
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "gradientMode": "scheme" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null }, { "color": "orange", "value": 50 },
+            { "color": "yellow", "value": 70 }, { "color": "green", "value": 85 }
+          ]},
+          "color": { "mode": "thresholds" }
+        }}
+      },
+      {
+        "id": 20, "title": "Ciclos totales (historia)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "runtime_runs_total", "legendFormat": "Runs" },
+          { "expr": "runtime_failures_total", "legendFormat": "Failures" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }}}
+      },
+      {
+        "id": 21, "title": "Ollama Failures", "type": "stat",
+        "gridPos": { "h": 8, "w": 4, "x": 12, "y": 14 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "ollama_failures_total", "legendFormat": "Ollama" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }
+        ]}}}
+      },
+      {
+        "id": 30, "title": "Eventos de infraestructura", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "container_restarts_total", "legendFormat": "Container restarts" },
+          { "expr": "vpn_disconnects_total", "legendFormat": "VPN disconnects" },
+          { "expr": "ollama_failures_total", "legendFormat": "Ollama failures" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "Container restarts" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "VPN disconnects" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Ollama failures" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 31, "title": "Freezes y Watchdog (historia)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "runtime_freeze_detected", "legendFormat": "Freeze detected" },
+          { "expr": "runtime_watchdog_triggered", "legendFormat": "Watchdog triggered" },
+          { "expr": "runtime_failures_total", "legendFormat": "Runtime failures" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "Freeze detected" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Watchdog triggered" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Runtime failures" }, "properties": [{ "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 50, "title": "Memoria del proceso", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "process_resident_memory_bytes", "legendFormat": "RSS" },
+          { "expr": "process_virtual_memory_bytes", "legendFormat": "Virtual" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "RSS" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Virtual" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 51, "title": "CPU del proceso", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "rate(process_cpu_seconds_total[5m])", "legendFormat": "CPU usage" }],
+        "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "color": { "fixedColor": "orange", "mode": "fixed" }
+        }}
+      }
+    ],
+    "schemaVersion": 39,
+    "version": 1,
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "links": [],
+    "templating": { "list": [] },
+    "annotations": { "list": [] }
+  },
+  "overwrite": true
+}
