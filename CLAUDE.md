@@ -335,6 +335,8 @@ workspace/runtime/
 - **Metricas:** runtime_runs_total, runtime_duration_seconds, container_restarts_total, vpn_disconnects_total, runtime_freeze_detected, runtime_health_score
 - **metrics_server.py** — proceso persistente que arranca desde startup.sh, polls `metrics_state.json` cada 5s
 - **metrics_state.json** — archivo compartido entre runtime.py (escribe) y metrics_server.py (lee)
+- **model_failover.py** — proceso persistente, detecta 429 de Gemini y auto-switch a Ollama phi4-mini
+- **Metricas extendidas:** runtime_step_*_seconds, rag_queries_total, rag_low_confidence_total, model_failover_active
 - **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
 - **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
 
