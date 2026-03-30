@@ -646,6 +646,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_shared_memory.py # 39 test
 docker exec openclaw python3 /home/tenazas/tests/test_skill_gen.py     # 34 tests
 docker exec openclaw python3 /home/tenazas/tests/test_goal_engine.py   # 30 tests
 docker exec openclaw python3 /home/tenazas/tests/test_self_debugger.py # 41 tests
+docker exec openclaw python3 /home/tenazas/tests/test_self_dev.py      # 28 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -715,6 +716,14 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_self_dev_engine.py** (28 tests — unittest + mock)
+- Debug analysis: high error rate proposal, low rate no proposal, timeout threshold, module error, import error, empty reports
+- Metrics analysis: low confidence, normal confidence, high escalation, high latency, critical diagnostics, import error
+- Idle learnings: high/medium priority proposals, low priority skipped, import error
+- generate_proposals: end-to-end, dedup by module+description, max cap, no proposals, preserves history, timestamps
+- get_pending/get_all: filters, missing file
+- Safety: all proposals require_approval=True and status=pending
 
 **test_self_debugger.py** (41 tests — unittest)
 - Load log lines: JSON, non-JSON (raw), missing file, max lines cap
