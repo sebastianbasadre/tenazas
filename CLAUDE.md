@@ -158,13 +158,34 @@ python3 skills/rag/query.py "como controlo las luces?" --generate
 python3 skills/rag/query.py "IP del Hue Bridge" --json
 ```
 
-### Reranking y scoring
-- **MIN_SCORE = 0.6** — filtro duro, resultados por debajo descartados
-- **source_boost():**
-  - `skills/*/SKILL.md` y workspace root `.md` → **+0.05**
-  - `memory/*.md` → **-0.03**
-- **keyword_boost():** match proporcional de terminos del query → hasta **+0.15**
-- Output vacio con `--json` devuelve `[]`
+### Pipeline avanzado (query.py)
+```
+query → query_rewrite → hybrid_retrieval → reranking
+→ confidence_check → (expand if low) → memory_fusion
+→ context_compression → action_mapping → LLM
+```
+
+**Etapas:**
+1. **Query rewrite** — LLM expande query con sinonimos, descompone multi-part
+2. **Hybrid retrieval** — Multi-query vector + keyword scoring, union con dedup
+3. **Reranking** — source_boost + keyword_boost + recency_boost + multi_query_boost
+4. **Confidence check** — Score 0-1 (similarity, agreement, recency, source_quality)
+5. **Memory fusion** — 4 tipos: semantic + episodic + procedural + working
+6. **Context compression** — Dedup >80% overlap + truncacion por budget
+7. **Action mapping** — Mapea problemas a skills existentes (nunca auto-ejecuta)
+
+**Scoring:**
+- **MIN_SCORE = 0.6** — filtro duro
+- **source_boost():** skills/SKILL.md y workspace root → +0.05, memory → -0.03
+- **keyword_boost():** hasta +0.15
+- **recency_boost():** memory reciente (7 dias) hasta +0.04
+
+**Confidence thresholds:**
+- 0.8-1.0 high → answer normally
+- 0.6-0.79 medium → answer with caveat
+- <0.6 low → expand retrieval or clarify
+
+**CLI flags:** `--context "texto"`, `--no-rewrite`, `--debug`, `--json`
 
 ### Ingestion
 ```bash
@@ -230,9 +251,12 @@ Sistema de monitoreo inteligente en `workspace/runtime/`.
 ### Arquitectura (nueva, reemplaza auto-heal.sh)
 ```
 workspace/runtime/
-├── runtime.py          — Loop principal (347 lineas)
-├── docker_wrapper.py   — Capa de seguridad Docker (122 lineas)
-├── executors.py        — Probes de monitoreo + dispatch (138+ lineas)
+├── runtime.py              — Loop principal event-driven
+├── docker_wrapper.py       — Capa de seguridad Docker
+├── executors.py            — Probes de monitoreo + dispatch
+├── confidence_engine.py    — Scoring de confianza para RAG
+├── action_mapper.py        — Mapeo de problemas a skills
+├── infra_diagnostics.py    — Diagnosticos rule-based de infra
 └── __init__.py
 ```
 
@@ -259,6 +283,28 @@ workspace/runtime/
 - VPN down o leak → restart gluetun
 - gluetun siempre tiene prioridad (se reinicia primero)
 - Deduplicacion de tareas
+- **Cooldown de 20 min** por target (no re-reinicia si ya se reinicio recientemente)
+- Cooldown solo cuenta restarts exitosos (fallidos no cuentan)
+
+### confidence_engine.py — Scoring de confianza
+- Score 0-1 combinando: similarity (0.35), agreement (0.25), recency (0.20), source_quality (0.20)
+- **Thresholds:** high (>=0.8), medium (>=0.6), low (<0.6)
+- **Self-check:** high→answer, medium→answer+caveat, low→expand/clarify
+- Source reliability tiers: skill=1.0, core_doc=0.95, workspace=0.80, memory_recent=0.70
+- Log: `logs/diagnostics.log`
+
+### action_mapper.py — Mapeo problemas → skills
+- Regex pattern matching contra ACTION_RULES
+- Mapea: vpn_down→gluetun restart, container_down→container restart, internet_slow→network diag
+- Deduplicacion por target, sorted por prioridad
+- **NUNCA ejecuta** — solo sugiere acciones
+- `format_suggestions()` para output Telegram/LLM
+
+### infra_diagnostics.py — Diagnosticos rule-based
+- Reglas: container_down, crash_loop (>=3 restarts/2h), internet_down, high_latency, vpn_down/leak, ollama_offline
+- Severity: critical, warning, info
+- `quick_health_check()` para embed en otros outputs
+- `format_diagnostic_report()` para Telegram
 
 ### Pattern engine
 - Detecta eventos recurrentes correlacionados por hora
@@ -489,9 +535,10 @@ docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 
 ### Correr por suite
 ```bash
-docker exec openclaw python3 /home/tenazas/tests/test_runtime.py     # 48 tests
-docker exec openclaw python3 /home/tenazas/tests/test_query.py
-docker exec openclaw python3 /home/tenazas/tests/test_compact.py
+docker exec openclaw python3 /home/tenazas/tests/test_runtime.py       # 54 tests
+docker exec openclaw python3 /home/tenazas/tests/test_query.py         # 34 tests
+docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 40 tests
+docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
 ```
@@ -503,7 +550,7 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 ### Que cubre cada suite
 
-**test_runtime.py** (48 tests — unittest + mock)
+**test_runtime.py** (54 tests — unittest + mock)
 - Wrapper: sanitizacion de nombres, whitelist de acciones, logging, docker ps parsing
 - Eventos: container_down/recovered, internet_lost/restored, vpn_down/leak/changed, device_count, ollama
 - Tasks: container → restart, vpn_down → gluetun, vpn_leak → gluetun, deduplicacion, prioridad gluetun
@@ -513,9 +560,24 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - Telegram: notify ok/fail
 - Notificaciones: build message, ollama offline
 - Integracion: two-run detect container_down
+- Cooldown: skip recent, allow after expiry, ignore failed, per-target, vpn_down/leak
 
-**test_query.py** (unittest + mock HTTP)
-- source_boost(), MIN_SCORE=0.6, filtro, ranking SKILL.md > memory, JSON vacio
+**test_query.py** (34 tests — unittest + mock HTTP)
+- source_boost(), recency_boost(), reranking con todas las senales
+- Confidence scoring integrado en pipeline (dict return)
+- Context compression: dedup, top_k, truncation
+- Memory fusion: classify procedural/semantic/episodic, working memory injection
+- Query rewrite: short skip, LLM fallback, successful rewrite
+- Score filtering: MIN_SCORE=0.6, SKILL.md > memory, JSON output
+
+**test_confidence.py** (40 tests — unittest + mock)
+- Source classification: skill, core_doc, working, memory_recent/old, unknown
+- Confidence scoring: high/medium/low, components, normalized 0-1
+- Self-check: answer/caveat/expand/clarify strategies
+- Action mapping: vpn_down, container_down, internet_slow, ollama, no-match
+- Event to action: maps runtime events, deduplicates
+- Infra diagnostics: healthy, container_down, internet_down, vpn_leak, crash_loop, high_latency
+- Diagnostic report formatting, quick_health_check, severity sorting
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor

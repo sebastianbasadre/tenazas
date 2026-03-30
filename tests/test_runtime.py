@@ -262,6 +262,14 @@ class TestEventDetection(unittest.TestCase):
 class TestTaskEnqueueing(unittest.TestCase):
     """Events produce correct tasks."""
 
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_memory = rt.MEMORY_FILE
+        rt.MEMORY_FILE = Path(self.tmpdir) / "memory_log.json"
+
+    def tearDown(self):
+        rt.MEMORY_FILE = self._orig_memory
+
     def test_container_down_generates_restart(self):
         events = [{"type": "container_down", "container": "sonarr", "ts": "t"}]
         tasks = rt.enqueue_tasks(events)
@@ -320,6 +328,88 @@ class TestTaskEnqueueing(unittest.TestCase):
         tasks = rt.enqueue_tasks(events)
         targets = [t["target"] for t in tasks]
         self.assertEqual(targets.count("gluetun"), 1)
+
+    def test_cooldown_skips_recent_restart(self):
+        """Container restarted <20 min ago should not be restarted again."""
+        recent_ts = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        rt.save_json(rt.MEMORY_FILE, [{
+            "ts": recent_ts,
+            "events": [{"type": "container_down", "container": "sonarr"}],
+            "tasks_run": 1,
+            "results": [{"action": "docker.restart", "target": "sonarr", "ok": True}],
+        }])
+        events = [{"type": "container_down", "container": "sonarr", "ts": "t"}]
+        tasks = rt.enqueue_tasks(events)
+        self.assertEqual(tasks, [])
+
+    def test_cooldown_allows_after_expiry(self):
+        """Container restarted >20 min ago should be restarted again."""
+        old_ts = (datetime.now(timezone.utc) - timedelta(minutes=25)).isoformat()
+        rt.save_json(rt.MEMORY_FILE, [{
+            "ts": old_ts,
+            "events": [{"type": "container_down", "container": "sonarr"}],
+            "tasks_run": 1,
+            "results": [{"action": "docker.restart", "target": "sonarr", "ok": True}],
+        }])
+        events = [{"type": "container_down", "container": "sonarr", "ts": "t"}]
+        tasks = rt.enqueue_tasks(events)
+        self.assertEqual(len(tasks), 1)
+
+    def test_cooldown_ignores_failed_restart(self):
+        """A failed restart should not count towards cooldown."""
+        recent_ts = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        rt.save_json(rt.MEMORY_FILE, [{
+            "ts": recent_ts,
+            "events": [{"type": "container_down", "container": "sonarr"}],
+            "tasks_run": 1,
+            "results": [{"action": "docker.restart", "target": "sonarr", "ok": False}],
+        }])
+        events = [{"type": "container_down", "container": "sonarr", "ts": "t"}]
+        tasks = rt.enqueue_tasks(events)
+        self.assertEqual(len(tasks), 1)
+
+    def test_cooldown_vpn_down(self):
+        """Gluetun cooldown applies to vpn_down events too."""
+        recent_ts = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        rt.save_json(rt.MEMORY_FILE, [{
+            "ts": recent_ts,
+            "events": [{"type": "vpn_down"}],
+            "tasks_run": 1,
+            "results": [{"action": "docker.restart", "target": "gluetun", "ok": True}],
+        }])
+        events = [{"type": "vpn_down", "ts": "t"}]
+        tasks = rt.enqueue_tasks(events)
+        self.assertEqual(tasks, [])
+
+    def test_cooldown_vpn_leak(self):
+        """Gluetun cooldown applies to vpn_leak events too."""
+        recent_ts = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        rt.save_json(rt.MEMORY_FILE, [{
+            "ts": recent_ts,
+            "events": [{"type": "vpn_leak"}],
+            "tasks_run": 1,
+            "results": [{"action": "docker.restart", "target": "gluetun", "ok": True}],
+        }])
+        events = [{"type": "vpn_leak", "ip": "190.12.3.4", "country": "AR", "ts": "t"}]
+        tasks = rt.enqueue_tasks(events)
+        self.assertEqual(tasks, [])
+
+    def test_cooldown_independent_per_target(self):
+        """Cooldown on sonarr should not block radarr."""
+        recent_ts = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        rt.save_json(rt.MEMORY_FILE, [{
+            "ts": recent_ts,
+            "events": [],
+            "tasks_run": 1,
+            "results": [{"action": "docker.restart", "target": "sonarr", "ok": True}],
+        }])
+        events = [
+            {"type": "container_down", "container": "sonarr", "ts": "t"},
+            {"type": "container_down", "container": "radarr", "ts": "t"},
+        ]
+        tasks = rt.enqueue_tasks(events)
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["target"], "radarr")
 
 
 class TestVpnCountryCheck(unittest.TestCase):

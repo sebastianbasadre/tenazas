@@ -41,6 +41,7 @@ MAX_MEMORY_ENTRIES = 1000
 PATTERN_ANALYSIS_INTERVAL = 3600  # seconds
 PATTERN_MIN_OCCURRENCES = 3
 PATTERN_LOOKBACK_DAYS = 7
+TASK_COOLDOWN_SECONDS = 1200  # 20 min — don't re-restart same target
 
 # ── JSON helpers ──────────────────────────────────────────────────
 
@@ -169,8 +170,29 @@ def detect_events(prev: dict, curr: dict) -> list:
 # ── 3. Task Enqueueing ───────────────────────────────────────────
 
 
+def _recent_actions(target: str) -> dict | None:
+    """Check memory_log for a recent successful action on target within cooldown."""
+    memory = load_json(MEMORY_FILE, [])
+    if not isinstance(memory, list):
+        return None
+
+    cutoff = _now() - timedelta(seconds=TASK_COOLDOWN_SECONDS)
+
+    for entry in reversed(memory):
+        try:
+            entry_dt = datetime.fromisoformat(entry["ts"])
+        except (KeyError, ValueError):
+            continue
+        if entry_dt < cutoff:
+            break  # Entries are chronological, no need to keep looking
+        for result in entry.get("results", []):
+            if result.get("target") == target and result.get("ok"):
+                return result
+    return None
+
+
 def enqueue_tasks(events: list) -> list:
-    """Map events to executable tasks. Returns deduplicated task list."""
+    """Map events to executable tasks. Returns deduplicated task list with cooldown."""
     tasks = []
     seen_targets = set()
 
@@ -185,7 +207,9 @@ def enqueue_tasks(events: list) -> list:
 
         if etype == "container_down":
             container = event["container"]
-            if container in ARR_CONTAINERS and container not in seen_targets:
+            if (container in ARR_CONTAINERS
+                    and container not in seen_targets
+                    and not _recent_actions(container)):
                 tasks.append({
                     "action": "docker.restart", "target": container,
                     "reason": "container_down", "source": "event",
@@ -193,18 +217,20 @@ def enqueue_tasks(events: list) -> list:
                 seen_targets.add(container)
 
         elif etype == "vpn_down" and "gluetun" not in seen_targets:
-            tasks.append({
-                "action": "docker.restart", "target": "gluetun",
-                "reason": "vpn_down", "source": "event",
-            })
-            seen_targets.add("gluetun")
+            if not _recent_actions("gluetun"):
+                tasks.append({
+                    "action": "docker.restart", "target": "gluetun",
+                    "reason": "vpn_down", "source": "event",
+                })
+                seen_targets.add("gluetun")
 
         elif etype == "vpn_leak" and "gluetun" not in seen_targets:
-            tasks.append({
-                "action": "docker.restart", "target": "gluetun",
-                "reason": "vpn_leak_AR", "source": "event",
-            })
-            seen_targets.add("gluetun")
+            if not _recent_actions("gluetun"):
+                tasks.append({
+                    "action": "docker.restart", "target": "gluetun",
+                    "reason": "vpn_leak_AR", "source": "event",
+                })
+                seen_targets.add("gluetun")
 
     return tasks
 
@@ -328,7 +354,8 @@ def trigger_patterns() -> list:
         target = pattern.get("target", "")
 
         # Only generate preemptive restart tasks for container_down patterns
-        if etype == "container_down" and target in ARR_CONTAINERS:
+        if (etype == "container_down" and target in ARR_CONTAINERS
+                and not _recent_actions(target)):
             tasks.append({
                 "action": "docker.restart", "target": target,
                 "reason": f"pattern:{etype}@{current_hour}h",
