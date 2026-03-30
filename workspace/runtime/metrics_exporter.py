@@ -222,8 +222,112 @@ def calculate_health(
     return max(round(score, 1), 0.0)
 
 
-# ── Auto-start server on import ──────────────────────────────────
-# The metrics server must persist for the container lifetime.
-# Auto-starting on import ensures it's up whenever runtime runs.
+# ── Cross-process metrics sync ──────────────────────────────────
+# runtime.py runs as a cron subprocess, metrics_server.py is persistent.
+# They don't share memory. This file bridges them via JSON.
 
-start_server()
+METRICS_STATE_FILE = BASE_DIR / "logs" / "metrics_state.json"
+
+
+def write_metrics_snapshot():
+    """Write cumulative metrics to file for metrics_server.py to read.
+
+    Called at the end of each runtime cycle. metrics_server.py polls
+    this file and updates Prometheus Gauges so Prometheus can scrape them.
+    """
+    state = _load_metrics_state()
+
+    # Accumulate this cycle's values into persistent state
+    # (each runtime.py process starts counters from 0, so we add)
+    METRICS_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(METRICS_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def _load_metrics_state() -> dict:
+    """Load existing metrics state, return defaults if missing."""
+    try:
+        with open(METRICS_STATE_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {
+            "runs": 0, "failures": 0, "restarts": 0,
+            "vpn_disconnects": 0, "ollama_failures": 0,
+            "freezes": 0, "watchdogs": 0, "health_score": 0,
+            "last_duration": 0,
+        }
+
+
+def increment_state(key: str, value=1):
+    """Increment a cumulative counter in the persistent state file."""
+    state = _load_metrics_state()
+    state[key] = state.get(key, 0) + value
+    METRICS_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(METRICS_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def set_state(key: str, value):
+    """Set a gauge value in the persistent state file."""
+    state = _load_metrics_state()
+    state[key] = value
+    METRICS_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(METRICS_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+# Patch record functions to also persist to state file
+_orig_record_run = record_run
+_orig_record_failure = record_failure
+_orig_record_container_restart = record_container_restart
+_orig_record_vpn_disconnect = record_vpn_disconnect
+_orig_record_ollama_failure = record_ollama_failure
+_orig_record_freeze = record_freeze
+_orig_record_watchdog = record_watchdog
+_orig_set_health_score = set_health_score
+
+
+def record_run(duration: float):
+    _orig_record_run(duration)
+    increment_state("runs")
+    set_state("last_duration", round(duration, 2))
+
+
+def record_failure():
+    _orig_record_failure()
+    increment_state("failures")
+
+
+def record_container_restart():
+    _orig_record_container_restart()
+    increment_state("restarts")
+
+
+def record_vpn_disconnect():
+    _orig_record_vpn_disconnect()
+    increment_state("vpn_disconnects")
+
+
+def record_ollama_failure():
+    _orig_record_ollama_failure()
+    increment_state("ollama_failures")
+
+
+def record_freeze():
+    _orig_record_freeze()
+    increment_state("freezes")
+
+
+def record_watchdog():
+    _orig_record_watchdog()
+    increment_state("watchdogs")
+
+
+def set_health_score(score: float):
+    _orig_set_health_score(score)
+    set_state("health_score", round(score, 1))
+
+
+# ── Server startup ──────────────────────────────────────────────
+# DO NOT auto-start here. metrics_server.py owns the :9105 port.
+# runtime.py writes to metrics_state.json, metrics_server.py reads it.

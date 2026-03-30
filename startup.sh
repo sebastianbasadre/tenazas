@@ -2,8 +2,8 @@
 openclaw gateway &
 OC_PID=$!
 
-# Start Prometheus metrics server (persistent background process)
-cd /home/tenazas && python3 -c "from runtime.metrics_exporter import start_server; start_server(); import time; time.sleep(999999)" &
+# Start Prometheus metrics server (polls metrics_state.json, serves :9105)
+cd /home/tenazas && python3 /home/tenazas/runtime/metrics_server.py &
 
 sleep 20
 
