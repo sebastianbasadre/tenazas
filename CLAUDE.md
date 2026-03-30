@@ -651,6 +651,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_self_debugger.py # 41 test
 docker exec openclaw python3 /home/tenazas/tests/test_self_dev.py      # 28 tests
 docker exec openclaw python3 /home/tenazas/tests/test_idle_learning.py # 27 tests
 docker exec openclaw python3 /home/tenazas/tests/test_bg_agents.py     # 27 tests
+docker exec openclaw python3 /home/tenazas/tests/test_worker_super.py  # 22 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
