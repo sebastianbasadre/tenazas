@@ -319,11 +319,21 @@ workspace/runtime/
 ### Protecciones del runtime loop
 - **Lockfile:** `/tmp/tenazas_runtime.lock` — stale detection por edad de archivo (10 min)
 - **SIGALRM watchdog:** hard kill a 120s si el ciclo se cuelga (Linux only)
+- **Freeze detector:** heartbeat cada step, alerta si >30s sin progreso + Telegram alert
+- **Watchdog thread:** background thread chequea freeze cada 5s
 - **Runtime Supervisor:** `runtime_supervisor.py` — wrapper externo que mata subprocess a 120s
 - **nmap rate limiting:** `nmap_cache.json` — scan cada 30 min, reutiliza cache entre ciclos
 - **Log rotation:** `RotatingFileHandler` — 5MB max, 5 backups
-- **Crash capture:** `devin_lite.py` — stacktrace + state + events guardados en `logs/runtime_crash.json`
+- **Crash capture:** `devin_lite.py` — stacktrace + state + events en `logs/runtime_crash.json`
 - **Cooldown:** 20 min por target (no re-reinicia si ya se reinicio)
+
+### Observabilidad (Prometheus-compatible)
+- **metrics_exporter.py** — exporta metricas en `:9105/metrics` (si `prometheus_client` instalado)
+- **Fallback:** si no hay prometheus, loguea a `logs/runtime_metrics.log` (JSON)
+- **Step profiling:** cada fase del runtime se cronometra y exporta
+- **Health score:** 0-100 basado en duracion, freezes, restarts
+- **Metricas:** runtime_runs_total, runtime_duration_seconds, container_restarts_total, vpn_disconnects_total, runtime_freeze_detected, runtime_health_score
+- **Grafana:** `prometheus.yml` incluido para scraping
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
@@ -625,6 +635,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 43 test
 docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
+docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh

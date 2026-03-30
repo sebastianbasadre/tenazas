@@ -25,6 +25,8 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from runtime import executors
+from runtime import freeze_detector
+from runtime import metrics_exporter
 
 # ── SIGALRM watchdog (Linux only, ignored on Windows) ────────────
 
@@ -485,6 +487,35 @@ def _build_notification(events: list, results: list, curr: dict) -> str | None:
     return header + "\n" + "\n".join(lines)
 
 
+def _profiled(name: str, fn, *args, **kwargs):
+    """Run a function with heartbeat + step profiling."""
+    freeze_detector.heartbeat(name)
+    t0 = time.time()
+    result = fn(*args, **kwargs)
+    dur = time.time() - t0
+    metrics_exporter.record_step(name, dur)
+    return result
+
+
+def _watchdog_thread():
+    """Background thread that checks for freezes every 5 seconds."""
+    import threading
+    while threading.current_thread().is_alive():
+        time.sleep(5)
+        status = freeze_detector.check()
+        if status["frozen"]:
+            step = status["last_step"]
+            dur = status["since_last_beat"]
+            _runtime_log(f"FREEZE detected at step={step} stalled={dur}s")
+            metrics_exporter.record_freeze()
+            try:
+                msg = f"Runtime freeze detected\nLast step: {step}\nDuration: {dur}s"
+                executors.notify_telegram(msg)
+            except Exception:
+                pass
+            break  # Only alert once per cycle
+
+
 def main():
     start = time.time()
 
@@ -498,36 +529,69 @@ def main():
             signal.alarm(0)
         return
 
+    # Start freeze detector + watchdog thread
+    freeze_detector.start()
+    import threading
+    watchdog = threading.Thread(target=_watchdog_thread, daemon=True)
+    watchdog.start()
+
     try:
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         _runtime_log("cycle start")
 
-        prev, curr = update_state()
-        events = detect_events(prev, curr)
+        prev, curr = _profiled("update_state", update_state)
+
+        events = _profiled("detect_events", detect_events, prev, curr)
         save_json(EVENTS_FILE, {"ts": curr["ts"], "events": events})
 
-        tasks = enqueue_tasks(events)
-        pattern_tasks = trigger_patterns()
+        # Record infra events as metrics
+        for ev in events:
+            etype = ev.get("type", "")
+            if etype in ("vpn_down", "vpn_leak"):
+                metrics_exporter.record_vpn_disconnect()
+            elif etype == "ollama_notebook_down":
+                metrics_exporter.record_ollama_failure()
+
+        tasks = _profiled("enqueue_tasks", enqueue_tasks, events)
+        pattern_tasks = _profiled("trigger_patterns", trigger_patterns)
         all_tasks = tasks + pattern_tasks
         save_json(TASKS_FILE, {"ts": curr["ts"], "tasks": all_tasks})
 
+        freeze_detector.heartbeat("run_tasks")
         results = run_tasks(all_tasks)
-        append_memory(events, results)
-        analyze_patterns()
+        for r in results:
+            if r.get("action") == "docker.restart":
+                metrics_exporter.record_container_restart()
 
+        _profiled("append_memory", append_memory, events, results)
+        _profiled("analyze_patterns", analyze_patterns)
+
+        freeze_detector.heartbeat("notify")
         msg = _build_notification(events, results, curr)
         if msg:
             executors.notify_telegram(msg)
 
         elapsed = round(time.time() - start, 1)
-        _runtime_log(f"cycle done events={len(events)} tasks={len(all_tasks)} elapsed={elapsed}s")
 
-        # Watchdog: warn if approaching timeout
-        if elapsed > GLOBAL_TIMEOUT_SECONDS:
-            _runtime_log(f"WARNING: cycle exceeded {GLOBAL_TIMEOUT_SECONDS}s timeout")
+        # Health score
+        step_durations = freeze_detector.get_detector().get_step_durations()
+        health = metrics_exporter.calculate_health(
+            elapsed, step_durations,
+            freeze_count=freeze_detector.get_detector().freeze_count,
+            restart_count=len(results),
+        )
+        metrics_exporter.set_health_score(health)
+        metrics_exporter.record_run(elapsed)
+
+        _runtime_log(
+            f"cycle done events={len(events)} tasks={len(all_tasks)} "
+            f"elapsed={elapsed}s health={health}"
+        )
 
     except TimeoutError:
         _runtime_log("KILLED: SIGALRM watchdog triggered — cycle took too long")
+        metrics_exporter.record_watchdog()
+        metrics_exporter.record_failure()
         try:
             from runtime.devin_lite import capture_crash
             capture_crash(TimeoutError("watchdog triggered"), load_json(STATE_FILE, {}))
@@ -536,6 +600,7 @@ def main():
 
     except Exception as e:
         _runtime_log(f"ERROR: {e}")
+        metrics_exporter.record_failure()
         try:
             from runtime.devin_lite import capture_crash
             capture_crash(e, load_json(STATE_FILE, {}))
@@ -544,8 +609,9 @@ def main():
         raise
 
     finally:
+        freeze_detector.stop()
         if hasattr(signal, "alarm"):
-            signal.alarm(0)  # Cancel alarm
+            signal.alarm(0)
         _release_lock()
 
 
