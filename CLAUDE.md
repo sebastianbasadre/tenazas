@@ -636,6 +636,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 40 test
 docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 43 tests
 docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
+docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -705,6 +706,17 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_safety_guard.py** (62 tests — unittest)
+- Blocked actions: docker exec/rm/build/pull, network config, file delete outside
+- Protected containers: openclaw, watchtower (case-insensitive, whitespace)
+- Arr-stack whitelist: all 10 containers, unknown blocked, no target blocked
+- Container name sanitization: injection, backticks, pipes, newlines, dashes
+- File operations: read always allowed, write/delete only within runtime dir, path traversal
+- Unknown actions: default-deny whitelist policy
+- is_safe_container(): helper validation
+- Getters: return copies (mutation safety)
+- Logging: all validations logged to safety.log with timestamp, action, target, context
 
 **test_auto_heal.sh** (bash + mocks)
 - VPN leak, gluetun down, container caido, lock file, ollama status
