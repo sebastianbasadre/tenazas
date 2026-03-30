@@ -645,6 +645,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_world_model.py   # 38 test
 docker exec openclaw python3 /home/tenazas/tests/test_shared_memory.py # 39 tests
 docker exec openclaw python3 /home/tenazas/tests/test_skill_gen.py     # 34 tests
 docker exec openclaw python3 /home/tenazas/tests/test_goal_engine.py   # 30 tests
+docker exec openclaw python3 /home/tenazas/tests/test_self_debugger.py # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -714,6 +715,14 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_self_debugger.py** (41 tests — unittest)
+- Load log lines: JSON, non-JSON (raw), missing file, max lines cap
+- Error detection: ok=False, error field, keyword matching, clean entries
+- Error classification: timeout, connection, permission, not_found, parse, module, general
+- Error message extraction: error/stderr/detail/raw fields, action+target fallback, truncation, empty
+- diagnose(): empty/missing/healthy log, errors with root cause, most common category, suggestion, summary stats, error rate, max cap, string path
+- scan_all_logs(): no dir, empty, all healthy, degraded, unhealthy thresholds, skips self_debug.log, per-file reports
 
 **test_goal_engine.py** (30 tests — unittest)
 - Load goals: missing file creates 3 permanent goals, initialized as active, existing preserved
