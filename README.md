@@ -17,14 +17,17 @@ Synology DS923+ (192.168.2.2)
 │   │                      seerr, requestrr, tautulli, sabnzbd
 │   ├── chromadb         — Vector DB para RAG (:8100)
 │   ├── piper            — TTS local (voz es_MX)
+│   ├── prometheus       — Metricas (:9090), retencion 30d/1GB
+│   ├── grafana          — Dashboard (:3000), admin/tenazas
 │   ├── ollama           — LLM fallback CPU
 │   ├── portainer        — Dashboard Docker
 │   └── watchtower       — Auto-update de imagenes
 │
 MSI Notebook (192.168.2.76) — GPU remota
-└── Ollama (:11434) — RTX 4050
+└── Ollama (:11434) — RTX 4050, 6GB VRAM
     ├── qwen2.5:3b/7b    — Tareas de sistema y razonamiento
     ├── qwen3:8b          — Alternativa
+    ├── phi4-mini         — Fallback liviano (pre-cargado en VRAM)
     └── nomic-embed-text  — Embeddings para RAG
 
 Smart Home (LAN)
@@ -32,7 +35,7 @@ Smart Home (LAN)
 └── Samsung M8 Monitor   — Control via WebSocket
 ```
 
-**18 containers** en operacion normal. Canal de comunicacion principal: **Telegram**.
+**20 containers** en operacion normal. Canal de comunicacion principal: **Telegram**.
 
 ---
 
@@ -41,16 +44,71 @@ Smart Home (LAN)
 | Componente | Descripcion |
 |---|---|
 | **Orchestrator** | Clasifica queries y routea al pipeline + modelo optimo (keyword+regex, sin LLM) |
-| **Runtime Layer** | 41 modulos: monitoreo, diagnosticos, razonamiento, aprendizaje, simulacion |
+| **Runtime Layer** | 42 modulos: monitoreo, diagnosticos, razonamiento, aprendizaje, simulacion |
 | **RAG Pipeline** | Query rewrite → hybrid retrieval → rerank → confidence → memory fusion → compress → actions → LLM |
+| **Model Failover** | Detecta Gemini 429, auto-switch a Ollama phi4-mini, retry cada 5min |
+| **Observabilidad** | Prometheus + Grafana, 15 metricas (health, runs, duration, restarts, VPN, RAG, steps, failover) |
 | **Reasoning** | Multi-agent (Qwen+Phi), agent lab, planner, predictive engine |
 | **Learning** | Metrics engine, self-optimizer, idle learning, model distillation, dataset builder |
 | **Safety** | Safety guard, docker wrapper, audit logs. Nunca auto-ejecuta acciones de infra |
 | **Infra Intelligence** | Infra memory (patrones), predictive engine, runbooks, world model, simulation lab |
-| **LLM Routing** | Hardware-aware model router. Cascada: GPU → CPU → Cloud |
+| **LLM Routing** | Hardware-aware model router. Cascada: Gemini Flash → Ollama GPU → Ollama CPU |
 | **Arr-stack** | 10 containers de media gestionados via VPN (gluetun) |
 | **Smart Home** | Control de luces Hue y monitor Samsung M8 |
 | **22 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) |
+
+---
+
+## Observabilidad
+
+### Prometheus (:9090)
+Scrapea metricas cada 30s de `:9105/metrics`. Retencion 30d/1GB.
+
+### Grafana (:3000)
+Dashboard "Tenazas Runtime" con 14 paneles:
+- Health Score (gauge + historia)
+- Ciclos completados, failures, durations
+- Container restarts, VPN disconnects, Ollama failures
+- Freezes, watchdog events
+- Step durations (update_state, detect_events, run_tasks, nmap)
+- RAG queries, low confidence
+- Memoria y CPU del proceso
+
+### Metricas exportadas
+```
+runtime_runs_total              runtime_last_duration_seconds
+runtime_failures_total          runtime_health_score
+container_restarts_total        vpn_disconnects_total
+ollama_failures_total           runtime_freeze_detected
+runtime_watchdog_triggered      rag_queries_total
+rag_low_confidence_total        model_failover_active
+runtime_step_update_state_seconds
+runtime_step_detect_events_seconds
+runtime_step_run_tasks_seconds
+runtime_step_nmap_seconds
+```
+
+### Flujo de metricas
+```
+runtime.py (cron 5min) → metrics_state.json → metrics_server.py → :9105 → Prometheus → Grafana
+```
+
+---
+
+## Model Failover
+
+Gemini Flash es el modelo primario (gratis, capaz). Cuando da rate limit (429):
+
+```
+Gemini 429 detectado
+    → model_failover.py cambia config a ollama/phi4-mini
+    → OpenClaw hot-reload (sin restart)
+    → phi4-mini ya pre-cargado en VRAM (sin cold start)
+    → Cada 5 min, prueba si Gemini volvio
+    → Si disponible, switch back automatico
+```
+
+Docker healthcheck reinicia el container si el gateway no responde por 3 minutos.
 
 ---
 
@@ -58,7 +116,7 @@ Smart Home (LAN)
 
 - **Synology NAS** con Docker (o cualquier host Linux con Docker)
 - **Node.js 22** (incluido en la imagen Docker)
-- **Python 3** con pip (incluido en la imagen Docker)
+- **Python 3** con pip + prometheus_client
 - **Docker socket** accesible (`/var/run/docker.sock`)
 - **API keys** configuradas en `state/openclaw.json`:
   - Telegram Bot Token
@@ -85,7 +143,11 @@ docker compose up -d
 docker ps --format "table {{.Names}}\t{{.Status}}" | head -20
 ```
 
-El container `openclaw` arranca con `startup.sh`, que inicia el gateway y notifica via Telegram.
+El container `openclaw` arranca con `startup.sh`, que inicia:
+1. OpenClaw gateway (bot Telegram)
+2. Metrics server (Prometheus :9105)
+3. Model failover monitor (auto-switch Gemini/Ollama)
+4. Notificacion Telegram de startup
 
 ### Cron jobs (DSM Task Scheduler)
 
@@ -102,19 +164,38 @@ El container `openclaw` arranca con `startup.sh`, que inicia el gateway y notifi
 ```bash
 # Todas las suites
 docker exec openclaw bash /home/tenazas/tests/run_tests.sh
-
-# Por suite individual
-docker exec openclaw python3 /home/tenazas/tests/test_runtime.py      # 48 tests
-docker exec openclaw python3 /home/tenazas/tests/test_query.py
-docker exec openclaw python3 /home/tenazas/tests/test_compact.py
-docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
-docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
 ```
 
-Desde Windows via SSH:
-```bash
-ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /home/tenazas/tests/test_runtime.py'
-```
+### Test suites (414 tests)
+
+| Suite | Tests | Cobertura |
+|---|---|---|
+| test_runtime.py | 54 | Docker wrapper, eventos, tareas, patterns, VPN, cooldown |
+| test_safety_guard.py | 62 | Blocked actions, protected containers, sanitizacion, file ops |
+| test_orchestrator.py | 43 | Clasificacion, model selection, pipeline, escalation |
+| test_self_debugger.py | 41 | Log analysis, error classification, scan_all_logs |
+| test_confidence.py | 40 | Scoring, source classification, action mapping, diagnostics |
+| test_advanced.py | 41 | Metrics, infra memory, runbooks, multi-agent, optimizer |
+| test_world_model.py | 38 | Entities, status, topology, state loading, data integrity |
+| test_shared_memory.py | 39 | 4 memory types, persistence, ingestion, queries |
+| test_planner.py | 35 | Templates, context substitution, approval, event mapping |
+| test_query.py | 34 | RAG reranking, compression, memory fusion, scoring |
+| test_skill_generator.py | 34 | Workflow analysis, proposals, approve/reject lifecycle |
+| test_intelligence.py | 33 | Context, trace, conflict, retrieval, knowledge graph |
+| test_model_router.py | 31 | GPU/CPU routing, VRAM constraints, fallback, catalog |
+| test_goal_engine.py | 30 | 3 goals evaluation, metrics counting, state persistence |
+| test_self_dev_engine.py | 28 | Debug/metrics/idle analysis, proposals, dedup |
+| test_idle_learning.py | 27 | Confidence/escalation/latency/imbalance, log patterns |
+| test_background_agents.py | 27 | Infra watcher, scheduling, execution, status |
+| test_observability.py | 25 | Freeze detection, metrics export, health score |
+| test_supervisor.py | 22 | Lock lifecycle, timeout, terminate fallback |
+| test_stability.py | 17 | Lockfile, nmap cache, crash capture |
+| test_compact.py | 11 | Context compaction |
+| test_cognitive.py | varies | Intent, decomposition, reasoning |
+| test_auto_heal.sh | bash | VPN leak, containers, lock |
+| test_ollama_check.sh | bash | Routing, cache, JSON |
+
+Coverage: **77%** (36 de 47 modulos runtime testeados)
 
 ---
 
@@ -122,52 +203,43 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 ```
 openclaw/
-├── docker-compose.yml       — Definicion de servicios
+├── docker-compose.yml       — Servicios (openclaw + prometheus + grafana)
 ├── Dockerfile               — Imagen base (node:22-bookworm + python3)
-├── startup.sh               — Arranque del container
+├── startup.sh               — Arranque: gateway + metrics + failover + telegram
+├── prometheus.yml            — Config de Prometheus scraping
+├── grafana-dashboard.json    — Dashboard Grafana (14 paneles)
 ├── ollama-check.sh          — Routing de modelos Ollama con cache
-├── auto-heal.sh             — (deprecated, reemplazado por runtime layer)
 ├── learn.py                 — Aprendizaje multi-source semanal
 ├── self-evolve.py           — Auto-analisis y propuestas de mejora
-├── gcal-auth.py             — Setup OAuth para Google Calendar
 │
 ├── state/                   — Config y estado (gitignored)
 │   ├── openclaw.json        — Config principal + secrets
-│   └── workspace/skills/    — 22 skills con SKILL.md cada una
+│   └── workspace/
+│       ├── SOUL.md          — Personalidad e instrucciones del bot
+│       └── skills/          — 22 skills con SKILL.md cada una
 │
-├── workspace/
-│   ├── runtime/               — Runtime layer (41 modulos)
-│   │   ├── orchestrator.py    — Central AI routing
-│   │   ├── runtime.py         — Loop principal event-driven
-│   │   ├── safety_guard.py    — Validacion central de seguridad
-│   │   ├── confidence_engine.py, action_mapper.py, infra_diagnostics.py
-│   │   ├── metrics_engine.py, infra_memory.py, runbook_generator.py
-│   │   ├── multi_agent_engine.py, agent_lab.py, planner.py
-│   │   ├── predictive_engine.py, world_model.py, shared_memory.py
-│   │   ├── self_optimizer.py, self_debugger.py, self_dev_engine.py
-│   │   ├── model_router.py, model_distillation.py, self_benchmark.py
-│   │   ├── context_manager.py, decision_trace.py, agent_conflict.py
-│   │   ├── retrieval_quality.py, adaptive_router.py, prompt_optimizer.py
-│   │   ├── knowledge_graph.py, failure_simulator.py, experiment_engine.py
-│   │   ├── skill_analytics.py, simulation_lab.py, architecture_evolution.py
-│   │   └── ... (background_agents, idle_learning, research, etc.)
-│   ├── runtime.py             — Runtime legacy (coexiste)
-│   └── executors.py           — Executors legacy
+├── workspace/runtime/         — Runtime layer (42 modulos)
+│   ├── runtime.py             — Loop principal event-driven (cada 5 min)
+│   ├── runtime_supervisor.py  — Wrapper con timeout protection
+│   ├── orchestrator.py        — Central AI routing
+│   ├── safety_guard.py        — Validacion central de seguridad
+│   ├── docker_wrapper.py      — Capa segura para Docker
+│   ├── model_failover.py      — Auto-switch Gemini/Ollama en 429
+│   ├── model_router.py        — Hardware-aware model selection
+│   ├── metrics_exporter.py    — Recording API + cross-process sync
+│   ├── metrics_server.py      — Prometheus HTTP server (:9105)
+│   ├── planner.py             — Rule-based recovery plans
+│   ├── world_model.py         — Infrastructure state representation
+│   ├── shared_memory.py       — Multi-type memory system
+│   ├── skill_generator.py     — Detects recurring workflows
+│   ├── goal_engine.py         — 3 permanent goals tracking
+│   ├── self_debugger.py       — Log error analysis
+│   ├── self_dev_engine.py     — Improvement proposals
+│   ├── idle_learning_engine.py — Idle-time optimization
+│   ├── background_agents.py   — Persistent background tasks
+│   └── ... (30+ mas)
 │
-├── tests/                     — Test suites (unittest + bash)
-│   ├── run_tests.sh
-│   ├── test_runtime.py        — 54 tests del runtime layer + cooldown
-│   ├── test_query.py          — 34 tests del RAG pipeline
-│   ├── test_confidence.py     — 40 tests confidence + actions + diagnostics
-│   ├── test_orchestrator.py   — 43 tests del orchestrator
-│   ├── test_advanced.py       — 41 tests metrics + memory + runbooks + multi-agent
-│   ├── test_intelligence.py   — 33 tests context + trace + conflict + graph
-│   ├── test_compact.py        — 11 tests de compactacion
-│   ├── test_auto_heal.sh      — Tests de auto-heal
-│   └── test_ollama_check.sh   — Tests de ollama routing
-│
-├── himalaya-config/         — Configuracion de email (gitignored)
-├── credentials/             — API keys (gitignored)
+├── tests/                     — 414 tests (unittest + bash)
 └── CLAUDE.md                — Documentacion completa para Claude Code
 ```
 
@@ -178,9 +250,11 @@ openclaw/
 - **docker_wrapper.py** es la unica via para ejecutar comandos Docker desde el runtime
 - Whitelist de acciones: `ps`, `restart`, `start`, `stop` (no `exec`, `rm`, `build`)
 - Containers protegidos: `openclaw` y `watchtower` no pueden ser reiniciados automaticamente
+- **safety_guard.py** valida todas las acciones antes de ejecutar (62 tests)
 - Sanitizacion de nombres via regex + blocklist
 - Audit log en JSON (`logs/docker_actions.log`)
 - Secrets nunca hardcodeados — viven en `openclaw.json`, env vars, o `credentials/`
+- Docker healthcheck con auto-restart si gateway no responde (3 min)
 
 ---
 
