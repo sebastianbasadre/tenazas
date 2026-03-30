@@ -641,6 +641,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 test
 docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 31 tests
 docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 tests
 docker exec openclaw python3 /home/tenazas/tests/test_world_model.py   # 38 tests
+docker exec openclaw python3 /home/tenazas/tests/test_shared_memory.py # 39 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -710,6 +711,16 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_shared_memory.py** (39 tests — unittest)
+- Load/save: missing file, existing data, missing types initialized, max entries cap, keeps recent
+- add_entry: all 4 types, invalid type rejected, timestamp, source, metadata, append
+- query_memory: all entries, keyword filter (case-insensitive, source match), limit, recent-first, invalid type
+- clear_working_memory: clears working, preserves other types
+- ingest_episodic: from memory_log.json, no duplicates, missing file, non-list, container in content
+- ingest_procedural: scan SKILL.md, no duplicates, missing dir, dir without SKILL.md skipped
+- get_memory_stats: empty, reflects entries
+- JSON helpers: missing file default, corrupt default, roundtrip
 
 **test_world_model.py** (38 tests — unittest + mock)
 - get_entity container: list all, specific lookup, missing, empty state
