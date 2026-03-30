@@ -333,7 +333,8 @@ workspace/runtime/
 - **Step profiling:** cada fase del runtime se cronometra y exporta
 - **Health score:** 0-100 basado en duracion, freezes, restarts
 - **Metricas:** runtime_runs_total, runtime_duration_seconds, container_restarts_total, vpn_disconnects_total, runtime_freeze_detected, runtime_health_score
-- **metrics_server.py** — proceso persistente que arranca desde startup.sh
+- **metrics_server.py** — proceso persistente que arranca desde startup.sh, polls `metrics_state.json` cada 5s
+- **metrics_state.json** — archivo compartido entre runtime.py (escribe) y metrics_server.py (lee)
 - **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
 - **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
 
