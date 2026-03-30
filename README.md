@@ -91,7 +91,7 @@ El container `openclaw` arranca con `startup.sh`, que inicia el gateway y notifi
 
 | Frecuencia | Comando |
 |---|---|
-| Cada 5 min | `docker exec openclaw python3 /home/tenazas/runtime/runtime.py` |
+| Cada 5 min | `docker exec openclaw python3 /home/tenazas/runtime/runtime_supervisor.py` |
 | Domingos 21:00 | `python3 self-evolve.py` |
 | Semanal | `python3 learn.py` |
 

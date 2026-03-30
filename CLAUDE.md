@@ -318,10 +318,21 @@ workspace/runtime/
 
 ### Protecciones del runtime loop
 - **Lockfile:** `runtime.lock` previene ejecuciones concurrentes (PID check)
+- **SIGALRM watchdog:** hard kill a 240s si el ciclo se cuelga (Linux only)
+- **Runtime Supervisor:** `runtime_supervisor.py` — wrapper externo que mata subprocess colgados
 - **nmap rate limiting:** scan de red cada 30 min, no cada 5 min
 - **Global timeout watchdog:** warning si ciclo excede 4 min
 - **Log rotation:** `logs/runtime.log` se rota a 500KB
 - **Cooldown:** 20 min por target (no re-reinicia si ya se reinicio)
+
+### Cron recomendado (DSM Task Scheduler)
+```bash
+# Opcion A: supervisor (recomendado — protege contra cuelgues)
+docker exec openclaw python3 /home/tenazas/runtime/runtime_supervisor.py
+
+# Opcion B: directo (SIGALRM se encarga del timeout)
+docker exec openclaw python3 /home/tenazas/runtime/runtime.py
+```
 
 ### docker_wrapper.py — Capa de seguridad
 - **UNICO modulo** que llama Docker via subprocess

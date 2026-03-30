@@ -10,6 +10,7 @@ Loop: update_state → detect_events → enqueue_tasks → run_tasks
 
 import json
 import os
+import signal
 import sys
 import time
 from collections import defaultdict
@@ -21,6 +22,14 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from runtime import executors
+
+# ── SIGALRM watchdog (Linux only, ignored on Windows) ────────────
+
+def _timeout_handler(signum, frame):
+    raise TimeoutError("runtime watchdog triggered")
+
+if hasattr(signal, "SIGALRM"):
+    signal.signal(signal.SIGALRM, _timeout_handler)
 
 # ── Paths ─────────────────────────────────────────────────────────
 
@@ -455,8 +464,14 @@ def _build_notification(events: list, results: list, curr: dict) -> str | None:
 def main():
     start = time.time()
 
+    # SIGALRM hard watchdog (Linux only)
+    if hasattr(signal, "alarm"):
+        signal.alarm(GLOBAL_TIMEOUT_SECONDS)
+
     # Lockfile: prevent concurrent runs
     if not _acquire_lock():
+        if hasattr(signal, "alarm"):
+            signal.alarm(0)
         return
 
     try:
@@ -487,11 +502,16 @@ def main():
         if elapsed > GLOBAL_TIMEOUT_SECONDS:
             _runtime_log(f"WARNING: cycle exceeded {GLOBAL_TIMEOUT_SECONDS}s timeout")
 
+    except TimeoutError:
+        _runtime_log("KILLED: SIGALRM watchdog triggered — cycle took too long")
+
     except Exception as e:
         _runtime_log(f"ERROR: {e}")
         raise
 
     finally:
+        if hasattr(signal, "alarm"):
+            signal.alarm(0)  # Cancel alarm
         _release_lock()
 
 
