@@ -648,6 +648,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_goal_engine.py   # 30 test
 docker exec openclaw python3 /home/tenazas/tests/test_self_debugger.py # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_self_dev.py      # 28 tests
 docker exec openclaw python3 /home/tenazas/tests/test_idle_learning.py # 27 tests
+docker exec openclaw python3 /home/tenazas/tests/test_bg_agents.py     # 27 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -717,6 +718,13 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_background_agents.py** (27 tests — unittest)
+- infra_watcher: healthy no flags, container down, protected skipped, internet down, high latency, vpn down/leak, ollama offline, missing state, multiple flags
+- _should_run: first run, elapsed, not elapsed, bad timestamp, empty
+- check_and_run: first run executes all, saves state, skips not-due, exception captured, logs created
+- get_agents_status: all listed, never run, after run state, description+interval
+- Registry: 3 agents, all callable, all named
 
 **test_idle_learning.py** (27 tests — unittest)
 - Metrics confidence: low triggers, high no trigger, insufficient samples, metric value
