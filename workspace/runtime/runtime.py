@@ -9,7 +9,9 @@ Loop: update_state → detect_events → enqueue_tasks → run_tasks
 """
 
 import json
+import os
 import sys
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -42,6 +44,10 @@ PATTERN_ANALYSIS_INTERVAL = 3600  # seconds
 PATTERN_MIN_OCCURRENCES = 3
 PATTERN_LOOKBACK_DAYS = 7
 TASK_COOLDOWN_SECONDS = 1200  # 20 min — don't re-restart same target
+NMAP_INTERVAL_SECONDS = 1800  # 30 min — rate-limit nmap scans
+GLOBAL_TIMEOUT_SECONDS = 240  # 4 min — kill if stuck
+LOCK_FILE = BASE_DIR / "runtime.lock"
+RUNTIME_LOG = LOGS_DIR / "runtime.log"
 
 # ── JSON helpers ──────────────────────────────────────────────────
 
@@ -64,6 +70,49 @@ def save_json(path: Path, data):
         json.dump(data, f, indent=2, default=str)
 
 
+# ── Lockfile ──────────────────────────────────────────────────────
+
+
+def _acquire_lock() -> bool:
+    """Acquire lockfile. Returns False if already running."""
+    if LOCK_FILE.exists():
+        try:
+            pid = int(LOCK_FILE.read_text().strip())
+            # Check if PID is still alive
+            os.kill(pid, 0)
+            return False  # Process still running
+        except (ValueError, OSError):
+            pass  # Stale lock — proceed
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LOCK_FILE.write_text(str(os.getpid()))
+    return True
+
+
+def _release_lock():
+    """Release lockfile."""
+    try:
+        if LOCK_FILE.exists():
+            LOCK_FILE.unlink()
+    except OSError:
+        pass
+
+
+# ── Runtime Log ──────────────────────────────────────────────────
+
+
+def _runtime_log(msg: str):
+    """Append to runtime log with rotation at 500KB."""
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(RUNTIME_LOG, "a") as f:
+        f.write(f"[{_now().isoformat()}] {msg}\n")
+    try:
+        if RUNTIME_LOG.stat().st_size > 500_000:
+            lines = RUNTIME_LOG.read_text().splitlines()
+            RUNTIME_LOG.write_text("\n".join(lines[len(lines) // 2:]) + "\n")
+    except OSError:
+        pass
+
+
 # ── 1. State Engine ──────────────────────────────────────────────
 
 
@@ -78,6 +127,15 @@ def update_state() -> tuple:
     ollama_notebook = executors.check_ollama_notebook()
     executors.write_ollama_status(ollama_notebook.get("ok", False))
 
+    # Rate-limit nmap scans (every 30 min, not every 5 min)
+    last_nmap = prev.get("_last_nmap", 0)
+    if time.time() - last_nmap > NMAP_INTERVAL_SECONDS:
+        network_devices = executors.check_network_devices()
+        nmap_ts = time.time()
+    else:
+        network_devices = prev.get("network_devices", {"count": 0})
+        nmap_ts = last_nmap
+
     curr = {
         "ts": _now().isoformat(),
         "containers": executors.check_containers(),
@@ -86,7 +144,8 @@ def update_state() -> tuple:
         "public_ip": executors.check_public_ip(),
         "ollama_notebook": ollama_notebook,
         "ollama_nas": executors.check_ollama_nas(),
-        "network_devices": executors.check_network_devices(),
+        "network_devices": network_devices,
+        "_last_nmap": nmap_ts,
     }
 
     save_json(STATE_FILE, curr)
@@ -394,24 +453,46 @@ def _build_notification(events: list, results: list, curr: dict) -> str | None:
 
 
 def main():
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    start = time.time()
 
-    prev, curr = update_state()
-    events = detect_events(prev, curr)
-    save_json(EVENTS_FILE, {"ts": curr["ts"], "events": events})
+    # Lockfile: prevent concurrent runs
+    if not _acquire_lock():
+        return
 
-    tasks = enqueue_tasks(events)
-    pattern_tasks = trigger_patterns()
-    all_tasks = tasks + pattern_tasks
-    save_json(TASKS_FILE, {"ts": curr["ts"], "tasks": all_tasks})
+    try:
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        _runtime_log("cycle start")
 
-    results = run_tasks(all_tasks)
-    append_memory(events, results)
-    analyze_patterns()
+        prev, curr = update_state()
+        events = detect_events(prev, curr)
+        save_json(EVENTS_FILE, {"ts": curr["ts"], "events": events})
 
-    msg = _build_notification(events, results, curr)
-    if msg:
-        executors.notify_telegram(msg)
+        tasks = enqueue_tasks(events)
+        pattern_tasks = trigger_patterns()
+        all_tasks = tasks + pattern_tasks
+        save_json(TASKS_FILE, {"ts": curr["ts"], "tasks": all_tasks})
+
+        results = run_tasks(all_tasks)
+        append_memory(events, results)
+        analyze_patterns()
+
+        msg = _build_notification(events, results, curr)
+        if msg:
+            executors.notify_telegram(msg)
+
+        elapsed = round(time.time() - start, 1)
+        _runtime_log(f"cycle done events={len(events)} tasks={len(all_tasks)} elapsed={elapsed}s")
+
+        # Watchdog: warn if approaching timeout
+        if elapsed > GLOBAL_TIMEOUT_SECONDS:
+            _runtime_log(f"WARNING: cycle exceeded {GLOBAL_TIMEOUT_SECONDS}s timeout")
+
+    except Exception as e:
+        _runtime_log(f"ERROR: {e}")
+        raise
+
+    finally:
+        _release_lock()
 
 
 if __name__ == "__main__":

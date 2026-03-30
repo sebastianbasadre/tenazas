@@ -314,7 +314,14 @@ workspace/runtime/
 ```
 
 ### Loop (cada 5 min via cron)
-`update_state → detect_events → enqueue_tasks → run_tasks → append_memory → analyze_patterns → trigger_patterns → notify_telegram`
+`lockfile → update_state → detect_events → enqueue_tasks → run_tasks → append_memory → analyze_patterns → trigger_patterns → notify_telegram → release_lock`
+
+### Protecciones del runtime loop
+- **Lockfile:** `runtime.lock` previene ejecuciones concurrentes (PID check)
+- **nmap rate limiting:** scan de red cada 30 min, no cada 5 min
+- **Global timeout watchdog:** warning si ciclo excede 4 min
+- **Log rotation:** `logs/runtime.log` se rota a 500KB
+- **Cooldown:** 20 min por target (no re-reinicia si ya se reinicio)
 
 ### docker_wrapper.py — Capa de seguridad
 - **UNICO modulo** que llama Docker via subprocess
