@@ -643,6 +643,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 test
 docker exec openclaw python3 /home/tenazas/tests/test_world_model.py   # 38 tests
 docker exec openclaw python3 /home/tenazas/tests/test_shared_memory.py # 39 tests
 docker exec openclaw python3 /home/tenazas/tests/test_skill_gen.py     # 34 tests
+docker exec openclaw python3 /home/tenazas/tests/test_goal_engine.py   # 30 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -712,6 +713,18 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_goal_engine.py** (30 tests — unittest)
+- Load goals: missing file creates 3 permanent goals, initialized as active, existing preserved
+- Save/roundtrip
+- Evaluate all met: healthy state → all achieved, metrics populated, last_evaluation set
+- Stability goal: low container % not met, internet down, vpn down, container pct metric
+- Downtime goal: too many events/restarts not met, within limits achieved
+- Accuracy goal: notebook ok, NAS-only ok, both offline not met
+- Count today: events, restarts, failed restarts excluded, empty/missing/non-list memory
+- get_goal: existing, nonexistent
+- get_blocked_goals: all active, achieved excluded
+- Empty state: missing state file handled
 
 **test_skill_generator.py** (34 tests — unittest)
 - Workflow analysis: recurring patterns, below threshold skipped, old entries skipped, empty/non-list/missing memory
