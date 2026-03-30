@@ -638,6 +638,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 test
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
 docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
 docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 tests
+docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 31 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -707,6 +708,17 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_model_router.py** (31 tests — unittest + mock)
+- Backend ping: success, failure, timeout, unknown backend, curl flags
+- Backend detection: both online, notebook offline, logging
+- Model selection GPU: system→3b, reason→7b, embed→nomic, prefer_fast, result keys
+- Model selection CPU: small model constraint (<=3.5 VRAM), fallback, NAS URL
+- Model selection offline: returns empty, logs failure
+- route(): tuple return, offline nones, embed routing
+- Future models: never selected for any task
+- Helpers: get_model_info (known/unknown), list_models (with/without future)
+- Catalog integrity: required fields, backend priority order
 
 **test_supervisor.py** (22 tests — unittest + mock)
 - Lock acquisition: fresh, concurrent blocked, stale removal, threshold boundary
