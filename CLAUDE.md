@@ -647,6 +647,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_skill_gen.py     # 34 test
 docker exec openclaw python3 /home/tenazas/tests/test_goal_engine.py   # 30 tests
 docker exec openclaw python3 /home/tenazas/tests/test_self_debugger.py # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_self_dev.py      # 28 tests
+docker exec openclaw python3 /home/tenazas/tests/test_idle_learning.py # 27 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -716,6 +717,16 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_idle_learning.py** (27 tests — unittest)
+- Metrics confidence: low triggers, high no trigger, insufficient samples, metric value
+- Metrics escalation: high rate triggers, low rate no trigger
+- Metrics latency: outliers trigger, uniform no trigger
+- Metrics model imbalance: imbalanced triggers, balanced/single no trigger
+- Log patterns: recurring failure, no failures, recurring critical, missing logs, below threshold
+- Confidence trends: declining triggers, stable no trigger, insufficient days, missing ts
+- analyze_idle: empty e2e, saves file, dedup, sorted by priority, logs
+- get_suggestions: empty, returns saved
 
 **test_self_dev_engine.py** (28 tests — unittest + mock)
 - Debug analysis: high error rate proposal, low rate no proposal, timeout threshold, module error, import error, empty reports
