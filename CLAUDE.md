@@ -248,16 +248,40 @@ Flow: Guardian primero (siempre) → Reasoner+Executor en paralelo → Analyst �
 
 Sistema de monitoreo inteligente en `workspace/runtime/`.
 
-### Arquitectura (nueva, reemplaza auto-heal.sh)
+### Arquitectura (31 modulos, reemplaza auto-heal.sh)
 ```
 workspace/runtime/
-├── orchestrator.py         — Central AI routing (classify + model select)
-├── runtime.py              — Loop principal event-driven
-├── docker_wrapper.py       — Capa de seguridad Docker
-├── executors.py            — Probes de monitoreo + dispatch
-├── confidence_engine.py    — Scoring de confianza para RAG
-├── action_mapper.py        — Mapeo de problemas a skills
-├── infra_diagnostics.py    — Diagnosticos rule-based de infra
+├── orchestrator.py            — Central AI routing (classify + model select)
+├── runtime.py                 — Loop principal event-driven (cada 5 min)
+├── docker_wrapper.py          — Capa de seguridad Docker
+├── executors.py               — Probes de monitoreo + dispatch
+├── confidence_engine.py       — Scoring de confianza para RAG
+├── action_mapper.py           — Mapeo de problemas a skills
+├── infra_diagnostics.py       — Diagnosticos rule-based
+├── metrics_engine.py          — Metricas operacionales + agregacion
+├── infra_memory.py            — Deteccion de patrones recurrentes
+├── runbook_generator.py       — Runbooks de reparacion reutilizables
+├── multi_agent_engine.py      — Razonamiento cooperativo Qwen+Phi
+├── self_optimizer.py          — Aprende mejores pipeline+modelo combos
+├── agent_lab.py               — Lab de agentes distribuidos
+├── shared_memory.py           — Memoria compartida (semantic/episodic/procedural/working)
+├── world_model.py             — Modelo del mundo (containers, red, servicios)
+├── goal_engine.py             — Sistema de objetivos (stability, uptime, accuracy)
+├── planner.py                 — Planificacion de tareas complejas
+├── predictive_engine.py       — Prediccion de fallas de infra
+├── model_router.py            — Seleccion de modelos por hardware disponible
+├── skill_generator.py         — Propuesta de nuevos skills (requiere aprobacion)
+├── safety_guard.py            — Validacion central de seguridad
+├── idle_learning_engine.py    — Aprendizaje en periodos idle
+├── background_agents.py       — Agentes persistentes (watcher, pattern, metrics)
+├── research_engine.py         — Investigacion autonoma de problemas
+├── self_debugger.py           — Auto-diagnostico de errores de Tenazas
+├── self_dev_engine.py         — Propuestas de mejora de codigo
+├── model_distillation.py      — Transferencia de conocimiento entre modelos
+├── dataset_builder.py         — Generacion de datasets operacionales
+├── self_benchmark.py          — Benchmarking de rendimiento
+├── simulation_lab.py          — Simulacion de escenarios de infra
+├── architecture_evolution.py  — Deteccion de limitaciones arquitecturales
 └── __init__.py
 ```
 

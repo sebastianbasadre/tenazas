@@ -41,16 +41,16 @@ Smart Home (LAN)
 | Componente | Descripcion |
 |---|---|
 | **Orchestrator** | Clasifica queries y routea al pipeline + modelo optimo (keyword+regex, sin LLM) |
-| **Runtime Layer** | Monitoreo event-driven (cada 5 min): detecta containers caidos, leaks VPN, Ollama offline. Cooldown de 20 min por target |
-| **RAG Pipeline** | Query rewrite → hybrid retrieval → rerank → confidence check → memory fusion → context compression → action mapping → LLM |
-| **Confidence Engine** | Score 0-1 (similarity, agreement, recency, source quality). Self-check: answer / caveat / expand / clarify |
-| **Action Mapper** | Mapea problemas a skills existentes. Nunca auto-ejecuta |
-| **Infra Diagnostics** | Reglas: crash loops, VPN leaks, network failures, Ollama offline. Severity: critical/warning/info |
-| **LLM Routing** | Cascada: Notebook GPU → NAS CPU → Gemini Cloud |
+| **Runtime Layer** | 31 modulos: monitoreo, diagnosticos, razonamiento, aprendizaje, simulacion |
+| **RAG Pipeline** | Query rewrite → hybrid retrieval → rerank → confidence → memory fusion → compress → actions → LLM |
+| **Reasoning** | Multi-agent (Qwen+Phi), agent lab, planner, predictive engine |
+| **Learning** | Metrics engine, self-optimizer, idle learning, model distillation, dataset builder |
+| **Safety** | Safety guard, docker wrapper, audit logs. Nunca auto-ejecuta acciones de infra |
+| **Infra Intelligence** | Infra memory (patrones), predictive engine, runbooks, world model, simulation lab |
+| **LLM Routing** | Hardware-aware model router. Cascada: GPU → CPU → Cloud |
 | **Arr-stack** | 10 containers de media gestionados via VPN (gluetun) |
 | **Smart Home** | Control de luces Hue y monitor Samsung M8 |
 | **22 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) |
-| **Multi-agent** | 5 agentes especializados: Reasoner, Executor, Guardian, Analyst, Memory |
 
 ---
 
@@ -136,14 +136,18 @@ openclaw/
 │   └── workspace/skills/    — 22 skills con SKILL.md cada una
 │
 ├── workspace/
-│   ├── runtime/               — Runtime layer (event-driven, preferido)
-│   │   ├── orchestrator.py    — Central AI routing (classify + model select)
-│   │   ├── runtime.py         — Loop principal
-│   │   ├── executors.py       — Probes de monitoreo + dispatch
-│   │   ├── docker_wrapper.py  — Capa de seguridad Docker
-│   │   ├── confidence_engine.py — Scoring de confianza para RAG
-│   │   ├── action_mapper.py   — Mapeo de problemas a skills
-│   │   └── infra_diagnostics.py — Diagnosticos rule-based
+│   ├── runtime/               — Runtime layer (31 modulos)
+│   │   ├── orchestrator.py    — Central AI routing
+│   │   ├── runtime.py         — Loop principal event-driven
+│   │   ├── safety_guard.py    — Validacion central de seguridad
+│   │   ├── confidence_engine.py, action_mapper.py, infra_diagnostics.py
+│   │   ├── metrics_engine.py, infra_memory.py, runbook_generator.py
+│   │   ├── multi_agent_engine.py, agent_lab.py, planner.py
+│   │   ├── predictive_engine.py, world_model.py, shared_memory.py
+│   │   ├── self_optimizer.py, self_debugger.py, self_dev_engine.py
+│   │   ├── model_router.py, model_distillation.py, self_benchmark.py
+│   │   ├── simulation_lab.py, architecture_evolution.py
+│   │   └── ... (background_agents, idle_learning, research, etc.)
 │   ├── runtime.py             — Runtime legacy (coexiste)
 │   └── executors.py           — Executors legacy
 │
