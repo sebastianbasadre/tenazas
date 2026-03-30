@@ -642,6 +642,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 31 test
 docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 tests
 docker exec openclaw python3 /home/tenazas/tests/test_world_model.py   # 38 tests
 docker exec openclaw python3 /home/tenazas/tests/test_shared_memory.py # 39 tests
+docker exec openclaw python3 /home/tenazas/tests/test_skill_gen.py     # 34 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -711,6 +712,18 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_skill_generator.py** (34 tests — unittest)
+- Workflow analysis: recurring patterns, below threshold skipped, old entries skipped, empty/non-list/missing memory
+- Entries without events skipped, failed actions excluded
+- Proposal creation: handler vs monitor name, required keys, always requires_approval, pending status
+- Restart steps require approval, notify fallback, recurrence stored, trigger contains events
+- generate_proposals: end-to-end, dedup existing, empty memory, saved to disk, max cap
+- Load/save proposals: missing file, roundtrip
+- Pending filter: returns only pending
+- Approve: pending→approved, nonexistent/already approved/rejected returns false
+- Reject: pending→rejected, nonexistent/already rejected returns false
+- Safety invariant: proposals ALWAYS require approval
 
 **test_shared_memory.py** (39 tests — unittest)
 - Load/save: missing file, existing data, missing types initialized, max entries cap, keeps recent
