@@ -317,12 +317,12 @@ workspace/runtime/
 `lockfile → update_state → detect_events → enqueue_tasks → run_tasks → append_memory → analyze_patterns → trigger_patterns → notify_telegram → release_lock`
 
 ### Protecciones del runtime loop
-- **Lockfile:** `runtime.lock` previene ejecuciones concurrentes (PID check)
-- **SIGALRM watchdog:** hard kill a 240s si el ciclo se cuelga (Linux only)
-- **Runtime Supervisor:** `runtime_supervisor.py` — wrapper externo que mata subprocess colgados
-- **nmap rate limiting:** scan de red cada 30 min, no cada 5 min
-- **Global timeout watchdog:** warning si ciclo excede 4 min
-- **Log rotation:** `logs/runtime.log` se rota a 500KB
+- **Lockfile:** `/tmp/tenazas_runtime.lock` — stale detection por edad de archivo (10 min)
+- **SIGALRM watchdog:** hard kill a 120s si el ciclo se cuelga (Linux only)
+- **Runtime Supervisor:** `runtime_supervisor.py` — wrapper externo que mata subprocess a 120s
+- **nmap rate limiting:** `nmap_cache.json` — scan cada 30 min, reutiliza cache entre ciclos
+- **Log rotation:** `RotatingFileHandler` — 5MB max, 5 backups
+- **Crash capture:** `devin_lite.py` — stacktrace + state + events guardados en `logs/runtime_crash.json`
 - **Cooldown:** 20 min por target (no re-reinicia si ya se reinicio)
 
 ### Cron recomendado (DSM Task Scheduler)
@@ -624,6 +624,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 40 test
 docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 43 tests
 docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
+docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh

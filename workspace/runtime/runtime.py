@@ -9,10 +9,13 @@ Loop: update_state → detect_events → enqueue_tasks → run_tasks
 """
 
 import json
+import logging
+import logging.handlers
 import os
 import signal
 import sys
 import time
+import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -54,9 +57,10 @@ PATTERN_MIN_OCCURRENCES = 3
 PATTERN_LOOKBACK_DAYS = 7
 TASK_COOLDOWN_SECONDS = 1200  # 20 min — don't re-restart same target
 NMAP_INTERVAL_SECONDS = 1800  # 30 min — rate-limit nmap scans
-GLOBAL_TIMEOUT_SECONDS = 240  # 4 min — kill if stuck
-LOCK_FILE = BASE_DIR / "runtime.lock"
-RUNTIME_LOG = LOGS_DIR / "runtime.log"
+GLOBAL_TIMEOUT_SECONDS = 120  # 2 min — kill if stuck
+LOCK_FILE = Path("/tmp/tenazas_runtime.lock")
+LOCK_STALE_SECONDS = 600      # 10 min — treat lock as stale
+NMAP_CACHE_FILE = BASE_DIR / "nmap_cache.json"
 
 # ── JSON helpers ──────────────────────────────────────────────────
 
@@ -83,16 +87,20 @@ def save_json(path: Path, data):
 
 
 def _acquire_lock() -> bool:
-    """Acquire lockfile. Returns False if already running."""
+    """Acquire lockfile. Returns False if already running.
+
+    Uses file age for stale detection (10 min).
+    """
     if LOCK_FILE.exists():
         try:
-            pid = int(LOCK_FILE.read_text().strip())
-            # Check if PID is still alive
-            os.kill(pid, 0)
-            return False  # Process still running
-        except (ValueError, OSError):
-            pass  # Stale lock — proceed
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+            age = time.time() - LOCK_FILE.stat().st_mtime
+        except OSError:
+            age = 0
+        if age < LOCK_STALE_SECONDS:
+            return False  # Recent lock — another instance running
+        # Stale lock — remove and proceed
+        _runtime_log(f"stale lock removed (age={int(age)}s)")
+
     LOCK_FILE.write_text(str(os.getpid()))
     return True
 
@@ -106,20 +114,35 @@ def _release_lock():
         pass
 
 
-# ── Runtime Log ──────────────────────────────────────────────────
+# ── Rotating Logger ──────────────────────────────────────────────
+
+_logger = None
+
+
+def _get_logger() -> logging.Logger:
+    global _logger
+    if _logger is not None:
+        return _logger
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    _logger = logging.getLogger("tenazas.runtime")
+    _logger.setLevel(logging.INFO)
+    if not _logger.handlers:
+        handler = logging.handlers.RotatingFileHandler(
+            LOGS_DIR / "runtime.log",
+            maxBytes=5 * 1024 * 1024,  # 5MB
+            backupCount=5,
+        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+        _logger.addHandler(handler)
+    return _logger
 
 
 def _runtime_log(msg: str):
-    """Append to runtime log with rotation at 500KB."""
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(RUNTIME_LOG, "a") as f:
-        f.write(f"[{_now().isoformat()}] {msg}\n")
+    """Log to rotating runtime.log (5MB, 5 backups)."""
     try:
-        if RUNTIME_LOG.stat().st_size > 500_000:
-            lines = RUNTIME_LOG.read_text().splitlines()
-            RUNTIME_LOG.write_text("\n".join(lines[len(lines) // 2:]) + "\n")
-    except OSError:
-        pass
+        _get_logger().info(msg)
+    except Exception:
+        pass  # Never let logging crash the runtime
 
 
 # ── 1. State Engine ──────────────────────────────────────────────
@@ -136,14 +159,16 @@ def update_state() -> tuple:
     ollama_notebook = executors.check_ollama_notebook()
     executors.write_ollama_status(ollama_notebook.get("ok", False))
 
-    # Rate-limit nmap scans (every 30 min, not every 5 min)
-    last_nmap = prev.get("_last_nmap", 0)
-    if time.time() - last_nmap > NMAP_INTERVAL_SECONDS:
+    # Rate-limit nmap scans via cache file (every 30 min)
+    nmap_cache = load_json(NMAP_CACHE_FILE, {"last_scan": 0, "hosts": 0})
+    if time.time() - nmap_cache.get("last_scan", 0) > NMAP_INTERVAL_SECONDS:
         network_devices = executors.check_network_devices()
-        nmap_ts = time.time()
+        save_json(NMAP_CACHE_FILE, {
+            "last_scan": time.time(),
+            "hosts": network_devices.get("count", 0),
+        })
     else:
-        network_devices = prev.get("network_devices", {"count": 0})
-        nmap_ts = last_nmap
+        network_devices = {"count": nmap_cache.get("hosts", 0)}
 
     curr = {
         "ts": _now().isoformat(),
@@ -154,7 +179,6 @@ def update_state() -> tuple:
         "ollama_notebook": ollama_notebook,
         "ollama_nas": executors.check_ollama_nas(),
         "network_devices": network_devices,
-        "_last_nmap": nmap_ts,
     }
 
     save_json(STATE_FILE, curr)
@@ -504,9 +528,19 @@ def main():
 
     except TimeoutError:
         _runtime_log("KILLED: SIGALRM watchdog triggered — cycle took too long")
+        try:
+            from runtime.devin_lite import capture_crash
+            capture_crash(TimeoutError("watchdog triggered"), load_json(STATE_FILE, {}))
+        except Exception:
+            pass
 
     except Exception as e:
         _runtime_log(f"ERROR: {e}")
+        try:
+            from runtime.devin_lite import capture_crash
+            capture_crash(e, load_json(STATE_FILE, {}))
+        except Exception:
+            pass
         raise
 
     finally:

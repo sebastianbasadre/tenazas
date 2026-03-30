@@ -18,7 +18,8 @@ from pathlib import Path
 
 LOCKFILE = "/tmp/tenazas_runtime.lock"
 RUNTIME_SCRIPT = "/home/tenazas/runtime/runtime.py"
-MAX_RUNTIME_SECONDS = 240   # 4 minutos
+MAX_RUNTIME_SECONDS = 120   # 2 minutos (matches runtime GLOBAL_TIMEOUT_SECONDS)
+STALE_LOCK_SECONDS = 600    # 10 minutos
 LOGFILE = "/home/tenazas/runtime/logs/runtime_supervisor.log"
 
 
@@ -33,11 +34,11 @@ def acquire_lock():
     if os.path.exists(LOCKFILE):
         age = time.time() - os.path.getmtime(LOCKFILE)
 
-        if age < MAX_RUNTIME_SECONDS:
+        if age < STALE_LOCK_SECONDS:
             log("runtime already running, skipping")
             return False
 
-        log("stale lock detected, removing")
+        log(f"stale lock detected (age={int(age)}s), removing")
         os.remove(LOCKFILE)
 
     Path(LOCKFILE).touch()
