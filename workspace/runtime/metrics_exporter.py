@@ -328,6 +328,29 @@ def set_health_score(score: float):
     set_state("health_score", round(score, 1))
 
 
+_orig_record_step = record_step
+_orig_record_rag_query = record_rag_query
+
+
+def record_step(step: str, duration: float):
+    _orig_record_step(step, duration)
+    # Persist step durations as nested dict
+    state = _load_metrics_state()
+    steps = state.get("steps", {})
+    steps[step] = round(duration, 3)
+    state["steps"] = steps
+    METRICS_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(METRICS_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def record_rag_query(latency: float, confidence: float):
+    _orig_record_rag_query(latency, confidence)
+    increment_state("rag_queries")
+    if confidence < 0.6:
+        increment_state("rag_low_confidence")
+
+
 # ── Server startup ──────────────────────────────────────────────
 # DO NOT auto-start here. metrics_server.py owns the :9105 port.
 # runtime.py writes to metrics_state.json, metrics_server.py reads it.

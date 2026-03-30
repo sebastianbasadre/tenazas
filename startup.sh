@@ -5,6 +5,9 @@ OC_PID=$!
 # Start Prometheus metrics server (polls metrics_state.json, serves :9105)
 cd /home/tenazas && python3 /home/tenazas/runtime/metrics_server.py &
 
+# Start model failover monitor (watches for 429, switches to Ollama, pre-loads VRAM)
+cd /home/tenazas && python3 /home/tenazas/runtime/model_failover.py &
+
 sleep 20
 
 LOCKFILE="/tmp/tenazas-startup.lock"
