@@ -1,90 +1,486 @@
 # CLAUDE.md — Tenazas / openclaw
 
-Instrucciones para Claude Code al trabajar en este proyecto.
+Instrucciones completas para Claude Code al trabajar en este proyecto.
 
 ## Contexto del proyecto
 
-Tenazas es el asistente personal de Sebastián (Sebas), corriendo en OpenClaw dentro de un contenedor Docker en un NAS Synology DS923+. El proyecto es la infraestructura del asistente, no una app web ni una librería.
-
-**Stack:**
-- NAS Synology DS923+ — host principal, Docker, Ryzen CPU
-- Notebook MSI con RTX 4050 — Ollama GPU en 192.168.2.76:11434
-- arr-stack (gluetun, sonarr, radarr, lidarr, prowlarr, qbittorrent, sabnzbd, tautulli, seerr, requestrr)
-- VPN: NordVPN via gluetun, servidor es247.nordvpn.com (España)
-- ISP: Movistar Argentina — si la VPN muestra IP argentina = leak
-- ChromaDB en 192.168.2.2:8100 para RAG
-- Piper TTS con voz `es_MX-claude-high`
-
-**Archivos principales:**
-- `docker-compose.yml` — definición del contenedor openclaw
-- `Dockerfile` — imagen (node:22-bookworm + openclaw npm global)
-- `startup.sh` — arranque: lanza gateway + notifica Telegram
-- `auto-heal.sh` — auto-heal sin LLM (ver abajo)
-- `ollama-check.sh` — routing híbrido local/cloud
-- `state/workspace/` — workspace de Tenazas (SOUL.md, AGENTS.md, skills/, memory/)
+Tenazas es el asistente personal de Sebastian (Sebas), corriendo en OpenClaw dentro de un contenedor Docker en un NAS Synology DS923+. El proyecto es la infraestructura del asistente, no una app web ni una libreria.
 
 ---
 
-## Scripts de infraestructura (sin LLM)
+## Arquitectura
 
-### `auto-heal.sh`
-Corre dentro del contenedor openclaw (`docker exec openclaw bash /home/tenazas/auto-heal.sh`).
-- Check VPN: si IP via proxy gluetun (192.168.2.2:8888) = Argentina → `docker restart gluetun`, espera 30s
-- Check arr-stack: containers no `Up` → restart único, verifica a los 15s
-- Check Ollama notebook: escribe estado en `/tmp/ollama-notebook.status`
-- Notifica Telegram **solo si tomó alguna acción**
-- Lock file en `/tmp/auto-heal.lock` para evitar ejecuciones paralelas
-- **Cron DSM recomendado:** cada 15 min — `docker exec openclaw bash /home/tenazas/auto-heal.sh`
+```
+Synology DS923+ (192.168.2.2) — Host principal
+├── Docker Engine
+│   ├── openclaw          — Tenazas (network_mode: host, docker.sock montado)
+│   ├── gluetun           — VPN gateway NordVPN (es247.nordvpn.com, Espana)
+│   ├── arr-stack (10)    — gluetun, qbittorrent, sonarr, radarr, lidarr,
+│   │                       prowlarr, seerr, requestrr, tautulli, sabnzbd
+│   ├── chromadb          — Vector DB para RAG (:8100)
+│   ├── piper             — TTS local (voz es_MX-claude-high)
+│   ├── ollama            — LLM NAS CPU (fallback, solo modelos chicos)
+│   ├── portainer         — Dashboard Docker
+│   └── watchtower        — Auto-update de imagenes
+│
+├── NAS 2 (192.168.2.3)  — Backup target (HyperBackup)
+└── Router (192.168.2.1)
+
+MSI Notebook (192.168.2.76) — GPU remota
+└── Ollama (:11434) — RTX 4050, modelos principales
+    ├── qwen2.5:3b        — Tareas de sistema, rapido
+    ├── qwen2.5:7b        — Razonamiento
+    ├── qwen3:8b          — Alternativa
+    ├── phi4-mini          — Fallback liviano
+    └── nomic-embed-text  — Embeddings para RAG
+
+Smart Home (LAN)
+├── Philips Hue Bridge (192.168.2.11) — 8 luces
+└── Samsung M8 Monitor (192.168.2.46) — WebSocket control
+```
+
+**18 containers esperados** en operacion normal.
+
+---
+
+## Stack completo
+
+| Componente | Tecnologia | Ubicacion |
+|---|---|---|
+| Runtime host | Synology DS923+, Ryzen CPU | 192.168.2.2 |
+| Container engine | Docker + docker-compose | NAS |
+| Asistente | OpenClaw (Node.js 22, Bookworm) | Container `openclaw` |
+| GPU inference | Ollama (RTX 4050) | 192.168.2.76:11434 |
+| CPU inference | Ollama (Ryzen, fallback) | 127.0.0.1:11434 |
+| Cloud inference | Google Gemini 2.5 Flash/Pro | API (fallback final) |
+| Vector DB (RAG) | ChromaDB | 192.168.2.2:8100 |
+| Embeddings | nomic-embed-text via Ollama | Local, gratis |
+| TTS | Piper (es_MX-claude-high) | Container `piper` |
+| STT | OpenAI Whisper (base, es) | Dentro de `openclaw` |
+| VPN | NordVPN via gluetun | Proxy 192.168.2.2:8888 |
+| Email | himalaya CLI (IMAP/SMTP Gmail) | Dentro de `openclaw` |
+| Calendario | Google Calendar API (OAuth) | gcal.py |
+| Clima | Open-Meteo (gratis, sin key) | curl directo |
+| Chat | Telegram Bot API | Canal principal |
+| Luces | Philips Hue REST API | 192.168.2.11 |
+| Monitoreo | nmap, ping, curl | Dentro de `openclaw` |
+| Backups | Hyper Backup → NAS 2 | Daily 2-3AM |
+
+---
+
+## LLMs y routing
+
+### Modelo principal
+- **Gemini 2.5 Flash** (Google Cloud, gratis) — modelo por defecto en openclaw.json
+- **Gemini 2.5 Pro** — razonamiento complejo (alias: "reasoning")
+
+### Modelos locales (Ollama)
+| Modelo | Parametros | Uso | Backend |
+|---|---|---|---|
+| qwen2.5:3b | 3B | Sistema, logs, JSON | Notebook GPU |
+| qwen2.5:7b | 7B | Razonamiento, analisis | Notebook GPU |
+| qwen3:8b | 8B | Alternativa | Notebook GPU |
+| phi4-mini | ~4B | Fallback liviano | NAS CPU o Notebook |
+| nomic-embed-text | — | Embeddings RAG | Notebook GPU |
+
+### Cascada de routing (`ollama-check.sh`)
+1. **Notebook GPU** (192.168.2.76:11434) — preferido, todos los modelos
+2. **NAS CPU** (127.0.0.1:11434) — solo modelos chicos (phi4-mini)
+3. **Gemini Flash** (cloud) — ultimo recurso
+
+```bash
+bash ollama-check.sh --route system   # → BACKEND + MODEL + ENDPOINT
+bash ollama-check.sh --route reason   # → usa 7b si notebook online
+bash ollama-check.sh --route embed    # → nomic-embed-text
+bash ollama-check.sh --json           # → status completo
+bash ollama-check.sh --status         # → ok / offline
+```
+
+Cache de 120s en `/tmp/ollama-notebook.status` para evitar pings excesivos.
+
+### Configuracion de modelos en OpenClaw
+- `openclaw.json` (root) — config para desarrollo (usa gemini-pro por defecto)
+- `state/openclaw.json` — config del container (usa phi4-mini por defecto, Ollama apunta a notebook)
+
+---
+
+## Telegram
+
+Canal principal de comunicacion con Sebas.
+
+- **Chat ID:** `1565794551`
+- **Bot:** Tenazas (token en `state/openclaw.json` → `channels.telegram.botToken`)
+- **Policy:** `allowlist` — solo responde a Sebas
+- **Streaming:** `partial`
+- **Notificaciones automaticas:**
+  - Startup: "Tenazas Online — HH:MM ART" (startup.sh)
+  - Auto-heal: solo si tomo alguna accion
+  - Runtime: cuando ejecuta restarts o detecta problemas
+  - Morning greeting: 8AM daily
+  - Self-evolve: domingos 9PM
+
+### Enviar mensaje desde scripts
+```python
+import json
+from urllib.request import urlopen, Request
+
+config = json.load(open("/home/tenazas/.openclaw/openclaw.json"))
+token = config["channels"]["telegram"]["botToken"]
+payload = json.dumps({"chat_id": "1565794551", "text": "mensaje"}).encode()
+urlopen(Request(f"https://api.telegram.org/bot{token}/sendMessage",
+        data=payload, headers={"Content-Type": "application/json"}), timeout=10)
+```
+
+---
+
+## RAG (Retrieval-Augmented Generation)
+
+### Componentes
+- **ChromaDB** @ `192.168.2.2:8100` — vector store
+- **Collection:** `tenazas-knowledge`
+- **Embeddings:** nomic-embed-text via Ollama (local, gratis)
+- **Ingestion:** cada 6 horas via cron
+
+### Fuentes indexadas
+- `workspace/*.md` (SOUL.md, AGENTS.md, MEMORY.md, etc.)
+- `workspace/skills/*/SKILL.md` (22 skills)
+- `workspace/memory/*.md` (notas diarias, learnings)
+
+### Query
+```bash
+# Buscar sin generar respuesta
+python3 skills/rag/query.py "gluetun proxy" --top-k 5
+
+# Buscar + generar con LLM
+python3 skills/rag/query.py "como controlo las luces?" --generate
+
+# Output JSON
+python3 skills/rag/query.py "IP del Hue Bridge" --json
+```
+
+### Reranking y scoring
+- **MIN_SCORE = 0.6** — filtro duro, resultados por debajo descartados
+- **source_boost():**
+  - `skills/*/SKILL.md` y workspace root `.md` → **+0.05**
+  - `memory/*.md` → **-0.03**
+- **keyword_boost():** match proporcional de terminos del query → hasta **+0.15**
+- Output vacio con `--json` devuelve `[]`
+
+### Ingestion
+```bash
+python3 skills/rag/ingest.py   # re-indexa todo
+```
+- Chunking por headers markdown (max 2000 chars, min 200)
+- Merge de chunks chicos con el siguiente
+- Strip de code blocks para embeddings mas limpios
+- Upsert a ChromaDB con metadata (source, chunk_index, total_chunks)
+
+### Cuando re-indexar
+- Despues de modificar `query.py` o `ingest.py`
+- Despues de agregar o modificar SKILL.md files
+- Despues de cambios significativos en SOUL.md o AGENTS.md
+
+---
+
+## Skills (22 implementadas)
+
+Cada skill tiene `SKILL.md` con documentacion, y opcionalmente scripts `.py` / `.sh`.
+Ubicacion: `state/workspace/skills/`
+
+| Skill | Funcion | Scripts |
+|---|---|---|
+| **agent-dispatcher** | Multi-agent routing (5 agentes) | dispatcher.py |
+| **arr-monitor** | Media stack (10 containers) | Solo SKILL.md |
+| **backup-monitor** | HyperBackup + workspace freshness | Solo SKILL.md |
+| **calendar-agenda** | Google Calendar (OAuth) | gcal.py |
+| **command-validator** | Seguridad, prevencion de inyeccion | validate.py, alert-monitor.py |
+| **compact-context** | Compactacion de contexto de sesion | compact.py |
+| **container-restart** | Auto-restart containers caidos | Solo SKILL.md |
+| **email-digest** | Gmail via himalaya CLI | Solo SKILL.md |
+| **infra-monitor** | Health del NAS, Docker, Ollama, red | Solo SKILL.md |
+| **internet-health** | Conectividad, DNS, VPN | Solo SKILL.md |
+| **model-manager** | Lifecycle de modelos Ollama | Solo SKILL.md |
+| **morning-greeting** | Saludo diario 8AM con status | Solo SKILL.md |
+| **network-scanner** | Scan de dispositivos LAN (nmap) | Solo SKILL.md |
+| **rag** | Vector store + query + ingestion | query.py, ingest.py |
+| **reminders** | Recordatorios y follow-ups | Solo SKILL.md |
+| **self-evolve** | Auto-analisis semanal (dom 9PM) | analyze.py, analyze.sh |
+| **skill-factory** | Creacion on-demand de skills | Solo SKILL.md |
+| **smart-home** | Hue lights + Samsung M8 | Solo SKILL.md |
+| **tts** | Text-to-speech Piper → Telegram | tts.sh |
+| **voice-transcribe** | Whisper transcription | Solo SKILL.md |
+| **weather** | Clima via Open-Meteo | Solo SKILL.md |
+
+### Multi-agent system (agent-dispatcher)
+5 agentes especializados, todos locales (Ollama):
+- **Reasoner** (qwen2.5:7b) — razonamiento y analisis
+- **Executor** (qwen2.5:3b) — ejecucion de tareas
+- **Guardian** (command-validator) — seguridad
+- **Analyst** (qwen2.5:3b) — analisis de datos
+- **Memory** (RAG) — consulta de knowledge base
+
+Flow: Guardian primero (siempre) → Reasoner+Executor en paralelo → Analyst → Memory
+
+---
+
+## Runtime Layer (event-driven)
+
+Sistema de monitoreo inteligente en `workspace/runtime/`.
+
+### Arquitectura (nueva, reemplaza auto-heal.sh)
+```
+workspace/runtime/
+├── runtime.py          — Loop principal (347 lineas)
+├── docker_wrapper.py   — Capa de seguridad Docker (122 lineas)
+├── executors.py        — Probes de monitoreo + dispatch (138+ lineas)
+└── __init__.py
+```
+
+### Loop (cada 5 min via cron)
+`update_state → detect_events → enqueue_tasks → run_tasks → append_memory → analyze_patterns → trigger_patterns → notify_telegram`
+
+### docker_wrapper.py — Capa de seguridad
+- **UNICO modulo** que llama Docker via subprocess
+- **Whitelist de acciones:** ps, restart, start, stop (NO exec, rm, build, pull)
+- **Containers protegidos:** openclaw, watchtower (bloqueados)
+- **Sanitizacion:** regex `^[a-zA-Z0-9][a-zA-Z0-9_.-]*$` + blocklist case-insensitive
+- **Audit log:** `logs/docker_actions.log` (JSON por linea)
+- Usa `subprocess.run([...])` con lista (NO `shell=True`)
+
+### Eventos detectados
+- `container_down` / `container_recovered`
+- `internet_lost` / `internet_restored`
+- `vpn_down` / `vpn_leak` (IP argentina = leak) / `vpn_changed`
+- `device_count_changed` (delta > 2 hosts)
+- `ollama_notebook_down` / `ollama_notebook_restored`
+
+### Tareas automaticas
+- Container de arr-stack caido → restart
+- VPN down o leak → restart gluetun
+- gluetun siempre tiene prioridad (se reinicia primero)
+- Deduplicacion de tareas
+
+### Pattern engine
+- Detecta eventos recurrentes correlacionados por hora
+- Throttled a 1 analisis/hora
+- Minimo 3 ocurrencias en 7 dias para declarar patron
+- Preemptive restart en horas predichas
+
+### State files (gitignored, regenerados)
+- `state.json` — snapshot del sistema
+- `events.json` — eventos del ultimo run
+- `tasks.json` — cola de tareas
+- `memory_log.json` — historial (cap 1000 entries)
+- `patterns.json` — patrones aprendidos
+
+### Notificaciones
+- Telegram solo cuando se ejecutan acciones o notebook offline
+- VPN country check via ip-api.com (AR = leak)
+- Ollama status file `/tmp/ollama-notebook.status` (compatibilidad con ollama-check.sh)
+
+---
+
+## Workspace runtime legacy (workspace/runtime.py + workspace/executors.py)
+
+**NOTA:** Estos son los modulos originales, anteriores al runtime layer nuevo. Coexisten pero el nuevo (`workspace/runtime/`) es el preferido.
+
+### workspace/runtime.py
+- Loop similar pero usa `shell=True` (riesgo de seguridad)
+- Incluye subsistema de reminders
+- Pattern engine con clasificacion de Hue por keywords
+- Enqueue de `hue.scene` basado en patrones temporales
+
+### workspace/executors.py
+- **Docker:** restart, start, stop (sin sanitizacion de nombres)
+- **Hue:** 5 escenas (off, on, work, cinema, relax) via curl a Hue API
+- **Network:** scan nmap
+- Usa `shell=True` en `_sh()` — NO pasar input de usuario
+
+---
+
+## Scripts de infraestructura (host/container)
+
+### `auto-heal.sh` (DEPRECATED — reemplazado por runtime layer)
+Cron DSM deshabilitado (`#DISABLED_BY_RUNTIME#`). El runtime layer cubre todas sus responsabilidades:
+- VPN leak detection (country check)
+- Container restarts (arr-stack)
+- Ollama status file
+- Telegram notifications
 
 ### `ollama-check.sh`
-Routing helper con cache de 120s.
+Routing helper con cache de 120s. Sigue activo.
 ```bash
 bash ollama-check.sh --route system   # → BACKEND + MODEL + ENDPOINT
 bash ollama-check.sh --route reason
 bash ollama-check.sh --json           # status completo
 bash ollama-check.sh --status         # ok / offline
 ```
-Cascada: Notebook GPU → NAS CPU (solo 3b) → Gemini Flash
+
+### `startup.sh`
+Arranque del container: lanza `openclaw gateway` + notifica Telegram.
+
+### `learn.py` (cron semanal en host)
+Multi-source learning: descubre modelos Ollama, recopila logs, pide analisis a multiples modelos, sintetiza, guarda en `memory/learnings.md`, notifica Telegram.
+
+### `self-evolve.py` (cron semanal en host)
+Analisis de errores, skills, Docker health. Propone mejoras via Telegram. **NUNCA auto-deploya** — espera aprobacion de Sebas.
 
 ---
 
-## Skills implementadas en este ciclo
+## APIs y servicios externos
 
-### `skills/compact-context/`
-Compactación de contexto de sesión.
-- `compact.py --summary "..."` — persiste resumen estructurado en `memory/YYYY-MM-DD.md`
-- `compact.py --auto` — genera resumen con qwen2.5:3b en NAS
-- `compact.py --signals` — muestra señales de contexto sucio
-- Trigger automático: 2+ señales de pollution (ver AGENTS.md)
+| Servicio | Uso | Auth | Notas |
+|---|---|---|---|
+| Google Gemini | LLM cloud (flash/pro) | API Key (env var) | Fallback cuando Ollama offline |
+| Google Calendar | Eventos proximos | OAuth refresh token | gcal-token.json |
+| Gmail | Email digest | App password (himalaya) | IMAP/SMTP |
+| Telegram Bot API | Chat con Sebas | Bot token (openclaw.json) | Canal principal |
+| ip-api.com | VPN country check | Sin auth (gratis) | Rate limited |
+| Open-Meteo | Clima | Sin auth (gratis) | Primary weather source |
+| wttr.in | Clima fallback | Sin auth | Secondary |
+| NordVPN | VPN | Via gluetun config | Servidor Espana |
 
-### `skills/rag/query.py` (modificado)
-Cambios de reranking:
-- `MIN_SCORE = 0.6` — filtro duro, resultados por debajo se descartan
-- `source_boost()` — `skills/*/SKILL.md` y workspace root `.md` → +0.05 / `memory/*.md` → -0.03
-- Output vacío con `--json` devuelve `[]` (antes devolvía texto)
+### APIs internas (LAN, sin auth)
+| Servicio | URL | Uso |
+|---|---|---|
+| Ollama Notebook | http://192.168.2.76:11434 | LLM inference (GPU) |
+| Ollama NAS | http://127.0.0.1:11434 | LLM fallback (CPU) |
+| ChromaDB | http://192.168.2.2:8100 | Vector store RAG |
+| Gluetun Proxy | http://192.168.2.2:8888 | VPN HTTP proxy |
+| Hue Bridge | http://192.168.2.11/api/{key} | Smart lights |
+| Samsung M8 | ws://192.168.2.46:8001 | Monitor control |
+
+---
+
+## Docker
+
+### docker-compose.yml
+```yaml
+services:
+  openclaw:
+    build: .
+    container_name: openclaw
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=America/Buenos_Aires
+      - NODE_OPTIONS=--dns-result-order=ipv4first
+      - OLLAMA_API_KEY=ollama-local
+      - GOG_KEYRING_PASSWORD=***
+      - GOG_ACCOUNT=***
+      - GOOGLE_API_KEY=***
+    volumes:
+      - ./state:/home/tenazas/.openclaw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /volume1/docker/piper/data:/home/tenazas/piper
+      - ./startup.sh:/home/tenazas/startup.sh
+      - ./auto-heal.sh:/home/tenazas/auto-heal.sh
+      - ./ollama-check.sh:/home/tenazas/ollama-check.sh
+      - ./tests:/home/tenazas/tests
+      - ./workspace/runtime:/home/tenazas/runtime
+      - ./himalaya-config:/home/tenazas/.config/himalaya
+      - ./gcal-token.json:/home/tenazas/.openclaw/gcal-token.json:ro
+    command: ["bash", "/home/tenazas/startup.sh"]
+```
+
+### Dockerfile
+- Base: `node:22-bookworm`
+- Deps: python3, pip, ffmpeg, curl, nmap, iputils-ping, dnsutils, docker.io
+- Python: requests, torch (CPU), whisper, google-auth
+- User: `tenazas` (uid 1026), grupo docker
+- Entrypoint: `openclaw gateway`
+
+### Volumes (paths dentro del container)
+| Host | Container | Notas |
+|---|---|---|
+| `./state` | `/home/tenazas/.openclaw` | Config, credentials, sessions |
+| `/var/run/docker.sock` | `/var/run/docker.sock` | Control de Docker |
+| `./workspace/runtime` | `/home/tenazas/runtime` | Runtime layer |
+| `./tests` | `/home/tenazas/tests` | Test suites |
+| `./himalaya-config` | `/home/tenazas/.config/himalaya` | Email config |
+| `./gcal-token.json` | `...gcal-token.json:ro` | Calendar (read-only) |
+
+---
+
+## Cron jobs
+
+### DSM Task Scheduler (host NAS)
+| Frecuencia | Comando | Estado |
+|---|---|---|
+| Cada 5 min | `docker exec openclaw python3 /home/tenazas/runtime/runtime.py` | **ACTIVO** |
+| Cada 15 min | `docker exec openclaw bash /home/tenazas/auto-heal.sh` | DESHABILITADO |
+| Domingos 21:00 | `self-evolve.py` | ACTIVO |
+| Semanal | `learn.py` | ACTIVO |
+
+### OpenClaw internal cron (jobs.json)
+| Job | Schedule | Descripcion |
+|---|---|---|
+| infra-monitor | Cada 30 min | Health check completo |
+| morning-greeting | 8AM daily | Saludo + status |
+| email-check | Cada hora (8-23h) | Digest de emails |
+| security-alert-monitor | Cada 15 min | Alertas de seguridad |
+
+### RAG ingestion
+```
+0 */6 * * *  python3 ingest.py  # Cada 6 horas
+```
+
+---
+
+## VPN y red
+
+- **ISP:** Movistar Argentina
+- **VPN:** NordVPN via gluetun → servidor `es247.nordvpn.com` (Espana)
+- **IP esperada VPN:** 82.140.x.x (Espana)
+- **IP real publica:** 206.223.x.x (Argentina/Movistar)
+- **Proxy gluetun:** 192.168.2.2:8888
+- **Leak detection:** Si VPN IP resuelve a country=AR → reiniciar gluetun
+- **Red LAN:** 192.168.2.0/24, ~40 dispositivos
+
+### Dispositivos conocidos
+- 192.168.2.1 — Router
+- 192.168.2.2 — NAS principal (DS923+)
+- 192.168.2.3 — NAS backup
+- 192.168.2.11 — Hue Bridge
+- 192.168.2.46 — Samsung M8
+- 192.168.2.76 — Notebook MSI (Ollama GPU)
 
 ---
 
 ## Reglas para trabajar en este repo
 
-- **Nunca hardcodear API keys** — leerlas siempre desde `state/openclaw.json` o env vars
-- **No reiniciar `openclaw` ni `watchtower`** via auto-heal ni scripts automáticos
-- Los scripts que corren en el host del NAS usan `docker exec openclaw bash <script>` para aprovechar el socket y las dependencias del container
-- Al modificar skills (`.md`): también actualizar `SOUL.md` si cambia el comportamiento de routing o triggers
-- Al modificar `query.py` o `ingest.py`: re-indexar con `python3 ingest.py` después del deploy
-- Telegram chat ID de Sebas: `1565794551` (no loguear el bot token)
+### Secrets
+- **Nunca hardcodear API keys** — leerlas desde `state/openclaw.json` o env vars
+- **No loguear bot tokens** — solo el chat ID es OK
+- Secrets viven en: `openclaw.json`, env vars de compose, `credentials/`, `himalaya-config/`
+
+### Docker
+- **No reiniciar `openclaw` ni `watchtower`** via scripts automaticos
+- Los scripts del host usan `docker exec openclaw bash <script>`
+- Despues de cambios en compose: `docker compose up -d`
+- El docker_wrapper.py es la UNICA via segura para ejecutar comandos Docker desde el runtime
+
+### Skills
+- Al modificar skills (`.md`): actualizar `SOUL.md` si cambia routing o triggers
+- Al modificar `query.py` o `ingest.py`: re-indexar con `python3 ingest.py`
+- Skills nuevas requieren SKILL.md + scripts + entry en agent-dispatcher si aplica
+
+### Codigo
+- Preferir `subprocess.run([...])` con lista (NO `shell=True`)
+- Container names siempre validados contra regex + blocklist
+- Logs en JSON (una linea por entry) para parseabilidad
 
 ---
 
 ## Tests
 
 ### Paths dentro del container
-Los scripts se montan vía docker-compose volumes:
-- `auto-heal.sh` → `/home/tenazas/auto-heal.sh`
-- `ollama-check.sh` → `/home/tenazas/ollama-check.sh`
-- `tests/` → `/home/tenazas/tests/`
-
-Requiere `docker-compose up -d` (o `docker compose up -d`) después de cambios en compose.
+```
+auto-heal.sh    → /home/tenazas/auto-heal.sh
+ollama-check.sh → /home/tenazas/ollama-check.sh
+tests/          → /home/tenazas/tests/
+runtime/        → /home/tenazas/runtime/
+```
 
 ### Correr todo
 ```bash
@@ -93,39 +489,64 @@ docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 
 ### Correr por suite
 ```bash
+docker exec openclaw python3 /home/tenazas/tests/test_runtime.py     # 48 tests
 docker exec openclaw python3 /home/tenazas/tests/test_query.py
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
 ```
 
-### Qué cubre cada suite
+### Desde Windows (via SSH al NAS)
+```bash
+ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /home/tenazas/tests/test_runtime.py'
+```
+
+### Que cubre cada suite
+
+**test_runtime.py** (48 tests — unittest + mock)
+- Wrapper: sanitizacion de nombres, whitelist de acciones, logging, docker ps parsing
+- Eventos: container_down/recovered, internet_lost/restored, vpn_down/leak/changed, device_count, ollama
+- Tasks: container → restart, vpn_down → gluetun, vpn_leak → gluetun, deduplicacion, prioridad gluetun
+- Patterns: deteccion, throttling, no-trigger doble
+- VPN: country check (ES/AR/??)
+- Ollama: status file (ok/offline)
+- Telegram: notify ok/fail
+- Notificaciones: build message, ollama offline
+- Integracion: two-run detect container_down
 
 **test_query.py** (unittest + mock HTTP)
-- `source_boost()`: boost correcto por tipo de fuente
-- `MIN_SCORE = 0.6`: umbral configurado
-- Filtro: resultados < 0.6 descartados
-- Ranking: `SKILL.md` > `memory/*.md` con misma distancia vectorial
-- JSON vacío cuando no hay resultados
+- source_boost(), MIN_SCORE=0.6, filtro, ranking SKILL.md > memory, JSON vacio
 
 **test_compact.py** (unittest + mock HTTP)
-- `save_compact()`: crea archivo en fecha correcta, appends múltiples
-- `generate_summary_from_logs()`: llama Ollama, maneja errores, usa qwen2.5:3b
-- `print_anchor()`: output contiene ANCHOR y el resumen
+- save_compact(), generate_summary, print_anchor
 
-**test_auto_heal.sh** (bash + mocks docker/curl)
-- Todo OK → sin Telegram, sin docker restarts
-- VPN leak (IP argentina) → `docker restart gluetun` + Telegram
-- Gluetun DOWN → restart + Telegram
-- Container arr-stack caído → restart + Telegram
-- Lock file → segunda ejecución sale sin correr
-- Status file de Ollama creado
+**test_auto_heal.sh** (bash + mocks)
+- VPN leak, gluetun down, container caido, lock file, ollama status
 
 **test_ollama_check.sh** (bash + mock curl)
-- Notebook online + system → notebook/qwen2.5:3b
-- Notebook online + reason → notebook/qwen2.5:7b
-- Todo offline → cloud/gemini-flash
-- Notebook offline, NAS online → nas-cpu
-- Cache 120s: segunda llamada no hace ping
-- Cache expirado: re-verifica
-- `--json` devuelve JSON válido
+- Routing por backend, cache 120s, --json valido
+
+---
+
+## Acceso SSH
+
+```bash
+ssh -p 4822 sbasadre@192.168.2.2    # NAS desde Windows
+# Key auth configurado desde MSI (w4rchild@MSI)
+# Docker path en NAS: /usr/local/bin/docker
+```
+
+---
+
+## Archivos NO commiteados (por diseno)
+
+Excluidos via `.gitignore`:
+- `openclaw.json` — bot token + API keys
+- `gcal-creds.json` / `gcal-token.json` — OAuth
+- `credentials/` — API keys (gemini, google, anthropic, elevenlabs)
+- `state/` — runtime state (sqlite, sessions, memory, identity)
+- `himalaya-config/` — email credentials
+- `*.bak` / `*.bak2` — backups de compose
+- `media/` — audio files
+- `workspace/runtime/*.json` — state files regenerados
+- `workspace/runtime/logs/` — runtime logs

@@ -70,13 +70,20 @@ def update_state() -> tuple:
     """Collect current system state. Returns (prev_state, current_state)."""
     prev = load_json(STATE_FILE, {})
 
+    vpn = executors.check_vpn()
+    if vpn.get("ok") and vpn.get("ip"):
+        vpn["country"] = executors.check_vpn_country(vpn["ip"])
+
+    ollama_notebook = executors.check_ollama_notebook()
+    executors.write_ollama_status(ollama_notebook.get("ok", False))
+
     curr = {
         "ts": _now().isoformat(),
         "containers": executors.check_containers(),
         "internet": executors.check_internet(),
-        "vpn": executors.check_vpn(),
+        "vpn": vpn,
         "public_ip": executors.check_public_ip(),
-        "ollama_notebook": executors.check_ollama_notebook(),
+        "ollama_notebook": ollama_notebook,
         "ollama_nas": executors.check_ollama_nas(),
         "network_devices": executors.check_network_devices(),
     }
@@ -127,6 +134,11 @@ def detect_events(prev: dict, curr: dict) -> list:
     curr_vpn = curr.get("vpn", {})
     if prev_vpn.get("ok") is True and curr_vpn.get("ok") is False:
         events.append({"type": "vpn_down", "ts": ts})
+    elif curr_vpn.get("ok") and curr_vpn.get("country") == "AR":
+        events.append({
+            "type": "vpn_leak",
+            "ip": curr_vpn.get("ip"), "country": "AR", "ts": ts,
+        })
     elif (prev_vpn.get("ip") and curr_vpn.get("ip")
           and prev_vpn["ip"] != curr_vpn["ip"]):
         events.append({
@@ -164,7 +176,7 @@ def enqueue_tasks(events: list) -> list:
 
     # Sort: gluetun-related events first
     def priority(e):
-        if e.get("container") == "gluetun" or e.get("type") == "vpn_down":
+        if e.get("container") == "gluetun" or e.get("type") in ("vpn_down", "vpn_leak"):
             return 0
         return 1
 
@@ -184,6 +196,13 @@ def enqueue_tasks(events: list) -> list:
             tasks.append({
                 "action": "docker.restart", "target": "gluetun",
                 "reason": "vpn_down", "source": "event",
+            })
+            seen_targets.add("gluetun")
+
+        elif etype == "vpn_leak" and "gluetun" not in seen_targets:
+            tasks.append({
+                "action": "docker.restart", "target": "gluetun",
+                "reason": "vpn_leak_AR", "source": "event",
             })
             seen_targets.add("gluetun")
 
@@ -326,6 +345,27 @@ def trigger_patterns() -> list:
 # ── Main Loop ─────────────────────────────────────────────────────
 
 
+def _build_notification(events: list, results: list, curr: dict) -> str | None:
+    """Build Telegram message if there's anything worth reporting."""
+    lines = []
+    for r in results:
+        ok = r.get("ok", False)
+        icon = "ok" if ok else "FAIL"
+        lines.append(f"[{icon}] {r.get('action')} {r.get('target')} ({r.get('reason','')})")
+
+    # Notify on ollama down even without restart actions
+    ollama = curr.get("ollama_notebook", {})
+    if not ollama.get("ok"):
+        lines.append("[info] Notebook Ollama offline — Cloud/NAS CPU mode")
+
+    if not lines:
+        return None
+
+    ts = datetime.fromisoformat(curr["ts"]).strftime("%H:%M")
+    header = f"Runtime — {ts} ART"
+    return header + "\n" + "\n".join(lines)
+
+
 def main():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -341,6 +381,10 @@ def main():
     results = run_tasks(all_tasks)
     append_memory(events, results)
     analyze_patterns()
+
+    msg = _build_notification(events, results, curr)
+    if msg:
+        executors.notify_telegram(msg)
 
 
 if __name__ == "__main__":

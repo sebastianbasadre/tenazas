@@ -24,6 +24,13 @@ OLLAMA_NAS = "http://127.0.0.1:11434/api/tags"
 GLUETUN_PROXY = "http://192.168.2.2:8888"
 IFCONFIG_URL = "https://ifconfig.me"
 NETWORK_SUBNET = "192.168.2.0/24"
+IP_API_URL = "http://ip-api.com/json/{ip}?fields=countryCode"
+OLLAMA_STATUS_FILE = Path("/tmp/ollama-notebook.status")
+
+# ── Telegram config ──────────────────────────────────────────────
+
+OPENCLAW_CONFIG = Path("/home/tenazas/.openclaw/openclaw.json")
+TELEGRAM_CHAT = "1565794551"
 
 
 def _now():
@@ -105,6 +112,47 @@ def check_network_devices() -> dict:
     if r.returncode == 0:
         count = r.stdout.count("Host is up")
     return {"count": count}
+
+
+def check_vpn_country(ip: str) -> str:
+    """Resolve country code for a VPN IP via ip-api.com. Returns 2-letter code or '??'."""
+    if not ip:
+        return "??"
+    r = _run_cmd(["curl", "-sf", "--max-time", "5", IP_API_URL.format(ip=ip)], timeout=10)
+    if r.returncode == 0:
+        try:
+            return json.loads(r.stdout).get("countryCode", "??")
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    return "??"
+
+
+def write_ollama_status(ok: bool):
+    """Write Ollama notebook status to /tmp for ollama-check.sh compatibility."""
+    try:
+        OLLAMA_STATUS_FILE.write_text("ok" if ok else "offline")
+    except OSError:
+        pass
+
+
+def notify_telegram(message: str) -> bool:
+    """Send a Telegram notification to Sebas. Returns True on success."""
+    try:
+        config = json.loads(OPENCLAW_CONFIG.read_text())
+        token = config["channels"]["telegram"]["botToken"]
+    except (OSError, KeyError, json.JSONDecodeError):
+        _log_exec({"ts": _now(), "action": "telegram", "ok": False, "error": "cannot read bot token"})
+        return False
+
+    r = _run_cmd([
+        "curl", "-sf", "https://api.telegram.org/bot{}/sendMessage".format(token),
+        "--data-urlencode", "chat_id={}".format(TELEGRAM_CHAT),
+        "--data-urlencode", "text={}".format(message),
+    ], timeout=15)
+
+    ok = r.returncode == 0
+    _log_exec({"ts": _now(), "action": "telegram", "ok": ok})
+    return ok
 
 
 # ── Task Execution ────────────────────────────────────────────────

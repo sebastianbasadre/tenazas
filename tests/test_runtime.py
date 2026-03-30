@@ -221,6 +221,22 @@ class TestEventDetection(unittest.TestCase):
         types = [e["type"] for e in events]
         self.assertIn("vpn_changed", types)
 
+    def test_vpn_leak_detected(self):
+        prev = self._make_state()
+        curr = self._make_state(vpn={"ip": "190.12.3.4", "ok": True, "country": "AR"})
+        events = rt.detect_events(prev, curr)
+        types = [e["type"] for e in events]
+        self.assertIn("vpn_leak", types)
+        leak = next(e for e in events if e["type"] == "vpn_leak")
+        self.assertEqual(leak["country"], "AR")
+
+    def test_vpn_no_leak_when_not_ar(self):
+        prev = self._make_state()
+        curr = self._make_state(vpn={"ip": "82.140.1.2", "ok": True, "country": "ES"})
+        events = rt.detect_events(prev, curr)
+        types = [e["type"] for e in events]
+        self.assertNotIn("vpn_leak", types)
+
     def test_device_count_change_ignored_if_small(self):
         prev = self._make_state(network_devices={"count": 12})
         curr = self._make_state(network_devices={"count": 13})
@@ -288,6 +304,104 @@ class TestTaskEnqueueing(unittest.TestCase):
         events = [{"type": "container_down", "container": "randomthing", "ts": "t"}]
         tasks = rt.enqueue_tasks(events)
         self.assertEqual(tasks, [])
+
+    def test_vpn_leak_restarts_gluetun(self):
+        events = [{"type": "vpn_leak", "ip": "190.12.3.4", "country": "AR", "ts": "t"}]
+        tasks = rt.enqueue_tasks(events)
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["target"], "gluetun")
+        self.assertEqual(tasks[0]["reason"], "vpn_leak_AR")
+
+    def test_vpn_leak_deduplicated_with_vpn_down(self):
+        events = [
+            {"type": "vpn_leak", "ip": "190.12.3.4", "country": "AR", "ts": "t"},
+            {"type": "vpn_down", "ts": "t"},
+        ]
+        tasks = rt.enqueue_tasks(events)
+        targets = [t["target"] for t in tasks]
+        self.assertEqual(targets.count("gluetun"), 1)
+
+
+class TestVpnCountryCheck(unittest.TestCase):
+    """VPN country resolution via ip-api.com."""
+
+    @patch("runtime.executors._run_cmd")
+    def test_returns_country_code(self, mock_cmd):
+        mock_cmd.return_value = MagicMock(returncode=0, stdout='{"countryCode":"ES"}')
+        self.assertEqual(executors.check_vpn_country("82.140.1.2"), "ES")
+
+    @patch("runtime.executors._run_cmd")
+    def test_returns_ar_on_leak(self, mock_cmd):
+        mock_cmd.return_value = MagicMock(returncode=0, stdout='{"countryCode":"AR"}')
+        self.assertEqual(executors.check_vpn_country("190.12.3.4"), "AR")
+
+    @patch("runtime.executors._run_cmd")
+    def test_returns_unknown_on_failure(self, mock_cmd):
+        mock_cmd.return_value = MagicMock(returncode=1, stdout="")
+        self.assertEqual(executors.check_vpn_country("1.2.3.4"), "??")
+
+    def test_empty_ip_returns_unknown(self):
+        self.assertEqual(executors.check_vpn_country(""), "??")
+
+
+class TestOllamaStatusFile(unittest.TestCase):
+    """Ollama status file for ollama-check.sh compatibility."""
+
+    def setUp(self):
+        self.tmpfile = Path(tempfile.mktemp())
+        self._orig = executors.OLLAMA_STATUS_FILE
+        executors.OLLAMA_STATUS_FILE = self.tmpfile
+
+    def tearDown(self):
+        executors.OLLAMA_STATUS_FILE = self._orig
+        if self.tmpfile.exists():
+            self.tmpfile.unlink()
+
+    def test_writes_ok(self):
+        executors.write_ollama_status(True)
+        self.assertEqual(self.tmpfile.read_text(), "ok")
+
+    def test_writes_offline(self):
+        executors.write_ollama_status(False)
+        self.assertEqual(self.tmpfile.read_text(), "offline")
+
+
+class TestTelegramNotify(unittest.TestCase):
+    """Telegram notification."""
+
+    @patch("runtime.executors._run_cmd")
+    @patch("runtime.executors.OPENCLAW_CONFIG")
+    def test_sends_on_valid_config(self, mock_config, mock_cmd):
+        mock_config.read_text.return_value = json.dumps({
+            "channels": {"telegram": {"botToken": "fake:token"}}
+        })
+        mock_cmd.return_value = MagicMock(returncode=0)
+        self.assertTrue(executors.notify_telegram("test message"))
+
+    @patch("runtime.executors.OPENCLAW_CONFIG")
+    def test_fails_on_missing_config(self, mock_config):
+        mock_config.read_text.side_effect = OSError("not found")
+        self.assertFalse(executors.notify_telegram("test"))
+
+
+class TestBuildNotification(unittest.TestCase):
+    """Notification message formatting."""
+
+    def test_no_message_when_nothing_happened(self):
+        curr = {"ts": "2026-03-29T15:00:00-03:00", "ollama_notebook": {"ok": True}}
+        self.assertIsNone(rt._build_notification([], [], curr))
+
+    def test_message_includes_results(self):
+        results = [{"ok": True, "action": "docker.restart", "target": "gluetun", "reason": "vpn_leak_AR"}]
+        curr = {"ts": "2026-03-29T15:00:00-03:00", "ollama_notebook": {"ok": True}}
+        msg = rt._build_notification([], results, curr)
+        self.assertIn("gluetun", msg)
+        self.assertIn("vpn_leak_AR", msg)
+
+    def test_message_includes_ollama_offline(self):
+        curr = {"ts": "2026-03-29T15:00:00-03:00", "ollama_notebook": {"ok": False}}
+        msg = rt._build_notification([], [], curr)
+        self.assertIn("Notebook Ollama offline", msg)
 
 
 class TestPatternEngine(unittest.TestCase):
@@ -379,6 +493,9 @@ class TestIntegration(unittest.TestCase):
         for k, v in self._orig.items():
             setattr(rt, k, v)
 
+    @patch("runtime.executors.notify_telegram", return_value=True)
+    @patch("runtime.executors.write_ollama_status")
+    @patch("runtime.executors.check_vpn_country", return_value="ES")
     @patch("runtime.executors.check_network_devices", return_value={"count": 12})
     @patch("runtime.executors.check_ollama_nas", return_value={"ok": False})
     @patch("runtime.executors.check_ollama_notebook", return_value={"ok": True})
