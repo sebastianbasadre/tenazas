@@ -1,8 +1,7 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────
-#  Tenazas Test Runner
+#  Tenazas Test Runner — All 24 suites
 #  Corre: bash tests/run_tests.sh
-#  O desde el container: docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 # ─────────────────────────────────────────────────────────────────
 
 set -uo pipefail
@@ -10,71 +9,91 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOTAL_PASS=0
 TOTAL_FAIL=0
-TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+TOTAL_SUITES=0
+FAILED_SUITES=""
 
 echo ""
-echo "╔══════════════════════════════════════╗"
-echo "║  Tenazas Test Suite — $TIMESTAMP  ║"
-echo "╚══════════════════════════════════════╝"
+echo "══════════════════════════════════════"
+echo "  Tenazas Test Suite — $(date +"%H:%M:%S")"
+echo "══════════════════════════════════════"
 
 run_suite() {
   local name="$1"
   local cmd="$2"
+  TOTAL_SUITES=$(( TOTAL_SUITES + 1 ))
   local output
-
-  echo ""
-  echo "┌─────────────────────────────────────"
-  echo "│ $name"
-  echo "└─────────────────────────────────────"
-
   output=$(eval "$cmd" 2>&1)
-  echo "$output"
-
-  local passed=$(echo "$output" | grep -oP '\d+(?= passed)' | tail -1 || echo "0")
-  local failed=$(echo "$output" | grep -oP '\d+(?= failed)' | tail -1 || echo "0")
-
-  # Para unittest, el formato es diferente: "Ran X tests" + "OK" o "FAILED"
-  if echo "$output" | grep -q "^OK$"; then
-    local ran=$(echo "$output" | grep -oP '(?<=Ran )\d+')
-    passed=${ran:-0}
-    failed=0
-  elif echo "$output" | grep -qP "^FAILED \("; then
-    local ran=$(echo "$output" | grep -oP '(?<=Ran )\d+')
-    local errs=$(echo "$output" | grep -oP '(?<=failures=)\d+' || echo "0")
-    failed=${errs:-1}
-    passed=$(( ${ran:-0} - failed ))
+  local exit_code=$?
+  local ran=$(echo "$output" | grep -oP '(?<=Ran )\d+' | tail -1)
+  ran=${ran:-0}
+  if [ $exit_code -eq 0 ]; then
+    echo "  OK  $name ($ran)"
+    TOTAL_PASS=$(( TOTAL_PASS + ran ))
+  else
+    local errs=$(echo "$output" | grep -oP '(?<=failures=)\d+' | tail -1)
+    errs=${errs:-1}
+    TOTAL_PASS=$(( TOTAL_PASS + ran - errs ))
+    TOTAL_FAIL=$(( TOTAL_FAIL + errs ))
+    echo "  FAIL $name ($errs failed)"
+    FAILED_SUITES="$FAILED_SUITES $name"
   fi
-
-  TOTAL_PASS=$(( TOTAL_PASS + passed ))
-  TOTAL_FAIL=$(( TOTAL_FAIL + failed ))
 }
 
-# ── Python tests ──────────────────────────────────────────────────
-run_suite "RAG query.py" \
-  "python3 $SCRIPT_DIR/test_query.py 2>&1"
+run_bash() {
+  local name="$1"
+  local cmd="$2"
+  TOTAL_SUITES=$(( TOTAL_SUITES + 1 ))
+  local output
+  output=$(eval "$cmd" 2>&1)
+  local p=$(echo "$output" | grep -c "PASS" || true)
+  local f=$(echo "$output" | grep -c "FAIL" || true)
+  TOTAL_PASS=$(( TOTAL_PASS + p ))
+  TOTAL_FAIL=$(( TOTAL_FAIL + f ))
+  if [ "$f" -eq 0 ]; then
+    echo "  OK  $name ($p)"
+  else
+    echo "  FAIL $name ($f failed)"
+    FAILED_SUITES="$FAILED_SUITES $name"
+  fi
+}
 
-run_suite "Context Compactor compact.py" \
-  "python3 $SCRIPT_DIR/test_compact.py 2>&1"
+# Python suites
+run_suite "runtime"           "python3 $SCRIPT_DIR/test_runtime.py"
+run_suite "safety_guard"      "python3 $SCRIPT_DIR/test_safety_guard.py"
+run_suite "orchestrator"      "python3 $SCRIPT_DIR/test_orchestrator.py"
+run_suite "confidence"        "python3 $SCRIPT_DIR/test_confidence.py"
+run_suite "self_debugger"     "python3 $SCRIPT_DIR/test_self_debugger.py"
+run_suite "advanced"          "python3 $SCRIPT_DIR/test_advanced.py"
+run_suite "world_model"       "python3 $SCRIPT_DIR/test_world_model.py"
+run_suite "shared_memory"     "python3 $SCRIPT_DIR/test_shared_memory.py"
+run_suite "planner"           "python3 $SCRIPT_DIR/test_planner.py"
+run_suite "query"             "python3 $SCRIPT_DIR/test_query.py"
+run_suite "skill_generator"   "python3 $SCRIPT_DIR/test_skill_generator.py"
+run_suite "intelligence"      "python3 $SCRIPT_DIR/test_intelligence.py"
+run_suite "model_router"      "python3 $SCRIPT_DIR/test_model_router.py"
+run_suite "goal_engine"       "python3 $SCRIPT_DIR/test_goal_engine.py"
+run_suite "self_dev_engine"   "python3 $SCRIPT_DIR/test_self_dev_engine.py"
+run_suite "idle_learning"     "python3 $SCRIPT_DIR/test_idle_learning.py"
+run_suite "background_agents" "python3 $SCRIPT_DIR/test_background_agents.py"
+run_suite "observability"     "python3 $SCRIPT_DIR/test_observability.py"
+run_suite "cognitive"         "python3 $SCRIPT_DIR/test_cognitive.py"
+run_suite "supervisor"        "python3 $SCRIPT_DIR/test_supervisor.py"
+run_suite "stability"         "python3 $SCRIPT_DIR/test_stability.py"
+run_suite "compact"           "python3 $SCRIPT_DIR/test_compact.py"
 
-run_suite "Runtime Layer" \
-  "python3 $SCRIPT_DIR/test_runtime.py 2>&1"
+# Bash suites
+run_bash "auto_heal"          "bash $SCRIPT_DIR/test_auto_heal.sh"
+run_bash "ollama_check"       "bash $SCRIPT_DIR/test_ollama_check.sh"
 
-# ── Bash tests ────────────────────────────────────────────────────
-run_suite "auto-heal.sh" \
-  "bash $SCRIPT_DIR/test_auto_heal.sh 2>&1"
-
-run_suite "ollama-check.sh" \
-  "bash $SCRIPT_DIR/test_ollama_check.sh 2>&1"
-
-# ── Resumen final ─────────────────────────────────────────────────
+# Summary
 echo ""
-echo "╔══════════════════════════════════════╗"
+echo "══════════════════════════════════════"
 if [ "$TOTAL_FAIL" -eq 0 ]; then
-  echo "║  ✅ ALL PASSED ($TOTAL_PASS tests)          ║"
+  echo "  ALL PASSED: $TOTAL_PASS tests in $TOTAL_SUITES suites"
 else
-  echo "║  ❌ $TOTAL_FAIL FAILED / $TOTAL_PASS PASSED            ║"
+  echo "  $TOTAL_FAIL FAILED / $TOTAL_PASS PASSED ($TOTAL_SUITES suites)"
+  echo "  Failed:$FAILED_SUITES"
 fi
-echo "╚══════════════════════════════════════╝"
-echo ""
+echo "══════════════════════════════════════"
 
 [ "$TOTAL_FAIL" -eq 0 ] && exit 0 || exit 1
