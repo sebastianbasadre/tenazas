@@ -640,6 +640,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tes
 docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 tests
 docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 31 tests
 docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 tests
+docker exec openclaw python3 /home/tenazas/tests/test_world_model.py   # 38 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -709,6 +710,18 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_world_model.py** (38 tests — unittest + mock)
+- get_entity container: list all, specific lookup, missing, empty state
+- get_entity device: list all, by IP, by name (case-insensitive), unknown, type field
+- get_entity service: list all, specific, unknown
+- get_entity model: list all, specific, unknown
+- get_entity skill: returns count
+- get_entity unknown type: returns empty, logs error
+- get_status: required keys, container up/down counts, down_names, internet, empty state safe
+- get_topology: subnet, gateway, devices, services url+host
+- State loading: missing file, corrupt JSON, valid JSON
+- Data integrity: devices/services/models have required fields, known IPs present
 
 **test_planner.py** (35 tests — unittest + mock)
 - Known problems: container_down→restart, vpn_down/leak→recovery, internet→diagnostic, ollama→failover, arr→arr_recovery
