@@ -637,6 +637,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 43 test
 docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
 docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
+docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 tests
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
@@ -706,6 +707,15 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
+
+**test_supervisor.py** (22 tests — unittest + mock)
+- Lock acquisition: fresh, concurrent blocked, stale removal, threshold boundary
+- Lock release: removes file, no-file safe
+- Runtime execution: normal exit (code 0), error exit (code != 0), timeout kill, terminate fallback
+- Subprocess safety: uses list args (not shell=True)
+- Main flow: lock→run→release, release on error, skip if locked, stale proceeds
+- Logging: directory creation, timestamps, message content, append mode
+- Constants: timeout range, stale > timeout, script path
 
 **test_safety_guard.py** (62 tests — unittest)
 - Blocked actions: docker exec/rm/build/pull, network config, file delete outside
