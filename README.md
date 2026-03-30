@@ -40,8 +40,12 @@ Smart Home (LAN)
 
 | Componente | Descripcion |
 |---|---|
-| **Runtime Layer** | Monitoreo event-driven (cada 5 min): detecta containers caidos, leaks VPN, Ollama offline, y ejecuta acciones correctivas |
-| **RAG** | ChromaDB + nomic-embed-text para knowledge base (skills, memoria, docs) |
+| **Orchestrator** | Clasifica queries y routea al pipeline + modelo optimo (keyword+regex, sin LLM) |
+| **Runtime Layer** | Monitoreo event-driven (cada 5 min): detecta containers caidos, leaks VPN, Ollama offline. Cooldown de 20 min por target |
+| **RAG Pipeline** | Query rewrite → hybrid retrieval → rerank → confidence check → memory fusion → context compression → action mapping → LLM |
+| **Confidence Engine** | Score 0-1 (similarity, agreement, recency, source quality). Self-check: answer / caveat / expand / clarify |
+| **Action Mapper** | Mapea problemas a skills existentes. Nunca auto-ejecuta |
+| **Infra Diagnostics** | Reglas: crash loops, VPN leaks, network failures, Ollama offline. Severity: critical/warning/info |
 | **LLM Routing** | Cascada: Notebook GPU → NAS CPU → Gemini Cloud |
 | **Arr-stack** | 10 containers de media gestionados via VPN (gluetun) |
 | **Smart Home** | Control de luces Hue y monitor Samsung M8 |
@@ -132,20 +136,26 @@ openclaw/
 │   └── workspace/skills/    — 22 skills con SKILL.md cada una
 │
 ├── workspace/
-│   ├── runtime/             — Runtime layer (event-driven, preferido)
-│   │   ├── runtime.py       — Loop principal
-│   │   ├── executors.py     — Probes de monitoreo + dispatch
-│   │   └── docker_wrapper.py — Capa de seguridad Docker
-│   ├── runtime.py           — Runtime legacy (coexiste)
-│   └── executors.py         — Executors legacy
+│   ├── runtime/               — Runtime layer (event-driven, preferido)
+│   │   ├── orchestrator.py    — Central AI routing (classify + model select)
+│   │   ├── runtime.py         — Loop principal
+│   │   ├── executors.py       — Probes de monitoreo + dispatch
+│   │   ├── docker_wrapper.py  — Capa de seguridad Docker
+│   │   ├── confidence_engine.py — Scoring de confianza para RAG
+│   │   ├── action_mapper.py   — Mapeo de problemas a skills
+│   │   └── infra_diagnostics.py — Diagnosticos rule-based
+│   ├── runtime.py             — Runtime legacy (coexiste)
+│   └── executors.py           — Executors legacy
 │
-├── tests/                   — Test suites (unittest + bash)
+├── tests/                     — Test suites (unittest + bash)
 │   ├── run_tests.sh
-│   ├── test_runtime.py      — 48 tests del runtime layer
-│   ├── test_query.py        — Tests de RAG query
-│   ├── test_compact.py      — Tests de compactacion
-│   ├── test_auto_heal.sh    — Tests de auto-heal
-│   └── test_ollama_check.sh — Tests de ollama routing
+│   ├── test_runtime.py        — 54 tests del runtime layer + cooldown
+│   ├── test_query.py          — 34 tests del RAG pipeline
+│   ├── test_confidence.py     — 40 tests confidence + actions + diagnostics
+│   ├── test_orchestrator.py   — 43 tests del orchestrator
+│   ├── test_compact.py        — 11 tests de compactacion
+│   ├── test_auto_heal.sh      — Tests de auto-heal
+│   └── test_ollama_check.sh   — Tests de ollama routing
 │
 ├── himalaya-config/         — Configuracion de email (gitignored)
 ├── credentials/             — API keys (gitignored)
