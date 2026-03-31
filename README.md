@@ -90,8 +90,31 @@ runtime_step_nmap_seconds
 
 ### Flujo de metricas
 ```
-runtime.py (cron 5min) → metrics_state.json → metrics_server.py → :9105 → Prometheus → Grafana
+cron (5min) → worker_supervisor.py → workers/* → metrics_state.json → metrics_server.py → :9105 → Prometheus → Grafana
 ```
+
+---
+
+## Worker Architecture
+
+El runtime usa **crash isolation** via subprocesses. Cada worker corre aislado:
+
+```
+worker_supervisor.py (cron cada 5 min)
+├── runtime_worker.py    [60s timeout] — core: state, events, tasks, memory
+├── diagnostics_worker.py [30s timeout] — patterns, infra diagnostics
+├── rag_worker.py        [30s timeout] — retrieval quality
+├── agents_worker.py     [30s timeout] — skill analytics, proposals
+└── learning_worker.py   [30s timeout] — background agents, goals, idle learning
+```
+
+Si un worker se congela → killed. Si crashea → los demás siguen.
+
+Incluye:
+- **Lockfile** con stale detection (10 min)
+- **Log rotation** (5MB max, 5 backups)
+- **Heartbeat** por worker (freeze detection 60s)
+- **Devin-lite** suggestions (análisis de crashes → sugerencias por Telegram)
 
 ---
 
@@ -153,7 +176,7 @@ El container `openclaw` arranca con `startup.sh`, que inicia:
 
 | Frecuencia | Comando |
 |---|---|
-| Cada 5 min | `docker exec openclaw python3 /home/tenazas/runtime/runtime_supervisor.py` |
+| Cada 5 min | `docker exec openclaw python3 /home/tenazas/runtime/worker_supervisor.py` |
 | Domingos 21:00 | `python3 self-evolve.py` |
 | Semanal | `python3 learn.py` |
 
@@ -218,9 +241,16 @@ openclaw/
 │       ├── SOUL.md          — Personalidad e instrucciones del bot
 │       └── skills/          — 22 skills con SKILL.md cada una
 │
-├── workspace/runtime/         — Runtime layer (42 modulos)
+├── workspace/runtime/         — Runtime layer (48 modulos)
 │   ├── runtime.py             — Loop principal event-driven (cada 5 min)
-│   ├── runtime_supervisor.py  — Wrapper con timeout protection
+│   ├── runtime_supervisor.py  — Wrapper legacy con timeout protection
+│   ├── worker_supervisor.py   — Worker orchestrator (5 isolated subprocesses)
+│   ├── workers/               — Isolated worker subprocesses
+│   │   ├── runtime_worker.py, diagnostics_worker.py, rag_worker.py
+│   │   ├── agents_worker.py, learning_worker.py
+│   ├── log_rotation.py        — Log rotation (5MB, 5 backups)
+│   ├── worker_heartbeat.py    — Per-worker freeze detection
+│   ├── network_cache.py       — Nmap cache (30min TTL)
 │   ├── orchestrator.py        — Central AI routing
 │   ├── safety_guard.py        — Validacion central de seguridad
 │   ├── docker_wrapper.py      — Capa segura para Docker

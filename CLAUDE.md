@@ -342,12 +342,35 @@ workspace/runtime/
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
-# Opcion A: supervisor (recomendado — protege contra cuelgues)
+# Opcion A: worker supervisor (recomendado — aísla workers como subprocesses)
+docker exec openclaw python3 /home/tenazas/runtime/worker_supervisor.py
+
+# Opcion B: supervisor legacy (single subprocess, protege contra cuelgues)
 docker exec openclaw python3 /home/tenazas/runtime/runtime_supervisor.py
 
-# Opcion B: directo (SIGALRM se encarga del timeout)
+# Opcion C: directo (SIGALRM se encarga del timeout)
 docker exec openclaw python3 /home/tenazas/runtime/runtime.py
 ```
+
+### Worker Supervisor (worker_supervisor.py)
+Ejecuta 5 workers secuencialmente como subprocesses aislados:
+
+| Worker | Timeout | Función |
+|---|---|---|
+| runtime_worker | 60s | Core loop: state→events→tasks→memory |
+| diagnostics_worker | 30s | Pattern analysis, infra diagnostics |
+| rag_worker | 30s | RAG retrieval quality check |
+| agents_worker | 30s | Skill analytics, proposals, self-dev |
+| learning_worker | 30s | Background agents, goals, idle learning |
+
+Si un worker se congela o crashea, los demás siguen ejecutando.
+Incluye: lockfile protection, log rotation, heartbeat freeze detection.
+
+### Módulos de soporte
+- **log_rotation.py** — rota logs >5MB, mantiene 5 backups
+- **worker_heartbeat.py** — heartbeat por worker, freeze detection (60s threshold)
+- **network_cache.py** — cache de nmap scans (30min TTL)
+- **devin_lite.py** — crash capture + improvement suggestions (Telegram)
 
 ### docker_wrapper.py — Capa de seguridad
 - **UNICO modulo** que llama Docker via subprocess
