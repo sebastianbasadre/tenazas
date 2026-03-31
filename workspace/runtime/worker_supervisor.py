@@ -38,6 +38,8 @@ WORKERS_DIR = BASE_DIR / "workers"
 WORKERS = [
     ("runtime_worker", "workers/runtime_worker.py", 60),
     ("diagnostics_worker", "workers/diagnostics_worker.py", 30),
+    ("rag_worker", "workers/rag_worker.py", 30),
+    ("agents_worker", "workers/agents_worker.py", 30),
     ("learning_worker", "workers/learning_worker.py", 30),
 ]
 
@@ -167,10 +169,36 @@ def run_all():
     log("supervisor start")
     results = []
 
+    # Log rotation before workers run
+    try:
+        from runtime.log_rotation import rotate_all
+        rotated = rotate_all()
+        if rotated.get("rotated"):
+            log(f"log rotation: {rotated['rotated']}")
+    except Exception as e:
+        log(f"log rotation error: {e}")
+
     try:
         for name, script, timeout in WORKERS:
+            # Clear heartbeat before worker starts
+            try:
+                from runtime.worker_heartbeat import clear
+                clear(name)
+            except Exception:
+                pass
+
             result = run_worker(name, script, timeout)
             results.append(result)
+
+            # Check for freeze after each worker
+            try:
+                from runtime.worker_heartbeat import check_all
+                frozen = check_all()
+                if frozen:
+                    for f in frozen:
+                        log(f"FREEZE: {f['worker']} stuck at {f['last_step']} for {f['since_seconds']}s")
+            except Exception:
+                pass
     finally:
         release_lock()
 

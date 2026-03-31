@@ -113,3 +113,105 @@ def get_crash_summary() -> dict:
         "last_crash": crashes[-1].get("timestamp", ""),
         "last_error": crashes[-1].get("error", ""),
     }
+
+
+# ── Improvement Suggestions Engine ──────────────────────────────
+# Analyzes crashes + logs to detect recurring patterns and suggest fixes.
+# NEVER auto-modifies infrastructure. Only produces suggestions.
+
+SUGGESTIONS_FILE = BASE_DIR / "logs" / "devin_suggestions.json"
+
+KNOWN_PATTERNS = {
+    "TimeoutError": {
+        "description": "Runtime timeout — ciclo excedió el límite",
+        "suggestion": "Verificar nmap scan, subprocess calls, o red lenta",
+        "action": "Revisar logs de executor y network_cache",
+    },
+    "ConnectionRefusedError": {
+        "description": "Servicio no responde",
+        "suggestion": "Verificar Ollama, ChromaDB, o Telegram API",
+        "action": "Chequear docker ps y ollama status",
+    },
+    "FileNotFoundError": {
+        "description": "Archivo faltante",
+        "suggestion": "Verificar paths y volúmenes Docker",
+        "action": "Revisar docker-compose volumes",
+    },
+    "JSONDecodeError": {
+        "description": "Datos corruptos en JSON",
+        "suggestion": "Regenerar state files (se auto-crean en próximo ciclo)",
+        "action": "Verificar disk space y permisos",
+    },
+    "PermissionError": {
+        "description": "Error de permisos",
+        "suggestion": "Verificar usuario tenazas (uid 1026) y grupo docker",
+        "action": "Revisar permisos de /var/run/docker.sock",
+    },
+}
+
+
+def analyze_and_suggest() -> list:
+    """Analyze recent crashes and generate improvement suggestions.
+
+    Returns:
+        List of suggestion dicts. Never auto-modifies anything.
+    """
+    crashes = _load_json(CRASH_FILE, [])
+    if not isinstance(crashes, list) or not crashes:
+        return []
+
+    # Count error types from recent crashes (last 20)
+    recent = crashes[-20:]
+    error_counts = {}
+    for c in recent:
+        et = c.get("error_type", "Unknown")
+        error_counts[et] = error_counts.get(et, 0) + 1
+
+    suggestions = []
+    for error_type, count in sorted(error_counts.items(), key=lambda x: -x[1]):
+        if count < 2:
+            continue  # Only suggest for recurring issues
+
+        pattern = KNOWN_PATTERNS.get(error_type, {
+            "description": f"Error recurrente: {error_type}",
+            "suggestion": "Revisar logs para más detalle",
+            "action": "Analizar stacktrace en runtime_crash.json",
+        })
+
+        suggestions.append({
+            "error_type": error_type,
+            "occurrences": count,
+            "description": pattern["description"],
+            "suggestion": pattern["suggestion"],
+            "action": pattern["action"],
+            "last_seen": next(
+                (c["timestamp"] for c in reversed(recent) if c.get("error_type") == error_type),
+                "",
+            ),
+        })
+
+    # Save suggestions
+    if suggestions:
+        SUGGESTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(SUGGESTIONS_FILE, "w") as f:
+            json.dump({
+                "ts": _now().isoformat(),
+                "suggestions": suggestions,
+            }, f, indent=2, default=str)
+
+    return suggestions
+
+
+def format_suggestions_telegram(suggestions: list) -> str:
+    """Format suggestions for Telegram notification."""
+    if not suggestions:
+        return ""
+
+    lines = ["🔍 Devin-Lite — Sugerencias de mejora:\n"]
+    for s in suggestions[:5]:  # Max 5 in one message
+        lines.append(
+            f"⚠️ {s['error_type']} ({s['occurrences']}x)\n"
+            f"  {s['description']}\n"
+            f"  → {s['suggestion']}\n"
+        )
+    return "\n".join(lines)
