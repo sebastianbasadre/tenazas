@@ -71,6 +71,40 @@ if PROM_AVAILABLE:
     WATCHDOG_TRIGGERED = Counter("runtime_watchdog_triggered", "Watchdog timeout events")
     HEALTH_SCORE = Gauge("runtime_health_score", "Runtime health score 0-100")
 
+    # Router V2
+    ROUTER_V2_CALLS = Counter("router_v2_decisions_total", "Router V2 routing decisions", ["role"])
+    ROUTER_V1_CALLS = Counter("router_v1_decisions_total", "Router V1 fallback decisions")
+    ROUTER_V1_FALLBACK_FROM_V2 = Counter(
+        "router_v1_fallback_from_v2_total",
+        "Times V2 failed and V1 took over (backends offline, error, etc.)",
+    )
+    ROUTER_V2_INTERNAL_FALLBACKS = Counter(
+        "router_v2_internal_fallbacks_total",
+        "Times V2 used a non-primary model within the role chain",
+        ["role"],
+    )
+    ROUTER_VRAM_SWAPS = Counter(
+        "router_vram_swaps_total",
+        "Times a model exceeding GPU VRAM was selected (Ollama offloads to CPU)",
+        ["role", "model"],
+    )
+    ROUTER_CLOUD_FALLBACKS = Counter(
+        "router_cloud_fallbacks_total",
+        "Times routing fell through to Gemini cloud (all local backends offline)",
+    )
+    ROUTER_LATENCY = Histogram(
+        "router_decision_latency_seconds",
+        "Time to make a routing decision (classify + select)",
+        ["role"],
+        buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5],
+    )
+    ROUTER_MODEL_LATENCY = Histogram(
+        "router_model_latency_seconds",
+        "LLM inference latency by model and role (when available)",
+        ["model", "role"],
+        buckets=[0.5, 1, 2, 5, 10, 30, 60, 120],
+    )
+
 
 # ── Singleton server ─────────────────────────────────────────────
 
@@ -174,6 +208,65 @@ def set_health_score(score: float):
     if PROM_AVAILABLE:
         HEALTH_SCORE.set(score)
     _log_metric("health_score", score)
+
+
+# ── Router V2 Recording ─────────────────────────────────────────
+
+
+def record_routing_decision(
+    role: str,
+    model: str,
+    backend: str,
+    fallback_used: bool = False,
+    vram_swap: bool = False,
+    decision_latency: float = 0.0,
+    v2_used: bool = True,
+    cloud_fallback: bool = False,
+):
+    """Record a routing decision for Prometheus + state file.
+
+    Args:
+        role: V2 role (fast, reason, heavy, code, vision, embed)
+        model: model name selected (e.g. "qwen2.5:7b")
+        backend: backend used (notebook_gpu, nas_cpu, cloud)
+        fallback_used: True if V2 used a non-primary model in chain
+        vram_swap: True if model exceeds GPU VRAM
+        decision_latency: seconds to make the routing decision
+        v2_used: True if V2 path was taken, False if V1
+        cloud_fallback: True if fell through to Gemini cloud
+    """
+    if PROM_AVAILABLE:
+        if v2_used:
+            ROUTER_V2_CALLS.labels(role=role).inc()
+            if fallback_used:
+                ROUTER_V2_INTERNAL_FALLBACKS.labels(role=role).inc()
+            if vram_swap:
+                ROUTER_VRAM_SWAPS.labels(role=role, model=model).inc()
+            ROUTER_LATENCY.labels(role=role).observe(decision_latency)
+        else:
+            ROUTER_V1_CALLS.inc()
+        if cloud_fallback:
+            ROUTER_CLOUD_FALLBACKS.inc()
+
+    _log_metric("routing_decision", decision_latency, {
+        "role": role, "model": model, "backend": backend,
+        "fallback_used": fallback_used, "vram_swap": vram_swap,
+        "v2_used": v2_used, "cloud_fallback": cloud_fallback,
+    })
+
+
+def record_v1_fallback_from_v2():
+    """Record that V2 failed and V1 took over."""
+    if PROM_AVAILABLE:
+        ROUTER_V1_FALLBACK_FROM_V2.inc()
+    _log_metric("router_v1_fallback_from_v2")
+
+
+def record_model_latency(model: str, role: str, latency: float):
+    """Record LLM inference latency by model and role."""
+    if PROM_AVAILABLE:
+        ROUTER_MODEL_LATENCY.labels(model=model, role=role).observe(latency)
+    _log_metric("model_latency", latency, {"model": model, "role": role})
 
 
 # ── Health Score Calculator ──────────────────────────────────────
@@ -349,6 +442,55 @@ def record_rag_query(latency: float, confidence: float):
     increment_state("rag_queries")
     if confidence < 0.6:
         increment_state("rag_low_confidence")
+
+
+# Patch Router V2 recording to also persist to state file
+_orig_record_routing_decision = record_routing_decision
+_orig_record_v1_fallback = record_v1_fallback_from_v2
+
+
+def record_routing_decision(
+    role: str, model: str, backend: str,
+    fallback_used: bool = False, vram_swap: bool = False,
+    decision_latency: float = 0.0, v2_used: bool = True,
+    cloud_fallback: bool = False,
+):
+    _orig_record_routing_decision(
+        role, model, backend, fallback_used, vram_swap,
+        decision_latency, v2_used, cloud_fallback,
+    )
+    # Persist aggregates to state file for metrics_server.py
+    state = _load_metrics_state()
+    rv2 = state.get("router_v2", {})
+    if v2_used:
+        rv2["v2_calls"] = rv2.get("v2_calls", 0) + 1
+        rv2[f"role_{role}"] = rv2.get(f"role_{role}", 0) + 1
+        if fallback_used:
+            rv2["internal_fallbacks"] = rv2.get("internal_fallbacks", 0) + 1
+        if vram_swap:
+            rv2["vram_swaps"] = rv2.get("vram_swaps", 0) + 1
+    else:
+        rv2["v1_calls"] = rv2.get("v1_calls", 0) + 1
+    if cloud_fallback:
+        rv2["cloud_fallbacks"] = rv2.get("cloud_fallbacks", 0) + 1
+    rv2["last_role"] = role
+    rv2["last_model"] = model
+    rv2["last_latency"] = round(decision_latency, 4)
+    state["router_v2"] = rv2
+    METRICS_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(METRICS_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def record_v1_fallback_from_v2():
+    _orig_record_v1_fallback()
+    state = _load_metrics_state()
+    rv2 = state.get("router_v2", {})
+    rv2["v1_fallback_from_v2"] = rv2.get("v1_fallback_from_v2", 0) + 1
+    state["router_v2"] = rv2
+    METRICS_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(METRICS_STATE_FILE, "w") as f:
+        json.dump(state, f)
 
 
 # ── Server startup ──────────────────────────────────────────────

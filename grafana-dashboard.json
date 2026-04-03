@@ -142,8 +142,112 @@
         }
       },
       {
+        "id": 40, "title": "Router: V1 vs V2", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 30 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "router_v2_calls_total", "legendFormat": "V2 calls" },
+          { "expr": "router_v1_calls_total", "legendFormat": "V1 calls" },
+          { "expr": "router_v1_fallback_from_v2_total", "legendFormat": "V2→V1 fallback" },
+          { "expr": "router_cloud_fallbacks_total", "legendFormat": "Cloud fallback" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "V2 calls" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "V1 calls" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "V2→V1 fallback" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Cloud fallback" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 41, "title": "Router: Distribución por rol", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 30 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "router_v2_role_fast_total", "legendFormat": "fast" },
+          { "expr": "router_v2_role_reason_total", "legendFormat": "reason" },
+          { "expr": "router_v2_role_heavy_total", "legendFormat": "heavy" },
+          { "expr": "router_v2_role_code_total", "legendFormat": "code" },
+          { "expr": "router_v2_role_vision_total", "legendFormat": "vision" },
+          { "expr": "router_v2_role_embed_total", "legendFormat": "embed" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "stacking": { "mode": "normal" } }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "fast" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "reason" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "heavy" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "code" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "vision" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "embed" }, "properties": [{ "id": "color", "value": { "fixedColor": "semi-dark-blue", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 42, "title": "Router: Fallbacks y VRAM swaps", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 30 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "router_v2_internal_fallbacks_total", "legendFormat": "V2 internal fallbacks" },
+          { "expr": "router_vram_swaps_total", "legendFormat": "VRAM swaps" },
+          { "expr": "router_cloud_fallbacks_total", "legendFormat": "Cloud fallbacks" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "V2 internal fallbacks" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "VRAM swaps" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Cloud fallbacks" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 43, "title": "Router: Latencia de decisión", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "router_last_decision_latency_seconds", "legendFormat": "Decision latency" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "pointSize": 5, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }
+          ]}}}
+      },
+      {
+        "id": 44, "title": "Cloud Fallbacks", "type": "stat",
+        "gridPos": { "h": 8, "w": 4, "x": 12, "y": 38 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "router_cloud_fallbacks_total", "legendFormat": "Cloud" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }
+        ]},
+          "description": "Times routing fell through to Gemini cloud because all local backends were offline. This should be rare — investigate if this grows."
+        }}
+      },
+      {
+        "id": 45, "title": "VRAM Swaps", "type": "stat",
+        "gridPos": { "h": 8, "w": 4, "x": 16, "y": 38 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "router_vram_swaps_total", "legendFormat": "Swaps" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "orange", "value": 50 }
+        ]},
+          "description": "Models exceeding 6GB VRAM on RTX 4050. Ollama offloads to CPU RAM — works but adds 5-15s latency."
+        }}
+      },
+      {
+        "id": 46, "title": "V2→V1 Fallbacks", "type": "stat",
+        "gridPos": { "h": 8, "w": 4, "x": 20, "y": 38 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "router_v1_fallback_from_v2_total", "legendFormat": "V2→V1" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 10 }
+        ]},
+          "description": "V2 failed (all Ollama backends offline or error) and V1 took over with Gemini cloud."
+        }}
+      },
+      {
         "id": 50, "title": "Memoria del proceso", "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
           { "expr": "process_resident_memory_bytes", "legendFormat": "RSS" },
@@ -158,7 +262,7 @@
       },
       {
         "id": 51, "title": "CPU del proceso", "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [{ "expr": "rate(process_cpu_seconds_total[5m])", "legendFormat": "CPU usage" }],
         "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },

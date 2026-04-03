@@ -401,10 +401,11 @@ workspace/runtime/
 - **Metricas:** runtime_runs_total, runtime_duration_seconds, container_restarts_total, vpn_disconnects_total, runtime_freeze_detected, runtime_health_score
 - **metrics_server.py** — proceso persistente que arranca desde startup.sh, polls `metrics_state.json` cada 5s
 - **metrics_state.json** — archivo compartido entre runtime.py (escribe) y metrics_server.py (lee)
-- **model_failover.py** — proceso persistente, detecta 429 de Gemini y auto-switch a Ollama phi4-mini
+- **model_failover.py** — proceso persistente, detecta 429 de Gemini y auto-switch a Ollama qwen2.5:7b
 - **Metricas extendidas:** runtime_step_*_seconds, rag_queries_total, rag_low_confidence_total, model_failover_active
+- **Metricas Router V2:** router_v2_decisions_total{role}, router_v1_decisions_total, router_v1_fallback_from_v2_total, router_v2_internal_fallbacks_total{role}, router_vram_swaps_total{role,model}, router_cloud_fallbacks_total, router_decision_latency_seconds{role}, router_model_latency_seconds{model,role}
 - **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
-- **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
+- **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas), paneles Router V2: V1vsV2, distribución por rol, fallbacks+VRAM swaps, latencia, cloud fallbacks, VRAM swaps stat, V2→V1 stat
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
@@ -478,6 +479,20 @@ Incluye: lockfile protection, log rotation, heartbeat freeze detection.
 - `route_query(query, context)` → {classification, pipeline, model, parameters, router_v2}
 - `escalate(original_route, reason)` → ruta escalada
 - `get_routing_metrics()` → snapshot de metricas de routing
+
+### Cloud Fallback Policy (EXPLÍCITA)
+La caída a Gemini cloud **no es silenciosa**. Ocurre en estos escenarios:
+1. **V2→V1 fallback:** Router V2 detecta todos los backends Ollama offline → V1 toma control → usa Gemini Flash
+2. **V1 chain exhaustion:** Todos los modelos locales en la cadena de fallback no disponibles → Gemini Flash como último recurso
+3. **All offline last resort:** Ningún backend responde → Gemini Flash (cloud siempre disponible)
+
+**Visibilidad:**
+- **Log:** `orchestrator.log` con `type: "cloud_fallback"` y motivo explícito
+- **Prometheus:** `router_cloud_fallbacks_total` (counter)
+- **Grafana:** Panel "Cloud Fallbacks" con threshold naranja en 1, rojo en 5
+- **In-memory:** `get_routing_metrics()["v1_fallback_from_v2"]`
+
+**Política:** cloud fallback debe ser raro. Si crece, investigar por qué HomeLab está offline.
 
 ### confidence_engine.py — Scoring de confianza
 - Score 0-1 combinando: similarity (0.35), agreement (0.25), recency (0.20), source_quality (0.20)

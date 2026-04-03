@@ -18,6 +18,7 @@ USE_ROUTER_V2=True, with automatic fallback to V1 on any error.
 
 import json
 import re
+import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -316,7 +317,9 @@ def select_model(
     """
     # V2 path: delegate to model_router
     if USE_ROUTER_V2 and available_backends is None:
+        t0 = time.monotonic()
         v2_result = _select_model_v2(category, query, flags)
+        decision_latency = time.monotonic() - t0
         if v2_result:
             _routing_metrics["v2_calls"] += 1
             _routing_metrics[f"v2_role_{v2_result['alias']}"] += 1
@@ -325,9 +328,19 @@ def select_model(
                 _routing_metrics["v2_vram_swaps"] += 1
             if v2_full.get("fallback_used"):
                 _routing_metrics["v2_fallbacks"] += 1
+            _record_metrics(
+                role=v2_result["alias"],
+                model=v2_full.get("model", "unknown"),
+                backend=v2_full.get("backend", "unknown"),
+                fallback_used=v2_full.get("fallback_used", False),
+                vram_swap=v2_full.get("vram_swap", False),
+                decision_latency=decision_latency,
+                v2_used=True,
+            )
             return v2_result
         # V2 failed (backends offline or import error) — fall through to V1
         _routing_metrics["v1_fallback_from_v2"] += 1
+        _record_v1_fallback()
 
     # V1 path: static model selection
     _routing_metrics["v1_calls"] += 1
@@ -341,6 +354,11 @@ def select_model(
     # Try default model first
     model = MODELS.get(default)
     if model and available_backends.get(model["tier"], False):
+        _record_metrics(
+            role=CATEGORY_TO_ROLE.get(category, "fast"),
+            model=model["id"], backend=model["tier"],
+            v2_used=False,
+        )
         return model
 
     # Fallback chain by category
@@ -356,6 +374,19 @@ def select_model(
     for model_key in fallback_chains.get(category, ["gemini_flash"]):
         model = MODELS.get(model_key)
         if model and available_backends.get(model["tier"], False):
+            is_cloud = model["tier"] == "cloud"
+            _record_metrics(
+                role=CATEGORY_TO_ROLE.get(category, "fast"),
+                model=model["id"], backend=model["tier"],
+                v2_used=False, cloud_fallback=is_cloud,
+            )
+            if is_cloud:
+                _log({
+                    "type": "cloud_fallback",
+                    "reason": "local backends unavailable in V1 chain",
+                    "category": category,
+                    "model": model["id"],
+                })
             return model
 
     # Last resort: any available model
@@ -363,7 +394,18 @@ def select_model(
         if available_backends.get(model["tier"], False):
             return model
 
-    # Nothing available — return gemini flash (cloud should always be up)
+    # Nothing available — CLOUD FALLBACK (explicit policy)
+    _log({
+        "type": "cloud_fallback",
+        "reason": "all backends offline — last resort to Gemini cloud",
+        "category": category,
+        "model": MODELS["gemini_flash"]["id"],
+    })
+    _record_metrics(
+        role=CATEGORY_TO_ROLE.get(category, "fast"),
+        model=MODELS["gemini_flash"]["id"], backend="cloud",
+        v2_used=False, cloud_fallback=True,
+    )
     return MODELS["gemini_flash"]
 
 
@@ -563,6 +605,24 @@ def _extract_signals(context: dict | None) -> list:
         signals.append(f"prev:{context['previous_classification']}")
 
     return signals
+
+
+def _record_metrics(**kwargs):
+    """Record routing decision to Prometheus (best-effort, never raises)."""
+    try:
+        from runtime.metrics_exporter import record_routing_decision
+        record_routing_decision(**kwargs)
+    except Exception:
+        pass
+
+
+def _record_v1_fallback():
+    """Record V1 fallback event to Prometheus (best-effort)."""
+    try:
+        from runtime.metrics_exporter import record_v1_fallback_from_v2
+        record_v1_fallback_from_v2()
+    except Exception:
+        pass
 
 
 def _build_flags_from_context(context: dict | None) -> dict:

@@ -50,6 +50,21 @@ if PROM_AVAILABLE:
     # Model failover
     G_FAILOVER_ACTIVE = Gauge("model_failover_active", "1 if using fallback model, 0 if primary")
 
+    # Router V2
+    G_RV2_V2_CALLS = Gauge("router_v2_calls_total", "Total Router V2 decisions")
+    G_RV2_V1_CALLS = Gauge("router_v1_calls_total", "Total Router V1 decisions")
+    G_RV2_V1_FALLBACK = Gauge("router_v1_fallback_from_v2_total", "V2 failed, V1 took over")
+    G_RV2_INTERNAL_FALLBACKS = Gauge("router_v2_internal_fallbacks_total", "V2 non-primary model used")
+    G_RV2_VRAM_SWAPS = Gauge("router_vram_swaps_total", "Models exceeding GPU VRAM selected")
+    G_RV2_CLOUD_FALLBACKS = Gauge("router_cloud_fallbacks_total", "Fell through to Gemini cloud")
+    G_RV2_LAST_LATENCY = Gauge("router_last_decision_latency_seconds", "Last routing decision latency")
+    G_RV2_ROLE_FAST = Gauge("router_v2_role_fast_total", "Routing decisions for fast role")
+    G_RV2_ROLE_REASON = Gauge("router_v2_role_reason_total", "Routing decisions for reason role")
+    G_RV2_ROLE_HEAVY = Gauge("router_v2_role_heavy_total", "Routing decisions for heavy role")
+    G_RV2_ROLE_CODE = Gauge("router_v2_role_code_total", "Routing decisions for code role")
+    G_RV2_ROLE_VISION = Gauge("router_v2_role_vision_total", "Routing decisions for vision role")
+    G_RV2_ROLE_EMBED = Gauge("router_v2_role_embed_total", "Routing decisions for embed role")
+
 
 def update_from_file():
     """Read metrics_state.json and update Prometheus Gauges."""
@@ -83,6 +98,22 @@ def update_from_file():
 
         # Failover
         G_FAILOVER_ACTIVE.set(state.get("failover_active", 0))
+
+        # Router V2
+        rv2 = state.get("router_v2", {})
+        G_RV2_V2_CALLS.set(rv2.get("v2_calls", 0))
+        G_RV2_V1_CALLS.set(rv2.get("v1_calls", 0))
+        G_RV2_V1_FALLBACK.set(rv2.get("v1_fallback_from_v2", 0))
+        G_RV2_INTERNAL_FALLBACKS.set(rv2.get("internal_fallbacks", 0))
+        G_RV2_VRAM_SWAPS.set(rv2.get("vram_swaps", 0))
+        G_RV2_CLOUD_FALLBACKS.set(rv2.get("cloud_fallbacks", 0))
+        G_RV2_LAST_LATENCY.set(rv2.get("last_latency", 0))
+        G_RV2_ROLE_FAST.set(rv2.get("role_fast", 0))
+        G_RV2_ROLE_REASON.set(rv2.get("role_reason", 0))
+        G_RV2_ROLE_HEAVY.set(rv2.get("role_heavy", 0))
+        G_RV2_ROLE_CODE.set(rv2.get("role_code", 0))
+        G_RV2_ROLE_VISION.set(rv2.get("role_vision", 0))
+        G_RV2_ROLE_EMBED.set(rv2.get("role_embed", 0))
 
     except (FileNotFoundError, json.JSONDecodeError):
         pass
