@@ -126,9 +126,10 @@ class TestModelSelection(unittest.TestCase):
         model = orch.select_model("infrastructure_issue")
         self.assertEqual(model["id"], "ollama/qwen2.5:7b")
 
-    def test_reasoning_selects_qwen_7b(self):
+    def test_reasoning_selects_deepseek_via_v2(self):
         model = orch.select_model("complex_reasoning")
-        self.assertEqual(model["id"], "ollama/qwen2.5:7b")
+        # V2 routes complex_reasoning → reason role → deepseek-r1:14b
+        self.assertEqual(model["id"], "ollama/deepseek-r1:14b")
 
     def test_diagnostic_selects_qwen_7b(self):
         model = orch.select_model("diagnostic_request")
@@ -315,6 +316,288 @@ class TestContextSignals(unittest.TestCase):
         context = {"previous_classification": "infrastructure_issue"}
         result = orch.route_query("hola", context)
         self.assertIn("prev:infrastructure_issue", result["context_signals"])
+
+
+# ── Integration: Orchestrator + Router V2 ────────────────────────
+
+from unittest.mock import patch, MagicMock
+
+
+def _mock_v2_backends(gpu=True, nas=True):
+    """Return a fake detect_backends result for V2 testing."""
+    return {
+        "notebook_gpu": {
+            "available": gpu,
+            "url": "http://192.168.2.6:11434",
+            "type": "gpu",
+            "priority": 1,
+            "description": "HomeLab GPU",
+        },
+        "nas_cpu": {
+            "available": nas,
+            "url": "http://127.0.0.1:11434",
+            "type": "cpu",
+            "priority": 2,
+            "description": "NAS Ryzen CPU (fallback)",
+        },
+    }
+
+
+class TestRouterV2Integration(unittest.TestCase):
+    """End-to-end: orchestrator.route_query() → model_router.route_by_role()."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_log = orch.ORCHESTRATOR_LOG
+        orch.ORCHESTRATOR_LOG = Path(self.tmpdir) / "orchestrator.log"
+        self._orig_v2 = orch.USE_ROUTER_V2
+        orch.USE_ROUTER_V2 = True
+        orch.reset_routing_metrics()
+
+    def tearDown(self):
+        orch.ORCHESTRATOR_LOG = self._orig_log
+        orch.USE_ROUTER_V2 = self._orig_v2
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_chat_routes_to_fast_model(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        result = orch.route_query("hola buenas")
+        self.assertEqual(result["classification"], "chat")
+        self.assertEqual(result["model"]["id"], "ollama/qwen2.5:7b")
+        self.assertIn("router_v2", result)
+        self.assertEqual(result["router_v2"]["role"], "fast")
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_reasoning_routes_to_deepseek(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        result = orch.route_query("analiza el rendimiento del stack y compara con la semana pasada")
+        self.assertEqual(result["classification"], "complex_reasoning")
+        self.assertEqual(result["model"]["id"], "ollama/deepseek-r1:14b")
+        self.assertEqual(result["router_v2"]["role"], "reason")
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_code_prompt_overrides_category(self, mock_mr_log, mock_detect):
+        """A chat-classified query with code content → code model."""
+        mock_detect.return_value = _mock_v2_backends()
+        result = orch.route_query("refactor this function for me")
+        # classify_query sees "refactor" but may classify as chat/automation
+        # V2 classify_task sees code keywords → code role → coder model
+        self.assertEqual(result["model"]["id"], "ollama/qwen2.5-coder:14b")
+        self.assertEqual(result["router_v2"]["role"], "code")
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_vision_context_flag(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        context = {"has_image": True}
+        result = orch.route_query("que es esto", context)
+        self.assertEqual(result["model"]["id"], "ollama/qwen2.5vl:7b")
+        self.assertEqual(result["router_v2"]["role"], "vision")
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_critical_context_flag(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        context = {"critical": True}
+        result = orch.route_query("ejecuta esto", context)
+        self.assertEqual(result["model"]["id"], "ollama/qwen2.5:32b")
+        self.assertEqual(result["router_v2"]["role"], "heavy")
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_v2_result_has_required_keys(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        result = orch.route_query("hola")
+        self.assertIn("router_v2", result)
+        v2 = result["router_v2"]
+        for key in ("role", "model", "fallback_used", "vram_swap", "signals"):
+            self.assertIn(key, v2, f"router_v2 missing key: {key}")
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_v2_log_includes_router_info(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        orch.route_query("analiza esto")
+        log_path = orch.ORCHESTRATOR_LOG
+        lines = log_path.read_text().strip().split("\n")
+        entry = json.loads(lines[-1])
+        self.assertIn("router_v2_role", entry)
+        self.assertIn("router_v2_model", entry)
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_metrics_increment_on_v2(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        orch.reset_routing_metrics()
+        orch.route_query("hola")
+        metrics = orch.get_routing_metrics()
+        self.assertEqual(metrics.get("v2_calls", 0), 1)
+        self.assertEqual(metrics.get("v1_calls", 0), 0)
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_metrics_track_vram_swap(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        orch.reset_routing_metrics()
+        # critical → heavy → 32b (needs vram swap)
+        orch.route_query("deploy to production", {"critical": True})
+        metrics = orch.get_routing_metrics()
+        self.assertGreaterEqual(metrics.get("v2_vram_swaps", 0), 1)
+
+
+class TestRouterV2Fallback(unittest.TestCase):
+    """V2 failure → V1 fallback behavior."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_log = orch.ORCHESTRATOR_LOG
+        orch.ORCHESTRATOR_LOG = Path(self.tmpdir) / "orchestrator.log"
+        self._orig_v2 = orch.USE_ROUTER_V2
+        orch.reset_routing_metrics()
+
+    def tearDown(self):
+        orch.ORCHESTRATOR_LOG = self._orig_log
+        orch.USE_ROUTER_V2 = self._orig_v2
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_v2_offline_falls_to_v1(self, mock_mr_log, mock_detect):
+        """When all Ollama backends are offline, V2 returns empty → V1 kicks in."""
+        orch.USE_ROUTER_V2 = True
+        mock_detect.return_value = _mock_v2_backends(gpu=False, nas=False)
+        orch.reset_routing_metrics()
+        result = orch.route_query("hola")
+        # V1 fallback: returns a model from MODELS dict
+        self.assertIsNotNone(result["model"]["id"])
+        metrics = orch.get_routing_metrics()
+        self.assertGreaterEqual(metrics.get("v1_fallback_from_v2", 0), 1)
+        self.assertGreaterEqual(metrics.get("v1_calls", 0), 1)
+
+    def test_v2_disabled_uses_v1(self):
+        """USE_ROUTER_V2=False → pure V1 path."""
+        orch.USE_ROUTER_V2 = False
+        orch.reset_routing_metrics()
+        result = orch.route_query("hola")
+        self.assertNotIn("router_v2", result)
+        metrics = orch.get_routing_metrics()
+        self.assertEqual(metrics.get("v2_calls", 0), 0)
+        self.assertGreaterEqual(metrics.get("v1_calls", 0), 1)
+
+    def test_v1_with_explicit_backends(self):
+        """Passing available_backends forces V1 path (backward compat)."""
+        orch.USE_ROUTER_V2 = True
+        orch.reset_routing_metrics()
+        model = orch.select_model(
+            "chat",
+            available_backends={"local_gpu": True, "local_cpu": True, "cloud": True},
+        )
+        # V1 path because available_backends was explicitly passed
+        self.assertIsNotNone(model["id"])
+        metrics = orch.get_routing_metrics()
+        self.assertGreaterEqual(metrics.get("v1_calls", 0), 1)
+
+    @patch("runtime.model_router.detect_backends", side_effect=Exception("boom"))
+    def test_v2_exception_falls_to_v1(self, mock_detect):
+        """If model_router raises, V1 handles it gracefully."""
+        orch.USE_ROUTER_V2 = True
+        orch.reset_routing_metrics()
+        result = orch.route_query("hola")
+        self.assertIsNotNone(result["model"]["id"])
+        metrics = orch.get_routing_metrics()
+        self.assertGreaterEqual(metrics.get("v1_fallback_from_v2", 0), 1)
+
+
+class TestRouterV2Escalation(unittest.TestCase):
+    """Escalation with V2 integration."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_log = orch.ORCHESTRATOR_LOG
+        orch.ORCHESTRATOR_LOG = Path(self.tmpdir) / "orchestrator.log"
+        self._orig_v2 = orch.USE_ROUTER_V2
+        orch.USE_ROUTER_V2 = True
+
+    def tearDown(self):
+        orch.ORCHESTRATOR_LOG = self._orig_log
+        orch.USE_ROUTER_V2 = self._orig_v2
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_escalation_uses_v2_model(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        original = orch.route_query("como funciona el proxy")
+        escalated = orch.escalate(original, "low_confidence")
+        # Escalated to complex_reasoning → reason role → deepseek
+        self.assertEqual(escalated["classification"], "complex_reasoning")
+        self.assertEqual(escalated["model"]["id"], "ollama/deepseek-r1:14b")
+
+
+class TestBuildFlagsFromContext(unittest.TestCase):
+    """Context → V2 flags translation."""
+
+    def test_empty_context(self):
+        self.assertEqual(orch._build_flags_from_context(None), {})
+        self.assertEqual(orch._build_flags_from_context({}), {})
+
+    def test_image_flag(self):
+        flags = orch._build_flags_from_context({"has_image": True})
+        self.assertTrue(flags.get("has_image"))
+
+    def test_critical_flag(self):
+        flags = orch._build_flags_from_context({"critical": True})
+        self.assertTrue(flags.get("critical"))
+
+    def test_role_passthrough(self):
+        flags = orch._build_flags_from_context({"role": "heavy"})
+        self.assertEqual(flags["role"], "heavy")
+
+    def test_unrelated_keys_ignored(self):
+        flags = orch._build_flags_from_context({
+            "recent_events": [{"type": "vpn_down"}],
+            "working_memory": "some text",
+        })
+        self.assertEqual(flags, {})
+
+
+class TestRoutingMetrics(unittest.TestCase):
+    """Routing metrics tracking."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_log = orch.ORCHESTRATOR_LOG
+        orch.ORCHESTRATOR_LOG = Path(self.tmpdir) / "orchestrator.log"
+        self._orig_v2 = orch.USE_ROUTER_V2
+        orch.reset_routing_metrics()
+
+    def tearDown(self):
+        orch.ORCHESTRATOR_LOG = self._orig_log
+        orch.USE_ROUTER_V2 = self._orig_v2
+
+    def test_reset_clears_metrics(self):
+        orch._routing_metrics["test"] = 42
+        orch.reset_routing_metrics()
+        self.assertEqual(orch.get_routing_metrics(), {})
+
+    def test_get_returns_copy(self):
+        orch._routing_metrics["v2_calls"] = 5
+        metrics = orch.get_routing_metrics()
+        metrics["v2_calls"] = 999
+        self.assertEqual(orch._routing_metrics["v2_calls"], 5)
+
+    @patch("runtime.model_router.detect_backends")
+    @patch("runtime.model_router._log")
+    def test_role_distribution_tracked(self, mock_mr_log, mock_detect):
+        mock_detect.return_value = _mock_v2_backends()
+        orch.USE_ROUTER_V2 = True
+        orch.reset_routing_metrics()
+        orch.route_query("hola")
+        orch.route_query("analiza esto")
+        metrics = orch.get_routing_metrics()
+        self.assertGreaterEqual(metrics.get("v2_role_fast", 0), 1)
+        self.assertGreaterEqual(metrics.get("v2_role_reason", 0), 1)
 
 
 if __name__ == "__main__":

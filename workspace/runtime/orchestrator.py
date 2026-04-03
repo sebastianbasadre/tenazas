@@ -4,7 +4,7 @@ Orchestrator — Central AI routing layer for Tenazas.
 
 Classifies user queries and routes them to the optimal pipeline + model.
 
-Categories:
+Categories (pipeline selection):
   chat               → direct LLM
   knowledge_query    → RAG pipeline
   infrastructure_issue → infra diagnostics + RAG
@@ -12,11 +12,13 @@ Categories:
   diagnostic_request  → infra diagnostics engine
   complex_reasoning   → multi-model chain
 
-Model selection based on task complexity and availability.
+Model selection delegates to Router V2 (model_router.route_by_role) when
+USE_ROUTER_V2=True, with automatic fallback to V1 on any error.
 """
 
 import json
 import re
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -25,7 +27,27 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 ORCHESTRATOR_LOG = BASE_DIR / "logs" / "orchestrator.log"
 
-# Model tiers (ordered by preference)
+# Feature flag: use Router V2 for model selection
+# Set to False to revert to V1 behavior without code changes
+USE_ROUTER_V2 = True
+
+# ── Routing metrics (in-memory, reset on process restart) ────────
+
+_routing_metrics = defaultdict(int)
+
+
+def get_routing_metrics() -> dict:
+    """Return current routing metrics snapshot. Resets on process restart."""
+    return dict(_routing_metrics)
+
+
+def reset_routing_metrics():
+    """Reset all routing metrics (for testing)."""
+    _routing_metrics.clear()
+
+
+# ── V1 Model tiers (used as fallback when V2 is off or fails) ───
+
 MODELS = {
     "gemini_flash": {
         "id": "google/gemini-2.5-flash",
@@ -57,6 +79,17 @@ MODELS = {
         "tier": "local_cpu",
         "strengths": ["lightweight", "simple_chat"],
     },
+}
+
+# ── Category → Role mapping (orchestrator intent → model_router role) ──
+
+CATEGORY_TO_ROLE = {
+    "chat": "fast",
+    "knowledge_query": "fast",
+    "infrastructure_issue": "fast",
+    "automation_command": "fast",
+    "diagnostic_request": "fast",
+    "complex_reasoning": "reason",
 }
 
 # Pipeline definitions
@@ -216,18 +249,89 @@ def classify_query(query: str, context: dict | None = None) -> str:
 # ── Model Selection ──────────────────────────────────────────────
 
 
+def _select_model_v2(
+    category: str,
+    query: str = "",
+    flags: dict | None = None,
+) -> dict | None:
+    """Try Router V2 model selection. Returns model dict or None on failure.
+
+    Translates orchestrator category + prompt into a route_by_role() call.
+    Returns a dict compatible with V1 format: {id, alias, tier, strengths}.
+    """
+    try:
+        from runtime import model_router as mr
+
+        # The prompt-based classification can override the category default
+        # e.g. a "chat" query with code in it → code role
+        merged_flags = dict(flags or {})
+        if "role" not in merged_flags:
+            # Only set category default if no explicit role in flags
+            category_role = CATEGORY_TO_ROLE.get(category, "fast")
+            # Let classify_task analyze the prompt first; if it returns
+            # something more specific than fast, use that instead
+            prompt_role = mr.classify_task(query, merged_flags)
+            if prompt_role != "fast":
+                merged_flags["role"] = prompt_role
+            else:
+                merged_flags["role"] = category_role
+
+        result = mr.route_by_role(query, flags=merged_flags)
+        if not result:
+            return None
+
+        # Convert to orchestrator model format
+        model_name = result["model"]
+        tier = "local_gpu" if result["backend"] == "notebook_gpu" else "local_cpu"
+
+        return {
+            "id": f"ollama/{model_name}",
+            "alias": result["role"],
+            "tier": tier,
+            "strengths": mr.MODEL_CATALOG.get(model_name, {}).get("capabilities", []),
+            "_v2_result": result,  # preserve full V2 result for logging
+        }
+    except Exception:
+        return None
+
+
 def select_model(
     category: str,
     available_backends: dict | None = None,
+    query: str = "",
+    flags: dict | None = None,
 ) -> dict:
     """Select the best model for a given category.
+
+    When USE_ROUTER_V2 is True, delegates to model_router.route_by_role()
+    for smarter role-based selection. Falls back to V1 on any error.
 
     Args:
         category: query classification
         available_backends: {tier: bool} e.g. {"local_gpu": True, "cloud": True}
+        query: original prompt text (for V2 classification)
+        flags: optional hints for V2 (role, has_image, critical, etc.)
 
-    Returns: model dict from MODELS.
+    Returns: model dict with at minimum {id, alias, tier}.
     """
+    # V2 path: delegate to model_router
+    if USE_ROUTER_V2 and available_backends is None:
+        v2_result = _select_model_v2(category, query, flags)
+        if v2_result:
+            _routing_metrics["v2_calls"] += 1
+            _routing_metrics[f"v2_role_{v2_result['alias']}"] += 1
+            v2_full = v2_result.get("_v2_result", {})
+            if v2_full.get("vram_swap"):
+                _routing_metrics["v2_vram_swaps"] += 1
+            if v2_full.get("fallback_used"):
+                _routing_metrics["v2_fallbacks"] += 1
+            return v2_result
+        # V2 failed (backends offline or import error) — fall through to V1
+        _routing_metrics["v1_fallback_from_v2"] += 1
+
+    # V1 path: static model selection
+    _routing_metrics["v1_calls"] += 1
+
     if available_backends is None:
         available_backends = {"local_gpu": True, "local_cpu": True, "cloud": True}
 
@@ -305,20 +409,27 @@ def route_query(
             "context_signals": list,
         }
     """
-    # 1. Classify
+    # 1. Classify intent (pipeline selection)
     classification = classify_query(query, context)
 
-    # 2. Select model
-    model = select_model(classification, available_backends)
+    # 2. Build flags from context
+    flags = _build_flags_from_context(context)
 
-    # 3. Assemble pipeline
+    # 3. Select model (V2 delegates to model_router, V1 as fallback)
+    model = select_model(classification, available_backends,
+                         query=query, flags=flags)
+
+    # 4. Assemble pipeline
     pipeline = get_pipeline(classification)
 
-    # 4. Set parameters based on category
+    # 5. Set parameters based on category
     params = _get_parameters(classification)
 
-    # 5. Extract context signals
+    # 6. Extract context signals
     signals = _extract_signals(context)
+
+    # 7. Enrich with V2 routing info if available
+    v2_info = model.pop("_v2_result", None)
 
     result = {
         "query": query,
@@ -333,13 +444,26 @@ def route_query(
         "context_signals": signals,
     }
 
-    _log({
+    if v2_info:
+        result["router_v2"] = {
+            "role": v2_info.get("role"),
+            "model": v2_info.get("model"),
+            "fallback_used": v2_info.get("fallback_used"),
+            "vram_swap": v2_info.get("vram_swap"),
+            "signals": v2_info.get("signals", []),
+        }
+
+    log_entry = {
         "type": "routing",
         "query": query[:100],
         "classification": classification,
         "pipeline": pipeline["name"],
         "model": model["id"],
-    })
+    }
+    if v2_info:
+        log_entry["router_v2_role"] = v2_info.get("role")
+        log_entry["router_v2_model"] = v2_info.get("model")
+    _log(log_entry)
 
     return result
 
@@ -370,7 +494,8 @@ def escalate(
     current = original_route["classification"]
     escalated = escalation_map.get(current, "complex_reasoning")
 
-    model = select_model(escalated, available_backends)
+    model = select_model(escalated, available_backends,
+                         query=original_route.get("query", ""))
     pipeline = get_pipeline(escalated)
     params = _get_parameters(escalated)
 
@@ -438,3 +563,23 @@ def _extract_signals(context: dict | None) -> list:
         signals.append(f"prev:{context['previous_classification']}")
 
     return signals
+
+
+def _build_flags_from_context(context: dict | None) -> dict:
+    """Extract Router V2 flags from orchestrator context."""
+    if not context:
+        return {}
+
+    flags = {}
+    if context.get("has_image"):
+        flags["has_image"] = True
+    if context.get("has_attachment"):
+        flags["has_attachment"] = True
+    if context.get("critical"):
+        flags["critical"] = True
+    if context.get("embed"):
+        flags["embed"] = True
+    if context.get("role"):
+        flags["role"] = context["role"]
+
+    return flags

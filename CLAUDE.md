@@ -461,17 +461,23 @@ Incluye: lockfile protection, log rotation, heartbeat freeze detection.
 - **Cooldown de 20 min** por target (no re-reinicia si ya se reinicio recientemente)
 - Cooldown solo cuenta restarts exitosos (fallidos no cuentan)
 
-### orchestrator.py — Central AI routing
+### orchestrator.py — Central AI routing (integrado con Router V2)
 - Clasifica queries en: chat, knowledge_query, infrastructure_issue, automation_command, diagnostic_request, complex_reasoning
 - **Clasificacion lightweight:** keyword + regex rules (sin LLM)
-- **Model selection:** elige modelo segun categoria + disponibilidad de backends
+- **Model selection (V2):** delega a `model_router.route_by_role()` para seleccion inteligente por rol
+  - Prompt-based: codigo detectado → coder, razonamiento → deepseek, imagen → vision
+  - Category-based: complex_reasoning → reason role, chat → fast role
+  - V2 flags desde context: `has_image`, `critical`, `embed`, `role`
+- **Feature flag:** `USE_ROUTER_V2 = True` — set False para revertir a V1 sin cambios de codigo
+- **Fallback seguro:** si V2 falla (backends offline, import error) → V1 automatico
 - **Pipeline routing:** cada categoria tiene modulos asignados (rag, diagnostics, action_mapper)
 - **Context-aware:** recent_events, working_memory, ollama_available influyen en routing
 - **Escalation:** low confidence → escala a pipeline mas capaz (knowledge→reasoning, etc.)
-- **Fallback chain:** si GPU offline → cloud, si cloud offline → local
-- **Telemetria:** `logs/orchestrator.log` (JSON por linea)
-- `route_query(query, context)` → {classification, pipeline, model, parameters}
+- **Metricas:** `v2_calls`, `v1_calls`, `v1_fallback_from_v2`, `v2_vram_swaps`, `v2_fallbacks`, `v2_role_{role}`
+- **Telemetria:** `logs/orchestrator.log` (JSON por linea, incluye `router_v2_role` y `router_v2_model`)
+- `route_query(query, context)` → {classification, pipeline, model, parameters, router_v2}
 - `escalate(original_route, reason)` → ruta escalada
+- `get_routing_metrics()` → snapshot de metricas de routing
 
 ### confidence_engine.py — Scoring de confianza
 - Score 0-1 combinando: similarity (0.35), agreement (0.25), recency (0.20), source_quality (0.20)
@@ -725,7 +731,7 @@ docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 docker exec openclaw python3 /home/tenazas/tests/test_runtime.py       # 54 tests
 docker exec openclaw python3 /home/tenazas/tests/test_query.py         # 34 tests
 docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 40 tests
-docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 43 tests
+docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 65 tests
 docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
 docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
@@ -800,13 +806,19 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - Failure simulator: scenarios (crash loop, network, VPN), run, list
 - Experiment engine: create, record results, analyze winner, list
 
-**test_orchestrator.py** (43 tests — unittest)
+**test_orchestrator.py** (65 tests — unittest)
 - Classification: chat, knowledge, infra, automation, diagnostic, reasoning, context boost
-- Model selection: per-category, GPU offline fallback, cloud offline fallback, all offline
+- V1 model selection: per-category, GPU offline fallback, cloud offline fallback, all offline
 - Pipeline assembly: modules per category, unknown defaults
 - Route query: complete output, logging, context signals, temperature tuning
 - Escalation: knowledge→reasoning, chat→knowledge, infra→reasoning, logs, model change
 - Context signals: events, ollama_offline, previous_classification
+- V2 integration: chat→fast, reasoning→deepseek, code override, vision/critical context flags
+- V2 result keys, V2 log format, V2 metrics (v2_calls, vram_swaps, role distribution)
+- V2 fallback: offline→V1, feature flag off→V1, explicit backends→V1, exception→V1
+- V2 escalation: escalate uses V2 model selection
+- Build flags from context: image, critical, role passthrough, unrelated keys ignored
+- Routing metrics: reset, copy safety, role distribution tracking
 
 **test_compact.py** (unittest + mock HTTP)
 - save_compact(), generate_summary, print_anchor
