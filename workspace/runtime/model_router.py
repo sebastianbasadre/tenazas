@@ -123,6 +123,132 @@ ROLE_MAP = {
 VALID_ROLES = set(ROLE_MAP.keys())
 DEFAULT_ROLE = "fast"
 
+# Models that require VRAM swap on RTX 4050 (>6GB) and add significant latency
+HEAVY_MODELS = {"qwen2.5:32b", "deepseek-r1:14b", "qwen2.5-coder:14b"}
+
+# ── V2: Guardrails ─────────────────────────────────────────────
+# Prevents overuse of heavy models when the system is under load.
+
+GUARDRAIL_WINDOW = 600       # 10 min window for frequency tracking
+GUARDRAIL_MAX_HEAVY = 3      # Max heavy model calls per window
+GUARDRAIL_COOLDOWN = 120     # 2 min cooldown after a heavy model call
+GUARDRAIL_LATENCY_THRESHOLD = 30.0  # If last heavy latency > 30s, degrade
+
+# In-memory state (resets on process restart — acceptable for cron subprocess)
+_guardrail_state = {
+    "heavy_timestamps": [],   # timestamps of recent heavy model selections
+    "last_heavy_model": None,
+    "last_heavy_ts": 0.0,
+    "last_heavy_latency": 0.0,
+    "vram_swaps_window": [],  # timestamps of recent vram swaps
+}
+
+
+def _guardrail_cleanup(now: float):
+    """Remove expired entries from guardrail tracking."""
+    cutoff = now - GUARDRAIL_WINDOW
+    st = _guardrail_state
+    st["heavy_timestamps"] = [t for t in st["heavy_timestamps"] if t > cutoff]
+    st["vram_swaps_window"] = [t for t in st["vram_swaps_window"] if t > cutoff]
+
+
+def apply_guardrails(role: str, flags: dict | None = None) -> tuple:
+    """Check if a heavy role should be degraded based on recent usage.
+
+    Args:
+        role: the classified role
+        flags: routing flags (force_heavy=True bypasses guardrails)
+
+    Returns:
+        (effective_role, degraded, reason)
+        - effective_role: the role to actually use (may be degraded)
+        - degraded: True if the role was changed
+        - reason: human-readable reason for degradation (or "")
+    """
+    flags = flags or {}
+
+    # Only guard heavy/code roles (they use HEAVY_MODELS)
+    if role not in ("heavy", "code"):
+        return role, False, ""
+
+    # Explicit bypass
+    if flags.get("force_heavy"):
+        return role, False, ""
+
+    import time
+    now = time.monotonic()
+    _guardrail_cleanup(now)
+    st = _guardrail_state
+
+    # 1. Cooldown: if a heavy model was used recently, degrade
+    if st["last_heavy_ts"] > 0:
+        elapsed = now - st["last_heavy_ts"]
+        if elapsed < GUARDRAIL_COOLDOWN:
+            degrade_to = "reason" if role == "heavy" else "fast"
+            return degrade_to, True, (
+                f"cooldown: {GUARDRAIL_COOLDOWN - elapsed:.0f}s remaining "
+                f"after {st['last_heavy_model']}"
+            )
+
+    # 2. Frequency: too many heavy calls in window
+    if len(st["heavy_timestamps"]) >= GUARDRAIL_MAX_HEAVY:
+        degrade_to = "reason" if role == "heavy" else "fast"
+        return degrade_to, True, (
+            f"frequency: {len(st['heavy_timestamps'])}/{GUARDRAIL_MAX_HEAVY} "
+            f"heavy calls in {GUARDRAIL_WINDOW}s window"
+        )
+
+    # 3. Latency: last heavy call was too slow
+    if st["last_heavy_latency"] > GUARDRAIL_LATENCY_THRESHOLD:
+        degrade_to = "reason" if role == "heavy" else "fast"
+        return degrade_to, True, (
+            f"latency: last heavy took {st['last_heavy_latency']:.1f}s "
+            f"(threshold: {GUARDRAIL_LATENCY_THRESHOLD}s)"
+        )
+
+    # 4. VRAM swap storm: too many swaps in window
+    if len(st["vram_swaps_window"]) >= GUARDRAIL_MAX_HEAVY:
+        degrade_to = "reason" if role == "heavy" else "fast"
+        return degrade_to, True, (
+            f"vram_swaps: {len(st['vram_swaps_window'])} swaps in "
+            f"{GUARDRAIL_WINDOW}s window"
+        )
+
+    return role, False, ""
+
+
+def record_heavy_usage(model: str, latency: float = 0.0, vram_swap: bool = False):
+    """Record that a heavy model was used (call after inference completes).
+
+    Args:
+        model: model name that was used
+        latency: inference latency in seconds (0 if not yet known)
+        vram_swap: whether this required VRAM swap
+    """
+    import time
+    now = time.monotonic()
+    st = _guardrail_state
+
+    if model in HEAVY_MODELS:
+        st["heavy_timestamps"].append(now)
+        st["last_heavy_model"] = model
+        st["last_heavy_ts"] = now
+        st["last_heavy_latency"] = latency
+
+    if vram_swap:
+        st["vram_swaps_window"].append(now)
+
+
+def reset_guardrails():
+    """Reset guardrail state (for testing)."""
+    st = _guardrail_state
+    st["heavy_timestamps"] = []
+    st["last_heavy_model"] = None
+    st["last_heavy_ts"] = 0.0
+    st["last_heavy_latency"] = 0.0
+    st["vram_swaps_window"] = []
+
+
 # ── V2: Classification heuristics ───────────────────────────────
 
 _CODE_KEYWORDS = re.compile(
@@ -402,8 +528,13 @@ def route_by_role(
         action="route_v2". The idle_learning_engine can read these to
         analyze routing patterns, fallback rates, and VRAM swap frequency.
     """
-    role = classify_task(prompt, flags)
-    signals = _collect_signals(prompt, flags, role)
+    raw_role = classify_task(prompt, flags)
+    signals = _collect_signals(prompt, flags, raw_role)
+
+    # Apply guardrails: may degrade heavy/code roles
+    role, degraded, degrade_reason = apply_guardrails(raw_role, flags)
+    if degraded:
+        signals.append(f"guardrail:{degrade_reason}")
 
     if backend_status is None:
         backend_status = detect_backends()
@@ -444,20 +575,26 @@ def route_by_role(
     if chosen not in MODEL_CATALOG:
         chosen = chain[0] if chain else "qwen2.5:7b"
 
-    primary = ROLE_MAP.get(role, [None])[0]
+    primary = ROLE_MAP.get(raw_role, [None])[0]
     if chosen != primary:
         fallback_used = True
 
     model_info = MODEL_CATALOG.get(chosen, {})
     vram_swap = model_info.get("vram_gb", 0) > gpu_vram
 
+    # Record heavy usage for future guardrail checks
+    if chosen in HEAVY_MODELS:
+        record_heavy_usage(chosen, vram_swap=vram_swap)
+
     result = {
         "model": chosen,
         "backend": best_bid,
         "url": BACKENDS.get(best_bid, {}).get("url", ""),
         "role": role,
-        "classified_as": role,
+        "classified_as": raw_role,
         "fallback_used": fallback_used,
+        "degraded": degraded,
+        "degrade_reason": degrade_reason,
         "reason": f"role={role}, chain={chain}, selected={chosen}",
         "vram_swap": vram_swap,
         "signals": signals,
@@ -468,8 +605,11 @@ def route_by_role(
         "action": "route_v2",
         "prompt_preview": prompt[:80] if prompt else "",
         "task_type": role,
+        "classified_as": raw_role,
         "model_chosen": chosen,
         "role": role,
+        "degraded": degraded,
+        "degrade_reason": degrade_reason,
         "fallback_used": fallback_used,
         "backend": best_bid,
         "vram_swap": vram_swap,

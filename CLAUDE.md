@@ -144,10 +144,29 @@ backend, model, url = route("reason")
 
 **Integracion futura con idle learning:** El formato de log permite que `idle_learning_engine.py` analice patrones de routing (tasa de fallback, frecuencia de VRAM swap, distribucion por rol) sin cambios adicionales.
 
+**Guardrails (proteccion contra abuso de modelos pesados):**
+Modelos pesados (`qwen2.5:32b`, `deepseek-r1:14b`, `qwen2.5-coder:14b`) tienen protecciones automaticas:
+
+| Guardrail | Config | Efecto |
+|---|---|---|
+| Cooldown | 120s despues de usar heavy model | heavy→reason, code→fast |
+| Frecuencia | Max 3 heavy calls / 10 min | heavy→reason |
+| Latencia | Si ultimo heavy > 30s | heavy→reason |
+| VRAM storm | 3+ swaps / 10 min | heavy→reason |
+
+- **Bypass:** `flags={"force_heavy": True}` salta todos los guardrails
+- **Degradacion:** heavy→reason→fast (nunca bloquea, siempre responde)
+- **Scope:** solo afecta roles `heavy` y `code` (fast/reason/vision/embed no tienen guardrails)
+- **State:** in-memory, se resetea con el proceso (aceptable para cron cada 5 min)
+- **Log:** señal `guardrail:<reason>` en `signals` del log entry
+- `record_heavy_usage(model, latency, vram_swap)` — llamar post-inferencia para actualizar latencia
+- `reset_guardrails()` — reset manual (testing)
+
 **Limitaciones conocidas:**
 - Clasificacion por heuristicas (sin LLM) — puede clasificar mal prompts ambiguos
 - VRAM swap no se bloquea pero agrega latencia (~5-15s para cargar modelo grande)
 - En NAS CPU solo modelos <= 3.5 GB VRAM (phi4-mini)
+- Guardrails in-memory: se pierden entre ciclos del runtime cron (5 min)
 
 ### Cascada de routing legacy (`ollama-check.sh`)
 1. **HomeLab GPU** (192.168.2.6:11434) — preferido, todos los modelos
@@ -751,7 +770,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 test
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
 docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
 docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 tests
-docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 72 tests
+docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 93 tests
 docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 tests
 docker exec openclaw python3 /home/tenazas/tests/test_world_model.py   # 38 tests
 docker exec openclaw python3 /home/tenazas/tests/test_shared_memory.py # 39 tests
@@ -929,7 +948,7 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - PROBLEM_MAP: all mapped templates exist, expected problems covered
 - Logging: plan generation logged with template, problem, steps_count
 
-**test_model_router.py** (72 tests — unittest + mock)
+**test_model_router.py** (93 tests — unittest + mock)
 - Backend ping: success, failure, timeout, unknown backend, curl flags
 - Backend detection: both online, notebook offline, logging
 - V1 model selection GPU: system→7b, reason→7b, embed→nomic, prefer_fast, result keys
@@ -941,6 +960,8 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - Catalog integrity: required fields, role field, ROLE_MAP references valid models, HomeLab models
 - V2 classify_task: explicit flag, vision/embed/code/reason/heavy keywords, backticks, special chars, long prompt, spanish, default fast, invalid flag
 - V2 route_by_role: fast→7b, reason→deepseek, code→coder, vision→vl, heavy→32b, embed→nomic, no backend→empty, CPU fallback, backward compat, pre-fetched status, vram_swap flag, log format, result keys, role override
+- Guardrails: no guardrail on fast/reason/vision, heavy/code pass when clean, force_heavy bypass, cooldown degrades heavy→reason and code→fast, cooldown expiry, frequency limit, latency threshold, vram_swap storm, record_heavy_usage tracking, reset, cleanup expired
+- Guardrails integration: route_by_role respects cooldown, force_heavy bypasses, degraded signals in result
 
 **test_supervisor.py** (22 tests — unittest + mock)
 - Lock acquisition: fresh, concurrent blocked, stale removal, threshold boundary

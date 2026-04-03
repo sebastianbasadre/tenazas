@@ -414,6 +414,12 @@ class TestClassifyTask(unittest.TestCase):
 class TestRouteByRole(unittest.TestCase):
     """Role-based routing with fallback chains."""
 
+    def setUp(self):
+        mr.reset_guardrails()
+
+    def tearDown(self):
+        mr.reset_guardrails()
+
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_fast_selects_7b(self, mock_detect, mock_log):
@@ -538,7 +544,8 @@ class TestRouteByRole(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("test")
         for key in ("model", "backend", "url", "role", "classified_as",
-                     "fallback_used", "reason", "vram_swap", "signals"):
+                     "fallback_used", "degraded", "degrade_reason",
+                     "reason", "vram_swap", "signals"):
             self.assertIn(key, result, f"Missing key: {key}")
 
     @patch("runtime.model_router._log")
@@ -548,6 +555,198 @@ class TestRouteByRole(unittest.TestCase):
         result = mr.route_by_role("hello", flags={"role": "reason"})
         self.assertEqual(result["model"], "deepseek-r1:14b")
         self.assertEqual(result["role"], "reason")
+
+
+# ── V2: Guardrail Tests ────────────────────────────────────────
+
+
+class TestGuardrails(unittest.TestCase):
+    """Guardrails: cooldown, frequency limiting, latency degradation."""
+
+    def setUp(self):
+        mr.reset_guardrails()
+
+    def tearDown(self):
+        mr.reset_guardrails()
+
+    def test_no_guardrail_on_fast(self):
+        role, degraded, reason = mr.apply_guardrails("fast")
+        self.assertEqual(role, "fast")
+        self.assertFalse(degraded)
+
+    def test_no_guardrail_on_reason(self):
+        role, degraded, reason = mr.apply_guardrails("reason")
+        self.assertEqual(role, "reason")
+        self.assertFalse(degraded)
+
+    def test_no_guardrail_on_vision(self):
+        role, degraded, reason = mr.apply_guardrails("vision")
+        self.assertEqual(role, "vision")
+        self.assertFalse(degraded)
+
+    def test_heavy_passes_when_clean(self):
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "heavy")
+        self.assertFalse(degraded)
+
+    def test_code_passes_when_clean(self):
+        role, degraded, reason = mr.apply_guardrails("code")
+        self.assertEqual(role, "code")
+        self.assertFalse(degraded)
+
+    def test_force_heavy_bypasses_guardrails(self):
+        """force_heavy flag bypasses all guardrails."""
+        import time
+        # Simulate cooldown active
+        mr._guardrail_state["last_heavy_ts"] = time.monotonic()
+        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        role, degraded, reason = mr.apply_guardrails("heavy", {"force_heavy": True})
+        self.assertEqual(role, "heavy")
+        self.assertFalse(degraded)
+
+    def test_cooldown_degrades_heavy_to_reason(self):
+        import time
+        mr._guardrail_state["last_heavy_ts"] = time.monotonic()
+        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "reason")
+        self.assertTrue(degraded)
+        self.assertIn("cooldown", reason)
+
+    def test_cooldown_degrades_code_to_fast(self):
+        import time
+        mr._guardrail_state["last_heavy_ts"] = time.monotonic()
+        mr._guardrail_state["last_heavy_model"] = "qwen2.5-coder:14b"
+        role, degraded, reason = mr.apply_guardrails("code")
+        self.assertEqual(role, "fast")
+        self.assertTrue(degraded)
+        self.assertIn("cooldown", reason)
+
+    def test_cooldown_expires(self):
+        import time
+        mr._guardrail_state["last_heavy_ts"] = time.monotonic() - mr.GUARDRAIL_COOLDOWN - 1
+        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "heavy")
+        self.assertFalse(degraded)
+
+    def test_frequency_limit_degrades(self):
+        import time
+        now = time.monotonic()
+        # Fill up the window
+        mr._guardrail_state["heavy_timestamps"] = [
+            now - 10, now - 5, now - 1,
+        ]
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "reason")
+        self.assertTrue(degraded)
+        self.assertIn("frequency", reason)
+
+    def test_frequency_under_limit_passes(self):
+        import time
+        now = time.monotonic()
+        mr._guardrail_state["heavy_timestamps"] = [now - 10, now - 5]
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "heavy")
+        self.assertFalse(degraded)
+
+    def test_latency_threshold_degrades(self):
+        mr._guardrail_state["last_heavy_latency"] = 45.0  # > 30s threshold
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "reason")
+        self.assertTrue(degraded)
+        self.assertIn("latency", reason)
+
+    def test_latency_under_threshold_passes(self):
+        mr._guardrail_state["last_heavy_latency"] = 15.0
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "heavy")
+        self.assertFalse(degraded)
+
+    def test_vram_swap_storm_degrades(self):
+        import time
+        now = time.monotonic()
+        mr._guardrail_state["vram_swaps_window"] = [now - 10, now - 5, now - 1]
+        role, degraded, reason = mr.apply_guardrails("heavy")
+        self.assertEqual(role, "reason")
+        self.assertTrue(degraded)
+        self.assertIn("vram_swaps", reason)
+
+    def test_record_heavy_usage_tracks(self):
+        mr.record_heavy_usage("qwen2.5:32b", latency=10.0, vram_swap=True)
+        self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 1)
+        self.assertEqual(mr._guardrail_state["last_heavy_model"], "qwen2.5:32b")
+        self.assertEqual(mr._guardrail_state["last_heavy_latency"], 10.0)
+        self.assertEqual(len(mr._guardrail_state["vram_swaps_window"]), 1)
+
+    def test_record_non_heavy_model_ignored(self):
+        mr.record_heavy_usage("qwen2.5:7b", latency=5.0)
+        self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 0)
+        self.assertIsNone(mr._guardrail_state["last_heavy_model"])
+
+    def test_reset_clears_state(self):
+        mr.record_heavy_usage("qwen2.5:32b", latency=10.0, vram_swap=True)
+        mr.reset_guardrails()
+        self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 0)
+        self.assertIsNone(mr._guardrail_state["last_heavy_model"])
+        self.assertEqual(mr._guardrail_state["last_heavy_latency"], 0.0)
+
+    def test_cleanup_removes_expired(self):
+        import time
+        now = time.monotonic()
+        mr._guardrail_state["heavy_timestamps"] = [
+            now - mr.GUARDRAIL_WINDOW - 100,  # expired
+            now - 10,  # valid
+        ]
+        mr._guardrail_cleanup(now)
+        self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 1)
+
+
+class TestRouteByRoleWithGuardrails(unittest.TestCase):
+    """Integration: route_by_role respects guardrails."""
+
+    def setUp(self):
+        mr.reset_guardrails()
+
+    def tearDown(self):
+        mr.reset_guardrails()
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_heavy_degraded_after_cooldown(self, mock_detect, mock_log):
+        import time
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        # First call: heavy goes through
+        result1 = mr.route_by_role("critical production deploy")
+        self.assertEqual(result1["model"], "qwen2.5:32b")
+        # Simulate cooldown active (record_heavy_usage was called internally)
+        # Second call: should degrade
+        result2 = mr.route_by_role("critical production issue")
+        self.assertNotEqual(result2["model"], "qwen2.5:32b")
+        self.assertTrue(result2["degraded"])
+        self.assertEqual(result2["classified_as"], "heavy")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_force_heavy_bypasses_in_route(self, mock_detect, mock_log):
+        import time
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        # Trigger cooldown
+        mr._guardrail_state["last_heavy_ts"] = time.monotonic()
+        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        result = mr.route_by_role("critical", flags={"role": "heavy", "force_heavy": True})
+        self.assertEqual(result["model"], "qwen2.5:32b")
+        self.assertFalse(result["degraded"])
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_degraded_result_has_signals(self, mock_detect, mock_log):
+        import time
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        mr._guardrail_state["last_heavy_ts"] = time.monotonic()
+        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        result = mr.route_by_role("critical production deploy")
+        self.assertTrue(any("guardrail:" in s for s in result["signals"]))
 
 
 if __name__ == "__main__":

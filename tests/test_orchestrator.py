@@ -353,10 +353,15 @@ class TestRouterV2Integration(unittest.TestCase):
         self._orig_v2 = orch.USE_ROUTER_V2
         orch.USE_ROUTER_V2 = True
         orch.reset_routing_metrics()
+        # Reset guardrails so tests are independent
+        from runtime import model_router as mr
+        mr.reset_guardrails()
 
     def tearDown(self):
         orch.ORCHESTRATOR_LOG = self._orig_log
         orch.USE_ROUTER_V2 = self._orig_v2
+        from runtime import model_router as mr
+        mr.reset_guardrails()
 
     @patch("runtime.model_router.detect_backends")
     @patch("runtime.model_router._log")
@@ -461,6 +466,8 @@ class TestRouterV2Fallback(unittest.TestCase):
     def tearDown(self):
         orch.ORCHESTRATOR_LOG = self._orig_log
         orch.USE_ROUTER_V2 = self._orig_v2
+        from runtime import model_router as mr
+        mr.reset_guardrails()
 
     @patch("runtime.model_router.detect_backends")
     @patch("runtime.model_router._log")
@@ -523,6 +530,8 @@ class TestRouterV2Escalation(unittest.TestCase):
     def tearDown(self):
         orch.ORCHESTRATOR_LOG = self._orig_log
         orch.USE_ROUTER_V2 = self._orig_v2
+        from runtime import model_router as mr
+        mr.reset_guardrails()
 
     @patch("runtime.model_router.detect_backends")
     @patch("runtime.model_router._log")
@@ -575,6 +584,8 @@ class TestRoutingMetrics(unittest.TestCase):
     def tearDown(self):
         orch.ORCHESTRATOR_LOG = self._orig_log
         orch.USE_ROUTER_V2 = self._orig_v2
+        from runtime import model_router as mr
+        mr.reset_guardrails()
 
     def test_reset_clears_metrics(self):
         orch._routing_metrics["test"] = 42
