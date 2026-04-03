@@ -71,26 +71,92 @@ Smart Home (LAN)
 ## LLMs y routing
 
 ### Modelo principal
-- **Gemini 2.5 Flash** (Google Cloud, gratis) — modelo por defecto en openclaw.json
-- **Gemini 2.5 Pro** — razonamiento complejo (alias: "reasoning")
+- **qwen2.5:7b** (local, HomeLab GPU) — modelo por defecto
+- **Gemini 2.5 Flash** (Google Cloud, gratis) — fallback cloud en openclaw.json
+- **Gemini 2.5 Pro** — razonamiento cloud (alias: "reasoning")
 
-### Modelos locales (Ollama)
-| Modelo | Parametros | Uso | Backend |
+### Modelos en HomeLab (192.168.2.6, Ollama)
+| Modelo | Parametros | VRAM | Rol | Uso |
+|---|---|---|---|---|
+| qwen2.5:7b | 7B | 4.7 GB | `fast` | Chat, sistema, tareas rapidas |
+| deepseek-r1:14b | 14B | 9.0 GB | `reason` | Analisis, debugging, reflexion |
+| qwen2.5:32b | 32B | 20.0 GB | `heavy` | Tareas criticas, contexto largo, sintesis |
+| qwen2.5-coder:14b | 14B | 9.0 GB | `code` | Generacion, refactor, review de codigo |
+| qwen2.5vl:7b | 7B | 6.0 GB | `vision` | Input visual, imagenes |
+| qwen3:8b | 8B | 5.2 GB | `fast` | Alternativa a qwen2.5:7b |
+| nomic-embed-text | 137M | 0.3 GB | `embed` | Embeddings para RAG |
+
+**VRAM:** RTX 4050 tiene 6 GB. Modelos > 6 GB funcionan via partial CPU offloading de Ollama (mas lento pero operativo).
+
+### Modelos legacy (NAS CPU solamente)
+| Modelo | Uso |
+|---|---|
+| qwen2.5:3b | Sistema, JSON (solo si HomeLab offline) |
+| phi4-mini | Fallback liviano (solo NAS CPU) |
+
+### Router V2 — Routing por rol (`model_router.py`)
+
+Sistema de routing inteligente basado en roles. Clasifica el prompt por heuristicas y selecciona el modelo optimo.
+
+**Roles y fallback chains:**
+| Rol | Modelo primario | Fallback | Cuando se usa |
 |---|---|---|---|
-| qwen2.5:7b | 7B | Sistema y razonamiento | HomeLab GPU |
-| deepseek-r1:14b | 14B | Razonamiento complejo | HomeLab GPU |
-| qwen3:8b | 8B | Alternativa | HomeLab GPU |
-| phi4-mini | ~4B | Fallback liviano | NAS CPU o HomeLab |
-| nomic-embed-text | — | Embeddings RAG | HomeLab GPU |
+| `fast` | qwen2.5:7b | qwen3:8b | Chat general, skills rapidas |
+| `reason` | deepseek-r1:14b | qwen2.5:7b | Analisis, debugging, decisiones |
+| `heavy` | qwen2.5:32b | deepseek-r1:14b → qwen2.5:7b | Tareas criticas, contexto largo |
+| `code` | qwen2.5-coder:14b | qwen2.5:7b | Generacion/refactor de codigo |
+| `vision` | qwen2.5vl:7b | qwen2.5:7b | Input con imagen |
+| `embed` | nomic-embed-text | — | Embeddings RAG |
 
-### Cascada de routing (`ollama-check.sh`)
+**Clasificacion automatica (heuristicas):**
+1. Flag explicito (`flags["role"]`) — override directo
+2. `has_image` → vision
+3. `embed` flag → embed
+4. Keywords de codigo (refactor, debug, backticks, `def`, `class`) → code
+5. Keywords de razonamiento (analiza, evalua, why, explain step by step) → reason
+6. Keywords criticos (critical, production, deploy) o prompt > 2000 chars → heavy
+7. Default → fast
+
+**API:**
+```python
+from runtime.model_router import classify_task, route_by_role
+
+# Clasificar
+role = classify_task("refactor the auth module")  # → "code"
+
+# Routing completo
+result = route_by_role("analiza los logs de error")
+# → {"model": "deepseek-r1:14b", "role": "reason", "backend": "notebook_gpu",
+#     "fallback_used": False, "vram_swap": True, ...}
+
+# Con override
+result = route_by_role("do this", flags={"role": "heavy", "critical": True})
+
+# V1 legacy (sigue funcionando)
+result = select_model("system")  # → filtra por VRAM, solo modelos que caben
+backend, model, url = route("reason")
+```
+
+**Logging:** Cada decision se loguea en `logs/model_router.log` (JSONL):
+```json
+{"ts": "...", "action": "route_v2", "task_type": "code", "model_chosen": "qwen2.5-coder:14b", "role": "code", "fallback_used": false, "vram_swap": true, "signals": ["keyword:refactor"]}
+```
+
+**Integracion futura con idle learning:** El formato de log permite que `idle_learning_engine.py` analice patrones de routing (tasa de fallback, frecuencia de VRAM swap, distribucion por rol) sin cambios adicionales.
+
+**Limitaciones conocidas:**
+- Clasificacion por heuristicas (sin LLM) — puede clasificar mal prompts ambiguos
+- VRAM swap no se bloquea pero agrega latencia (~5-15s para cargar modelo grande)
+- En NAS CPU solo modelos <= 3.5 GB VRAM (phi4-mini)
+
+### Cascada de routing legacy (`ollama-check.sh`)
 1. **HomeLab GPU** (192.168.2.6:11434) — preferido, todos los modelos
 2. **NAS CPU** (127.0.0.1:11434) — solo modelos chicos (phi4-mini)
 3. **Gemini Flash** (cloud) — ultimo recurso
 
 ```bash
 bash ollama-check.sh --route system   # → BACKEND + MODEL + ENDPOINT
-bash ollama-check.sh --route reason   # → usa 7b si notebook online
+bash ollama-check.sh --route reason   # → usa deepseek-r1:14b si HomeLab online
 bash ollama-check.sh --route embed    # → nomic-embed-text
 bash ollama-check.sh --json           # → status completo
 bash ollama-check.sh --status         # → ok / offline
@@ -99,8 +165,8 @@ bash ollama-check.sh --status         # → ok / offline
 Cache de 120s en `/tmp/ollama-notebook.status` para evitar pings excesivos.
 
 ### Configuracion de modelos en OpenClaw
-- `openclaw.json` (root) — config para desarrollo (usa gemini-pro por defecto)
-- `state/openclaw.json` — config del container (usa phi4-mini por defecto, Ollama apunta a notebook)
+- `openclaw.json` (root) — config para desarrollo
+- `state/openclaw.json` — config del container (Ollama apunta a HomeLab)
 
 ---
 
@@ -664,7 +730,7 @@ docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 test
 docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
 docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
 docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 tests
-docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 31 tests
+docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 72 tests
 docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 tests
 docker exec openclaw python3 /home/tenazas/tests/test_world_model.py   # 38 tests
 docker exec openclaw python3 /home/tenazas/tests/test_shared_memory.py # 39 tests
@@ -836,16 +902,18 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - PROBLEM_MAP: all mapped templates exist, expected problems covered
 - Logging: plan generation logged with template, problem, steps_count
 
-**test_model_router.py** (31 tests — unittest + mock)
+**test_model_router.py** (72 tests — unittest + mock)
 - Backend ping: success, failure, timeout, unknown backend, curl flags
 - Backend detection: both online, notebook offline, logging
-- Model selection GPU: system→3b, reason→7b, embed→nomic, prefer_fast, result keys
-- Model selection CPU: small model constraint (<=3.5 VRAM), fallback, NAS URL
-- Model selection offline: returns empty, logs failure
-- route(): tuple return, offline nones, embed routing
-- Future models: never selected for any task
-- Helpers: get_model_info (known/unknown), list_models (with/without future)
-- Catalog integrity: required fields, backend priority order
+- V1 model selection GPU: system→7b, reason→7b, embed→nomic, prefer_fast, result keys
+- V1 model selection CPU: small model constraint (<=3.5 VRAM), fallback, NAS URL
+- V1 model selection offline: returns empty, logs failure
+- V1 route(): tuple return, offline nones, embed routing
+- Legacy models: never selected on GPU
+- Helpers: get_model_info (known/unknown), list_models (with/without legacy)
+- Catalog integrity: required fields, role field, ROLE_MAP references valid models, HomeLab models
+- V2 classify_task: explicit flag, vision/embed/code/reason/heavy keywords, backticks, special chars, long prompt, spanish, default fast, invalid flag
+- V2 route_by_role: fast→7b, reason→deepseek, code→coder, vision→vl, heavy→32b, embed→nomic, no backend→empty, CPU fallback, backward compat, pre-fetched status, vram_swap flag, log format, result keys, role override
 
 **test_supervisor.py** (22 tests — unittest + mock)
 - Lock acquisition: fresh, concurrent blocked, stale removal, threshold boundary

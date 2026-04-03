@@ -2,14 +2,17 @@
 """
 Model Router — Hardware-aware model selection for Tenazas runtime.
 
-Detects available Ollama backends (notebook GPU, NAS CPU) by pinging endpoints.
-Maps models to VRAM requirements and selects the best model for a given task
-based on available hardware. Supports future scaling to 13B/30B models.
+Detects available Ollama backends (HomeLab GPU, NAS CPU) by pinging endpoints.
+Maps models to VRAM requirements and selects the best model for a given task.
+
+V1 API: select_model(task), route(task) — capability-based, VRAM-filtered
+V2 API: classify_task(prompt), route_by_role(prompt) — role-based, Ollama-offloaded
 
 Logs to logs/model_router.log.
 """
 
 import json
+import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -41,43 +44,60 @@ BACKENDS = {
 }
 
 # ── Model catalog ────────────────────────────────────────────────
-# vram_gb is approximate for loaded model
+# vram_gb is approximate for loaded model.
+# Ollama handles partial CPU offloading for models exceeding GPU VRAM.
 
 MODEL_CATALOG = {
+    # ── HomeLab models (192.168.2.6) ──
+    "qwen2.5:7b": {
+        "params": "7B", "vram_gb": 4.7, "use": "general",
+        "capabilities": ["general", "reasoning", "analysis", "fast", "system", "json", "logs"],
+        "role": "fast",
+    },
+    "deepseek-r1:14b": {
+        "params": "14B", "vram_gb": 9.0, "use": "reasoning",
+        "capabilities": ["reasoning", "chain_of_thought", "analysis"],
+        "role": "reason",
+    },
+    "qwen2.5:32b": {
+        "params": "32B", "vram_gb": 20.0, "use": "heavy",
+        "capabilities": ["reasoning", "analysis", "complex", "expert", "critical"],
+        "role": "heavy",
+    },
+    "qwen2.5-coder:14b": {
+        "params": "14B", "vram_gb": 9.0, "use": "code",
+        "capabilities": ["code", "refactoring", "code_review"],
+        "role": "code",
+    },
+    "qwen2.5vl:7b": {
+        "params": "7B", "vram_gb": 6.0, "use": "vision",
+        "capabilities": ["vision", "multimodal", "image_analysis"],
+        "role": "vision",
+    },
+    "qwen3:8b": {
+        "params": "8B", "vram_gb": 5.2, "use": "alternative",
+        "capabilities": ["reasoning", "general"],
+        "role": "fast",
+    },
+    "nomic-embed-text": {
+        "params": "-", "vram_gb": 0.3, "use": "embeddings",
+        "capabilities": ["embeddings"],
+        "role": "embed",
+    },
+    # ── Legacy models (NAS CPU fallback only) ──
     "qwen2.5:3b": {
         "params": "3B", "vram_gb": 2.5, "use": "system",
         "capabilities": ["system", "json", "logs", "fast"],
-    },
-    "qwen2.5:7b": {
-        "params": "7B", "vram_gb": 5.0, "use": "reasoning",
-        "capabilities": ["reasoning", "analysis", "general"],
-    },
-    "qwen3:8b": {
-        "params": "8B", "vram_gb": 5.5, "use": "alternative",
-        "capabilities": ["reasoning", "general"],
+        "role": "fast", "legacy": True,
     },
     "phi4-mini": {
         "params": "~4B", "vram_gb": 3.0, "use": "fallback",
         "capabilities": ["system", "fast", "lightweight"],
-    },
-    "nomic-embed-text": {
-        "params": "-", "vram_gb": 0.5, "use": "embeddings",
-        "capabilities": ["embeddings"],
-    },
-    # Future models (not yet deployed)
-    "qwen2.5:14b": {
-        "params": "14B", "vram_gb": 10.0, "use": "advanced_reasoning",
-        "capabilities": ["reasoning", "analysis", "complex"],
-        "future": True,
-    },
-    "qwen2.5:32b": {
-        "params": "32B", "vram_gb": 22.0, "use": "expert",
-        "capabilities": ["reasoning", "analysis", "complex", "expert"],
-        "future": True,
+        "role": "fast", "legacy": True,
     },
 }
 
-# ── Task-to-capability mapping ───────────────────────────────────
+# ── V1: Task-to-capability mapping (backward compat) ────────────
 
 TASK_REQUIREMENTS = {
     "system": ["system", "fast"],
@@ -87,6 +107,43 @@ TASK_REQUIREMENTS = {
     "general": ["general"],
     "fast": ["fast"],
 }
+
+# ── V2: Role-based routing ──────────────────────────────────────
+# Each role has an ordered fallback chain: primary → alternatives
+
+ROLE_MAP = {
+    "fast":   ["qwen2.5:7b", "qwen3:8b"],
+    "reason": ["deepseek-r1:14b", "qwen2.5:7b"],
+    "heavy":  ["qwen2.5:32b", "deepseek-r1:14b", "qwen2.5:7b"],
+    "code":   ["qwen2.5-coder:14b", "qwen2.5:7b"],
+    "vision": ["qwen2.5vl:7b", "qwen2.5:7b"],
+    "embed":  ["nomic-embed-text"],
+}
+
+VALID_ROLES = set(ROLE_MAP.keys())
+DEFAULT_ROLE = "fast"
+
+# ── V2: Classification heuristics ───────────────────────────────
+
+_CODE_KEYWORDS = re.compile(
+    r"\b(refactor|debug|fix\s+bug|code\s+review|implementa|genera?\s+codigo"
+    r"|write\s+a?\s*function|write\s+a?\s*class|corregir?\s+codigo)\b", re.I,
+)
+_CODE_MARKERS = re.compile(r"```|def\s+\w+\(|function\s+\w+\(|class\s+\w+[:\(]|import\s+\w+")
+
+_REASON_KEYWORDS = re.compile(
+    r"\b(anali[zs]a|evalua|compar[aá]|explain\s+step|think\s+through"
+    r"|por\s*qu[eé]|diagn[oó]stic|root\s+cause|investiga|reflej[aá]"
+    r"|debug.*log|why\s+.{10,})\b", re.I,
+)
+
+_HEAVY_KEYWORDS = re.compile(
+    r"\b(critical|production|deploy|migra(tion|ci[oó]n)|architecture"
+    r"|s[ií]ntesis|resumen\s+(completo|general|ejecutivo)|comprehensive)\b", re.I,
+)
+
+_CODE_SPECIAL_CHARS = set("{}();=[]<>")
+_CODE_CHAR_THRESHOLD = 0.08  # 8% special chars → likely code
 
 
 def _now():
@@ -176,10 +233,10 @@ def select_model(task: str = "general", prefer_fast: bool = False) -> dict:
     best_backend_id, best_backend = available[0]
     vram = BACKENDS[best_backend_id].get("vram_gb", 0)
 
-    # Find candidate models (not future, fits VRAM, has required capability)
+    # Find candidate models (not legacy, fits VRAM, has required capability)
     candidates = []
     for model_name, info in MODEL_CATALOG.items():
-        if info.get("future"):
+        if info.get("legacy") or info.get("future"):
             continue
         if info["vram_gb"] > vram and best_backend["type"] == "gpu":
             continue
@@ -188,7 +245,7 @@ def select_model(task: str = "general", prefer_fast: bool = False) -> dict:
             candidates.append((model_name, info))
 
     if not candidates:
-        # Fallback: any model that fits
+        # Fallback: any model that fits (including legacy for CPU)
         for model_name, info in MODEL_CATALOG.items():
             if info.get("future"):
                 continue
@@ -248,8 +305,209 @@ def get_model_info(model_name: str) -> dict:
     return MODEL_CATALOG.get(model_name, {})
 
 
-def list_models(include_future: bool = False) -> dict:
-    """List all known models, optionally including future ones."""
-    if include_future:
+def list_models(include_future: bool = False, include_legacy: bool = False) -> dict:
+    """List all known models, optionally including future/legacy ones."""
+    if include_future and include_legacy:
         return dict(MODEL_CATALOG)
-    return {k: v for k, v in MODEL_CATALOG.items() if not v.get("future")}
+    return {k: v for k, v in MODEL_CATALOG.items()
+            if (include_future or not v.get("future"))
+            and (include_legacy or not v.get("legacy"))}
+
+
+# ── V2: Role-based task classification ──────────────────────────
+
+
+def classify_task(prompt: str, flags: dict | None = None) -> str:
+    """Classify a prompt into a routing role using heuristics.
+
+    Priority order: explicit flag > vision > embed > code > reason > heavy > fast
+
+    Args:
+        prompt: user/system prompt text
+        flags: optional hints — role, has_image, embed, critical
+
+    Returns:
+        One of: fast, reason, heavy, code, vision, embed
+    """
+    flags = flags or {}
+
+    # 1. Explicit role override
+    explicit = flags.get("role", "")
+    if explicit in VALID_ROLES:
+        return explicit
+
+    # 2. Vision (image input)
+    if flags.get("has_image") or flags.get("has_attachment"):
+        return "vision"
+
+    # 3. Embed
+    if flags.get("embed"):
+        return "embed"
+
+    # 4. Code detection
+    if _CODE_KEYWORDS.search(prompt):
+        return "code"
+    if _CODE_MARKERS.search(prompt):
+        return "code"
+    if len(prompt) > 50:
+        special = sum(1 for c in prompt if c in _CODE_SPECIAL_CHARS)
+        if special / len(prompt) >= _CODE_CHAR_THRESHOLD:
+            return "code"
+
+    # 5. Reasoning detection
+    if _REASON_KEYWORDS.search(prompt):
+        return "reason"
+    if len(prompt) > 500 and "?" in prompt:
+        return "reason"
+
+    # 6. Heavy / critical
+    if flags.get("critical"):
+        return "heavy"
+    if _HEAVY_KEYWORDS.search(prompt):
+        return "heavy"
+    if len(prompt) > 2000:
+        return "heavy"
+
+    # 7. Default
+    return DEFAULT_ROLE
+
+
+# ── V2: Role-based routing ──────────────────────────────────────
+
+
+def route_by_role(
+    prompt: str,
+    flags: dict | None = None,
+    backend_status: dict | None = None,
+) -> dict:
+    """VRAM-aware role-based routing. Main entry point for Router V2.
+
+    Classifies the prompt into a role, then walks the fallback chain
+    for that role until a model is available on the best backend.
+    Ollama handles partial CPU offloading transparently for models
+    exceeding GPU VRAM — the router does NOT block on VRAM limits.
+
+    Args:
+        prompt: user/system prompt
+        flags: optional hints (role, has_image, embed, critical)
+        backend_status: pre-fetched detect_backends() result, or None to auto-detect
+
+    Returns:
+        {model, backend, url, role, classified_as, fallback_used, reason,
+         vram_swap, signals}
+        Empty dict if no backends available.
+
+    Idle learning integration:
+        Every call logs a structured JSON entry to model_router.log with
+        action="route_v2". The idle_learning_engine can read these to
+        analyze routing patterns, fallback rates, and VRAM swap frequency.
+    """
+    role = classify_task(prompt, flags)
+    signals = _collect_signals(prompt, flags, role)
+
+    if backend_status is None:
+        backend_status = detect_backends()
+
+    # Find best available backend (sorted by priority)
+    available = sorted(
+        [(bid, info) for bid, info in backend_status.items() if info["available"]],
+        key=lambda x: x[1]["priority"],
+    )
+
+    if not available:
+        _log({
+            "ts": _now().isoformat(),
+            "action": "route_v2",
+            "task_type": role,
+            "result": "no_backend_available",
+            "signals": signals,
+        })
+        return {}
+
+    best_bid, best_info = available[0]
+    gpu_vram = BACKENDS.get(best_bid, {}).get("vram_gb", 0)
+    chain = ROLE_MAP.get(role, ROLE_MAP[DEFAULT_ROLE])
+
+    # For CPU backend, filter to small models only
+    if best_info["type"] == "cpu":
+        cpu_candidates = [m for m in chain
+                          if MODEL_CATALOG.get(m, {}).get("vram_gb", 99) <= 3.5]
+        if not cpu_candidates:
+            cpu_candidates = ["phi4-mini"]
+        chain = cpu_candidates
+
+    chosen = chain[0]
+    fallback_used = False
+
+    # Walk the chain — on GPU, all models work (Ollama offloads)
+    # On CPU, chain is already filtered above
+    if chosen not in MODEL_CATALOG:
+        chosen = chain[0] if chain else "qwen2.5:7b"
+
+    primary = ROLE_MAP.get(role, [None])[0]
+    if chosen != primary:
+        fallback_used = True
+
+    model_info = MODEL_CATALOG.get(chosen, {})
+    vram_swap = model_info.get("vram_gb", 0) > gpu_vram
+
+    result = {
+        "model": chosen,
+        "backend": best_bid,
+        "url": BACKENDS.get(best_bid, {}).get("url", ""),
+        "role": role,
+        "classified_as": role,
+        "fallback_used": fallback_used,
+        "reason": f"role={role}, chain={chain}, selected={chosen}",
+        "vram_swap": vram_swap,
+        "signals": signals,
+    }
+
+    _log({
+        "ts": _now().isoformat(),
+        "action": "route_v2",
+        "prompt_preview": prompt[:80] if prompt else "",
+        "task_type": role,
+        "model_chosen": chosen,
+        "role": role,
+        "fallback_used": fallback_used,
+        "backend": best_bid,
+        "vram_swap": vram_swap,
+        "signals": signals,
+    })
+
+    return result
+
+
+def _collect_signals(prompt: str, flags: dict | None, role: str) -> list:
+    """Collect classification signals for logging/debugging."""
+    signals = []
+    flags = flags or {}
+
+    if flags.get("role"):
+        signals.append(f"flag:role={flags['role']}")
+    if flags.get("has_image"):
+        signals.append("flag:has_image")
+    if flags.get("critical"):
+        signals.append("flag:critical")
+    if flags.get("embed"):
+        signals.append("flag:embed")
+
+    if _CODE_KEYWORDS.search(prompt):
+        match = _CODE_KEYWORDS.search(prompt)
+        signals.append(f"keyword:{match.group().lower()}")
+    if _CODE_MARKERS.search(prompt):
+        signals.append("code_block_detected")
+    if _REASON_KEYWORDS.search(prompt):
+        match = _REASON_KEYWORDS.search(prompt)
+        signals.append(f"keyword:{match.group().lower()}")
+    if _HEAVY_KEYWORDS.search(prompt):
+        match = _HEAVY_KEYWORDS.search(prompt)
+        signals.append(f"keyword:{match.group().lower()}")
+
+    if len(prompt) > 2000:
+        signals.append("long_prompt")
+    if len(prompt) > 500 and "?" in prompt:
+        signals.append("question_long_prompt")
+
+    return signals

@@ -118,17 +118,17 @@ class TestQueryClassification(unittest.TestCase):
 class TestModelSelection(unittest.TestCase):
     """Model selection based on category and availability."""
 
-    def test_chat_selects_gemini_flash(self):
+    def test_chat_selects_local_model(self):
         model = orch.select_model("chat")
-        self.assertEqual(model["id"], "google/gemini-2.5-flash")
+        self.assertEqual(model["id"], "ollama/qwen2.5:7b")
 
     def test_infra_selects_qwen_7b(self):
         model = orch.select_model("infrastructure_issue")
         self.assertEqual(model["id"], "ollama/qwen2.5:7b")
 
-    def test_reasoning_selects_gemini_pro(self):
+    def test_reasoning_selects_qwen_7b(self):
         model = orch.select_model("complex_reasoning")
-        self.assertEqual(model["id"], "google/gemini-2.5-pro")
+        self.assertEqual(model["id"], "ollama/qwen2.5:7b")
 
     def test_diagnostic_selects_qwen_7b(self):
         model = orch.select_model("diagnostic_request")

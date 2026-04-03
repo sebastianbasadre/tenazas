@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """
-Tests for model_router.py — Hardware-aware model selection.
+Tests for model_router.py — Hardware-aware model selection + Router V2.
 
 Covers:
 - Backend detection (ping success/failure)
-- Model selection by task (system, reason, embed, analysis, general)
-- GPU vs CPU model filtering
-- VRAM constraints
-- prefer_fast flag
-- Fallback when no backends available
-- CPU-only small model constraint
-- route() convenience function
-- get_model_info / list_models helpers
-- Future model exclusion
+- V1: Model selection by task (system, reason, embed, analysis, general)
+- GPU vs CPU model filtering, VRAM constraints, prefer_fast flag
+- Fallback when no backends available, CPU-only small model constraint
+- route() convenience function, get_model_info / list_models helpers
+- Legacy model exclusion from GPU selection
+- V2: classify_task() heuristic classification
+- V2: route_by_role() role-based routing with fallback chains
 
 Corre: python3 tests/test_model_router.py
 """
@@ -122,15 +120,16 @@ class TestSelectModelGPU(unittest.TestCase):
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
-    def test_system_task_selects_small_model(self, mock_detect, mock_log):
+    def test_system_task_selects_capable_model(self, mock_detect, mock_log):
         mock_detect.side_effect = _mock_backends(notebook=True, nas=True)
         result = mr.select_model("system")
-        self.assertIn(result["model"], ("qwen2.5:3b", "phi4-mini"))
+        # V1 selects from non-legacy models that fit in 6GB VRAM
+        self.assertIn(result["model"], ("qwen2.5:7b", "qwen3:8b"))
         self.assertEqual(result["backend"], "notebook_gpu")
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
-    def test_reason_task_selects_7b(self, mock_detect, mock_log):
+    def test_reason_task_selects_reasoning_model(self, mock_detect, mock_log):
         mock_detect.side_effect = _mock_backends(notebook=True, nas=True)
         result = mr.select_model("reason")
         self.assertIn(result["model"], ("qwen2.5:7b", "qwen3:8b"))
@@ -242,47 +241,47 @@ class TestRoute(unittest.TestCase):
         self.assertEqual(model, "nomic-embed-text")
 
 
-class TestFutureModels(unittest.TestCase):
-    """Future models excluded from selection."""
+class TestLegacyModels(unittest.TestCase):
+    """Legacy models excluded from GPU selection."""
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
-    def test_future_models_not_selected(self, mock_detect, mock_log):
+    def test_legacy_models_not_selected_on_gpu(self, mock_detect, mock_log):
         mock_detect.side_effect = _mock_backends(notebook=True, nas=True)
         for task in mr.TASK_REQUIREMENTS:
             result = mr.select_model(task)
-            if result:
+            if result and result["backend"] == "notebook_gpu":
                 info = mr.MODEL_CATALOG.get(result["model"], {})
-                self.assertFalse(info.get("future", False),
-                                 f"Future model {result['model']} selected for {task}")
+                self.assertFalse(info.get("legacy", False),
+                                 f"Legacy model {result['model']} selected for {task} on GPU")
 
 
 class TestHelpers(unittest.TestCase):
     """get_model_info and list_models."""
 
     def test_get_known_model(self):
-        info = mr.get_model_info("qwen2.5:3b")
-        self.assertEqual(info["params"], "3B")
-        self.assertIn("system", info["capabilities"])
+        info = mr.get_model_info("qwen2.5:7b")
+        self.assertEqual(info["params"], "7B")
+        self.assertIn("general", info["capabilities"])
 
     def test_get_unknown_model(self):
         info = mr.get_model_info("nonexistent")
         self.assertEqual(info, {})
 
-    def test_list_models_excludes_future(self):
-        models = mr.list_models(include_future=False)
-        for name, info in models.items():
-            self.assertFalse(info.get("future", False))
-
-    def test_list_models_includes_future(self):
-        models = mr.list_models(include_future=True)
-        future = [n for n, i in models.items() if i.get("future")]
-        self.assertGreater(len(future), 0)
-
-    def test_list_models_default_no_future(self):
+    def test_list_models_excludes_legacy_by_default(self):
         models = mr.list_models()
         for name, info in models.items():
-            self.assertFalse(info.get("future", False))
+            self.assertFalse(info.get("legacy", False))
+
+    def test_list_models_includes_legacy(self):
+        models = mr.list_models(include_legacy=True)
+        legacy = [n for n, i in models.items() if i.get("legacy")]
+        self.assertGreater(len(legacy), 0)
+
+    def test_list_models_default_excludes_legacy(self):
+        models = mr.list_models()
+        for name, info in models.items():
+            self.assertFalse(info.get("legacy", False))
 
 
 class TestCatalogIntegrity(unittest.TestCase):
@@ -294,6 +293,12 @@ class TestCatalogIntegrity(unittest.TestCase):
             self.assertIn("vram_gb", info, f"{name} missing vram_gb")
             self.assertIn("use", info, f"{name} missing use")
             self.assertIn("capabilities", info, f"{name} missing capabilities")
+            self.assertIn("role", info, f"{name} missing role")
+
+    def test_all_roles_have_valid_values(self):
+        for name, info in mr.MODEL_CATALOG.items():
+            self.assertIn(info["role"], mr.VALID_ROLES,
+                          f"{name} has invalid role '{info['role']}'")
 
     def test_all_backends_have_required_fields(self):
         for bid, info in mr.BACKENDS.items():
@@ -306,6 +311,243 @@ class TestCatalogIntegrity(unittest.TestCase):
             mr.BACKENDS["notebook_gpu"]["priority"],
             mr.BACKENDS["nas_cpu"]["priority"],
         )
+
+    def test_role_map_models_exist_in_catalog(self):
+        for role, chain in mr.ROLE_MAP.items():
+            for model in chain:
+                self.assertIn(model, mr.MODEL_CATALOG,
+                              f"ROLE_MAP[{role}] references unknown model {model}")
+
+    def test_homelab_models_present(self):
+        """All 7 HomeLab models are in the catalog."""
+        expected = {"qwen2.5:7b", "deepseek-r1:14b", "qwen2.5:32b",
+                    "qwen2.5-coder:14b", "qwen2.5vl:7b", "qwen3:8b",
+                    "nomic-embed-text"}
+        actual = {k for k, v in mr.MODEL_CATALOG.items() if not v.get("legacy")}
+        self.assertEqual(expected, actual)
+
+
+# ── V2: Task Classification Tests ──────────────��────────────────
+
+
+class TestClassifyTask(unittest.TestCase):
+    """Heuristic task classification into roles."""
+
+    def test_default_is_fast(self):
+        self.assertEqual(mr.classify_task("hola que tal"), "fast")
+
+    def test_explicit_role_flag(self):
+        self.assertEqual(mr.classify_task("anything", {"role": "code"}), "code")
+
+    def test_explicit_role_all_valid(self):
+        for role in mr.VALID_ROLES:
+            self.assertEqual(mr.classify_task("x", {"role": role}), role)
+
+    def test_invalid_role_flag_ignored(self):
+        self.assertEqual(mr.classify_task("hello", {"role": "nonexistent"}), "fast")
+
+    def test_vision_flag(self):
+        self.assertEqual(mr.classify_task("describe this", {"has_image": True}), "vision")
+
+    def test_attachment_flag(self):
+        self.assertEqual(mr.classify_task("what is this", {"has_attachment": True}), "vision")
+
+    def test_embed_flag(self):
+        self.assertEqual(mr.classify_task("embed this text", {"embed": True}), "embed")
+
+    def test_code_keyword_refactor(self):
+        self.assertEqual(mr.classify_task("refactor the login function"), "code")
+
+    def test_code_keyword_debug(self):
+        self.assertEqual(mr.classify_task("debug this function"), "code")
+
+    def test_code_backticks(self):
+        self.assertEqual(mr.classify_task("fix this:\n```python\ndef foo(): pass\n```"), "code")
+
+    def test_code_class_definition(self):
+        self.assertEqual(mr.classify_task("class MyRouter:"), "code")
+
+    def test_code_high_special_chars(self):
+        code = "if (x > 0) { return foo(x); } else { return bar(y); }"
+        self.assertEqual(mr.classify_task(code), "code")
+
+    def test_reason_keyword_analiza(self):
+        self.assertEqual(mr.classify_task("analiza por que subio la latencia"), "reason")
+
+    def test_reason_keyword_evalua(self):
+        self.assertEqual(mr.classify_task("evalua el rendimiento del sistema"), "reason")
+
+    def test_reason_keyword_why(self):
+        self.assertEqual(mr.classify_task("why did the container keep restarting over and over"), "reason")
+
+    def test_reason_long_question(self):
+        long = "quiero saber " + "detalle " * 80 + "?"
+        self.assertEqual(mr.classify_task(long), "reason")
+
+    def test_heavy_keyword_critical(self):
+        self.assertEqual(mr.classify_task("this is a critical production issue"), "heavy")
+
+    def test_heavy_keyword_deploy(self):
+        self.assertEqual(mr.classify_task("deploy to production now"), "heavy")
+
+    def test_heavy_critical_flag(self):
+        self.assertEqual(mr.classify_task("do this", {"critical": True}), "heavy")
+
+    def test_heavy_very_long_prompt(self):
+        long = "context " * 300  # > 2000 chars
+        self.assertEqual(mr.classify_task(long), "heavy")
+
+    def test_code_beats_reason_when_code_present(self):
+        """Code keywords take priority over reasoning keywords."""
+        self.assertEqual(mr.classify_task("refactor and analyze this module"), "code")
+
+    def test_empty_prompt_is_fast(self):
+        self.assertEqual(mr.classify_task(""), "fast")
+
+    def test_spanish_genera_codigo(self):
+        self.assertEqual(mr.classify_task("genera codigo para parsear JSON"), "code")
+
+
+# ── V2: Route-by-Role Tests ───���─────────────────────────────────
+
+
+class TestRouteByRole(unittest.TestCase):
+    """Role-based routing with fallback chains."""
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_fast_selects_7b(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("hola que tal")
+        self.assertEqual(result["model"], "qwen2.5:7b")
+        self.assertEqual(result["role"], "fast")
+        self.assertFalse(result["fallback_used"])
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_reason_selects_deepseek(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("analiza por que subio la latencia")
+        self.assertEqual(result["model"], "deepseek-r1:14b")
+        self.assertEqual(result["role"], "reason")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_code_selects_coder(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("refactor the auth module")
+        self.assertEqual(result["model"], "qwen2.5-coder:14b")
+        self.assertEqual(result["role"], "code")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_vision_selects_vl(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("describe this", flags={"has_image": True})
+        self.assertEqual(result["model"], "qwen2.5vl:7b")
+        self.assertEqual(result["role"], "vision")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_heavy_selects_32b(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("critical production deploy")
+        self.assertEqual(result["model"], "qwen2.5:32b")
+        self.assertEqual(result["role"], "heavy")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_embed_selects_nomic(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("embed this", flags={"embed": True})
+        self.assertEqual(result["model"], "nomic-embed-text")
+        self.assertEqual(result["role"], "embed")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_no_backend_returns_empty(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=False, nas=False)()
+        result = mr.route_by_role("hello")
+        self.assertEqual(result, {})
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_cpu_only_fallback_to_small(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=False, nas=True)()
+        result = mr.route_by_role("analiza los logs")
+        # CPU can only run small models
+        model_info = mr.MODEL_CATALOG.get(result["model"], {})
+        self.assertLessEqual(model_info.get("vram_gb", 0), 3.5)
+        self.assertTrue(result["fallback_used"])
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_backward_compat_default_fast(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("random unclassified stuff")
+        self.assertEqual(result["role"], "fast")
+        self.assertEqual(result["model"], "qwen2.5:7b")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_pre_fetched_backend_status(self, mock_detect, mock_log):
+        pre_fetched = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("hello", backend_status=pre_fetched)
+        self.assertEqual(result["model"], "qwen2.5:7b")
+        mock_detect.assert_not_called()  # Should not re-detect
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_vram_swap_flag_for_large_model(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("critical production issue")
+        # 32b (20GB) on 6GB GPU → swap required
+        self.assertTrue(result["vram_swap"])
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_no_vram_swap_for_small_model(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("hola")
+        # 7b (4.7GB) on 6GB GPU → no swap
+        self.assertFalse(result["vram_swap"])
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_log_entry_has_required_fields(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        mr.route_by_role("test prompt")
+        # Find the route_v2 log entry
+        route_log = None
+        for call in mock_log.call_args_list:
+            entry = call[0][0]
+            if entry.get("action") == "route_v2":
+                route_log = entry
+                break
+        self.assertIsNotNone(route_log)
+        self.assertIn("task_type", route_log)
+        self.assertIn("model_chosen", route_log)
+        self.assertIn("role", route_log)
+        self.assertIn("fallback_used", route_log)
+        self.assertIn("vram_swap", route_log)
+        self.assertIn("signals", route_log)
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_result_has_required_keys(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("test")
+        for key in ("model", "backend", "url", "role", "classified_as",
+                     "fallback_used", "reason", "vram_swap", "signals"):
+            self.assertIn(key, result, f"Missing key: {key}")
+
+    @patch("runtime.model_router._log")
+    @patch("runtime.model_router.detect_backends")
+    def test_explicit_role_override(self, mock_detect, mock_log):
+        mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
+        result = mr.route_by_role("hello", flags={"role": "reason"})
+        self.assertEqual(result["model"], "deepseek-r1:14b")
+        self.assertEqual(result["role"], "reason")
 
 
 if __name__ == "__main__":

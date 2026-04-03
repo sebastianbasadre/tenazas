@@ -25,11 +25,13 @@ Synology DS923+ (192.168.2.2)
 │
 HomeLab (192.168.2.6) — GPU remota
 └── Ollama (:11434) — RTX 4050, 6GB VRAM
-    ├── qwen2.5:7b        — Sistema y razonamiento
-    ├── deepseek-r1:14b   — Razonamiento complejo
-    ├── qwen3:8b          — Alternativa
-    ├── phi4-mini         — Fallback liviano
-    └── nomic-embed-text  — Embeddings para RAG
+    ├── qwen2.5:7b        — fast: chat, sistema, default
+    ├── deepseek-r1:14b   — reason: analisis, debugging
+    ├── qwen2.5:32b       — heavy: tareas criticas, sintesis
+    ├── qwen2.5-coder:14b — code: generacion, refactor
+    ├── qwen2.5vl:7b      — vision: input visual
+    ├── qwen3:8b          — fast: alternativa
+    └── nomic-embed-text  — embed: RAG
 
 Smart Home (LAN)
 ├── Philips Hue Bridge   — 8 luces
@@ -47,13 +49,13 @@ Smart Home (LAN)
 | **Orchestrator** | Clasifica queries y routea al pipeline + modelo optimo (keyword+regex, sin LLM) |
 | **Runtime Layer** | 42 modulos: monitoreo, diagnosticos, razonamiento, aprendizaje, simulacion |
 | **RAG Pipeline** | Query rewrite → hybrid retrieval → rerank → confidence → memory fusion → compress → actions → LLM |
-| **Model Failover** | Detecta Gemini 429, auto-switch a Ollama phi4-mini, retry cada 5min |
+| **Model Failover** | Detecta Gemini 429, auto-switch a Ollama qwen2.5:7b, retry cada 5min |
 | **Observabilidad** | Prometheus + Grafana, 15 metricas (health, runs, duration, restarts, VPN, RAG, steps, failover) |
 | **Reasoning** | Multi-agent (Qwen+Phi), agent lab, planner, predictive engine |
 | **Learning** | Metrics engine, self-optimizer, idle learning, model distillation, dataset builder |
 | **Safety** | Safety guard, docker wrapper, audit logs. Nunca auto-ejecuta acciones de infra |
 | **Infra Intelligence** | Infra memory (patrones), predictive engine, runbooks, world model, simulation lab |
-| **LLM Routing** | Hardware-aware model router. Cascada: Gemini Flash → Ollama GPU → Ollama CPU |
+| **LLM Routing** | Router V2: role-based (fast/reason/heavy/code/vision/embed) + hardware-aware fallback. Local-first |
 | **Arr-stack** | 10 containers de media gestionados via VPN (gluetun) |
 | **Smart Home** | Control de luces Hue y monitor Samsung M8 |
 | **22 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) |
