@@ -171,6 +171,33 @@ Modelos pesados (`qwen2.5:32b`, `deepseek-r1:14b`, `qwen2.5-coder:14b`) tienen p
 - En NAS CPU solo modelos <= 3.5 GB VRAM (phi4-mini)
 - Guardrails: state file puede quedar stale si el proceso crashea mid-write (unlikely)
 
+### Idle Learning Engine (`idle_learning.py`)
+
+Motor de aprendizaje colaborativo multi-modelo. NO auto-aplica cambios.
+
+**Pipeline:**
+```
+load_recent_decisions()     → model_router.log + guardrail_state.json
+run_critic(deepseek-r1:14b) → analiza decisiones, detecta problemas
+run_synthesizer(qwen2.5:32b)→ genera propuestas estructuradas
+save_proposals()            → learning/proposals.json (dedup, validacion)
+generate_report()           → learning/learning_report.md
+```
+
+**Ejecucion manual:**
+```bash
+docker exec openclaw python3 /home/tenazas/runtime/idle_learning.py
+```
+
+**Output:**
+- `learning/proposals.json` — propuestas con status="proposed", nunca auto-aplicadas
+- `learning/learning_report.md` — reporte legible con problemas, propuestas, metricas
+- `logs/idle_learning_v2.log` — telemetria JSONL de cada ejecucion
+
+**Tipos de propuestas:** routing_adjustment, guardrail_tuning, threshold_change, classification_fix
+
+**Seguridad:** nunca modifica archivos existentes, nunca cambia config del router, solo escribe en `learning/`
+
 ### Cascada de routing legacy (`ollama-check.sh`)
 1. **HomeLab GPU** (192.168.2.6:11434) — preferido, todos los modelos
 2. **NAS CPU** (127.0.0.1:11434) — solo modelos chicos (phi4-mini)
@@ -376,8 +403,13 @@ workspace/runtime/
 ├── adaptive_router.py         — Routing aprendido por metricas historicas
 ├── prompt_optimizer.py        — Analisis de eficiencia de prompts
 ├── experiment_engine.py       — A/B testing de pipelines y modelos
-├── idle_learning_engine.py    — Aprendizaje en periodos idle
+├── idle_learning_engine.py    — Aprendizaje en periodos idle (metricas pasivas)
+├── idle_learning.py           — Multi-model collaborative learning (critic+synthesizer)
 ├── model_distillation.py      — Transferencia de conocimiento entre modelos
+│
+│ ── Learning Output ──
+├���─ learning/proposals.json    — Propuestas generadas (nunca auto-aplicadas)
+├── learning/learning_report.md — Reporte legible de cada analisis
 │
 │ ── Autonomous ──
 ├── goal_engine.py             — Sistema de objetivos (stability, uptime, accuracy)
