@@ -11,7 +11,7 @@ set -uo pipefail
 # ── CONFIG ────────────────────────────────────────────────────────
 OPENCLAW_CONFIG="/home/tenazas/.openclaw/openclaw.json"
 GLUETUN_PROXY="http://192.168.2.2:8888"
-OLLAMA_NOTEBOOK="http://192.168.2.76:11434"
+OLLAMA_NOTEBOOK="http://192.168.2.6:11434"
 TELEGRAM_CHAT="1565794551"
 LOCK_FILE="/tmp/auto-heal.lock"
 
@@ -161,7 +161,7 @@ done
 # ═══════════════════════════════════════════════════════════════════
 log "Verificando Ollama notebook ($OLLAMA_NOTEBOOK)..."
 
-OLLAMA_STATUS=$(curl -sf --max-time 5 "$OLLAMA_NOTEBOOK/api/tags" > /dev/null 2>&1 && echo "ok" || echo "offline")
+if curl -sf --max-time 5 "$OLLAMA_NOTEBOOK/api/tags" > /dev/null 2>&1; then OLLAMA_STATUS="ok"; else OLLAMA_STATUS="offline"; fi
 
 if [ "$OLLAMA_STATUS" = "offline" ]; then
   log "Notebook Ollama offline — registrando estado"
@@ -181,14 +181,14 @@ if [ ${#ACTIONS[@]} -gt 0 ]; then
   done
 
   if [ "$OLLAMA_STATUS" = "offline" ]; then
-    MSG+="⚠️ Notebook offline — modo Cloud/NAS CPU"
+    MSG+="⚠️ HomeLab offline — modo Cloud/NAS CPU"
   fi
 
   notify "$MSG"
   log "Acciones ejecutadas: ${#ACTIONS[@]}. Notificado por Telegram."
 elif [ "$OLLAMA_STATUS" = "offline" ]; then
-  notify "⚠️ Notebook offline — ${TIMESTAMP} ART. Tenazas en modo Cloud/NAS CPU."
-  log "Notebook offline, notificado."
+  notify "⚠️ HomeLab offline — ${TIMESTAMP} ART. Tenazas en modo Cloud/NAS CPU."
+  log "HomeLab offline, notificado."
 else
   log "Todo OK. Sin acciones."
 fi

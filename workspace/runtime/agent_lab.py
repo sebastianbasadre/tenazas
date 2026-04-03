@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "agent_lab.log"
 
-OLLAMA_URL = "http://192.168.2.76:11434"
+OLLAMA_URL = "http://192.168.2.6:11434"
 GENERATE_ENDPOINT = f"{OLLAMA_URL}/api/generate"
 DEFAULT_MODEL = "qwen2.5:7b"
 FAST_MODEL = "qwen2.5:3b"

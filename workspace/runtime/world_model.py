@@ -27,16 +27,16 @@ KNOWN_DEVICES = {
     "192.168.2.3": {"name": "NAS Backup", "type": "nas"},
     "192.168.2.11": {"name": "Hue Bridge", "type": "smart_home"},
     "192.168.2.46": {"name": "Samsung M8", "type": "display"},
-    "192.168.2.76": {"name": "MSI Notebook", "type": "compute"},
+    "192.168.2.6": {"name": "HomeLab", "type": "compute"},
 }
 
 # ── Known services ───────────────────────────────────────────────
 
 KNOWN_SERVICES = {
     "ollama_notebook": {
-        "url": "http://192.168.2.76:11434",
+        "url": "http://192.168.2.6:11434",
         "type": "llm_inference",
-        "host": "192.168.2.76",
+        "host": "192.168.2.6",
         "description": "Ollama GPU (RTX 4050)",
     },
     "ollama_nas": {
@@ -199,7 +199,7 @@ def get_topology() -> dict:
         "gateway": "192.168.2.1",
         "primary_nas": "192.168.2.2",
         "backup_nas": "192.168.2.3",
-        "compute_node": "192.168.2.76",
+        "compute_node": "192.168.2.6",
         "devices": KNOWN_DEVICES,
         "services": {name: {"url": svc["url"], "host": svc["host"]}
                      for name, svc in KNOWN_SERVICES.items()},

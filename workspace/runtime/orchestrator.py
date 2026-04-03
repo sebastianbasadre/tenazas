@@ -46,7 +46,7 @@ MODELS = {
         "strengths": ["reasoning", "diagnostics", "analysis"],
     },
     "qwen_3b": {
-        "id": "ollama/qwen2.5:3b",
+        "id": "ollama/qwen2.5:7b",
         "alias": "local-fast",
         "tier": "local_gpu",
         "strengths": ["system", "logs", "json", "fast_response"],
@@ -64,12 +64,12 @@ PIPELINES = {
     "chat": {
         "description": "Direct LLM response for casual conversation",
         "modules": [],
-        "default_model": "gemini_flash",
+        "default_model": "qwen_7b",
     },
     "knowledge_query": {
         "description": "RAG pipeline for factual questions about the system",
         "modules": ["rag_pipeline"],
-        "default_model": "gemini_flash",
+        "default_model": "qwen_7b",
     },
     "infrastructure_issue": {
         "description": "Infra diagnostics + RAG for infrastructure problems",
@@ -89,7 +89,7 @@ PIPELINES = {
     "complex_reasoning": {
         "description": "Multi-model reasoning for complex analysis",
         "modules": ["rag_pipeline", "infra_diagnostics"],
-        "default_model": "gemini_pro",
+        "default_model": "qwen_7b",
     },
 }
 

@@ -198,14 +198,14 @@ def _check_ollama(state: dict) -> list:
             "problem": "Todos los backends Ollama offline",
             "cause": "Ni notebook (GPU) ni NAS (CPU) responden",
             "severity": CRITICAL,
-            "suggested_action": "Verificar Ollama en notebook (192.168.2.76) y NAS",
+            "suggested_action": "Verificar Ollama en notebook (192.168.2.6) y NAS",
             "target": "ollama",
             "rule": "ollama_all_down",
         })
     elif not notebook.get("ok"):
         issues.append({
             "problem": "Ollama notebook offline — usando fallback",
-            "cause": "Notebook (192.168.2.76) no responde",
+            "cause": "Notebook (192.168.2.6) no responde",
             "severity": INFO,
             "suggested_action": "Verificar que la notebook esté encendida con Ollama corriendo",
             "target": "ollama",

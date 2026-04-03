@@ -73,11 +73,11 @@ RUNBOOK_TEMPLATES = {
         "title": "Ollama offline (notebook o NAS)",
         "severity": "warning",
         "steps": [
-            {"action": "Verificar notebook GPU", "command": "curl -sf --max-time 5 http://192.168.2.76:11434/api/tags"},
+            {"action": "Verificar notebook GPU", "command": "curl -sf --max-time 5 http://192.168.2.6:11434/api/tags"},
             {"action": "Verificar NAS CPU", "command": "curl -sf --max-time 5 http://127.0.0.1:11434/api/tags"},
-            {"action": "Verificar que la notebook esta encendida y accesible", "command": "ping -c 1 -W 3 192.168.2.76"},
+            {"action": "Verificar que la notebook esta encendida y accesible", "command": "ping -c 1 -W 3 192.168.2.6"},
             {"action": "Si la notebook responde pero Ollama no, reiniciar servicio Ollama en la notebook"},
-            {"action": "Verificar modelos disponibles despues del fix", "command": "curl -sf http://192.168.2.76:11434/api/tags | python3 -c 'import sys,json; print(json.load(sys.stdin))'"},
+            {"action": "Verificar modelos disponibles despues del fix", "command": "curl -sf http://192.168.2.6:11434/api/tags | python3 -c 'import sys,json; print(json.load(sys.stdin))'"},
         ],
     },
     "container_down": {

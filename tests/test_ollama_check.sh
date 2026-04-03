@@ -35,7 +35,7 @@ setup_curl_mock() {
 ARGS="\$*"
 
 # Notebook Ollama
-if echo "\$ARGS" | grep -q "192.168.2.76:11434"; then
+if echo "\$ARGS" | grep -q "192.168.2.6:11434"; then
   [ "$notebook_status" = "ok" ] && exit 0 || exit 1
 fi
 
@@ -65,8 +65,8 @@ echo "── Test 1: Notebook online — route system → notebook ──"
 setup_curl_mock "ok"
 OUTPUT=$(run_check --route system)
 assert_output "$OUTPUT" "BACKEND=notebook" "BACKEND es notebook"
-assert_output "$OUTPUT" "qwen2.5:3b" "Modelo es qwen2.5:3b para tareas system"
-assert_output "$OUTPUT" "192.168.2.76" "Endpoint apunta a notebook"
+assert_output "$OUTPUT" "qwen2.5:7b" "Modelo es qwen2.5:7b para tareas system"
+assert_output "$OUTPUT" "192.168.2.6" "Endpoint apunta a HomeLab"
 
 # ════════════════════════════════════════════════════════════════
 echo ""
@@ -74,7 +74,7 @@ echo "── Test 2: Notebook online — route reason → 7b ──"
 setup_curl_mock "ok"
 OUTPUT=$(run_check --route reason)
 assert_output "$OUTPUT" "BACKEND=notebook" "BACKEND es notebook"
-assert_output "$OUTPUT" "qwen2.5:7b" "Modelo es qwen2.5:7b para razonamiento"
+assert_output "$OUTPUT" "deepseek-r1:14b" "Modelo es deepseek-r1:14b para razonamiento"
 
 # ════════════════════════════════════════════════════════════════
 echo ""

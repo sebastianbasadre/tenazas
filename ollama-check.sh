@@ -13,7 +13,7 @@
 #    embed    → embeddings RAG (usa nomic-embed-text)
 # ─────────────────────────────────────────────────────────────────
 
-NOTEBOOK_URL="http://192.168.2.76:11434"
+NOTEBOOK_URL="http://192.168.2.6:11434"
 NAS_URL="http://127.0.0.1:11434"
 CACHE_FILE="/tmp/ollama-notebook.status"
 CACHE_TTL=120  # segundos antes de re-verificar
@@ -21,8 +21,8 @@ CACHE_TTL=120  # segundos antes de re-verificar
 TIMEOUT=5
 
 # ── Modelos por tarea ─────────────────────────────────────────────
-MODEL_SYSTEM="qwen2.5:3b"
-MODEL_REASON="qwen2.5:7b"
+MODEL_SYSTEM="qwen2.5:7b"
+MODEL_REASON="deepseek-r1:14b"
 MODEL_EMBED="nomic-embed-text:latest"
 MODEL_FALLBACK_SYSTEM="phi4-mini"
 

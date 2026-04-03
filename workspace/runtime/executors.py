@@ -19,7 +19,7 @@ EXECUTOR_LOG = BASE_DIR / "logs" / "executor.log"
 
 # ── Endpoints (from HEARTBEAT.md / infra-monitor) ────────────────
 
-OLLAMA_NOTEBOOK = "http://192.168.2.76:11434/api/tags"
+OLLAMA_NOTEBOOK = "http://192.168.2.6:11434/api/tags"
 OLLAMA_NAS = "http://127.0.0.1:11434/api/tags"
 GLUETUN_PROXY = "http://192.168.2.2:8888"
 IFCONFIG_URL = "https://ifconfig.me"
@@ -91,7 +91,7 @@ def check_public_ip() -> dict:
 
 
 def check_ollama_notebook() -> dict:
-    """Check Ollama on notebook GPU (192.168.2.76)."""
+    """Check Ollama on notebook GPU (192.168.2.6)."""
     r = _run_cmd(["curl", "-sf", "--max-time", "5", OLLAMA_NOTEBOOK], timeout=10)
     return {"ok": r.returncode == 0}
 

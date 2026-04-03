@@ -33,10 +33,10 @@ def _mock_backends(notebook=True, nas=True):
         return {
             "notebook_gpu": {
                 "available": notebook,
-                "url": "http://192.168.2.76:11434",
+                "url": "http://192.168.2.6:11434",
                 "type": "gpu",
                 "priority": 1,
-                "description": "MSI Notebook GPU",
+                "description": "HomeLab GPU",
             },
             "nas_cpu": {
                 "available": nas,

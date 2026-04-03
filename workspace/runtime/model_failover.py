@@ -24,9 +24,9 @@ LOG_FILE = Path("/home/tenazas/runtime/logs/model_failover.log")
 
 # Models
 PRIMARY_MODEL = "google/gemini-2.5-flash"
-FALLBACK_MODEL = "ollama/phi4-mini"
-OLLAMA_PRELOAD_MODEL = "phi4-mini"
-OLLAMA_URL = "http://192.168.2.76:11434"
+FALLBACK_MODEL = "ollama/qwen2.5:7b"
+OLLAMA_PRELOAD_MODEL = "qwen2.5:7b"
+OLLAMA_URL = "http://192.168.2.6:11434"
 
 # Timing
 CHECK_INTERVAL = 30          # Check logs every 30s

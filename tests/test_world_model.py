@@ -93,8 +93,8 @@ class TestGetEntityDevice(unittest.TestCase):
 
     @_mock_state()
     def test_get_device_by_name_case_insensitive(self, mock):
-        result = wm.get_entity("device", "msi notebook")
-        self.assertEqual(result["ip"], "192.168.2.76")
+        result = wm.get_entity("device", "homelab")
+        self.assertEqual(result["ip"], "192.168.2.6")
 
     @_mock_state()
     def test_get_unknown_device(self, mock):
@@ -302,7 +302,7 @@ class TestDataIntegrity(unittest.TestCase):
         self.assertIn("192.168.2.2", wm.KNOWN_DEVICES)
 
     def test_notebook_ip_in_devices(self):
-        self.assertIn("192.168.2.76", wm.KNOWN_DEVICES)
+        self.assertIn("192.168.2.6", wm.KNOWN_DEVICES)
 
 
 if __name__ == "__main__":

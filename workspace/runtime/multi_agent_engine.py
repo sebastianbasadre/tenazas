@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "multi_agent.log"
 
 # Model endpoints
-OLLAMA_URL = "http://192.168.2.76:11434"
+OLLAMA_URL = "http://192.168.2.6:11434"
 ANALYSIS_MODEL = "qwen2.5:7b"
 VERIFICATION_MODEL = "phi4-mini"
 SYNTHESIS_MODEL = "qwen2.5:3b"

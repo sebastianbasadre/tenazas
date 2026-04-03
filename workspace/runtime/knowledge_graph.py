@@ -49,13 +49,13 @@ NODES = {
     "watchtower": {"type": "container", "role": "auto_updater", "critical": True},
     # Devices
     "nas": {"type": "device", "ip": "192.168.2.2", "role": "host"},
-    "notebook": {"type": "device", "ip": "192.168.2.76", "role": "gpu_inference"},
+    "notebook": {"type": "device", "ip": "192.168.2.6", "role": "gpu_inference"},
     "nas_backup": {"type": "device", "ip": "192.168.2.3", "role": "backup"},
     "router": {"type": "device", "ip": "192.168.2.1", "role": "gateway"},
     "hue_bridge": {"type": "device", "ip": "192.168.2.11", "role": "smart_home"},
     "samsung_m8": {"type": "device", "ip": "192.168.2.46", "role": "display"},
     # Services
-    "ollama_gpu": {"type": "service", "url": "http://192.168.2.76:11434", "role": "inference"},
+    "ollama_gpu": {"type": "service", "url": "http://192.168.2.6:11434", "role": "inference"},
     "ollama_cpu": {"type": "service", "url": "http://127.0.0.1:11434", "role": "inference_fallback"},
     "gemini": {"type": "service", "role": "cloud_inference"},
     "telegram": {"type": "service", "role": "communication"},

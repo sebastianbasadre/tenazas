@@ -21,12 +21,12 @@ LOG_FILE = BASE_DIR / "logs" / "model_router.log"
 
 BACKENDS = {
     "notebook_gpu": {
-        "url": "http://192.168.2.76:11434",
-        "tags_url": "http://192.168.2.76:11434/api/tags",
+        "url": "http://192.168.2.6:11434",
+        "tags_url": "http://192.168.2.6:11434/api/tags",
         "type": "gpu",
         "gpu": "RTX 4050",
         "vram_gb": 6,
-        "description": "MSI Notebook GPU",
+        "description": "HomeLab GPU",
         "priority": 1,
     },
     "nas_cpu": {

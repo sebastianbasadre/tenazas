@@ -23,11 +23,12 @@ Synology DS923+ (192.168.2.2)
 │   ├── portainer        — Dashboard Docker
 │   └── watchtower       — Auto-update de imagenes
 │
-MSI Notebook (192.168.2.76) — GPU remota
+HomeLab (192.168.2.6) — GPU remota
 └── Ollama (:11434) — RTX 4050, 6GB VRAM
-    ├── qwen2.5:3b/7b    — Tareas de sistema y razonamiento
+    ├── qwen2.5:7b        — Sistema y razonamiento
+    ├── deepseek-r1:14b   — Razonamiento complejo
     ├── qwen3:8b          — Alternativa
-    ├── phi4-mini         — Fallback liviano (pre-cargado en VRAM)
+    ├── phi4-mini         — Fallback liviano
     └── nomic-embed-text  — Embeddings para RAG
 
 Smart Home (LAN)

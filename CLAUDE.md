@@ -26,10 +26,10 @@ Synology DS923+ (192.168.2.2) — Host principal
 ├── NAS 2 (192.168.2.3)  — Backup target (HyperBackup)
 └── Router (192.168.2.1)
 
-MSI Notebook (192.168.2.76) — GPU remota
+HomeLab (192.168.2.6) — GPU remota
 └── Ollama (:11434) — RTX 4050, modelos principales
-    ├── qwen2.5:3b        — Tareas de sistema, rapido
-    ├── qwen2.5:7b        — Razonamiento
+    ├── qwen2.5:7b        — Tareas de sistema y razonamiento
+    ├── deepseek-r1:14b   — Razonamiento complejo
     ├── qwen3:8b          — Alternativa
     ├── phi4-mini          — Fallback liviano
     └── nomic-embed-text  — Embeddings para RAG
@@ -50,7 +50,7 @@ Smart Home (LAN)
 | Runtime host | Synology DS923+, Ryzen CPU | 192.168.2.2 |
 | Container engine | Docker + docker-compose | NAS |
 | Asistente | OpenClaw (Node.js 22, Bookworm) | Container `openclaw` |
-| GPU inference | Ollama (RTX 4050) | 192.168.2.76:11434 |
+| GPU inference | Ollama (RTX 4050) | 192.168.2.6:11434 |
 | CPU inference | Ollama (Ryzen, fallback) | 127.0.0.1:11434 |
 | Cloud inference | Google Gemini 2.5 Flash/Pro | API (fallback final) |
 | Vector DB (RAG) | ChromaDB | 192.168.2.2:8100 |
@@ -77,14 +77,14 @@ Smart Home (LAN)
 ### Modelos locales (Ollama)
 | Modelo | Parametros | Uso | Backend |
 |---|---|---|---|
-| qwen2.5:3b | 3B | Sistema, logs, JSON | Notebook GPU |
-| qwen2.5:7b | 7B | Razonamiento, analisis | Notebook GPU |
-| qwen3:8b | 8B | Alternativa | Notebook GPU |
-| phi4-mini | ~4B | Fallback liviano | NAS CPU o Notebook |
-| nomic-embed-text | — | Embeddings RAG | Notebook GPU |
+| qwen2.5:7b | 7B | Sistema y razonamiento | HomeLab GPU |
+| deepseek-r1:14b | 14B | Razonamiento complejo | HomeLab GPU |
+| qwen3:8b | 8B | Alternativa | HomeLab GPU |
+| phi4-mini | ~4B | Fallback liviano | NAS CPU o HomeLab |
+| nomic-embed-text | — | Embeddings RAG | HomeLab GPU |
 
 ### Cascada de routing (`ollama-check.sh`)
-1. **Notebook GPU** (192.168.2.76:11434) — preferido, todos los modelos
+1. **HomeLab GPU** (192.168.2.6:11434) — preferido, todos los modelos
 2. **NAS CPU** (127.0.0.1:11434) — solo modelos chicos (phi4-mini)
 3. **Gemini Flash** (cloud) — ultimo recurso
 
@@ -510,7 +510,7 @@ Analisis de errores, skills, Docker health. Propone mejoras via Telegram. **NUNC
 ### APIs internas (LAN, sin auth)
 | Servicio | URL | Uso |
 |---|---|---|
-| Ollama Notebook | http://192.168.2.76:11434 | LLM inference (GPU) |
+| Ollama HomeLab | http://192.168.2.6:11434 | LLM inference (GPU) |
 | Ollama NAS | http://127.0.0.1:11434 | LLM fallback (CPU) |
 | ChromaDB | http://192.168.2.2:8100 | Vector store RAG |
 | Gluetun Proxy | http://192.168.2.2:8888 | VPN HTTP proxy |
@@ -610,7 +610,7 @@ services:
 - 192.168.2.3 — NAS backup
 - 192.168.2.11 — Hue Bridge
 - 192.168.2.46 — Samsung M8
-- 192.168.2.76 — Notebook MSI (Ollama GPU)
+- 192.168.2.6 — HomeLab (Ollama GPU)
 
 ---
 

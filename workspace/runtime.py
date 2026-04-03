@@ -113,7 +113,7 @@ def update_state() -> dict:
     state["devices_online"] = nmap.count("Host is up") if rc == 0 else prev.get("devices_online", 0)
 
     # 6. Ollama notebook (primary GPU)
-    rc, _ = sh("curl -sf --max-time 5 http://192.168.2.76:11434/api/tags", timeout=8)
+    rc, _ = sh("curl -sf --max-time 5 http://192.168.2.6:11434/api/tags", timeout=8)
     state["ollama_notebook"] = "ok" if rc == 0 else "down"
 
     # 7. Ollama NAS (CPU fallback)
