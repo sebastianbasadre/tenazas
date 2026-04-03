@@ -105,6 +105,13 @@ if PROM_AVAILABLE:
         buckets=[0.5, 1, 2, 5, 10, 30, 60, 120],
     )
 
+    # Guardrails
+    GUARDRAIL_DEGRADATIONS = Counter(
+        "guardrail_degradations_total",
+        "Times a heavy role was degraded by guardrails",
+        ["reason"],
+    )
+
 
 # ── Singleton server ─────────────────────────────────────────────
 
@@ -267,6 +274,13 @@ def record_model_latency(model: str, role: str, latency: float):
     if PROM_AVAILABLE:
         ROUTER_MODEL_LATENCY.labels(model=model, role=role).observe(latency)
     _log_metric("model_latency", latency, {"model": model, "role": role})
+
+
+def record_guardrail_degradation(reason: str):
+    """Record a guardrail-triggered degradation."""
+    if PROM_AVAILABLE:
+        GUARDRAIL_DEGRADATIONS.labels(reason=reason).inc()
+    _log_metric("guardrail_degradation", 1, {"reason": reason})
 
 
 # ── Health Score Calculator ──────────────────────────────────────

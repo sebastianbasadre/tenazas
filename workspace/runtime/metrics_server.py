@@ -65,6 +65,12 @@ if PROM_AVAILABLE:
     G_RV2_ROLE_VISION = Gauge("router_v2_role_vision_total", "Routing decisions for vision role")
     G_RV2_ROLE_EMBED = Gauge("router_v2_role_embed_total", "Routing decisions for embed role")
 
+    # Guardrails
+    G_GR_COOLDOWN = Gauge("guardrail_cooldown_total", "Heavy degraded by cooldown")
+    G_GR_FREQUENCY = Gauge("guardrail_frequency_total", "Heavy degraded by frequency limit")
+    G_GR_LATENCY = Gauge("guardrail_latency_total", "Heavy degraded by high latency")
+    G_GR_VRAM_STORM = Gauge("guardrail_vram_storm_total", "Heavy degraded by VRAM swap storm")
+
 
 def update_from_file():
     """Read metrics_state.json and update Prometheus Gauges."""
@@ -115,6 +121,19 @@ def update_from_file():
         G_RV2_ROLE_VISION.set(rv2.get("role_vision", 0))
         G_RV2_ROLE_EMBED.set(rv2.get("role_embed", 0))
 
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    # Guardrails (from separate state file)
+    try:
+        guardrail_file = Path(__file__).parent / "guardrail_state.json"
+        with open(guardrail_file) as f:
+            gr = json.load(f)
+        degs = gr.get("degradations", {})
+        G_GR_COOLDOWN.set(degs.get("cooldown", 0))
+        G_GR_FREQUENCY.set(degs.get("frequency", 0))
+        G_GR_LATENCY.set(degs.get("latency", 0))
+        G_GR_VRAM_STORM.set(degs.get("vram_storm", 0))
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 

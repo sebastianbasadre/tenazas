@@ -134,14 +134,92 @@ GUARDRAIL_MAX_HEAVY = 3      # Max heavy model calls per window
 GUARDRAIL_COOLDOWN = 120     # 2 min cooldown after a heavy model call
 GUARDRAIL_LATENCY_THRESHOLD = 30.0  # If last heavy latency > 30s, degrade
 
-# In-memory state (resets on process restart — acceptable for cron subprocess)
+# Persistent state file for guardrails (survives cron restarts)
+GUARDRAIL_STATE_FILE = BASE_DIR / "guardrail_state.json"
+
+# In-memory state, initialized from file on first access
 _guardrail_state = {
     "heavy_timestamps": [],   # timestamps of recent heavy model selections
     "last_heavy_model": None,
     "last_heavy_ts": 0.0,
     "last_heavy_latency": 0.0,
     "vram_swaps_window": [],  # timestamps of recent vram swaps
+    "degradations": {         # counters for dashboard
+        "cooldown": 0,
+        "frequency": 0,
+        "latency": 0,
+        "vram_storm": 0,
+    },
 }
+_guardrail_loaded = False
+
+
+def _load_guardrail_state():
+    """Load guardrail state from JSON file on first access."""
+    global _guardrail_loaded
+    if _guardrail_loaded:
+        return
+    _guardrail_loaded = True
+
+    try:
+        with open(GUARDRAIL_STATE_FILE) as f:
+            saved = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+
+    import time
+    now = time.monotonic()
+    wall_now = _now().timestamp()
+
+    st = _guardrail_state
+
+    # Restore timestamps: convert wall-clock offsets to monotonic
+    for key in ("heavy_timestamps", "vram_swaps_window"):
+        wall_times = saved.get(key, [])
+        st[key] = [now - (wall_now - wt) for wt in wall_times
+                   if wall_now - wt < GUARDRAIL_WINDOW]
+
+    # Restore scalars
+    st["last_heavy_model"] = saved.get("last_heavy_model")
+    st["last_heavy_latency"] = saved.get("last_heavy_latency", 0.0)
+
+    # Restore last_heavy_ts as monotonic offset
+    last_wall = saved.get("last_heavy_wall_ts", 0)
+    if last_wall > 0 and wall_now - last_wall < GUARDRAIL_COOLDOWN:
+        st["last_heavy_ts"] = now - (wall_now - last_wall)
+    else:
+        st["last_heavy_ts"] = 0.0
+
+    # Restore degradation counters
+    st["degradations"] = saved.get("degradations", {
+        "cooldown": 0, "frequency": 0, "latency": 0, "vram_storm": 0,
+    })
+
+
+def _save_guardrail_state():
+    """Persist guardrail state to JSON file."""
+    import time
+    now = time.monotonic()
+    wall_now = _now().timestamp()
+    st = _guardrail_state
+
+    # Convert monotonic timestamps to wall-clock for persistence
+    saved = {
+        "heavy_timestamps": [wall_now - (now - t) for t in st["heavy_timestamps"]],
+        "vram_swaps_window": [wall_now - (now - t) for t in st["vram_swaps_window"]],
+        "last_heavy_model": st["last_heavy_model"],
+        "last_heavy_latency": st["last_heavy_latency"],
+        "last_heavy_wall_ts": wall_now - (now - st["last_heavy_ts"]) if st["last_heavy_ts"] > 0 else 0,
+        "degradations": st["degradations"],
+        "saved_at": _now().isoformat(),
+    }
+
+    try:
+        GUARDRAIL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(GUARDRAIL_STATE_FILE, "w") as f:
+            json.dump(saved, f, indent=2)
+    except OSError:
+        pass
 
 
 def _guardrail_cleanup(now: float):
@@ -175,6 +253,8 @@ def apply_guardrails(role: str, flags: dict | None = None) -> tuple:
     if flags.get("force_heavy"):
         return role, False, ""
 
+    _load_guardrail_state()
+
     import time
     now = time.monotonic()
     _guardrail_cleanup(now)
@@ -185,6 +265,8 @@ def apply_guardrails(role: str, flags: dict | None = None) -> tuple:
         elapsed = now - st["last_heavy_ts"]
         if elapsed < GUARDRAIL_COOLDOWN:
             degrade_to = "reason" if role == "heavy" else "fast"
+            st["degradations"]["cooldown"] = st["degradations"].get("cooldown", 0) + 1
+            _save_guardrail_state()
             return degrade_to, True, (
                 f"cooldown: {GUARDRAIL_COOLDOWN - elapsed:.0f}s remaining "
                 f"after {st['last_heavy_model']}"
@@ -193,6 +275,8 @@ def apply_guardrails(role: str, flags: dict | None = None) -> tuple:
     # 2. Frequency: too many heavy calls in window
     if len(st["heavy_timestamps"]) >= GUARDRAIL_MAX_HEAVY:
         degrade_to = "reason" if role == "heavy" else "fast"
+        st["degradations"]["frequency"] = st["degradations"].get("frequency", 0) + 1
+        _save_guardrail_state()
         return degrade_to, True, (
             f"frequency: {len(st['heavy_timestamps'])}/{GUARDRAIL_MAX_HEAVY} "
             f"heavy calls in {GUARDRAIL_WINDOW}s window"
@@ -201,6 +285,8 @@ def apply_guardrails(role: str, flags: dict | None = None) -> tuple:
     # 3. Latency: last heavy call was too slow
     if st["last_heavy_latency"] > GUARDRAIL_LATENCY_THRESHOLD:
         degrade_to = "reason" if role == "heavy" else "fast"
+        st["degradations"]["latency"] = st["degradations"].get("latency", 0) + 1
+        _save_guardrail_state()
         return degrade_to, True, (
             f"latency: last heavy took {st['last_heavy_latency']:.1f}s "
             f"(threshold: {GUARDRAIL_LATENCY_THRESHOLD}s)"
@@ -209,6 +295,8 @@ def apply_guardrails(role: str, flags: dict | None = None) -> tuple:
     # 4. VRAM swap storm: too many swaps in window
     if len(st["vram_swaps_window"]) >= GUARDRAIL_MAX_HEAVY:
         degrade_to = "reason" if role == "heavy" else "fast"
+        st["degradations"]["vram_storm"] = st["degradations"].get("vram_storm", 0) + 1
+        _save_guardrail_state()
         return degrade_to, True, (
             f"vram_swaps: {len(st['vram_swaps_window'])} swaps in "
             f"{GUARDRAIL_WINDOW}s window"
@@ -218,13 +306,14 @@ def apply_guardrails(role: str, flags: dict | None = None) -> tuple:
 
 
 def record_heavy_usage(model: str, latency: float = 0.0, vram_swap: bool = False):
-    """Record that a heavy model was used (call after inference completes).
+    """Record that a heavy model was selected.
 
     Args:
         model: model name that was used
         latency: inference latency in seconds (0 if not yet known)
         vram_swap: whether this required VRAM swap
     """
+    _load_guardrail_state()
     import time
     now = time.monotonic()
     st = _guardrail_state
@@ -238,15 +327,59 @@ def record_heavy_usage(model: str, latency: float = 0.0, vram_swap: bool = False
     if vram_swap:
         st["vram_swaps_window"].append(now)
 
+    _save_guardrail_state()
+
+
+def report_inference_complete(model: str, latency: float, vram_swap: bool = False):
+    """Report actual inference latency after LLM call completes.
+
+    This closes the guardrail feedback loop: route_by_role() records the
+    selection, and this function updates the latency once we know how
+    long it actually took. The latency feeds into the next guardrail check.
+
+    Args:
+        model: model that was used
+        latency: actual inference time in seconds
+        vram_swap: whether VRAM swap occurred
+    """
+    import time
+    st = _guardrail_state
+
+    if model in HEAVY_MODELS:
+        st["last_heavy_latency"] = latency
+        _log({
+            "ts": _now().isoformat(),
+            "action": "inference_complete",
+            "model": model,
+            "latency": round(latency, 2),
+            "vram_swap": vram_swap,
+            "heavy": True,
+        })
+
+    if vram_swap:
+        st["vram_swaps_window"].append(time.monotonic())
+
+    # Persist updated state
+    _save_guardrail_state()
+
+
+def get_guardrail_stats() -> dict:
+    """Return guardrail degradation counters for Prometheus/dashboard."""
+    _load_guardrail_state()
+    return dict(_guardrail_state.get("degradations", {}))
+
 
 def reset_guardrails():
-    """Reset guardrail state (for testing)."""
+    """Reset guardrail state (for testing). Marks as loaded to skip file read."""
+    global _guardrail_loaded
+    _guardrail_loaded = True  # Mark as loaded to prevent reading stale file
     st = _guardrail_state
     st["heavy_timestamps"] = []
     st["last_heavy_model"] = None
     st["last_heavy_ts"] = 0.0
     st["last_heavy_latency"] = 0.0
     st["vram_swaps_window"] = []
+    st["degradations"] = {"cooldown": 0, "frequency": 0, "latency": 0, "vram_storm": 0}
 
 
 # ── V2: Classification heuristics ───────────────────────────────

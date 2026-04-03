@@ -246,8 +246,50 @@
         }}
       },
       {
-        "id": 50, "title": "Memoria del proceso", "type": "timeseries",
+        "id": 60, "title": "Guardrails: Degradaciones por motivo", "type": "timeseries",
         "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "guardrail_cooldown_total", "legendFormat": "Cooldown (120s)" },
+          { "expr": "guardrail_frequency_total", "legendFormat": "Frequency (3/10min)" },
+          { "expr": "guardrail_latency_total", "legendFormat": "Latency (>30s)" },
+          { "expr": "guardrail_vram_storm_total", "legendFormat": "VRAM storm (3+swaps)" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "Cooldown (120s)" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Frequency (3/10min)" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Latency (>30s)" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "VRAM storm (3+swaps)" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 61, "title": "Heavy evitado (total)", "type": "stat",
+        "gridPos": { "h": 8, "w": 6, "x": 12, "y": 46 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "guardrail_cooldown_total + guardrail_frequency_total + guardrail_latency_total + guardrail_vram_storm_total", "legendFormat": "Total degradaciones" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "orange", "value": 20 }
+        ]},
+          "description": "Total times guardrails prevented a heavy model from being used. Growing slowly is normal — spikes may indicate system under load."
+        }}
+      },
+      {
+        "id": 62, "title": "Inference Latency (heavy)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 46 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "router_last_decision_latency_seconds", "legendFormat": "Router decision" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 30 }
+          ]}}}
+      },
+      {
+        "id": 50, "title": "Memoria del proceso", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
           { "expr": "process_resident_memory_bytes", "legendFormat": "RSS" },
@@ -262,7 +304,7 @@
       },
       {
         "id": 51, "title": "CPU del proceso", "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [{ "expr": "rate(process_cpu_seconds_total[5m])", "legendFormat": "CPU usage" }],
         "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },

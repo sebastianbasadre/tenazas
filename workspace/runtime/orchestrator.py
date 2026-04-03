@@ -489,11 +489,24 @@ def route_query(
     if v2_info:
         result["router_v2"] = {
             "role": v2_info.get("role"),
+            "classified_as": v2_info.get("classified_as"),
             "model": v2_info.get("model"),
             "fallback_used": v2_info.get("fallback_used"),
+            "degraded": v2_info.get("degraded", False),
+            "degrade_reason": v2_info.get("degrade_reason", ""),
             "vram_swap": v2_info.get("vram_swap"),
             "signals": v2_info.get("signals", []),
         }
+        # Record guardrail degradation to Prometheus
+        if v2_info.get("degraded"):
+            reason_key = v2_info.get("degrade_reason", "")
+            # Extract the guardrail type (first word before ":")
+            gr_type = reason_key.split(":")[0] if ":" in reason_key else "unknown"
+            try:
+                from runtime.metrics_exporter import record_guardrail_degradation
+                record_guardrail_degradation(gr_type)
+            except Exception:
+                pass
 
     log_entry = {
         "type": "routing",
@@ -505,6 +518,9 @@ def route_query(
     if v2_info:
         log_entry["router_v2_role"] = v2_info.get("role")
         log_entry["router_v2_model"] = v2_info.get("model")
+        if v2_info.get("degraded"):
+            log_entry["guardrail_degraded"] = True
+            log_entry["guardrail_reason"] = v2_info.get("degrade_reason")
     _log(log_entry)
 
     return result
@@ -605,6 +621,39 @@ def _extract_signals(context: dict | None) -> list:
         signals.append(f"prev:{context['previous_classification']}")
 
     return signals
+
+
+def report_inference(model_id: str, latency: float, route_result: dict | None = None):
+    """Report actual inference latency after LLM call completes.
+
+    Call this after the LLM responds to close the guardrail feedback loop.
+    The latency is used for future guardrail decisions and Prometheus metrics.
+
+    Args:
+        model_id: model ID from route result (e.g. "ollama/qwen2.5:7b")
+        latency: actual inference time in seconds
+        route_result: the full route_query() result (for extracting V2 info)
+    """
+    try:
+        from runtime.model_router import report_inference_complete
+        # Strip "ollama/" prefix if present
+        model = model_id.replace("ollama/", "")
+        vram_swap = False
+        if route_result and "router_v2" in route_result:
+            vram_swap = route_result["router_v2"].get("vram_swap", False)
+        report_inference_complete(model, latency, vram_swap)
+    except Exception:
+        pass
+
+    try:
+        from runtime.metrics_exporter import record_model_latency
+        model = model_id.replace("ollama/", "")
+        role = "fast"
+        if route_result and "router_v2" in route_result:
+            role = route_result["router_v2"].get("role", "fast")
+        record_model_latency(model, role, latency)
+    except Exception:
+        pass
 
 
 def _record_metrics(**kwargs):

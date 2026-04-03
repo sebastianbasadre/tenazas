@@ -157,16 +157,19 @@ Modelos pesados (`qwen2.5:32b`, `deepseek-r1:14b`, `qwen2.5-coder:14b`) tienen p
 - **Bypass:** `flags={"force_heavy": True}` salta todos los guardrails
 - **Degradacion:** heavy→reason→fast (nunca bloquea, siempre responde)
 - **Scope:** solo afecta roles `heavy` y `code` (fast/reason/vision/embed no tienen guardrails)
-- **State:** in-memory, se resetea con el proceso (aceptable para cron cada 5 min)
+- **State persistente:** `guardrail_state.json` — sobrevive restarts del cron, rolling window automático
+- **Post-inferencia:** `report_inference_complete(model, latency)` cierra el loop de feedback
+- **Orchestrator:** `report_inference(model_id, latency, route_result)` — wrapper para llamar post-LLM
 - **Log:** señal `guardrail:<reason>` en `signals` del log entry
-- `record_heavy_usage(model, latency, vram_swap)` — llamar post-inferencia para actualizar latencia
+- **Prometheus:** `guardrail_degradations_total{reason}`, paneles Grafana por motivo
+- `get_guardrail_stats()` → counters de degradaciones por tipo
 - `reset_guardrails()` — reset manual (testing)
 
 **Limitaciones conocidas:**
 - Clasificacion por heuristicas (sin LLM) — puede clasificar mal prompts ambiguos
 - VRAM swap no se bloquea pero agrega latencia (~5-15s para cargar modelo grande)
 - En NAS CPU solo modelos <= 3.5 GB VRAM (phi4-mini)
-- Guardrails in-memory: se pierden entre ciclos del runtime cron (5 min)
+- Guardrails: state file puede quedar stale si el proceso crashea mid-write (unlikely)
 
 ### Cascada de routing legacy (`ollama-check.sh`)
 1. **HomeLab GPU** (192.168.2.6:11434) — preferido, todos los modelos
