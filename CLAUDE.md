@@ -691,7 +691,9 @@ workspace/runtime/
 - **Metricas extendidas:** runtime_step_*_seconds, rag_queries_total, rag_low_confidence_total, model_failover_active
 - **Metricas Router V2:** router_v2_decisions_total{role}, router_v1_decisions_total, router_v1_fallback_from_v2_total, router_v2_internal_fallbacks_total{role}, router_vram_swaps_total{role,model}, router_cloud_fallbacks_total, router_decision_latency_seconds{role}, router_model_latency_seconds{model,role}
 - **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
-- **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas), paneles Router V2: V1vsV2, distribución por rol, fallbacks+VRAM swaps, latencia, cloud fallbacks, VRAM swaps stat, V2→V1 stat
+- **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
+  - **Tenazas Runtime** (`tenazas-runtime`) — dashboard de infra general (containers, VPN, freezes, memoria, CPU)
+  - **Tenazas Agent** (`tenazas-agent`) — dashboard dedicado del agente: routing V1/V2, roles, latencia, guardrails, fallbacks, VRAM, failover, ciclos. Todos los panels scoped a `instance="openclaw"` con descriptions operativas
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
