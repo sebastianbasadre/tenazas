@@ -210,6 +210,30 @@ proposed → reviewed → accepted | rejected
 
 **Seguridad:** nunca modifica archivos existentes, nunca cambia config del router, solo escribe en `learning/`
 
+### Daily Improvement — Mejora diaria (`daily_improvement.py`)
+
+Genera UNA propuesta de mejora concreta por dia escaneando todo el ambiente.
+
+**Fuentes escaneadas:**
+- `model_router.log` — fallbacks, degradaciones, VRAM swaps, role imbalance
+- `guardrail_state.json` — cooldown agresivo, latencia alta
+- `finance/transactions.json` — gastos sin categorizar
+- `jobs/opportunities.json` — oportunidades stale, tasa de rechazo
+- `orchestrator.log` — cloud fallbacks, gaps de observabilidad
+
+**Pipeline:** `scan_signals() → prioritize → select_best → generate_proposal(qwen2.5:7b) → save + report`
+
+**Priorizacion:** alto impacto > bajo riesgo > evidencia suficiente. Evita repetir propuestas recientes (14 dias).
+
+**Ejecucion:**
+```bash
+docker exec openclaw python3 /home/tenazas/runtime/daily_improvement.py
+```
+
+**Output:** `learning/daily_improvement.json` (historial) + `learning/daily_improvement.md` (propuesta del dia)
+
+**Futuro:** cron a las 6AM (antes del morning greeting a las 8AM)
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
@@ -527,6 +551,7 @@ workspace/runtime/
 ├── experiment_engine.py       — A/B testing de pipelines y modelos
 ├── idle_learning_engine.py    — Aprendizaje en periodos idle (metricas pasivas)
 ├── idle_learning.py           — Multi-model collaborative learning (critic+synthesizer)
+├── daily_improvement.py       — Mejora diaria: 1 propuesta concreta por dia
 ├── model_distillation.py      — Transferencia de conocimiento entre modelos
 │
 │ ── Learning Output ──
