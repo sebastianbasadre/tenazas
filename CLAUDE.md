@@ -249,6 +249,45 @@ alerts = check_alerts()                         # alertas activas
 
 **Seguridad:** no conecta a bancos, no ejecuta pagos, no infiere datos sensibles. Solo lee/escribe en `runtime/finance/`.
 
+### Jobs — Busqueda laboral (`jobs.py`)
+
+Modulo de gestion de busqueda laboral con pipeline de estados, analisis de JD, match scoring e interview prep.
+
+**Status machine:**
+```
+detected → interested → applied → screening → interview → offer → closed
+                                                                 → rejected (desde cualquier estado activo)
+```
+
+**Input natural:**
+```
+"postulé a TIVIT para TAM"              → applied [TIVIT, TAM]
+"vi un puesto de DevOps en Globant"     → detected [Globant, DevOps]
+"me contactó recruiter de Accenture"    → screening [Accenture]
+"nueva oportunidad: MercadoLibre - SRE" → detected [MercadoLibre, SRE]
+```
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/jobs.py --add "postulé a TIVIT para TAM"
+python3 /home/tenazas/runtime/jobs.py --pipeline            # resumen del pipeline
+python3 /home/tenazas/runtime/jobs.py --update ID screening  # cambiar estado
+python3 /home/tenazas/runtime/jobs.py --list                 # oportunidades activas
+python3 /home/tenazas/runtime/jobs.py --analyze "JD text..."  # analisis con deepseek
+python3 /home/tenazas/runtime/jobs.py --match ID             # match score con perfil
+python3 /home/tenazas/runtime/jobs.py --brief ID             # brief de entrevista
+python3 /home/tenazas/runtime/jobs.py --jd ID "full JD"      # guardar job description
+```
+
+**LLM-assisted:**
+- `analyze_description()` → deepseek-r1:14b extrae requisitos, tecnologias, red flags
+- `match_score()` → qwen2.5:7b evalua match candidato-puesto (0-100)
+- `interview_brief()` → qwen2.5:7b genera prep sheet para entrevista
+
+**Perfil:** Guardar en `jobs/profile.json` para match scoring automatico.
+
+**Seguridad:** no postula automaticamente, no envia emails, no modifica CVs, no hace scraping. Solo lee/escribe en `runtime/jobs/`.
+
 ### Cascada de routing legacy (`ollama-check.sh`)
 1. **HomeLab GPU** (192.168.2.6:11434) — preferido, todos los modelos
 2. **NAS CPU** (127.0.0.1:11434) — solo modelos chicos (phi4-mini)
@@ -485,6 +524,9 @@ workspace/runtime/
 │ ── Personal ──
 ├── finance.py                 — Finanzas personales (ingresos, gastos, resumen, alertas)
 ├── finance/transactions.json  — Persistencia de transacciones
+├── jobs.py                    — Busqueda laboral (pipeline, analisis JD, match, interview prep)
+├── jobs/opportunities.json    — Persistencia de oportunidades
+├── jobs/profile.json          — Perfil del candidato para match scoring
 └── __init__.py
 ```
 
