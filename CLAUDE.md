@@ -272,6 +272,42 @@ Mejora [guardrails]: reducir cooldown de 120s a 60s
 
 **Futuro:** integrar con morning greeting (8AM) para envio automatico por Telegram
 
+### Operational Memory — Memoria operativa (`operational_memory.py`)
+
+Memoria estructurada por dominio para contexto personal entre interacciones.
+
+**Dominios:** finance, expense, jobs, general
+
+**Tipos de facts:** preference, pattern, entity, threshold, note, context
+
+**API:**
+```python
+from runtime.operational_memory import save_fact, get_context, list_recent, search_facts
+
+save_fact("finance", "threshold", "Alerta si super > 80k",
+          metadata={"category": "supermercado", "amount": 80000})
+save_fact("jobs", "preference", "Prefiere remoto", source="user")
+save_fact("expense", "pattern", "Gasta mas los viernes")
+
+facts = get_context("finance")                    # todos los facts de finance
+facts = get_context("jobs", fact_type="entity")   # solo entidades de jobs
+recent = list_recent("expense", limit=5)          # ultimos 5
+results = search_facts("TIVIT")                   # buscar across domains
+```
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/operational_memory.py --save finance threshold "Super max 80k"
+python3 /home/tenazas/runtime/operational_memory.py --context finance
+python3 /home/tenazas/runtime/operational_memory.py --search TIVIT
+python3 /home/tenazas/runtime/operational_memory.py --stats
+python3 /home/tenazas/runtime/operational_memory.py --cleanup
+```
+
+**Dedup:** mismo domain+type+content → actualiza timestamp y metadata, no duplica.
+**TTL:** 90 dias por defecto, `ttl_days=0` para facts permanentes. `cleanup_expired()` limpia.
+**Cap:** max 200 facts por dominio.
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
@@ -591,6 +627,8 @@ workspace/runtime/
 ├── idle_learning.py           — Multi-model collaborative learning (critic+synthesizer)
 ├── daily_improvement.py       — Mejora diaria: 1 propuesta concreta por dia
 ├── daily_brief.py             — Brief diario: finanzas, gastos, jobs, mejoras, accion
+├── operational_memory.py      — Memoria operativa por dominio (finance, expense, jobs)
+├── memory/operational.json    — Persistencia de facts
 ├── model_distillation.py      — Transferencia de conocimiento entre modelos
 │
 │ ── Learning Output ──
