@@ -24,7 +24,7 @@ Synology DS923+ (192.168.2.2)
 │   └── watchtower       — Auto-update de imagenes
 │
 HomeLab (192.168.2.6) — GPU remota
-└── Ollama (:11434) — RTX 4050, 6GB VRAM
+└── Ollama (:11434) — RTX 3090, 24GB VRAM
     ├── qwen2.5:7b        — fast: chat, sistema, default
     ├── deepseek-r1:14b   — reason: analisis, debugging
     ├── qwen2.5:32b       — heavy: tareas criticas, sintesis

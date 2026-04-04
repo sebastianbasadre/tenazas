@@ -444,13 +444,14 @@ class TestRouterV2Integration(unittest.TestCase):
 
     @patch("runtime.model_router.detect_backends")
     @patch("runtime.model_router._log")
-    def test_metrics_track_vram_swap(self, mock_mr_log, mock_detect):
+    def test_metrics_track_heavy_route(self, mock_mr_log, mock_detect):
         mock_detect.return_value = _mock_v2_backends()
         orch.reset_routing_metrics()
-        # critical → heavy → 32b (needs vram swap)
+        # critical → heavy → 32b (fits in 24GB RTX 3090, no vram swap)
         orch.route_query("deploy to production", {"critical": True})
         metrics = orch.get_routing_metrics()
-        self.assertGreaterEqual(metrics.get("v2_vram_swaps", 0), 1)
+        # 32b fits in 24GB so no vram_swap, but v2_calls should increment
+        self.assertGreaterEqual(metrics.get("v2_calls", 0), 1)
 
 
 class TestRouterV2Fallback(unittest.TestCase):

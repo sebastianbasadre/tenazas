@@ -231,7 +231,7 @@
         "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
           { "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "orange", "value": 50 }
         ]},
-          "description": "Models exceeding 6GB VRAM on RTX 4050. Ollama offloads to CPU RAM — works but adds 5-15s latency."
+          "description": "Models exceeding 24GB VRAM on RTX 3090. Currently no model exceeds this — metric tracks heavy model selections."
         }}
       },
       {

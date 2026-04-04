@@ -27,7 +27,7 @@ Synology DS923+ (192.168.2.2) — Host principal
 └── Router (192.168.2.1)
 
 HomeLab (192.168.2.6) — GPU remota
-└── Ollama (:11434) — RTX 4050, modelos principales
+└── Ollama (:11434) — RTX 3090, modelos principales
     ├── qwen2.5:7b        — Tareas de sistema y razonamiento
     ├── deepseek-r1:14b   — Razonamiento complejo
     ├── qwen3:8b          — Alternativa
@@ -50,7 +50,7 @@ Smart Home (LAN)
 | Runtime host | Synology DS923+, Ryzen CPU | 192.168.2.2 |
 | Container engine | Docker + docker-compose | NAS |
 | Asistente | OpenClaw (Node.js 22, Bookworm) | Container `openclaw` |
-| GPU inference | Ollama (RTX 4050) | 192.168.2.6:11434 |
+| GPU inference | Ollama (RTX 3090) | 192.168.2.6:11434 |
 | CPU inference | Ollama (Ryzen, fallback) | 127.0.0.1:11434 |
 | Cloud inference | Google Gemini 2.5 Flash/Pro | API (fallback final) |
 | Vector DB (RAG) | ChromaDB | 192.168.2.2:8100 |
@@ -86,7 +86,7 @@ Smart Home (LAN)
 | qwen3:8b | 8B | 5.2 GB | `fast` | Alternativa a qwen2.5:7b |
 | nomic-embed-text | 137M | 0.3 GB | `embed` | Embeddings para RAG |
 
-**VRAM:** RTX 4050 tiene 6 GB. Modelos > 6 GB funcionan via partial CPU offloading de Ollama (mas lento pero operativo).
+**VRAM:** RTX 3090 tiene 24 GB. Modelos > 24 GB funcionan via partial CPU offloading de Ollama (mas lento pero operativo).
 
 ### Modelos legacy (NAS CPU solamente)
 | Modelo | Uso |
@@ -145,7 +145,7 @@ backend, model, url = route("reason")
 **Integracion futura con idle learning:** El formato de log permite que `idle_learning_engine.py` analice patrones de routing (tasa de fallback, frecuencia de VRAM swap, distribucion por rol) sin cambios adicionales.
 
 **Guardrails (proteccion contra abuso de modelos pesados):**
-Modelos pesados (`qwen2.5:32b`, `deepseek-r1:14b`, `qwen2.5-coder:14b`) tienen protecciones automaticas:
+Modelo pesado (`qwen2.5:32b`) tiene protecciones automaticas (con RTX 3090 cabe en VRAM pero es costoso de cargar):
 
 | Guardrail | Config | Efecto |
 |---|---|---|
@@ -167,7 +167,7 @@ Modelos pesados (`qwen2.5:32b`, `deepseek-r1:14b`, `qwen2.5-coder:14b`) tienen p
 
 **Limitaciones conocidas:**
 - Clasificacion por heuristicas (sin LLM) — puede clasificar mal prompts ambiguos
-- VRAM swap no se bloquea pero agrega latencia (~5-15s para cargar modelo grande)
+- Con RTX 3090 (24GB) todos los modelos caben en VRAM, VRAM swap no aplica en operacion normal
 - En NAS CPU solo modelos <= 3.5 GB VRAM (phi4-mini)
 - Guardrails: state file puede quedar stale si el proceso crashea mid-write (unlikely)
 

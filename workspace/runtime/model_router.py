@@ -27,8 +27,8 @@ BACKENDS = {
         "url": "http://192.168.2.6:11434",
         "tags_url": "http://192.168.2.6:11434/api/tags",
         "type": "gpu",
-        "gpu": "RTX 4050",
-        "vram_gb": 6,
+        "gpu": "RTX 3090",
+        "vram_gb": 24,
         "description": "HomeLab GPU",
         "priority": 1,
     },
@@ -123,8 +123,9 @@ ROLE_MAP = {
 VALID_ROLES = set(ROLE_MAP.keys())
 DEFAULT_ROLE = "fast"
 
-# Models that require VRAM swap on RTX 4050 (>6GB) and add significant latency
-HEAVY_MODELS = {"qwen2.5:32b", "deepseek-r1:14b", "qwen2.5-coder:14b"}
+# Models that are expensive to load/run (large parameter count, high VRAM usage)
+# On RTX 3090 (24GB) all fit in VRAM, but 32b still takes significant load time
+HEAVY_MODELS = {"qwen2.5:32b"}
 
 # ── V2: Guardrails ─────────────────────────────────────────────
 # Prevents overuse of heavy models when the system is under load.

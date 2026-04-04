@@ -37,7 +37,7 @@ KNOWN_SERVICES = {
         "url": "http://192.168.2.6:11434",
         "type": "llm_inference",
         "host": "192.168.2.6",
-        "description": "Ollama GPU (RTX 4050)",
+        "description": "Ollama GPU (RTX 3090)",
     },
     "ollama_nas": {
         "url": "http://127.0.0.1:11434",

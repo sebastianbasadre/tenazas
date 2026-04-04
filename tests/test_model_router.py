@@ -123,7 +123,7 @@ class TestSelectModelGPU(unittest.TestCase):
     def test_system_task_selects_capable_model(self, mock_detect, mock_log):
         mock_detect.side_effect = _mock_backends(notebook=True, nas=True)
         result = mr.select_model("system")
-        # V1 selects from non-legacy models that fit in 6GB VRAM
+        # V1 selects from non-legacy models that fit in 24GB VRAM (RTX 3090)
         self.assertIn(result["model"], ("qwen2.5:7b", "qwen3:8b"))
         self.assertEqual(result["backend"], "notebook_gpu")
 
@@ -132,7 +132,9 @@ class TestSelectModelGPU(unittest.TestCase):
     def test_reason_task_selects_reasoning_model(self, mock_detect, mock_log):
         mock_detect.side_effect = _mock_backends(notebook=True, nas=True)
         result = mr.select_model("reason")
-        self.assertIn(result["model"], ("qwen2.5:7b", "qwen3:8b"))
+        # With 24GB VRAM, V1 may pick any model with reasoning capability
+        model_info = mr.MODEL_CATALOG.get(result["model"], {})
+        self.assertIn("reasoning", model_info.get("capabilities", []))
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
@@ -504,18 +506,18 @@ class TestRouteByRole(unittest.TestCase):
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
-    def test_vram_swap_flag_for_large_model(self, mock_detect, mock_log):
+    def test_no_vram_swap_on_rtx3090(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("critical production issue")
-        # 32b (20GB) on 6GB GPU → swap required
-        self.assertTrue(result["vram_swap"])
+        # 32b (20GB) on 24GB RTX 3090 → fits, no swap
+        self.assertFalse(result["vram_swap"])
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_no_vram_swap_for_small_model(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("hola")
-        # 7b (4.7GB) on 6GB GPU → no swap
+        # 7b (4.7GB) on 24GB RTX 3090 → no swap
         self.assertFalse(result["vram_swap"])
 
     @patch("runtime.model_router._log")

@@ -52,7 +52,7 @@
         "gridPos": { "h": 6, "w": 3, "x": 13, "y": 0 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [{ "expr": "router_vram_swaps_total{instance=\"openclaw\"}", "legendFormat": "Swaps" }],
-        "description": "Modelos >6GB VRAM en RTX 4050. Ollama offloadea a CPU — funciona pero agrega 5-15s.",
+        "description": "Modelos pesados seleccionados. RTX 3090 (24GB) corre todos sin swap — solo qwen2.5:32b (20GB) es significativo.",
         "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
           { "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "orange", "value": 50 }
         ]}}}
