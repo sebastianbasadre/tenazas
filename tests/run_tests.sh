@@ -85,6 +85,7 @@ run_suite "finance"           "python3 $SCRIPT_DIR/test_finance.py"
 run_suite "expenses"          "python3 $SCRIPT_DIR/test_expenses.py"
 run_suite "jobs"              "python3 $SCRIPT_DIR/test_jobs.py"
 run_suite "daily_improvement" "python3 $SCRIPT_DIR/test_daily_improvement.py"
+run_suite "daily_brief"       "python3 $SCRIPT_DIR/test_daily_brief.py"
 
 # Bash suites
 run_bash "auto_heal"          "bash $SCRIPT_DIR/test_auto_heal.sh"

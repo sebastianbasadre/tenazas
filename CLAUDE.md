@@ -234,6 +234,44 @@ docker exec openclaw python3 /home/tenazas/runtime/daily_improvement.py
 
 **Futuro:** cron a las 6AM (antes del morning greeting a las 8AM)
 
+### Daily Brief — Brief diario para Telegram (`daily_brief.py`)
+
+Agrega datos de finanzas, gastos, jobs, mejora diaria y alertas en un brief conciso.
+
+**Secciones (cada una degrada silenciosamente si falta):**
+1. Finanzas del mes (income, expenses, balance, top categorias)
+2. Gastos de hoy (total, count, top categoria)
+3. Alertas activas (expense thresholds + finance alerts)
+4. Pipeline laboral (por estado, reciente)
+5. Mejora del dia (area, propuesta)
+6. Accion recomendada (prioriza: alertas > jobs stale > gasto alto > mejora)
+
+**Ejecucion:**
+```bash
+docker exec openclaw python3 /home/tenazas/runtime/daily_brief.py
+docker exec openclaw python3 /home/tenazas/runtime/daily_brief.py --json
+```
+
+**Ejemplo de salida:**
+```
+Buenos dias Sebas — viernes 04/04
+
+Finanzas del mes: $1,200,000 ingreso, $450,000 gasto, balance $750,000
+  Top: supermercado($120,000), transporte($80,000)
+Hoy: $15,000 en 3 gastos — mayor: transporte
+
+Busqueda: 2 applied, 1 interview
+  Reciente: TIVIT — TAM (applied)
+
+Mejora [guardrails]: reducir cooldown de 120s a 60s
+
+>> Revisar oportunidades detectadas y decidir cuales postular
+
+(sin datos: improvement)
+```
+
+**Futuro:** integrar con morning greeting (8AM) para envio automatico por Telegram
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
@@ -552,6 +590,7 @@ workspace/runtime/
 ├── idle_learning_engine.py    — Aprendizaje en periodos idle (metricas pasivas)
 ├── idle_learning.py           — Multi-model collaborative learning (critic+synthesizer)
 ├── daily_improvement.py       — Mejora diaria: 1 propuesta concreta por dia
+├── daily_brief.py             — Brief diario: finanzas, gastos, jobs, mejoras, accion
 ├── model_distillation.py      — Transferencia de conocimiento entre modelos
 │
 │ ── Learning Output ──
