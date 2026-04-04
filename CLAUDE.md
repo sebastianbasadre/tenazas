@@ -272,6 +272,32 @@ Mejora [guardrails]: reducir cooldown de 120s a 60s
 
 **Futuro:** integrar con morning greeting (8AM) para envio automatico por Telegram
 
+### Personal Supervisor — Orquestación unificada (`personal_supervisor.py`)
+
+Capa que coordina dominios personales. Clasifica intención del usuario, delega al módulo correcto, combina respuestas multi-dominio.
+
+**Dominios:** finance, expense, jobs, improvement, overview
+
+**Clasificación por keywords:**
+```
+"cuál es mi balance"          → [finance]
+"en qué se me va la plata"   → [expense]
+"qué empresas tengo activas"  → [jobs]
+"cómo vengo este mes"          → [overview] → [finance, expense, jobs, improvement]
+"qué debería priorizar hoy"   → [overview] → todos
+```
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/personal_supervisor.py --ask "cómo vengo este mes"
+python3 /home/tenazas/runtime/personal_supervisor.py --status
+python3 /home/tenazas/runtime/personal_supervisor.py --classify "cuánto gasté"
+```
+
+**API:** `handle_request(text)` → `{query, domains, results, response, missing}`
+
+**Contrato con módulos:** cada handler retorna `(data_dict, formatted_text)` o `(None, None)`. El supervisor nunca modifica datos — solo lee y combina.
+
 ### Operational Memory — Memoria operativa (`operational_memory.py`)
 
 Memoria estructurada por dominio para contexto personal entre interacciones.
@@ -627,6 +653,7 @@ workspace/runtime/
 ├── idle_learning.py           — Multi-model collaborative learning (critic+synthesizer)
 ├── daily_improvement.py       — Mejora diaria: 1 propuesta concreta por dia
 ├── daily_brief.py             — Brief diario: finanzas, gastos, jobs, mejoras, accion
+├── personal_supervisor.py     — Supervisor unificado (clasifica intención, delega, combina)
 ├── operational_memory.py      — Memoria operativa por dominio (finance, expense, jobs)
 ├── memory/operational.json    — Persistencia de facts
 ├── model_distillation.py      — Transferencia de conocimiento entre modelos
