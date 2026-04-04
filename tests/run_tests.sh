@@ -82,6 +82,7 @@ run_suite "supervisor"        "python3 $SCRIPT_DIR/test_supervisor.py"
 run_suite "stability"         "python3 $SCRIPT_DIR/test_stability.py"
 run_suite "compact"           "python3 $SCRIPT_DIR/test_compact.py"
 run_suite "finance"           "python3 $SCRIPT_DIR/test_finance.py"
+run_suite "expenses"          "python3 $SCRIPT_DIR/test_expenses.py"
 run_suite "jobs"              "python3 $SCRIPT_DIR/test_jobs.py"
 
 # Bash suites

@@ -249,6 +249,38 @@ alerts = check_alerts()                         # alertas activas
 
 **Seguridad:** no conecta a bancos, no ejecuta pagos, no infiere datos sensibles. Solo lee/escribe en `runtime/finance/`.
 
+### Expenses — Captura rapida de gastos (`expenses.py`)
+
+Front-end ultra-rapido para gastos diarios. Comparte storage con finance.py (`finance/transactions.json`).
+
+**Input informal (rioplatense):**
+```
+"uber 4200"              → $4,200 [transporte]
+"almuerzo 8500"          → $8,500 [ocio]
+"12k en nafta"           → $12,000 [transporte]
+"15 lucas en farmacia"   → $15,000 [salud]
+"ayer super 18.000"      → $18,000 [supermercado] (fecha: ayer)
+"gasto 12k en nafta"     → $12,000 [transporte] (prefix stripped)
+```
+
+**Montos informales:** `12k`→12000, `15lucas`→15000, `12.500`→12500, `$8500`→8500
+
+**Fechas relativas:** `ayer`, `anteayer`, `hoy` (default: hoy)
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/expenses.py --add "uber 4200"
+python3 /home/tenazas/runtime/expenses.py --today
+python3 /home/tenazas/runtime/expenses.py --week
+python3 /home/tenazas/runtime/expenses.py --week --category transporte
+python3 /home/tenazas/runtime/expenses.py --reclassify ID transporte
+python3 /home/tenazas/runtime/expenses.py --alerts
+```
+
+**Alertas semanales:** supermercado>$80k, transporte>$40k, ocio>$50k, servicios>$60k (configurables)
+
+**Integracion:** comparte `finance/transactions.json` con finance.py — gastos registrados desde expenses.py aparecen en finance.py y viceversa.
+
 ### Jobs — Busqueda laboral (`jobs.py`)
 
 Modulo de gestion de busqueda laboral con pipeline de estados, analisis de JD, match scoring e interview prep.
@@ -523,7 +555,8 @@ workspace/runtime/
 │
 │ ── Personal ──
 ├── finance.py                 — Finanzas personales (ingresos, gastos, resumen, alertas)
-├── finance/transactions.json  — Persistencia de transacciones
+├── expenses.py                — Captura rapida de gastos diarios (ultra-short input)
+├── finance/transactions.json  — Persistencia compartida finance+expenses
 ├── jobs.py                    — Busqueda laboral (pipeline, analisis JD, match, interview prep)
 ├── jobs/opportunities.json    — Persistencia de oportunidades
 ├── jobs/profile.json          — Perfil del candidato para match scoring
