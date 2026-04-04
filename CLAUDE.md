@@ -196,6 +196,18 @@ docker exec openclaw python3 /home/tenazas/runtime/idle_learning.py
 
 **Tipos de propuestas:** routing_adjustment, guardrail_tuning, threshold_change, classification_fix
 
+**Review workflow (proposals.json):**
+```
+proposed → reviewed → accepted | rejected
+```
+- Cada propuesta tiene un ID estable (sha256[:12])
+- `review_proposal(id, "reviewed", "nota")` — marcar como revisada
+- `review_proposal(id, "accepted"|"rejected", "nota")` — decision final
+- `list_proposals(status="proposed")` — filtrar por estado
+- `get_review_summary()` → {total, proposed, reviewed, accepted, rejected}
+- Campos enriquecidos: `reviewed_at`, `decision`, `reviewer_note`
+- Transiciones invalidas retornan False (no se puede saltar review, no se puede revertir)
+
 **Seguridad:** nunca modifica archivos existentes, nunca cambia config del router, solo escribe en `learning/`
 
 ### Cascada de routing legacy (`ollama-check.sh`)

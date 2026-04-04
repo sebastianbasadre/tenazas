@@ -24,6 +24,7 @@ Future integration:
   - Schedule via cron during idle hours (2-6AM) when HomeLab is underutilized
 """
 
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -378,7 +379,24 @@ Si no hay propuestas viables, responde con []."""
     return valid
 
 
-# ── Phase 4: Governor — Python validation + storage ─────────────
+# ── Phase 4: Governor — Python validation + storage + review ────
+
+# Valid status transitions:
+#   proposed → reviewed → accepted | rejected
+#   (no going back from accepted/rejected)
+VALID_STATUSES = {"proposed", "reviewed", "accepted", "rejected"}
+VALID_TRANSITIONS = {
+    "proposed": {"reviewed"},
+    "reviewed": {"accepted", "rejected"},
+    "accepted": set(),   # terminal
+    "rejected": set(),   # terminal
+}
+
+
+def _generate_proposal_id(proposal: dict) -> str:
+    """Generate a stable short ID from proposal content."""
+    key = f"{proposal.get('type', '')}:{proposal.get('description', '')}:{json.dumps(proposal.get('condition', {}), sort_keys=True)}"
+    return hashlib.sha256(key.encode()).hexdigest()[:12]
 
 
 def _load_proposals() -> list:
@@ -391,9 +409,21 @@ def _load_proposals() -> list:
         return []
 
 
+def _save_proposals_file(proposals: list):
+    """Write proposals list to proposals.json."""
+    LEARNING_DIR.mkdir(parents=True, exist_ok=True)
+    with open(PROPOSALS_FILE, "w") as f:
+        json.dump(proposals, f, indent=2, ensure_ascii=False, default=str)
+
+
 def _is_duplicate(new: dict, existing: list) -> bool:
     """Check if a proposal is a duplicate of an existing one."""
+    new_id = new.get("id", "")
     for e in existing:
+        # Exact ID match
+        if new_id and e.get("id") == new_id:
+            return True
+        # Same type + description
         if (e.get("type") == new.get("type")
                 and e.get("description") == new.get("description")):
             return True
@@ -407,6 +437,8 @@ def _is_duplicate(new: dict, existing: list) -> bool:
 
 def save_proposals(proposals: list) -> int:
     """Validate, deduplicate, and save proposals to proposals.json.
+
+    Each proposal gets a stable ID for future reference in reviews.
 
     Args:
         proposals: list of proposal dicts from run_synthesizer()
@@ -427,6 +459,10 @@ def save_proposals(proposals: list) -> int:
         if p.get("status") != "proposed":
             continue
 
+        # Assign stable ID if missing
+        if not p.get("id"):
+            p["id"] = _generate_proposal_id(p)
+
         # Dedup
         if _is_duplicate(p, existing):
             continue
@@ -434,11 +470,108 @@ def save_proposals(proposals: list) -> int:
         existing.append(p)
         added += 1
 
-    with open(PROPOSALS_FILE, "w") as f:
-        json.dump(existing, f, indent=2, ensure_ascii=False, default=str)
+    _save_proposals_file(existing)
 
     _log({"action": "save_proposals", "new": added, "total": len(existing)})
     return added
+
+
+# ── Review Workflow ─────────────────────────────────────────────
+
+
+def review_proposal(
+    proposal_id: str,
+    decision: str,
+    reviewer_note: str = "",
+) -> bool:
+    """Transition a proposal through the review workflow.
+
+    Status transitions:
+      proposed → reviewed    (mark as reviewed, add note)
+      reviewed → accepted    (approve the proposal)
+      reviewed → rejected    (reject the proposal)
+
+    Args:
+        proposal_id: the proposal's ID (12-char hex)
+        decision: target status — "reviewed", "accepted", or "rejected"
+        reviewer_note: optional note explaining the decision
+
+    Returns:
+        True if transition succeeded, False otherwise.
+    """
+    if decision not in VALID_STATUSES:
+        _log({"action": "review", "id": proposal_id, "error": f"invalid status: {decision}"})
+        return False
+
+    proposals = _load_proposals()
+    found = False
+
+    for p in proposals:
+        if p.get("id") != proposal_id:
+            continue
+        found = True
+
+        current = p.get("status", "proposed")
+        allowed = VALID_TRANSITIONS.get(current, set())
+
+        if decision not in allowed:
+            _log({
+                "action": "review", "id": proposal_id,
+                "error": f"invalid transition: {current} → {decision}",
+            })
+            return False
+
+        p["status"] = decision
+        p["reviewed_at"] = _now().isoformat()
+        p["decision"] = decision
+        if reviewer_note:
+            p["reviewer_note"] = reviewer_note
+
+        _log({
+            "action": "review", "id": proposal_id,
+            "from": current, "to": decision,
+            "note": reviewer_note[:100] if reviewer_note else "",
+        })
+        break
+
+    if not found:
+        _log({"action": "review", "id": proposal_id, "error": "not found"})
+        return False
+
+    _save_proposals_file(proposals)
+    return True
+
+
+def list_proposals(status: str | None = None) -> list:
+    """List proposals, optionally filtered by status.
+
+    Args:
+        status: filter by status (proposed/reviewed/accepted/rejected) or None for all
+
+    Returns:
+        List of proposal dicts.
+    """
+    proposals = _load_proposals()
+    if status is not None:
+        proposals = [p for p in proposals if p.get("status") == status]
+    return proposals
+
+
+def get_proposal(proposal_id: str) -> dict | None:
+    """Get a single proposal by ID."""
+    for p in _load_proposals():
+        if p.get("id") == proposal_id:
+            return p
+    return None
+
+
+def get_review_summary() -> dict:
+    """Get counts by status for dashboard/reporting."""
+    proposals = _load_proposals()
+    summary = {"total": len(proposals)}
+    for status in VALID_STATUSES:
+        summary[status] = sum(1 for p in proposals if p.get("status") == status)
+    return summary
 
 
 # ── Phase 5: Report Generation ──────────────────────────────────
@@ -447,13 +580,17 @@ def save_proposals(proposals: list) -> int:
 def generate_report(issues: list, proposals: list, decisions: list | None = None):
     """Generate a human-readable learning report.
 
+    Includes new proposals from this run AND a summary of all known proposals
+    by status (proposed/reviewed/accepted/rejected).
+
     Args:
         issues: critic output
-        proposals: synthesizer output
+        proposals: synthesizer output (new this run)
         decisions: original decisions (for stats)
     """
     LEARNING_DIR.mkdir(parents=True, exist_ok=True)
     now = _now()
+    review = get_review_summary()
 
     lines = [
         f"# Idle Learning Report — {now.strftime('%Y-%m-%d %H:%M')} ART",
@@ -468,7 +605,16 @@ def generate_report(issues: list, proposals: list, decisions: list | None = None
         lines.append(f"Se detectaron **{len(issues)} problemas** y se generaron "
                       f"**{len(proposals)} propuestas** de mejora.")
 
-    lines.append("")
+    # Proposal inventory
+    lines.extend([
+        "",
+        f"**Inventario de propuestas:** {review['total']} total — "
+        f"{review.get('proposed', 0)} nuevas, "
+        f"{review.get('reviewed', 0)} en revision, "
+        f"{review.get('accepted', 0)} aceptadas, "
+        f"{review.get('rejected', 0)} rechazadas",
+        "",
+    ])
 
     # Decision stats
     if decisions:
@@ -491,7 +637,7 @@ def generate_report(issues: list, proposals: list, decisions: list | None = None
             f"- Degradaciones por guardrails: {stats.get('degraded', 0)}",
             f"- VRAM swaps: {stats.get('vram_swaps', 0)}",
             "",
-            "### Distribución por rol",
+            "### Distribucion por rol",
             "",
         ])
         for role in ("fast", "reason", "heavy", "code", "vision", "embed"):
@@ -509,33 +655,65 @@ def generate_report(issues: list, proposals: list, decisions: list | None = None
         for i, issue in enumerate(issues, 1):
             conf = issue.get("confidence", 0)
             lines.extend([
-                f"### {i}. {issue.get('issue', 'Sin descripción')}",
+                f"### {i}. {issue.get('issue', 'Sin descripcion')}",
                 "",
-                f"- **Patrón:** {issue.get('pattern', 'N/A')}",
+                f"- **Patron:** {issue.get('pattern', 'N/A')}",
                 f"- **Impacto:** {issue.get('impact', 'N/A')}",
                 f"- **Confianza:** {conf:.0%}",
                 "",
             ])
 
-    # Proposals
+    # New proposals (this run)
     if proposals:
         lines.extend([
-            "## Propuestas de mejora",
+            "## Propuestas nuevas (esta ejecucion)",
             "",
         ])
         for i, p in enumerate(proposals, 1):
+            pid = p.get("id", "?")
             lines.extend([
-                f"### {i}. {p.get('description', 'Sin descripción')}",
+                f"### {i}. [{pid}] {p.get('description', 'Sin descripcion')}",
                 "",
+                f"- **ID:** `{pid}`",
                 f"- **Tipo:** {p.get('type', 'N/A')}",
-                f"- **Condición:** `{json.dumps(p.get('condition', {}))}`",
-                f"- **Acción:** `{json.dumps(p.get('action', {}))}`",
+                f"- **Condicion:** `{json.dumps(p.get('condition', {}))}`",
+                f"- **Accion:** `{json.dumps(p.get('action', {}))}`",
                 f"- **Beneficio esperado:** {p.get('expected_benefit', 'N/A')}",
                 f"- **Riesgo:** {p.get('risk', 'N/A')}",
                 f"- **Confianza:** {p.get('confidence', 0):.0%}",
                 f"- **Estado:** {p.get('status', 'proposed')}",
                 "",
             ])
+
+    # Known proposals (all statuses)
+    all_proposals = _load_proposals()
+    reviewed = [p for p in all_proposals if p.get("status") in ("reviewed", "accepted", "rejected")]
+    if reviewed:
+        lines.extend([
+            "## Propuestas ya revisadas",
+            "",
+        ])
+        for p in reviewed:
+            pid = p.get("id", "?")
+            status = p.get("status", "?")
+            icon = {"reviewed": "🔍", "accepted": "✅", "rejected": "❌"}.get(status, "?")
+            note = p.get("reviewer_note", "")
+            lines.extend([
+                f"- {icon} **[{pid}]** {p.get('description', '?')} — **{status}**"
+                + (f" — _{note}_" if note else ""),
+            ])
+        lines.append("")
+
+    pending = [p for p in all_proposals if p.get("status") == "proposed"]
+    if pending:
+        lines.extend([
+            "## Propuestas pendientes de revision",
+            "",
+        ])
+        for p in pending:
+            pid = p.get("id", "?")
+            lines.append(f"- **[{pid}]** {p.get('description', '?')} (confianza: {p.get('confidence', 0):.0%})")
+        lines.append("")
 
     # Footer
     lines.extend([
@@ -545,13 +723,14 @@ def generate_report(issues: list, proposals: list, decisions: list | None = None
         f"Critic: {CRITIC_MODEL}",
         f"Synthesizer: {SYNTHESIZER_MODEL}",
         "",
-        "**Este reporte es informativo. Ninguna propuesta se aplica automáticamente.**",
+        "**Este reporte es informativo. Ninguna propuesta se aplica automaticamente.**",
     ])
 
     with open(REPORT_FILE, "w") as f:
         f.write("\n".join(lines))
 
-    _log({"action": "report_generated", "issues": len(issues), "proposals": len(proposals)})
+    _log({"action": "report_generated", "issues": len(issues), "proposals": len(proposals),
+           "review_summary": review})
 
 
 # ── Main ────────────────────────────────────────────────────────

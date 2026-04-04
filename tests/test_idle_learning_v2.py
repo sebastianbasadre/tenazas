@@ -343,6 +343,204 @@ class TestGovernor(_TempDirMixin, unittest.TestCase):
         data = json.loads(il.PROPOSALS_FILE.read_text())
         self.assertEqual(len(data), 2)
 
+    def test_proposals_get_stable_id(self):
+        p = self._make_proposal("test with id")
+        il.save_proposals([p])
+        data = json.loads(il.PROPOSALS_FILE.read_text())
+        self.assertIn("id", data[0])
+        self.assertEqual(len(data[0]["id"]), 12)  # sha256[:12]
+
+    def test_same_proposal_same_id(self):
+        p1 = self._make_proposal("same desc", condition={"a": 1})
+        p2 = self._make_proposal("same desc", condition={"a": 1})
+        self.assertEqual(il._generate_proposal_id(p1), il._generate_proposal_id(p2))
+
+    def test_different_proposals_different_id(self):
+        p1 = self._make_proposal("desc A")
+        p2 = self._make_proposal("desc B")
+        self.assertNotEqual(il._generate_proposal_id(p1), il._generate_proposal_id(p2))
+
+
+# ── Review Workflow Tests ───────────────────────────────────────
+
+
+class TestReviewWorkflow(_TempDirMixin, unittest.TestCase):
+
+    def _make_proposal(self, desc="test proposal", **kwargs):
+        p = {
+            "type": "routing_adjustment",
+            "description": desc,
+            "condition": {},
+            "action": {},
+            "confidence": 0.8,
+            "status": "proposed",
+            "created_at": "2026-04-03T00:00:00",
+        }
+        p.update(kwargs)
+        return p
+
+    def _save_and_get_id(self, desc="test"):
+        p = self._make_proposal(desc)
+        il.save_proposals([p])
+        data = json.loads(il.PROPOSALS_FILE.read_text())
+        return data[0]["id"]
+
+    def test_review_proposed_to_reviewed(self):
+        pid = self._save_and_get_id("reviewable")
+        result = il.review_proposal(pid, "reviewed", "looks good")
+        self.assertTrue(result)
+        p = il.get_proposal(pid)
+        self.assertEqual(p["status"], "reviewed")
+        self.assertEqual(p["decision"], "reviewed")
+        self.assertEqual(p["reviewer_note"], "looks good")
+        self.assertIn("reviewed_at", p)
+
+    def test_reviewed_to_accepted(self):
+        pid = self._save_and_get_id("acceptable")
+        il.review_proposal(pid, "reviewed")
+        result = il.review_proposal(pid, "accepted", "ship it")
+        self.assertTrue(result)
+        self.assertEqual(il.get_proposal(pid)["status"], "accepted")
+
+    def test_reviewed_to_rejected(self):
+        pid = self._save_and_get_id("rejectable")
+        il.review_proposal(pid, "reviewed")
+        result = il.review_proposal(pid, "rejected", "too risky")
+        self.assertTrue(result)
+        p = il.get_proposal(pid)
+        self.assertEqual(p["status"], "rejected")
+        self.assertEqual(p["reviewer_note"], "too risky")
+
+    def test_cannot_skip_review(self):
+        """proposed → accepted should fail (must go through reviewed)."""
+        pid = self._save_and_get_id("skip attempt")
+        result = il.review_proposal(pid, "accepted")
+        self.assertFalse(result)
+        self.assertEqual(il.get_proposal(pid)["status"], "proposed")
+
+    def test_cannot_unreject(self):
+        """rejected → reviewed should fail (terminal state)."""
+        pid = self._save_and_get_id("terminal")
+        il.review_proposal(pid, "reviewed")
+        il.review_proposal(pid, "rejected")
+        result = il.review_proposal(pid, "reviewed")
+        self.assertFalse(result)
+
+    def test_cannot_unaccept(self):
+        """accepted → reviewed should fail (terminal state)."""
+        pid = self._save_and_get_id("terminal2")
+        il.review_proposal(pid, "reviewed")
+        il.review_proposal(pid, "accepted")
+        result = il.review_proposal(pid, "reviewed")
+        self.assertFalse(result)
+
+    def test_nonexistent_id_returns_false(self):
+        result = il.review_proposal("nonexistent", "reviewed")
+        self.assertFalse(result)
+
+    def test_invalid_status_returns_false(self):
+        pid = self._save_and_get_id("bad status")
+        result = il.review_proposal(pid, "invalid_status")
+        self.assertFalse(result)
+
+    def test_review_without_note(self):
+        pid = self._save_and_get_id("no note")
+        result = il.review_proposal(pid, "reviewed")
+        self.assertTrue(result)
+        p = il.get_proposal(pid)
+        self.assertNotIn("reviewer_note", p)
+
+
+class TestListProposals(_TempDirMixin, unittest.TestCase):
+
+    def _make_proposal(self, desc="test", **kwargs):
+        p = {
+            "type": "routing_adjustment", "description": desc,
+            "condition": {}, "action": {}, "confidence": 0.8,
+            "status": "proposed", "created_at": "2026-04-03T00:00:00",
+        }
+        p.update(kwargs)
+        return p
+
+    def test_list_all(self):
+        il.save_proposals([self._make_proposal("a"), self._make_proposal("b")])
+        self.assertEqual(len(il.list_proposals()), 2)
+
+    def test_list_by_status(self):
+        il.save_proposals([self._make_proposal("a"), self._make_proposal("b")])
+        data = json.loads(il.PROPOSALS_FILE.read_text())
+        il.review_proposal(data[0]["id"], "reviewed")
+        self.assertEqual(len(il.list_proposals("proposed")), 1)
+        self.assertEqual(len(il.list_proposals("reviewed")), 1)
+        self.assertEqual(len(il.list_proposals("accepted")), 0)
+
+    def test_list_empty(self):
+        self.assertEqual(il.list_proposals(), [])
+
+    def test_get_proposal_by_id(self):
+        il.save_proposals([self._make_proposal("findme")])
+        data = json.loads(il.PROPOSALS_FILE.read_text())
+        pid = data[0]["id"]
+        p = il.get_proposal(pid)
+        self.assertIsNotNone(p)
+        self.assertEqual(p["description"], "findme")
+
+    def test_get_nonexistent_returns_none(self):
+        self.assertIsNone(il.get_proposal("nope"))
+
+    def test_review_summary(self):
+        il.save_proposals([self._make_proposal("a"), self._make_proposal("b")])
+        data = json.loads(il.PROPOSALS_FILE.read_text())
+        il.review_proposal(data[0]["id"], "reviewed")
+        il.review_proposal(data[0]["id"], "accepted")
+        summary = il.get_review_summary()
+        self.assertEqual(summary["total"], 2)
+        self.assertEqual(summary["proposed"], 1)
+        self.assertEqual(summary["accepted"], 1)
+
+
+class TestReportWithReview(_TempDirMixin, unittest.TestCase):
+
+    def _make_proposal(self, desc="test", **kwargs):
+        p = {
+            "type": "routing_adjustment", "description": desc,
+            "condition": {}, "action": {}, "confidence": 0.8,
+            "status": "proposed", "created_at": "2026-04-03T00:00:00",
+        }
+        p.update(kwargs)
+        return p
+
+    def test_report_shows_inventory(self):
+        il.save_proposals([self._make_proposal("a")])
+        il.generate_report([], [], [])
+        content = il.REPORT_FILE.read_text()
+        self.assertIn("Inventario de propuestas", content)
+        self.assertIn("1 total", content)
+
+    def test_report_shows_pending_section(self):
+        il.save_proposals([self._make_proposal("pending one")])
+        il.generate_report([], [], [])
+        content = il.REPORT_FILE.read_text()
+        self.assertIn("Propuestas pendientes de revision", content)
+        self.assertIn("pending one", content)
+
+    def test_report_shows_reviewed_section(self):
+        il.save_proposals([self._make_proposal("reviewed one")])
+        data = json.loads(il.PROPOSALS_FILE.read_text())
+        il.review_proposal(data[0]["id"], "reviewed", "checking")
+        il.review_proposal(data[0]["id"], "accepted", "good to go")
+        il.generate_report([], [], [])
+        content = il.REPORT_FILE.read_text()
+        self.assertIn("Propuestas ya revisadas", content)
+        self.assertIn("reviewed one", content)
+        self.assertIn("accepted", content)
+
+    def test_report_new_proposals_have_ids(self):
+        proposals = [self._make_proposal("new one", id="abc123456789")]
+        il.generate_report([], proposals, [])
+        content = il.REPORT_FILE.read_text()
+        self.assertIn("abc123456789", content)
+
 
 # ── Report Tests ────────────────────────────────────────────────
 
