@@ -210,6 +210,45 @@ proposed → reviewed → accepted | rejected
 
 **Seguridad:** nunca modifica archivos existentes, nunca cambia config del router, solo escribe en `learning/`
 
+### Finance — Finanzas personales (`finance.py`)
+
+Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
+
+**Input natural (espanol rioplatense):**
+```
+"gasté 18500 en supermercado"    → expense $18,500 [supermercado]
+"cobré 1200000 de sueldo"       → income $1,200,000 [trabajo]
+"pagué 42000 de internet"       → expense $42,000 [servicios]
+"compré remedio por 5000"       → expense $5,000 [salud]
+```
+
+**Categorias:** supermercado, transporte, servicios, alquiler, salud, educacion, ocio, impuestos, trabajo, ingresos, otros
+
+**Alertas:**
+- Gasto individual > $50,000
+- Gasto diario total > $100,000
+- Categoria > 2x promedio mensual
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/finance.py --add "gasté 18500 en super"
+python3 /home/tenazas/runtime/finance.py --summary         # resumen mensual
+python3 /home/tenazas/runtime/finance.py --day              # resumen diario
+python3 /home/tenazas/runtime/finance.py --alerts           # alertas activas
+python3 /home/tenazas/runtime/finance.py --list             # ultimos 20 movimientos
+python3 /home/tenazas/runtime/finance.py --list --category supermercado --json
+```
+
+**API Python:**
+```python
+from runtime.finance import add_from_text, summary, check_alerts, format_summary
+txn = add_from_text("gasté 18500 en super")   # parse + save
+s = summary("month")                           # resumen mensual
+alerts = check_alerts()                         # alertas activas
+```
+
+**Seguridad:** no conecta a bancos, no ejecuta pagos, no infiere datos sensibles. Solo lee/escribe en `runtime/finance/`.
+
 ### Cascada de routing legacy (`ollama-check.sh`)
 1. **HomeLab GPU** (192.168.2.6:11434) — preferido, todos los modelos
 2. **NAS CPU** (127.0.0.1:11434) — solo modelos chicos (phi4-mini)
@@ -375,7 +414,7 @@ Flow: Guardian primero (siempre) → Reasoner+Executor en paralelo → Analyst �
 
 Sistema de monitoreo inteligente en `workspace/runtime/`.
 
-### Arquitectura (41 modulos, reemplaza auto-heal.sh)
+### Arquitectura (42+ modulos, reemplaza auto-heal.sh)
 ```
 workspace/runtime/
 │
@@ -442,6 +481,10 @@ workspace/runtime/
 ├── simulation_lab.py          — Simulacion de escenarios de infra
 ├── failure_simulator.py       — Escenarios de falla granulares
 ├── architecture_evolution.py  — Deteccion de limitaciones arquitecturales
+│
+│ ── Personal ──
+├── finance.py                 — Finanzas personales (ingresos, gastos, resumen, alertas)
+├── finance/transactions.json  — Persistencia de transacciones
 └── __init__.py
 ```
 

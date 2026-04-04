@@ -81,6 +81,7 @@ run_suite "cognitive"         "python3 $SCRIPT_DIR/test_cognitive.py"
 run_suite "supervisor"        "python3 $SCRIPT_DIR/test_supervisor.py"
 run_suite "stability"         "python3 $SCRIPT_DIR/test_stability.py"
 run_suite "compact"           "python3 $SCRIPT_DIR/test_compact.py"
+run_suite "finance"           "python3 $SCRIPT_DIR/test_finance.py"
 
 # Bash suites
 run_bash "auto_heal"          "bash $SCRIPT_DIR/test_auto_heal.sh"
