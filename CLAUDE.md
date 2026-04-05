@@ -564,7 +564,7 @@ python3 skills/rag/ingest.py   # re-indexa todo
 
 ---
 
-## Skills (22 implementadas)
+## Skills (23 implementadas)
 
 Cada skill tiene `SKILL.md` con documentacion, y opcionalmente scripts `.py` / `.sh`.
 Ubicacion: `state/workspace/skills/`
@@ -580,6 +580,7 @@ Ubicacion: `state/workspace/skills/`
 | **container-restart** | Auto-restart containers caidos | Solo SKILL.md |
 | **email-digest** | Gmail via himalaya CLI | Solo SKILL.md |
 | **infra-monitor** | Health del NAS, Docker, Ollama, red | Solo SKILL.md |
+| **iol_broker** | InvertirOnline: portafolio, cotizaciones, compra/venta | iol_client.py, iol_portfolio.py, iol_orders.py, iol_handler.py |
 | **internet-health** | Conectividad, DNS, VPN | Solo SKILL.md |
 | **model-manager** | Lifecycle de modelos Ollama | Solo SKILL.md |
 | **morning-greeting** | Saludo diario 8AM con status | Solo SKILL.md |
