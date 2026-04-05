@@ -584,5 +584,80 @@ class TestInitToken(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 1)
 
 
+# ── Image Handling Tests ────────────────────────────────────────
+
+from urllib.error import URLError as _URLError
+
+
+class TestImageHandling(unittest.TestCase):
+    """Telegram photo handling + Gemini vision — 6 tests."""
+
+    @patch("runtime.telegram_handler.download_telegram_photo")
+    def test_handle_photo_downloads_from_telegram(self, mock_dl):
+        mock_dl.return_value = b"\xff\xd8\xff\xe0fake_jpeg"
+        from runtime.telegram_handler import handle_photo
+        with patch("runtime.telegram_handler._call_gemini_vision", return_value="A cat"):
+            with patch("runtime.telegram_handler._update_compact_guard"):
+                result = handle_photo("file123", "describe")
+        mock_dl.assert_called_once_with("file123")
+        self.assertIn("cat", result)
+
+    @patch("runtime.telegram_handler.download_telegram_photo")
+    def test_handle_photo_converts_to_base64(self, mock_dl):
+        import base64
+        raw = b"\xff\xd8\xff\xe0test"
+        mock_dl.return_value = raw
+        from runtime.telegram_handler import handle_photo, photo_to_base64
+        expected_b64 = photo_to_base64(raw)
+        with patch("runtime.telegram_handler._call_gemini_vision", return_value="ok") as mock_gemini:
+            with patch("runtime.telegram_handler._update_compact_guard"):
+                handle_photo("file123")
+        # Gemini should have been called with the base64 version
+        call_b64 = mock_gemini.call_args[0][0]
+        self.assertEqual(call_b64, expected_b64)
+
+    @patch("runtime.telegram_handler.download_telegram_photo", return_value=b"img")
+    @patch("runtime.telegram_handler._update_compact_guard")
+    @patch("runtime.telegram_handler.iol_analyze_image", return_value="IOL analysis")
+    def test_handle_photo_routes_to_iol_on_portfolio_caption(self, mock_iol, mock_guard, mock_dl):
+        from runtime.telegram_handler import handle_photo
+        result = handle_photo("file123", "auditá mi portafolio")
+        mock_iol.assert_called_once()
+        self.assertEqual(result, "IOL analysis")
+
+    @patch("runtime.telegram_handler.download_telegram_photo", return_value=b"img")
+    @patch("runtime.telegram_handler._update_compact_guard")
+    @patch("runtime.telegram_handler.analyze_image_gemini", return_value="Generic analysis")
+    def test_handle_photo_routes_to_generic_on_other_caption(self, mock_generic, mock_guard, mock_dl):
+        from runtime.telegram_handler import handle_photo
+        result = handle_photo("file123", "qué es esto")
+        mock_generic.assert_called_once()
+        self.assertEqual(result, "Generic analysis")
+
+    @patch("runtime.telegram_handler._get_gemini_key", return_value="test_key")
+    @patch("runtime.telegram_handler.urlopen")
+    def test_iol_analyze_image_calls_gemini_vision(self, mock_urlopen, mock_key):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "candidates": [{"content": {"parts": [{"text": "Portfolio analysis result"}]}}]
+        }).encode()
+        mock_urlopen.return_value = mock_resp
+
+        from runtime.telegram_handler import iol_analyze_image
+        result = iol_analyze_image("base64data", "audita")
+        self.assertIn("Portfolio analysis", result)
+        # Verify Gemini was called
+        req = mock_urlopen.call_args[0][0]
+        payload = json.loads(req.data)
+        self.assertIn("inline_data", json.dumps(payload))
+
+    @patch("runtime.telegram_handler._get_gemini_key", return_value="test_key")
+    @patch("runtime.telegram_handler.urlopen", side_effect=_URLError("offline"))
+    def test_iol_analyze_image_fallback_on_gemini_error(self, mock_urlopen, mock_key):
+        from runtime.telegram_handler import iol_analyze_image
+        result = iol_analyze_image("base64data")
+        self.assertIn("No pude analizar", result)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
