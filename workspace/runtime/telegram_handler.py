@@ -321,12 +321,87 @@ def should_defer_compact() -> bool:
         _log({"action": "defer_compact", "reason": "pending_iol_order"})
         return True
 
+    # Active IOL context (< 5 min)
+    try:
+        with open(COMPACT_CONTEXT_FILE) as f:
+            ctx = json.load(f)
+        if ctx.get("iol_active") and now - ctx.get("timestamp", 0) < 300:
+            _log({"action": "defer_compact", "reason": "active_iol_context"})
+            return True
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
     return False
 
 
-def mark_message(intent: str = "", has_photo: bool = False):
+def mark_message(intent: str = "", has_photo: bool = False, pipeline: str = ""):
     """Mark that a user message was received (call on every message).
 
     This updates the compact guard so it knows about recent activity.
     """
     _update_compact_guard(has_photo=has_photo, intent=intent)
+
+    # If this is an IOL interaction, persist context for compact recovery
+    if pipeline == "iol_broker" or intent in ("portfolio_query", "cotizacion", "comprar", "vender"):
+        save_pre_compact_context(pipeline=pipeline or "iol_broker", intent=intent)
+
+
+# ── Pre-Compact Context Persistence ────────────────────────────
+# Saves active context BEFORE compacting so it can be restored after.
+
+COMPACT_CONTEXT_FILE = BASE_DIR / "compact_context.json"
+
+_PIPELINE_HINTS = {
+    "iol_broker": "Contexto previo: el usuario estaba consultando su portafolio de inversiones en InvertirOnline (IOL). Usar skill IOL Broker para responder.",
+    "finance": "Contexto previo: el usuario estaba consultando sus finanzas personales.",
+    "expense": "Contexto previo: el usuario estaba registrando gastos.",
+    "jobs": "Contexto previo: el usuario estaba gestionando su búsqueda laboral.",
+}
+
+
+def save_pre_compact_context(pipeline: str = "", intent: str = "", extra: str = ""):
+    """Persist active context before compacting occurs.
+
+    Call this when a significant interaction happens so that if compacting
+    fires, the restored context knows what was going on.
+    """
+    state = {
+        "last_pipeline": pipeline,
+        "last_intent": intent,
+        "iol_active": pipeline == "iol_broker",
+        "extra": extra,
+        "timestamp": time.time(),
+        "saved_at": _now().isoformat(),
+    }
+    try:
+        COMPACT_CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(COMPACT_CONTEXT_FILE, "w") as f:
+            json.dump(state, f)
+    except OSError:
+        pass
+
+
+def get_post_compact_hint() -> str:
+    """Get a system hint to inject after compacting.
+
+    Returns context string if recent activity was in a specific pipeline,
+    or empty string if no relevant context.
+    """
+    try:
+        with open(COMPACT_CONTEXT_FILE) as f:
+            state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return ""
+
+    # Only hint if context is recent (< 10 min)
+    age = time.time() - state.get("timestamp", 0)
+    if age > 600:
+        return ""
+
+    pipeline = state.get("last_pipeline", "")
+    hint = _PIPELINE_HINTS.get(pipeline, "")
+
+    if state.get("iol_active") and not hint:
+        hint = _PIPELINE_HINTS["iol_broker"]
+
+    return hint
