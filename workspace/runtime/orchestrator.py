@@ -145,9 +145,13 @@ CLASSIFICATION_RULES = [
         "iol_broker",
         [r"portafolio", r"cotizaci[oó]n\s+\w+", r"comprar\s+\d+",
          r"vender\s+\d+", r"mis\s+acciones", r"cedears?",
-         r"invertironline", r"\biol\b"],
+         r"invertironline", r"\biol\b",
+         r"cu[aá]nto\s+tengo\s+invertido", r"tengo\s+invertido",
+         r"saldo\s+(?:de\s+)?(?:mi\s+)?(?:cuenta\s+)?invert",
+         r"mis\s+inversiones", r"mi\s+cartera"],
         {"portafolio", "iol", "invertironline", "acciones", "cedears",
-         "cotización", "cotizacion", "comprar", "vender"},
+         "cotización", "cotizacion", "comprar", "vender",
+         "invertido", "inversiones", "broker"},
     ),
     # Diagnostic requests
     (
