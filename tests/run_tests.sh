@@ -88,6 +88,7 @@ run_suite "daily_improvement" "python3 $SCRIPT_DIR/test_daily_improvement.py"
 run_suite "daily_brief"       "python3 $SCRIPT_DIR/test_daily_brief.py"
 run_suite "op_memory"         "python3 $SCRIPT_DIR/test_operational_memory.py"
 run_suite "personal_super"    "python3 $SCRIPT_DIR/test_personal_supervisor.py"
+run_suite "vision_pipeline"   "python3 $SCRIPT_DIR/test_vision_pipeline.py"
 
 # Bash suites
 run_bash "auto_heal"          "bash $SCRIPT_DIR/test_auto_heal.sh"

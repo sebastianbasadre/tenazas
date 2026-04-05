@@ -653,6 +653,7 @@ workspace/runtime/
 ├── idle_learning.py           — Multi-model collaborative learning (critic+synthesizer)
 ├── daily_improvement.py       — Mejora diaria: 1 propuesta concreta por dia
 ├── daily_brief.py             — Brief diario: finanzas, gastos, jobs, mejoras, accion
+├── vision_pipeline.py         — Vision: image→VL extraction→deepseek analysis chain
 ├── personal_supervisor.py     — Supervisor unificado (clasifica intención, delega, combina)
 ├── operational_memory.py      — Memoria operativa por dominio (finance, expense, jobs)
 ├── memory/operational.json    — Persistencia de facts
