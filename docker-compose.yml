@@ -22,6 +22,7 @@ services:
       - ./tests:/home/tenazas/tests
       - ./workspace/runtime:/home/tenazas/runtime
       - ./himalaya-config:/home/tenazas/.config/himalaya
+      - ./tools:/home/tenazas/tools
       - ./gcal-token.json:/home/tenazas/.openclaw/gcal-token.json:ro
     command: ["bash", "/home/tenazas/startup.sh"]
     stop_grace_period: 10s

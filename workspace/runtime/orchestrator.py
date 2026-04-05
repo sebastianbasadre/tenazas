@@ -131,7 +131,24 @@ PIPELINES = {
 # Ordered by specificity (most specific first).
 # Each rule: (category, patterns, keywords)
 
+# ── IOL Broker keywords ─────────────────────────────────────────
+
+IOL_KEYWORDS = [
+    "portafolio", "iol", "invertironline", "acciones", "cedears",
+    "cotización", "cotizacion", "comprar", "vender", "saldo invertir",
+    "mis acciones", "cuánto tengo invertido",
+]
+
 CLASSIFICATION_RULES = [
+    # IOL Broker (most specific — check first)
+    (
+        "iol_broker",
+        [r"portafolio", r"cotizaci[oó]n\s+\w+", r"comprar\s+\d+",
+         r"vender\s+\d+", r"mis\s+acciones", r"cedears?",
+         r"invertironline", r"\biol\b"],
+        {"portafolio", "iol", "invertironline", "acciones", "cedears",
+         "cotización", "cotizacion", "comprar", "vender"},
+    ),
     # Diagnostic requests
     (
         "diagnostic_request",
