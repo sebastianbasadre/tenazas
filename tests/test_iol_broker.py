@@ -243,19 +243,28 @@ class TestIOLPortfolio(unittest.TestCase):
 
     def test_format_portfolio_telegram_contains_total(self):
         from iol_broker.iol_portfolio import format_portfolio_telegram
-        data = {"cuentas": [{"disponible": 100000, "invertido": 50000, "activos": []}]}
-        text = format_portfolio_telegram(data)
+        # Real IOL response shape: {"activos": [{valorizado, ...}]}
+        data = {"activos": [
+            {"valorizado": 5000, "titulo": {"simbolo": "GGAL", "moneda": "peso_Argentino"},
+             "cantidad": 100, "ppc": 50, "gananciaPorcentaje": 2.0, "gananciaDinero": 100},
+        ]}
+        acct = {"cuentas": [{"disponible": 100000, "titulosValorizados": 5000, "total": 105000}],
+                "totalEnPesos": 105000}
+        text = format_portfolio_telegram(data, acct)
         self.assertIn("Total", text)
-        self.assertIn("150,000", text)
+        self.assertIn("105,000", text)
 
     def test_format_portfolio_telegram_contains_posiciones(self):
         from iol_broker.iol_portfolio import format_portfolio_telegram
-        data = {"cuentas": [{"disponible": 0, "invertido": 0, "activos": [
-            {"titulo": {"simbolo": "GGAL"}, "cantidad": 100, "ppc": 1500, "variacionDiaria": 5.2}
-        ]}]}
+        data = {"activos": [
+            {"titulo": {"simbolo": "GGAL", "descripcion": "Grupo Galicia", "moneda": "peso_Argentino"},
+             "cantidad": 100, "ppc": 1500, "valorizado": 150000,
+             "gananciaPorcentaje": 5.2, "gananciaDinero": 7800},
+        ]}
         text = format_portfolio_telegram(data)
         self.assertIn("GGAL", text)
-        self.assertIn("100", text)
+        self.assertIn("150,000", text)
+        self.assertIn("5.2%", text)
 
     def test_format_cotizacion_telegram_contains_simbolo(self):
         from iol_broker.iol_portfolio import format_cotizacion_telegram
