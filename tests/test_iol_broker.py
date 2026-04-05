@@ -538,10 +538,10 @@ class TestInitToken(unittest.TestCase):
             "access_token": "SAVED_BEARER", "refresh_token": "rt", "expires_in": 899
         }).encode()
         with patch.object(mod, "urlopen", return_value=mock_resp):
-            mod.main()
-        written = mock_file().write.call_args[0][0]
-        data = json.loads(written)
-        self.assertEqual(data["invertironline"]["bearer_token"], "SAVED_BEARER")
+            with patch.object(mod.json, "dump") as mock_dump:
+                mod.main()
+        saved = mock_dump.call_args[0][0]
+        self.assertEqual(saved["invertironline"]["bearer_token"], "SAVED_BEARER")
 
     @patch("builtins.open", new_callable=mock_open, read_data="{}")
     @patch("getpass.getpass", return_value="testpass")
@@ -553,10 +553,10 @@ class TestInitToken(unittest.TestCase):
             "access_token": "at", "refresh_token": "SAVED_REFRESH", "expires_in": 899
         }).encode()
         with patch.object(mod, "urlopen", return_value=mock_resp):
-            mod.main()
-        written = mock_file().write.call_args[0][0]
-        data = json.loads(written)
-        self.assertEqual(data["invertironline"]["refresh_token"], "SAVED_REFRESH")
+            with patch.object(mod.json, "dump") as mock_dump:
+                mod.main()
+        saved = mock_dump.call_args[0][0]
+        self.assertEqual(saved["invertironline"]["refresh_token"], "SAVED_REFRESH")
 
     @patch("builtins.open", new_callable=mock_open, read_data="{}")
     @patch("getpass.getpass", return_value="secretpass")
@@ -568,9 +568,10 @@ class TestInitToken(unittest.TestCase):
             "access_token": "at", "refresh_token": "rt", "expires_in": 899
         }).encode()
         with patch.object(mod, "urlopen", return_value=mock_resp):
-            mod.main()
-        written = mock_file().write.call_args[0][0]
-        self.assertNotIn("secretpass", written)
+            with patch.object(mod.json, "dump") as mock_dump:
+                mod.main()
+        saved = json.dumps(mock_dump.call_args[0][0])
+        self.assertNotIn("secretpass", saved)
 
     @patch("builtins.open", new_callable=mock_open, read_data="{}")
     @patch("getpass.getpass", return_value="testpass")
