@@ -151,7 +151,8 @@ CLASSIFICATION_RULES = [
          r"mis\s+inversiones", r"mi\s+cartera", r"\binvertido\b"],
         {"portafolio", "portfolio", "iol", "invertironline", "acciones", "cedears",
          "cotización", "cotizacion", "comprar", "vender",
-         "invertido", "inversiones", "broker"},
+         "invertido", "inversiones", "broker",
+         "dólar", "dolar", "dollar", "usd", "blue", "mep", "ccl"},
     ),
     # Diagnostic requests
     (
