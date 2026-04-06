@@ -1315,3 +1315,27 @@ Excluidos via `.gitignore`:
 - `media/` — audio files
 - `workspace/runtime/*.json` — state files regenerados
 - `workspace/runtime/logs/` — runtime logs
+
+## Infraestructura — Homelab (GPU Server)
+- Nombre: HOMELAB
+- IP: 192.168.2.76
+- OS: Windows 11 Pro (Build 26200)
+- Placa madre: MSI MPG Z690 EDGE WIFI DDR4 (MS-7D31)
+- CPU: Intel Core i7-12700KF 3600MHz, 12 cores, 20 threads
+- RAM: 16 GB físicos / 15.8 GB disponibles
+- GPU: RTX 3090 — 24GB VRAM
+- Ollama: http://192.168.2.76:11434
+- NUNCA llamar 'notebook' a esta máquina — es un desktop PC
+
+## Infraestructura — NAS
+- Nombre: DS923+
+- IP: 192.168.2.2
+- OS: Synology DSM
+- CPU: AMD Ryzen R1600
+- Docker host principal
+- Tenazas corre acá en container 'openclaw'
+
+## Build Rules
+- NUNCA usar --no-cache salvo que haya conflicto de dependencias confirmado
+- Comando correcto: docker compose build && docker compose up -d
+- --no-cache solo si hay error de versión o dependencia rota
