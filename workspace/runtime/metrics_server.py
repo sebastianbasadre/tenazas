@@ -253,12 +253,10 @@ def collect_ollama_gpu():
         G_OLLAMA_GPU_UP.set(1)
         G_OLLAMA_GPU_LATENCY.set(round(latency, 3))
         G_OLLAMA_GPU_MODELS.set(len(models))
-        G_OLLAMA_MODELS_TOTAL.set(len(models))
     except Exception:
         G_OLLAMA_GPU_UP.set(0)
         G_OLLAMA_GPU_LATENCY.set(0)
         G_OLLAMA_GPU_MODELS.set(0)
-        G_OLLAMA_MODELS_TOTAL.set(0)
 
 
 # ── Telegram Activity ──────────────────────────────────────────
@@ -357,16 +355,18 @@ OLLAMA_MODELS_URL = "http://192.168.2.6:11434/api/tags"
 OLLAMA_MODELS_INTERVAL = 300  # 5 min
 
 
-def collect_ollama_models():
-    """Count models on Ollama at 192.168.2.6."""
+def update_ollama_metrics():
+    """Count models on Ollama at 192.168.2.6, update gauge."""
     try:
         req = Request(OLLAMA_MODELS_URL)
         resp = urlopen(req, timeout=5)
         data = json.loads(resp.read())
         models = data.get("models", [])
         G_OLLAMA_MODELS_TOTAL.set(len(models))
-    except Exception:
-        pass  # keep last known value
+        log.info("Ollama models updated: %d", len(models))
+    except Exception as e:
+        G_OLLAMA_MODELS_TOTAL.set(0)
+        log.warning("Ollama models check failed: %s", e)
 
 
 # ── Background Thread for IOL CLI ─────────────────────────────
@@ -422,7 +422,7 @@ if __name__ == "__main__":
             last_iol_check = now
 
         if now - last_models_check >= OLLAMA_MODELS_INTERVAL:
-            collect_ollama_models()
+            update_ollama_metrics()
             last_models_check = now
 
         time.sleep(POLL_INTERVAL)
