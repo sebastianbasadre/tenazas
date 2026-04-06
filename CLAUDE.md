@@ -714,14 +714,18 @@ workspace/runtime/
 - **Step profiling:** cada fase del runtime se cronometra y exporta
 - **Health score:** 0-100 basado en duracion, freezes, restarts
 - **Metricas:** runtime_runs_total, runtime_duration_seconds, container_restarts_total, vpn_disconnects_total, runtime_freeze_detected, runtime_health_score
-- **metrics_server.py** — proceso persistente que arranca desde startup.sh, polls `metrics_state.json` cada 5s
+- **metrics_server.py** — proceso persistente que arranca desde startup.sh, polls `metrics_state.json` cada 5s + colecta metricas NAS/Ollama/Telegram/IOL
 - **metrics_state.json** — archivo compartido entre runtime.py (escribe) y metrics_server.py (lee)
 - **model_failover.py** — proceso persistente, detecta 429 de Gemini y auto-switch a Ollama qwen2.5:7b
 - **Metricas extendidas:** runtime_step_*_seconds, rag_queries_total, rag_low_confidence_total, model_failover_active
 - **Metricas Router V2:** router_v2_decisions_total{role}, router_v1_decisions_total, router_v1_fallback_from_v2_total, router_v2_internal_fallbacks_total{role}, router_vram_swaps_total{role,model}, router_cloud_fallbacks_total, router_decision_latency_seconds{role}, router_model_latency_seconds{model,role}
+- **Metricas NAS Host:** nas_ram_used_bytes, nas_ram_total_bytes, nas_cpu_load_percent, nas_disk_used_bytes, nas_disk_total_bytes, nas_cpu_temp_celsius (lectura directa de /proc y /sys cada 5s)
+- **Metricas Ollama GPU:** ollama_gpu_up, ollama_gpu_latency_seconds, ollama_gpu_models_count (health check cada 60s a OLLAMA_GPU_URL, default http://192.168.2.76:11434)
+- **Metricas Telegram:** telegram_messages_total, telegram_messages_today (parseo de telegram_handler.log cada 30s)
+- **Metricas IOL:** iol_portfolio_value_ars, iol_portfolio_pnl_day_ars (API IOL cada 5 min, falla silenciosamente si offline/sin auth)
 - **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
 - **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
-  - **Tenazas Runtime** (`tenazas-runtime`) — dashboard de infra general (containers, VPN, freezes, memoria, CPU)
+  - **Tenazas Runtime** (`tenazas-runtime`) — 31 panels: infra general, NAS host (CPU/RAM/disco/temp), Ollama GPU (status/latencia/modelos), Tenazas operativo (Telegram/RAG), IOL portfolio (valor/P&L)
   - **Tenazas Agent** (`tenazas-agent`) — dashboard dedicado del agente: routing V1/V2, roles, latencia, guardrails, fallbacks, VRAM, failover, ciclos. Todos los panels scoped a `instance="openclaw"` con descriptions operativas
 
 ### Cron recomendado (DSM Task Scheduler)

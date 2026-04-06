@@ -6,15 +6,33 @@ Runs as a persistent background process (started from startup.sh).
 Polls metrics_state.json (written by runtime.py each cycle) and
 updates Prometheus Gauges so they can be scraped at :9105/metrics.
 
+Also collects NAS host metrics (RAM, CPU, disk, temp), Ollama GPU
+health, Telegram activity, and IOL portfolio data on slower intervals.
+
 Usage: python3 metrics_server.py &
 """
 
 import json
+import os
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 
-METRICS_STATE_FILE = Path(__file__).parent / "logs" / "metrics_state.json"
+BASE_DIR = Path(__file__).parent
+METRICS_STATE_FILE = BASE_DIR / "logs" / "metrics_state.json"
+LOGS_DIR = BASE_DIR / "logs"
 POLL_INTERVAL = 5  # seconds
+
+# Slower collection intervals (in seconds)
+OLLAMA_CHECK_INTERVAL = 60
+IOL_CHECK_INTERVAL = 300  # 5 min
+LOG_PARSE_INTERVAL = 30
+
+# Ollama GPU endpoint (configurable)
+OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.76:11434")
+OLLAMA_GPU_TIMEOUT = 5
 
 try:
     from prometheus_client import Gauge, start_http_server
@@ -71,6 +89,27 @@ if PROM_AVAILABLE:
     G_GR_LATENCY = Gauge("guardrail_latency_total", "Heavy degraded by high latency")
     G_GR_VRAM_STORM = Gauge("guardrail_vram_storm_total", "Heavy degraded by VRAM swap storm")
 
+    # ── NAS Host ────────────────────────────────────────────────
+    G_NAS_RAM_USED = Gauge("nas_ram_used_bytes", "NAS RAM used (total - available)")
+    G_NAS_RAM_TOTAL = Gauge("nas_ram_total_bytes", "NAS total RAM")
+    G_NAS_CPU_PERCENT = Gauge("nas_cpu_load_percent", "NAS CPU load as percent of cores (1m avg)")
+    G_NAS_DISK_USED = Gauge("nas_disk_used_bytes", "NAS root disk used bytes")
+    G_NAS_DISK_TOTAL = Gauge("nas_disk_total_bytes", "NAS root disk total bytes")
+    G_NAS_CPU_TEMP = Gauge("nas_cpu_temp_celsius", "NAS CPU temperature in Celsius")
+
+    # ── Ollama GPU ──────────────────────────────────────────────
+    G_OLLAMA_GPU_UP = Gauge("ollama_gpu_up", "1 if Ollama GPU responds, 0 otherwise")
+    G_OLLAMA_GPU_LATENCY = Gauge("ollama_gpu_latency_seconds", "Ollama GPU health check latency")
+    G_OLLAMA_GPU_MODELS = Gauge("ollama_gpu_models_count", "Number of models on GPU Ollama")
+
+    # ── Telegram ────────────────────────────────────────────────
+    G_TELEGRAM_TOTAL = Gauge("telegram_messages_total", "Total Telegram handler log entries")
+    G_TELEGRAM_TODAY = Gauge("telegram_messages_today", "Telegram messages processed today")
+
+    # ── IOL Portfolio ───────────────────────────────────────────
+    G_IOL_PORTFOLIO_ARS = Gauge("iol_portfolio_value_ars", "IOL portfolio total value ARS")
+    G_IOL_PORTFOLIO_PNL = Gauge("iol_portfolio_pnl_day_ars", "IOL portfolio day P&L ARS")
+
 
 def update_from_file():
     """Read metrics_state.json and update Prometheus Gauges."""
@@ -126,7 +165,7 @@ def update_from_file():
 
     # Guardrails (from separate state file)
     try:
-        guardrail_file = Path(__file__).parent / "guardrail_state.json"
+        guardrail_file = BASE_DIR / "guardrail_state.json"
         with open(guardrail_file) as f:
             gr = json.load(f)
         degs = gr.get("degradations", {})
@@ -138,14 +177,170 @@ def update_from_file():
         pass
 
 
+# ── NAS Host Metrics ────────────────────────────────────────────
+
+
+def collect_nas_metrics():
+    """Read NAS RAM, CPU load, disk, and temperature from /proc and /sys."""
+    # RAM from /proc/meminfo
+    try:
+        with open("/proc/meminfo") as f:
+            mem = {}
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    mem[parts[0].rstrip(":")] = int(parts[1]) * 1024  # kB→bytes
+        total = mem.get("MemTotal", 0)
+        available = mem.get("MemAvailable", 0)
+        G_NAS_RAM_TOTAL.set(total)
+        G_NAS_RAM_USED.set(total - available)
+    except Exception:
+        pass
+
+    # CPU load from /proc/loadavg (1-min avg / nproc → percent)
+    try:
+        with open("/proc/loadavg") as f:
+            load_1m = float(f.read().split()[0])
+        cpus = os.cpu_count() or 1
+        G_NAS_CPU_PERCENT.set(round(load_1m / cpus * 100, 1))
+    except Exception:
+        pass
+
+    # Disk usage for root filesystem (which is /volume1 on Synology)
+    try:
+        st = os.statvfs("/")
+        total = st.f_frsize * st.f_blocks
+        free = st.f_frsize * st.f_bavail
+        G_NAS_DISK_TOTAL.set(total)
+        G_NAS_DISK_USED.set(total - free)
+    except Exception:
+        pass
+
+    # CPU temperature from hwmon
+    try:
+        for hwmon in Path("/sys/class/hwmon").iterdir():
+            temp_file = hwmon / "temp1_input"
+            if temp_file.exists():
+                millideg = int(temp_file.read_text().strip())
+                G_NAS_CPU_TEMP.set(millideg / 1000.0)
+                break
+    except Exception:
+        pass
+
+
+# ── Ollama GPU Health ───────────────────────────────────────────
+
+
+def collect_ollama_gpu():
+    """Check Ollama GPU health and model count."""
+    try:
+        start = time.monotonic()
+        req = Request(f"{OLLAMA_GPU_URL}/api/tags")
+        resp = urlopen(req, timeout=OLLAMA_GPU_TIMEOUT)
+        latency = time.monotonic() - start
+        data = json.loads(resp.read())
+        models = data.get("models", [])
+        G_OLLAMA_GPU_UP.set(1)
+        G_OLLAMA_GPU_LATENCY.set(round(latency, 3))
+        G_OLLAMA_GPU_MODELS.set(len(models))
+    except Exception:
+        G_OLLAMA_GPU_UP.set(0)
+        G_OLLAMA_GPU_LATENCY.set(0)
+        G_OLLAMA_GPU_MODELS.set(0)
+
+
+# ── Telegram Activity ──────────────────────────────────────────
+
+
+def collect_telegram_metrics():
+    """Count Telegram messages from telegram_handler.log."""
+    log_file = LOGS_DIR / "telegram_handler.log"
+    try:
+        total = 0
+        today_count = 0
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        with open(log_file) as f:
+            for line in f:
+                total += 1
+                if today_str in line:
+                    today_count += 1
+        G_TELEGRAM_TOTAL.set(total)
+        G_TELEGRAM_TODAY.set(today_count)
+    except FileNotFoundError:
+        G_TELEGRAM_TOTAL.set(0)
+        G_TELEGRAM_TODAY.set(0)
+
+
+# ── IOL Portfolio ──────────────────────────────────────────────
+
+
+def collect_iol_metrics():
+    """Fetch IOL portfolio value and P&L. Fails silently if offline/unauth."""
+    import sys
+    try:
+        # Add skills path for iol_broker import
+        skills_path = "/home/tenazas/.openclaw/workspace/skills"
+        if skills_path not in sys.path:
+            sys.path.insert(0, skills_path)
+        from iol_broker.iol_portfolio import get_portfolio, get_account_state
+
+        account = get_account_state()
+        cuentas = account.get("cuentas", [])
+        total_pesos = float(account.get("totalEnPesos", 0) or 0)
+
+        portfolio = get_portfolio("argentina")
+        activos = portfolio.get("activos", [])
+        invertido = sum(float(a.get("valorizado", 0) or 0) for a in activos)
+
+        # P&L = sum of (valorizado - cantidad * ppc) for each activo
+        pnl = 0
+        for a in activos:
+            valorizado = float(a.get("valorizado", 0) or 0)
+            cantidad = float(a.get("cantidad", 0) or 0)
+            ppc = float(a.get("ppc", 0) or 0)
+            pnl += valorizado - (cantidad * ppc)
+
+        G_IOL_PORTFOLIO_ARS.set(round(total_pesos if total_pesos else invertido, 2))
+        G_IOL_PORTFOLIO_PNL.set(round(pnl, 2))
+    except Exception:
+        pass  # fail silently — IOL may be offline, unauth, or market closed
+
+
+# ── Main Loop ──────────────────────────────────────────────────
+
+
 if __name__ == "__main__":
     if not PROM_AVAILABLE:
         print("prometheus_client not available")
         exit(1)
 
     start_http_server(9105)
-    print("Metrics server on :9105 (polling metrics_state.json)")
+    print("Metrics server on :9105 (polling metrics_state.json + NAS + Ollama + IOL)")
+
+    last_ollama_check = 0
+    last_iol_check = 0
+    last_log_parse = 0
 
     while True:
+        now = time.monotonic()
+
+        # Always: state file + NAS host metrics (fast, local reads)
         update_from_file()
+        collect_nas_metrics()
+
+        # Every 60s: Ollama GPU health
+        if now - last_ollama_check >= OLLAMA_CHECK_INTERVAL:
+            collect_ollama_gpu()
+            last_ollama_check = now
+
+        # Every 30s: Telegram log parsing
+        if now - last_log_parse >= LOG_PARSE_INTERVAL:
+            collect_telegram_metrics()
+            last_log_parse = now
+
+        # Every 5 min: IOL portfolio
+        if now - last_iol_check >= IOL_CHECK_INTERVAL:
+            collect_iol_metrics()
+            last_iol_check = now
+
         time.sleep(POLL_INTERVAL)
