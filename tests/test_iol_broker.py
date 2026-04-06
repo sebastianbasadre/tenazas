@@ -178,6 +178,127 @@ class TestIOLClientToken(unittest.TestCase):
         self.assertTrue(mock_log.called)
 
 
+# ── Auth Retry Tests ────────────────────────────────────────────
+
+
+class TestAuthRetry(unittest.TestCase):
+    """401 → refresh → retry logic — 6 tests."""
+
+    def _make_client(self, token="tok", refresh="ref", expires_at=None):
+        with patch("iol_broker.iol_client._load_config", return_value={
+            "bearer_token": token,
+            "refresh_token": refresh,
+            "token_expires_at": expires_at,
+            "base_url": "https://api.invertironline.com",
+        }):
+            from iol_broker.iol_client import IOLClient
+            return IOLClient()
+
+    @patch("iol_broker.iol_client._save_config")
+    @patch("iol_broker.iol_client.urlopen")
+    @patch("iol_broker.iol_client._log")
+    def test_401_triggers_refresh_and_retry(self, mock_log, mock_urlopen, mock_save):
+        """401 on first attempt → refresh → retry succeeds."""
+        from urllib.error import HTTPError
+
+        # First call: 401, Second call: refresh OK, Third call: retry OK
+        refresh_resp = MagicMock()
+        refresh_resp.read.return_value = json.dumps({
+            "access_token": "new_at", "refresh_token": "new_rt", "expires_in": 899
+        }).encode()
+        ok_resp = MagicMock()
+        ok_resp.read.return_value = json.dumps({"data": "ok"}).encode()
+
+        mock_urlopen.side_effect = [
+            HTTPError("/api/v2/portafolio", 401, "unauthorized", {}, None),
+            refresh_resp,  # refresh call
+            ok_resp,       # retry call
+        ]
+
+        c = self._make_client(expires_at=time.time() + 300)
+        result = c.get("/api/v2/portafolio/argentina")
+        self.assertEqual(result["data"], "ok")
+        self.assertEqual(mock_urlopen.call_count, 3)
+
+    @patch("iol_broker.iol_client._save_config")
+    @patch("iol_broker.iol_client.urlopen")
+    @patch("iol_broker.iol_client._log")
+    def test_401_after_retry_raises_auth_error(self, mock_log, mock_urlopen, mock_save):
+        """401 on both attempts → IOLAuthError with clear message."""
+        from urllib.error import HTTPError
+        from iol_broker.iol_client import IOLAuthError
+
+        refresh_resp = MagicMock()
+        refresh_resp.read.return_value = json.dumps({
+            "access_token": "new", "refresh_token": "new", "expires_in": 899
+        }).encode()
+
+        mock_urlopen.side_effect = [
+            HTTPError("/test", 401, "unauthorized", {}, None),  # first attempt
+            refresh_resp,  # refresh succeeds
+            HTTPError("/test", 401, "still unauthorized", {}, None),  # retry fails
+        ]
+
+        c = self._make_client(expires_at=time.time() + 300)
+        with self.assertRaises(IOLAuthError) as ctx:
+            c.get("/api/v2/test")
+        self.assertIn("init_token", str(ctx.exception))
+
+    @patch("iol_broker.iol_client.urlopen")
+    @patch("iol_broker.iol_client._log")
+    def test_refresh_failure_raises_auth_error(self, mock_log, mock_urlopen):
+        """Refresh itself fails with 401 → IOLAuthError."""
+        from urllib.error import HTTPError
+        from iol_broker.iol_client import IOLAuthError
+
+        mock_urlopen.side_effect = HTTPError("/token", 401, "bad refresh", {}, None)
+
+        c = self._make_client(expires_at=time.time() - 100)  # expired
+        with self.assertRaises(IOLAuthError) as ctx:
+            c.get("/api/v2/test")
+        self.assertIn("init_token", str(ctx.exception))
+
+    @patch("iol_broker.iol_client._log")
+    def test_no_refresh_token_raises_auth_error(self, mock_log):
+        """Missing refresh_token → IOLAuthError."""
+        from iol_broker.iol_client import IOLAuthError
+
+        c = self._make_client(refresh="", expires_at=time.time() - 100)
+        with self.assertRaises(IOLAuthError) as ctx:
+            c.get("/api/v2/test")
+        self.assertIn("init_token", str(ctx.exception))
+
+    @patch("iol_broker.iol_client.urlopen")
+    @patch("iol_broker.iol_client._log")
+    def test_no_retry_loop(self, mock_log, mock_urlopen):
+        """Max 2 calls to API (original + 1 retry), never more."""
+        from urllib.error import HTTPError
+        from iol_broker.iol_client import IOLAuthError
+
+        # All calls fail with 401
+        mock_urlopen.side_effect = HTTPError("/test", 401, "always fails", {}, None)
+
+        c = self._make_client(expires_at=time.time() + 300)
+        with self.assertRaises(IOLAuthError):
+            c.get("/api/v2/test")
+        # Should be: 1 API call + 1 refresh attempt = 2 urlopen calls max
+        self.assertLessEqual(mock_urlopen.call_count, 3)
+
+    @patch("iol_broker.iol_client.urlopen")
+    @patch("iol_broker.iol_client._log")
+    def test_non_401_error_not_retried(self, mock_log, mock_urlopen):
+        """500 errors are NOT retried — raised immediately."""
+        from urllib.error import HTTPError
+
+        mock_urlopen.side_effect = HTTPError("/test", 500, "server error", {}, None)
+
+        c = self._make_client(expires_at=time.time() + 300)
+        with self.assertRaises(HTTPError) as ctx:
+            c.get("/api/v2/test")
+        self.assertEqual(ctx.exception.code, 500)
+        self.assertEqual(mock_urlopen.call_count, 1)  # no retry
+
+
 # ── Portfolio Tests ─────────────────────────────────────────────
 
 
