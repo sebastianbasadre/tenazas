@@ -330,9 +330,9 @@ def collect_iol_cli():
         )
         output = result.stdout
         # Parse "💰 Total (ARS): $1,234,567.89"
-        m = re.search(r"Total \(ARS\):\s*\$?([\d.,]+)", output)
+        m = re.search(r"\$([0-9,]+\.[0-9]+)", output)
         if m:
-            value = float(m.group(1).replace(".", "").replace(",", "."))
+            value = float(m.group(1).replace(",", ""))
             G_IOL_PORTFOLIO_TOTAL.set(value)
     except Exception:
         pass  # keep last known value
