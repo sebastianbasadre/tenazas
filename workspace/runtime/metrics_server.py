@@ -102,6 +102,8 @@ if PROM_AVAILABLE:
     G_OLLAMA_GPU_LATENCY = Gauge("ollama_gpu_latency_seconds", "Ollama GPU health check latency")
     G_OLLAMA_GPU_MODELS = Gauge("ollama_gpu_models_count", "Number of models on GPU Ollama")
 
+    G_OLLAMA_MODELS_TOTAL = Gauge("ollama_models_total", "Total models available on Ollama GPU")
+
     # ── Telegram ────────────────────────────────────────────────
     G_TELEGRAM_TOTAL = Gauge("telegram_messages_total", "Total Telegram handler log entries")
     G_TELEGRAM_TODAY = Gauge("telegram_messages_today", "Telegram messages processed today")
@@ -243,10 +245,12 @@ def collect_ollama_gpu():
         G_OLLAMA_GPU_UP.set(1)
         G_OLLAMA_GPU_LATENCY.set(round(latency, 3))
         G_OLLAMA_GPU_MODELS.set(len(models))
+        G_OLLAMA_MODELS_TOTAL.set(len(models))
     except Exception:
         G_OLLAMA_GPU_UP.set(0)
         G_OLLAMA_GPU_LATENCY.set(0)
         G_OLLAMA_GPU_MODELS.set(0)
+        G_OLLAMA_MODELS_TOTAL.set(0)
 
 
 # ── Telegram Activity ──────────────────────────────────────────
