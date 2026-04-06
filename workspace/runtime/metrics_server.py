@@ -31,7 +31,7 @@ IOL_CHECK_INTERVAL = 300  # 5 min
 LOG_PARSE_INTERVAL = 30
 
 # Ollama GPU endpoint (configurable)
-OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.76:11434")
+OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
 OLLAMA_GPU_TIMEOUT = 5
 
 try:
