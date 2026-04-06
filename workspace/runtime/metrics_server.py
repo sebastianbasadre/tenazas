@@ -13,6 +13,7 @@ Usage: python3 metrics_server.py &
 """
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -22,6 +23,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import URLError
+
+log = logging.getLogger("metrics_server")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 BASE_DIR = Path(__file__).parent
 METRICS_STATE_FILE = BASE_DIR / "logs" / "metrics_state.json"
@@ -321,21 +325,29 @@ IOL_CLI_PATH = "/home/tenazas/.openclaw/workspace/skills/iol_broker/iol_handler_
 IOL_CLI_INTERVAL = 900  # 15 min
 
 
-def collect_iol_cli():
-    """Run iol_handler_cli.py 'portafolio', parse Total (ARS) line."""
+def update_iol_metrics():
+    """Run iol_handler_cli.py 'portafolio', parse Total (ARS), update gauge."""
     try:
         result = subprocess.run(
             ["python3", IOL_CLI_PATH, "portafolio"],
             capture_output=True, text=True, timeout=30
         )
         output = result.stdout
-        # Parse "💰 Total (ARS): $1,234,567.89"
-        m = re.search(r"\$([0-9,]+\.[0-9]+)", output)
+        if result.returncode != 0 or not output.strip():
+            log.warning("IOL CLI failed: rc=%d stderr=%s", result.returncode, result.stderr.strip())
+            return
+        # Parse "💰 Total (ARS): $6,851,543.49"
+        m = re.search(r"Total \(ARS\):\s*\$([0-9,]+\.?[0-9]*)", output)
         if m:
             value = float(m.group(1).replace(",", ""))
             G_IOL_PORTFOLIO_TOTAL.set(value)
-    except Exception:
-        pass  # keep last known value
+            log.info("IOL portfolio updated: $%s → %.2f", m.group(1), value)
+        else:
+            log.warning("IOL CLI: no Total (ARS) found in output: %s", output[:200])
+    except subprocess.TimeoutExpired:
+        log.warning("IOL CLI timeout (30s)")
+    except Exception as e:
+        log.warning("IOL CLI error: %s", e)
 
 
 # ── Ollama Models (via 192.168.2.6) ──────────────────────────
@@ -363,7 +375,7 @@ def collect_ollama_models():
 def _iol_cli_loop():
     """Background thread: run IOL CLI every 15 min."""
     while True:
-        collect_iol_cli()
+        update_iol_metrics()
         time.sleep(IOL_CLI_INTERVAL)
 
 
