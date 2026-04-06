@@ -18,6 +18,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 CONFIG_FILE = Path("/home/tenazas/.openclaw/openclaw.json")
+IOL_CONFIG_FILE = Path("/home/tenazas/.openclaw/iol_config.json")
 TOKEN_URL = "https://api.invertironline.com/token"
 TIMEOUT = 10
 
@@ -86,23 +87,28 @@ def main():
 
     token_expires_at = time.time() + expires_in - 10
 
-    # Load or create config
-    try:
-        with open(CONFIG_FILE) as f:
-            config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        config = {}
-
-    config["invertironline"] = {
+    # Save to dedicated IOL config file (not openclaw.json to avoid schema conflict)
+    iol_config = {
         "bearer_token": access_token,
         "refresh_token": refresh_token,
         "token_expires_at": token_expires_at,
         "base_url": "https://api.invertironline.com",
     }
 
-    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+    IOL_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(IOL_CONFIG_FILE, "w") as f:
+        json.dump(iol_config, f, indent=2, ensure_ascii=False)
+
+    # Clean up legacy key from openclaw.json if present
+    try:
+        with open(CONFIG_FILE) as f:
+            oc_config = json.load(f)
+        if "invertironline" in oc_config:
+            del oc_config["invertironline"]
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(oc_config, f, indent=2, ensure_ascii=False)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
 
     expiry_time = datetime.fromtimestamp(token_expires_at).strftime("%H:%M:%S")
 

@@ -670,8 +670,14 @@ class TestInitToken(unittest.TestCase):
         with patch.object(mod, "urlopen", return_value=mock_resp):
             with patch.object(mod.json, "dump") as mock_dump:
                 mod.main()
-        saved = mock_dump.call_args[0][0]
-        self.assertEqual(saved["invertironline"]["bearer_token"], "SAVED_BEARER")
+        # Init token now writes directly to iol_config.json (not nested under invertironline)
+        # Find the call that wrote the bearer_token
+        for call in mock_dump.call_args_list:
+            saved = call[0][0]
+            if isinstance(saved, dict) and "bearer_token" in saved:
+                self.assertEqual(saved["bearer_token"], "SAVED_BEARER")
+                return
+        self.fail("bearer_token not found in any json.dump call")
 
     @patch("builtins.open", new_callable=mock_open, read_data="{}")
     @patch("getpass.getpass", return_value="testpass")
@@ -685,8 +691,12 @@ class TestInitToken(unittest.TestCase):
         with patch.object(mod, "urlopen", return_value=mock_resp):
             with patch.object(mod.json, "dump") as mock_dump:
                 mod.main()
-        saved = mock_dump.call_args[0][0]
-        self.assertEqual(saved["invertironline"]["refresh_token"], "SAVED_REFRESH")
+        for call in mock_dump.call_args_list:
+            saved = call[0][0]
+            if isinstance(saved, dict) and "refresh_token" in saved:
+                self.assertEqual(saved["refresh_token"], "SAVED_REFRESH")
+                return
+        self.fail("refresh_token not found in any json.dump call")
 
     @patch("builtins.open", new_callable=mock_open, read_data="{}")
     @patch("getpass.getpass", return_value="secretpass")
