@@ -14,7 +14,10 @@ Usage: python3 metrics_server.py &
 
 import json
 import os
+import re
+import subprocess
 import time
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen, Request
@@ -111,6 +114,7 @@ if PROM_AVAILABLE:
     # ── IOL Portfolio ───────────────────────────────────────────
     G_IOL_PORTFOLIO_ARS = Gauge("iol_portfolio_value_ars", "IOL portfolio total value ARS")
     G_IOL_PORTFOLIO_PNL = Gauge("iol_portfolio_pnl_day_ars", "IOL portfolio day P&L ARS")
+    G_IOL_PORTFOLIO_TOTAL = Gauge("iol_portfolio_total_ars", "IOL portfolio total from CLI")
 
 
 def update_from_file():
@@ -310,6 +314,59 @@ def collect_iol_metrics():
         pass  # fail silently — IOL may be offline, unauth, or market closed
 
 
+# ── IOL Portfolio via CLI ──────────────────────────────────────
+
+
+IOL_CLI_PATH = "/home/tenazas/.openclaw/workspace/skills/iol_broker/iol_handler_cli.py"
+IOL_CLI_INTERVAL = 900  # 15 min
+
+
+def collect_iol_cli():
+    """Run iol_handler_cli.py 'portafolio', parse Total (ARS) line."""
+    try:
+        result = subprocess.run(
+            ["python3", IOL_CLI_PATH, "portafolio"],
+            capture_output=True, text=True, timeout=30
+        )
+        output = result.stdout
+        # Parse "💰 Total (ARS): $1,234,567.89"
+        m = re.search(r"Total \(ARS\):\s*\$?([\d.,]+)", output)
+        if m:
+            value = float(m.group(1).replace(".", "").replace(",", "."))
+            G_IOL_PORTFOLIO_TOTAL.set(value)
+    except Exception:
+        pass  # keep last known value
+
+
+# ── Ollama Models (via 192.168.2.6) ──────────────────────────
+
+
+OLLAMA_MODELS_URL = "http://192.168.2.6:11434/api/tags"
+OLLAMA_MODELS_INTERVAL = 300  # 5 min
+
+
+def collect_ollama_models():
+    """Count models on Ollama at 192.168.2.6."""
+    try:
+        req = Request(OLLAMA_MODELS_URL)
+        resp = urlopen(req, timeout=5)
+        data = json.loads(resp.read())
+        models = data.get("models", [])
+        G_OLLAMA_MODELS_TOTAL.set(len(models))
+    except Exception:
+        pass  # keep last known value
+
+
+# ── Background Thread for IOL CLI ─────────────────────────────
+
+
+def _iol_cli_loop():
+    """Background thread: run IOL CLI every 15 min."""
+    while True:
+        collect_iol_cli()
+        time.sleep(IOL_CLI_INTERVAL)
+
+
 # ── Main Loop ──────────────────────────────────────────────────
 
 
@@ -321,9 +378,14 @@ if __name__ == "__main__":
     start_http_server(9105)
     print("Metrics server on :9105 (polling metrics_state.json + NAS + Ollama + IOL)")
 
+    # Background thread for IOL CLI (slow, subprocess-based)
+    iol_thread = threading.Thread(target=_iol_cli_loop, daemon=True)
+    iol_thread.start()
+
     last_ollama_check = 0
     last_iol_check = 0
     last_log_parse = 0
+    last_models_check = 0
 
     while True:
         now = time.monotonic()
@@ -332,7 +394,7 @@ if __name__ == "__main__":
         update_from_file()
         collect_nas_metrics()
 
-        # Every 60s: Ollama GPU health
+        # Every 60s: Ollama GPU health (via OLLAMA_GPU_URL)
         if now - last_ollama_check >= OLLAMA_CHECK_INTERVAL:
             collect_ollama_gpu()
             last_ollama_check = now
@@ -342,9 +404,13 @@ if __name__ == "__main__":
             collect_telegram_metrics()
             last_log_parse = now
 
-        # Every 5 min: IOL portfolio
+        # Every 5 min: IOL portfolio (Python API), Ollama models (via .6)
         if now - last_iol_check >= IOL_CHECK_INTERVAL:
             collect_iol_metrics()
             last_iol_check = now
+
+        if now - last_models_check >= OLLAMA_MODELS_INTERVAL:
+            collect_ollama_models()
+            last_models_check = now
 
         time.sleep(POLL_INTERVAL)
