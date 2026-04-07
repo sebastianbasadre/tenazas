@@ -157,6 +157,12 @@ def _call_gemini_vision(base64_img: str, prompt: str, mime_type: str = "image/jp
     try:
         resp = urlopen(req, timeout=60)
         data = json.loads(resp.read())
+        # Track successful Gemini API call
+        try:
+            from api_call_counter import count_call as _cc
+            _cc("gemini", model=GEMINI_MODEL, status="ok")
+        except Exception:
+            pass
         # Extract text from Gemini response
         candidates = data.get("candidates", [])
         if candidates:
@@ -167,6 +173,13 @@ def _call_gemini_vision(base64_img: str, prompt: str, mime_type: str = "image/jp
             return result
         return ""
     except (URLError, HTTPError, json.JSONDecodeError) as e:
+        # Track failed Gemini API call
+        try:
+            from api_call_counter import count_call as _cc
+            status = "rate_limit" if isinstance(e, HTTPError) and e.code == 429 else "error"
+            _cc("gemini", model=GEMINI_MODEL, status=status)
+        except Exception:
+            pass
         _log({"action": "gemini_vision", "error": str(e)})
         return ""
 
