@@ -120,6 +120,12 @@ if PROM_AVAILABLE:
     G_IOL_PORTFOLIO_PNL = Gauge("iol_portfolio_pnl_day_ars", "IOL portfolio day P&L ARS")
     G_IOL_PORTFOLIO_TOTAL = Gauge("iol_portfolio_total_ars", "IOL portfolio total from CLI")
 
+    # ── OpenRouter ─────────────────────────────────────────────
+    G_OPENROUTER_BALANCE = Gauge("tenazas_openrouter_balance_usd", "Créditos disponibles en OpenRouter")
+    G_OPENROUTER_USED = Gauge("tenazas_openrouter_used_usd", "Total gastado en OpenRouter")
+    G_OPENROUTER_REQUESTS = Gauge("tenazas_openrouter_requests_total", "Requests realizadas via OpenRouter")
+    G_OPENROUTER_LAST_CHECK = Gauge("tenazas_openrouter_last_check_ts", "Timestamp del último chequeo exitoso")
+
 
 def update_from_file():
     """Read metrics_state.json and update Prometheus Gauges."""
@@ -369,6 +375,46 @@ def update_ollama_metrics():
         log.warning("Ollama models check failed: %s", e)
 
 
+# ── OpenRouter Usage ─────────────────────────────────────────
+
+
+OPENROUTER_CHECK_INTERVAL = 60  # seconds — cache to avoid hammering API
+_openrouter_cache = {"ts": 0, "data": None}
+
+
+def collect_openrouter_metrics():
+    """Fetch OpenRouter balance/usage. Fails silently if offline/unauth."""
+    import sys
+    now = time.monotonic()
+
+    # Cache: skip if last successful check was < 60s ago
+    if _openrouter_cache["data"] is not None and (now - _openrouter_cache["ts"]) < OPENROUTER_CHECK_INTERVAL:
+        return
+
+    try:
+        runtime_path = str(BASE_DIR)
+        if runtime_path not in sys.path:
+            sys.path.insert(0, runtime_path)
+        from openrouter_usage import get_balance
+
+        b = get_balance()
+        balance = b.get("balance_usd", 0.0)
+        usage = b.get("usage_usd", 0.0)
+        rate_limit = b.get("rate_limit", {})
+        requests_count = rate_limit.get("requests", 0)
+
+        G_OPENROUTER_BALANCE.set(balance)
+        G_OPENROUTER_USED.set(usage)
+        G_OPENROUTER_REQUESTS.set(requests_count)
+        G_OPENROUTER_LAST_CHECK.set(time.time())
+
+        _openrouter_cache["ts"] = now
+        _openrouter_cache["data"] = b
+        log.info("OpenRouter updated: balance=$%.4f used=$%.4f", balance, usage)
+    except Exception as e:
+        log.warning("OpenRouter check failed: %s", e)
+
+
 # ── Background Thread for IOL CLI ─────────────────────────────
 
 
@@ -398,6 +444,7 @@ if __name__ == "__main__":
     last_iol_check = 0
     last_log_parse = 0
     last_models_check = 0
+    last_openrouter_check = 0
 
     while True:
         now = time.monotonic()
@@ -424,5 +471,10 @@ if __name__ == "__main__":
         if now - last_models_check >= OLLAMA_MODELS_INTERVAL:
             update_ollama_metrics()
             last_models_check = now
+
+        # Every 60s: OpenRouter balance/usage (has internal 60s cache too)
+        if now - last_openrouter_check >= OPENROUTER_CHECK_INTERVAL:
+            collect_openrouter_metrics()
+            last_openrouter_check = now
 
         time.sleep(POLL_INTERVAL)
