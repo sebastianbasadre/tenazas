@@ -53,6 +53,7 @@ Smart Home (LAN)
 | GPU inference | Ollama (RTX 3090) | 192.168.2.6:11434 |
 | CPU inference | Ollama (Ryzen, fallback) | 127.0.0.1:11434 |
 | Cloud inference | Google Gemini 2.5 Flash/Pro | API (fallback final) |
+| Cloud inference | Kimi K2 via OpenRouter | API (self-evolve analysis) |
 | Vector DB (RAG) | ChromaDB | 192.168.2.2:8100 |
 | Embeddings | nomic-embed-text via Ollama | Local, gratis |
 | TTS | Piper (es_MX-claude-high) | Container `piper` |
@@ -659,9 +660,11 @@ workspace/runtime/
 ├── operational_memory.py      — Memoria operativa por dominio (finance, expense, jobs)
 ├── memory/operational.json    — Persistencia de facts
 ├── model_distillation.py      — Transferencia de conocimiento entre modelos
+├── openrouter_usage.py        — Balance y usage tracking OpenRouter API (stdlib only)
 │
 │ ── Learning Output ──
-├���─ learning/proposals.json    — Propuestas generadas (nunca auto-aplicadas)
+├── learning/proposals.json    — Propuestas generadas (nunca auto-aplicadas)
+├── learning/proposals_raw.txt — Respuesta raw de Kimi si falla el parse JSON
 ├── learning/learning_report.md — Reporte legible de cada analisis
 │
 │ ── Autonomous ──
@@ -714,7 +717,7 @@ workspace/runtime/
 - **Step profiling:** cada fase del runtime se cronometra y exporta
 - **Health score:** 0-100 basado en duracion, freezes, restarts
 - **Metricas:** runtime_runs_total, runtime_duration_seconds, container_restarts_total, vpn_disconnects_total, runtime_freeze_detected, runtime_health_score
-- **metrics_server.py** — proceso persistente que arranca desde startup.sh, polls `metrics_state.json` cada 5s + colecta metricas NAS/Ollama/Telegram/IOL
+- **metrics_server.py** — proceso persistente que arranca desde startup.sh, polls `metrics_state.json` cada 5s + colecta metricas NAS/Ollama/Telegram/IOL/OpenRouter
 - **metrics_state.json** — archivo compartido entre runtime.py (escribe) y metrics_server.py (lee)
 - **model_failover.py** — proceso persistente, detecta 429 de Gemini y auto-switch a Ollama qwen2.5:7b
 - **Metricas extendidas:** runtime_step_*_seconds, rag_queries_total, rag_low_confidence_total, model_failover_active
@@ -723,10 +726,12 @@ workspace/runtime/
 - **Metricas Ollama GPU:** ollama_gpu_up, ollama_gpu_latency_seconds, ollama_gpu_models_count (health check cada 60s a OLLAMA_GPU_URL, default http://192.168.2.76:11434)
 - **Metricas Telegram:** telegram_messages_total, telegram_messages_today (parseo de telegram_handler.log cada 30s)
 - **Metricas IOL:** iol_portfolio_value_ars, iol_portfolio_pnl_day_ars (API IOL cada 5 min, falla silenciosamente si offline/sin auth)
+- **Metricas OpenRouter:** tenazas_openrouter_balance_usd, tenazas_openrouter_used_usd, tenazas_openrouter_requests_total, tenazas_openrouter_last_check_ts (API OpenRouter cada 60s con cache, falla silenciosamente)
 - **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
 - **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
   - **Tenazas Runtime** (`tenazas-runtime`) — 31 panels: infra general, NAS host (CPU/RAM/disco/temp), Ollama GPU (status/latencia/modelos), Tenazas operativo (Telegram/RAG), IOL portfolio (valor/P&L)
   - **Tenazas Agent** (`tenazas-agent`) — dashboard dedicado del agente: routing V1/V2, roles, latencia, guardrails, fallbacks, VRAM, failover, ciclos. Todos los panels scoped a `instance="openclaw"` con descriptions operativas
+  - **OpenRouter / Kimi-K2** (`openrouter-kimi-k2`) — 4 panels: gastado total (stat $USD), balance (stat, -1=Unlimited), último check (stat relativo), gasto acumulado (timeseries USD)
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
@@ -900,6 +905,24 @@ Multi-source learning: descubre modelos Ollama, recopila logs, pide analisis a m
 ### `self-evolve.py` (cron semanal en host)
 Analisis de errores, skills, Docker health. Propone mejoras via Telegram. **NUNCA auto-deploya** — espera aprobacion de Sebas.
 
+**Motor dual de analisis:**
+1. **Ollama (qwen2.5:3b)** — analisis basico de errores/skills/Docker (motor original)
+2. **Kimi K2 (moonshotai/kimi-k2 via OpenRouter)** — analisis profundo semanal si `OPENROUTER_API_KEY` presente
+
+**Flujo Kimi K2:**
+- `build_weekly_context()` — recopila logs (errors/warnings), metrics_state, proposals existentes, containers, modelos Ollama, guardrail state. Sanitiza secrets con regex antes de enviar.
+- `analyze_with_kimi(context)` — llama OpenRouter (120s timeout, 4096 max_tokens, temp=0.3). Parsea JSON, recupera arrays truncados.
+- `save_kimi_proposals(proposals)` — merge con dedup en `learning/proposals.json` (type=`kimi_weekly_analysis`, source=`kimi-k2`, status=`proposed`)
+- Notifica a Telegram con resumen de propuestas (prioridad con emojis 🔴🟡🟢)
+
+**Fallback:** si `OPENROUTER_API_KEY` no existe o Kimi falla → flujo Ollama continua intacto.
+
+**Dry run:**
+```bash
+OPENROUTER_API_KEY=... sudo -E python3 /volume1/docker/openclaw/self-evolve.py --dry-run
+```
+Ejecuta analisis completo sin guardar ni notificar. Imprime JSON de propuestas en stdout.
+
 ---
 
 ## APIs y servicios externos
@@ -914,6 +937,7 @@ Analisis de errores, skills, Docker health. Propone mejoras via Telegram. **NUNC
 | Open-Meteo | Clima | Sin auth (gratis) | Primary weather source |
 | wttr.in | Clima fallback | Sin auth | Secondary |
 | NordVPN | VPN | Via gluetun config | Servidor Espana |
+| OpenRouter | LLM cloud (Kimi K2) | API Key (env var) | Self-evolve analysis semanal |
 
 ### APIs internas (LAN, sin auth)
 | Servicio | URL | Uso |
