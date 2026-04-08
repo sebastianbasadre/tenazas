@@ -574,7 +574,7 @@ python3 skills/rag/ingest.py   # re-indexa todo
 
 ---
 
-## Skills (23 implementadas)
+## Skills (24 implementadas)
 
 Cada skill tiene `SKILL.md` con documentacion, y opcionalmente scripts `.py` / `.sh`.
 Ubicacion: `state/workspace/skills/`
@@ -590,7 +590,7 @@ Ubicacion: `state/workspace/skills/`
 | **container-restart** | Auto-restart containers caidos | Solo SKILL.md |
 | **email-digest** | Gmail via himalaya CLI | Solo SKILL.md |
 | **infra-monitor** | Health del NAS, Docker, Ollama, red | Solo SKILL.md |
-| **iol_broker** | InvertirOnline: portafolio, cotizaciones, compra/venta | iol_client.py, iol_portfolio.py, iol_orders.py, iol_handler.py |
+| **iol_broker** | InvertirOnline: portafolio, cotizaciones, compra/venta | iol_client.py, iol_portfolio.py, iol_orders.py, iol_handler.py, mcp_server.py |
 | **internet-health** | Conectividad, DNS, VPN | Solo SKILL.md |
 | **model-manager** | Lifecycle de modelos Ollama | Solo SKILL.md |
 | **morning-greeting** | Saludo diario 8AM con status | Solo SKILL.md |
@@ -602,6 +602,7 @@ Ubicacion: `state/workspace/skills/`
 | **smart-home** | Hue lights + Samsung M8 | Solo SKILL.md |
 | **tts** | Text-to-speech Piper → Telegram | tts.sh |
 | **voice-transcribe** | Whisper transcription | Solo SKILL.md |
+| **orchestrator-bridge** | MCP bridge: orchestrator skills + status + classify | mcp_server.py |
 | **weather** | Clima via Open-Meteo | Solo SKILL.md |
 
 ### Multi-agent system (agent-dispatcher)
@@ -734,13 +735,14 @@ workspace/runtime/
 - **Metricas NAS Host:** nas_ram_used_bytes, nas_ram_total_bytes, nas_cpu_load_percent, nas_disk_used_bytes, nas_disk_total_bytes, nas_cpu_temp_celsius (lectura directa de /proc y /sys cada 5s)
 - **Metricas Ollama GPU:** ollama_gpu_up, ollama_gpu_latency_seconds, ollama_gpu_models_count (health check cada 60s a OLLAMA_GPU_URL, default http://192.168.2.76:11434)
 - **Metricas Telegram:** telegram_messages_total, telegram_messages_today (parseo de telegram_handler.log cada 30s)
-- **Metricas IOL:** iol_portfolio_value_ars, iol_portfolio_pnl_day_ars (API IOL cada 5 min, falla silenciosamente si offline/sin auth)
+- **Metricas IOL:** iol_portfolio_value_ars, iol_portfolio_pnl_day_ars, iol_portfolio_last_success_ts, iol_portfolio_errors_total (API IOL cada 5 min, loguea errores)
 - **Metricas OpenRouter:** tenazas_openrouter_balance_usd, tenazas_openrouter_used_usd, tenazas_openrouter_requests_total, tenazas_openrouter_last_check_ts (API OpenRouter cada 60s con cache, falla silenciosamente)
 - **Prometheus:** container `prom/prometheus` en network_mode: host, scrape cada 30s, retencion 30d/1GB
 - **Grafana:** container `grafana/grafana` en `:3000` (admin/tenazas)
   - **Tenazas Runtime** (`tenazas-runtime`) — 31 panels: infra general, NAS host (CPU/RAM/disco/temp), Ollama GPU (status/latencia/modelos), Tenazas operativo (Telegram/RAG), IOL portfolio (valor/P&L)
   - **Tenazas Agent** (`tenazas-agent`) — dashboard dedicado del agente: routing V1/V2, roles, latencia, guardrails, fallbacks, VRAM, failover, ciclos. Todos los panels scoped a `instance="openclaw"` con descriptions operativas
   - **OpenRouter / Kimi-K2** (`openrouter-kimi-k2`) — 4 panels: gastado total (stat $USD), balance (stat, -1=Unlimited), último check (stat relativo), gasto acumulado (timeseries USD)
+  - **Tenazas APIs** (`tenazas-apis`) — Gemini (calls, total, distribución), IOL (portfolio, P&L, cuota, freshness, errors), OpenRouter (gasto, balance), todos los servicios. IOL health: freshness (verde<5m, amarillo<10m, rojo>10m), errors (counter), last success (timestamp)
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
@@ -846,6 +848,22 @@ Motor de ejecucion directa de skills desde el orchestrator.
 **Handlers:** skills parametrizadas o destructivas tienen handlers custom que extraen accion del query.
 
 **`route_and_execute(query)`** — entry point principal: clasifica, si es skill la ejecuta directamente y retorna output; si no, retorna route normal con `executed=False`.
+
+### MCP Servers (openclaw.json → mcp.servers)
+
+Servidores MCP que OpenClaw spawna como subprocesos stdio. El LLM los ve como tools nativas.
+
+| Server | Script | Tools |
+|---|---|---|
+| `iol-broker` | `skills/iol_broker/mcp_server.py` | iol_portfolio, iol_balance, iol_cotizacion, iol_dolar, iol_ordenes, iol_comprar_propuesta, iol_vender_propuesta |
+| `orchestrator-bridge` | `skills/orchestrator_bridge/mcp_server.py` | execute_skill, classify_query, get_system_status |
+
+**orchestrator-bridge** — Puente entre el gateway Node.js y el orchestrator Python:
+- `execute_skill(query)` → llama `route_and_execute()`, ejecuta skills determinísticamente
+- `classify_query(query)` → retorna categoría sin ejecutar (chat, skill:weather, iol_broker, etc.)
+- `get_system_status()` → `quick_health_check()` de infra_diagnostics (containers, VPN, Ollama)
+
+**Protocolo:** JSON-RPC 2.0 sobre stdio, misma implementación que iol-broker.
 
 ### Cloud Fallback Policy (EXPLÍCITA)
 La caída a cloud **no es silenciosa**. Cadena: OpenRouter (Kimi K2) → Gemini Flash.

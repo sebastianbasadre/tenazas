@@ -42,7 +42,7 @@ OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.76:11434")
 OLLAMA_GPU_TIMEOUT = 5
 
 try:
-    from prometheus_client import Gauge, start_http_server
+    from prometheus_client import Counter, Gauge, start_http_server
     PROM_AVAILABLE = True
 except ImportError:
     PROM_AVAILABLE = False
@@ -119,6 +119,8 @@ if PROM_AVAILABLE:
     G_IOL_PORTFOLIO_ARS = Gauge("iol_portfolio_value_ars", "IOL portfolio total value ARS")
     G_IOL_PORTFOLIO_PNL = Gauge("iol_portfolio_pnl_day_ars", "IOL portfolio day P&L ARS")
     G_IOL_PORTFOLIO_TOTAL = Gauge("iol_portfolio_total_ars", "IOL portfolio total from CLI")
+    G_IOL_LAST_SUCCESS = Gauge("iol_portfolio_last_success_ts", "Timestamp of last successful IOL collection")
+    G_IOL_ERRORS = Counter("iol_portfolio_errors_total", "Total IOL collection errors")
 
     # ── OpenRouter ─────────────────────────────────────────────
     G_OPENROUTER_BALANCE = Gauge("tenazas_openrouter_balance_usd", "Créditos disponibles en OpenRouter")
@@ -291,7 +293,7 @@ def collect_telegram_metrics():
 
 
 def collect_iol_metrics():
-    """Fetch IOL portfolio value and P&L. Fails silently if offline/unauth."""
+    """Fetch IOL portfolio value and P&L. Logs errors instead of silencing."""
     import sys
     try:
         # Add skills path for iol_broker import
@@ -318,8 +320,10 @@ def collect_iol_metrics():
 
         G_IOL_PORTFOLIO_ARS.set(round(total_pesos if total_pesos else invertido, 2))
         G_IOL_PORTFOLIO_PNL.set(round(pnl, 2))
-    except Exception:
-        pass  # fail silently — IOL may be offline, unauth, or market closed
+        G_IOL_LAST_SUCCESS.set(time.time())
+    except Exception as e:
+        G_IOL_ERRORS.inc()
+        log.warning("IOL collect failed: %s: %s", type(e).__name__, e)
 
 
 # ── IOL Portfolio via CLI ──────────────────────────────────────
