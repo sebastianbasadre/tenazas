@@ -17,7 +17,9 @@ USE_ROUTER_V2=True, with automatic fallback to V1 on any error.
 """
 
 import json
+import os
 import re
+import subprocess
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -80,6 +82,12 @@ MODELS = {
         "tier": "local_cpu",
         "strengths": ["lightweight", "simple_chat"],
     },
+    "openrouter_kimi": {
+        "id": "openrouter/moonshotai/kimi-k2",
+        "alias": "cloud-openrouter",
+        "tier": "cloud_openrouter",
+        "strengths": ["general", "reasoning", "analysis", "complex", "code"],
+    },
 }
 
 # ── Category → Role mapping (orchestrator intent → model_router role) ──
@@ -91,6 +99,7 @@ CATEGORY_TO_ROLE = {
     "automation_command": "fast",
     "diagnostic_request": "fast",
     "complex_reasoning": "reason",
+    "openrouter_usage": "fast",
 }
 
 # Pipeline definitions
@@ -125,6 +134,11 @@ PIPELINES = {
         "modules": ["rag_pipeline", "infra_diagnostics"],
         "default_model": "qwen_7b",
     },
+    "openrouter_usage": {
+        "description": "OpenRouter balance and usage query",
+        "modules": ["openrouter_usage"],
+        "default_model": "qwen_3b",
+    },
 }
 
 # ── Classification Rules ─────────────────────────────────────────
@@ -140,6 +154,14 @@ IOL_KEYWORDS = [
 ]
 
 CLASSIFICATION_RULES = [
+    # OpenRouter usage / balance (check before general keywords)
+    (
+        "openrouter_usage",
+        [r"gastos?\s+openrouter", r"balance\s+openrouter", r"cr[eé]ditos?\s+openrouter",
+         r"cu[aá]nto\s+llevo\s+gastado\s+.*openrouter", r"openrouter\s+balance",
+         r"openrouter\s+usage", r"saldo\s+openrouter"],
+        {"openrouter", "balance", "creditos", "créditos", "gastado"},
+    ),
     # IOL Broker (most specific — check first)
     (
         "iol_broker",
@@ -154,6 +176,113 @@ CLASSIFICATION_RULES = [
          "invertido", "inversiones", "broker",
          "dólar", "dolar", "dollar", "usd", "blue", "mep", "ccl"},
     ),
+    # ── Skill-specific rules (before generic categories) ──────────
+    # Weather
+    (
+        "skill:weather",
+        [r"(qu[eé]\s+)?clima", r"(qu[eé]\s+)?temperatura",
+         r"(qu[eé]\s+)?tiempo\s+(hace|hay|hará|va\s+a\s+hacer)",
+         r"va\s+a\s+llover", r"lluvia", r"pron[oó]stico",
+         r"hace\s+(fr[ií]o|calor)", r"weather"],
+        {"clima", "temperatura", "lluvia", "pronostico", "pronóstico",
+         "weather", "frio", "frío", "calor"},
+    ),
+    # Email
+    (
+        "skill:email",
+        [r"(revis|cheque|ver|leer)\w*\s*(los\s+)?(e-?mails?|correos?|inbox)",
+         r"e-?mails?\s+(sin\s+leer|nuevos|recientes)",
+         r"(tengo|hay)\s+(e-?mails?|correos?)", r"inbox",
+         r"(unread|correo\s+nuevo)"],
+        {"email", "emails", "correo", "correos", "inbox", "unread",
+         "mail", "mails", "gmail"},
+    ),
+    # Calendar
+    (
+        "skill:calendar",
+        [r"(qu[eé]\s+)?eventos?\s+(tengo|hay|de\s+hoy|de\s+mañana)",
+         r"(mi\s+)?agenda(\s+de\s+hoy)?", r"(mi\s+)?calendario",
+         r"(qu[eé]\s+tengo|tengo\s+algo)\s+(hoy|mañana|esta\s+semana)",
+         r"reuni[oó]n", r"pr[oó]xim[oa]s?\s+eventos?"],
+        {"calendario", "agenda", "eventos", "evento", "reunión", "reunion",
+         "reuniones", "mañana"},
+    ),
+    # Smart home — lights (action-oriented only, not informational)
+    (
+        "skill:smart-home",
+        [r"(prend|encend|apag|cambi)\w*\s*(las?\s+)?lu[cz]",
+         r"modo\s+(cine|cinema|relax|trabajo|work)",
+         r"(pon[eé]|activ[aá])\s*(modo|escena)",
+         r"(subi|baj)\w*\s*(el\s+)?brillo",
+         r"hue\s+(on|off)", r"escena\s+\w+",
+         r"(estado|status)\s+(de\s+)?(las?\s+)?lu[cz]"],
+        {"apagar", "encender", "prender", "cinema", "relax", "escena"},
+    ),
+    # TTS
+    (
+        "skill:tts",
+        [r"(dec[ií]|habl[aá]|le[eé])\s+en\s+voz", r"dec[ií]\s+",
+         r"habl[aá]\s+", r"(mand|envi)[aá]\s+(un\s+)?audio",
+         r"text.to.speech", r"voz\s+alta"],
+        {"decí", "habla", "hablá", "audio", "voz", "deci", "tts"},
+    ),
+    # Network scanner
+    (
+        "skill:network-scanner",
+        [r"(escan|scan)\w*\s*(la\s+)?red", r"dispositivos?\s+(en|de)\s+(la\s+)?red",
+         r"qui[eé]n\s+est[aá]\s+conectad", r"nmap",
+         r"(cu[aá]ntos|qu[eé])\s+dispositivos"],
+        {"red", "dispositivos", "nmap", "conectado", "conectados",
+         "scanner", "escanear"},
+    ),
+    # Arr monitor (media stack) — only status/listing queries
+    # Queries with "caido/error/no funciona" go to infrastructure_issue instead
+    (
+        "skill:arr-monitor",
+        [r"(estado|status|c[oó]mo\s+(est[aá]n?|andan?))\s+(de\s+)?(los?\s+)?(sonarr|radarr|lidarr|prowlarr|arr|descargas|torrent)",
+         r"descargas?\s+(activ|pendient|estado)",
+         r"(arr|media)\s+stack",
+         r"(estado|status)\s+(del?\s+)?(arr|media|torrent)"],
+        {"descargas", "torrent"},
+    ),
+    # Infra monitor (containers, docker status)
+    (
+        "skill:infra-monitor",
+        [r"(estado|status)\s+(de\s+)?(los\s+)?containers?",
+         r"(estado|status)\s+(del?\s+)?docker",
+         r"(estado|status)\s+(del?\s+)?(sistema|infra)",
+         r"(cu[aá]ntos|qu[eé])\s+containers?",
+         r"docker\s+(ps|status|estado)",
+         r"(est[aá]n?|andan?)\s+(todos\s+)?(los\s+)?containers?"],
+        {"containers", "container", "docker", "infra", "infraestructura"},
+    ),
+    # Morning greeting
+    (
+        "skill:morning-greeting",
+        [r"buenos?\s+d[ií]as?", r"good\s+morning", r"buen\s+d[ií]a",
+         r"saludo\s+(matutino|diario)"],
+        {"buenos", "días", "dias", "morning"},
+    ),
+    # Self-evolve (proposals, improvements)
+    (
+        "skill:self-evolve",
+        [r"(propuestas?|mejoras?)\s+(de\s+)?(mejora|sistema|tenazas)",
+         r"self[\s-]evolve", r"auto[\s-]mejora",
+         r"(qu[eé]\s+)?propuestas?\s+(hay|tengo|pendientes?)"],
+        {"propuestas", "mejoras", "propuesta", "mejora", "evolve"},
+    ),
+    # Reminders
+    (
+        "skill:reminders",
+        [r"(record|acord|avis)[aá]\w*\s+(que|de|a\s+las)",
+         r"(pon[eé]|cre[aá]|agreg[aá])\w*\s+(un\s+)?recordatorio",
+         r"reminder", r"recordatorios?\s+(activ|pendient)",
+         r"(mis|los)\s+recordatorios"],
+        {"recordatorio", "recordatorios", "reminder", "reminders",
+         "avisame", "avísame", "acordar", "recordar"},
+    ),
+
+    # ── Generic categories ──────────────────────────────────────────
     # Diagnostic requests
     (
         "diagnostic_request",
@@ -266,6 +395,10 @@ def classify_query(query: str, context: dict | None = None) -> str:
     if best_score < 2:
         best_category = "chat"
 
+    # Skill categories require score >= 3 (pattern match) to avoid false positives
+    if best_category.startswith("skill:") and best_score < 3:
+        best_category = "chat"
+
     return best_category
 
 
@@ -337,6 +470,10 @@ def select_model(
 
     Returns: model dict with at minimum {id, alias, tier}.
     """
+    # Normalize skill categories for model selection
+    if category.startswith("skill:"):
+        category = "automation_command"
+
     # V2 path: delegate to model_router
     if USE_ROUTER_V2 and available_backends is None:
         t0 = time.monotonic()
@@ -368,7 +505,11 @@ def select_model(
     _routing_metrics["v1_calls"] += 1
 
     if available_backends is None:
-        available_backends = {"local_gpu": True, "local_cpu": True, "cloud": True}
+        available_backends = {
+            "local_gpu": True, "local_cpu": True,
+            "cloud_openrouter": _is_openrouter_available(),
+            "cloud": True,
+        }
 
     pipeline = PIPELINES.get(category, PIPELINES["chat"])
     default = pipeline["default_model"]
@@ -385,12 +526,12 @@ def select_model(
 
     # Fallback chain by category
     fallback_chains = {
-        "chat": ["gemini_flash", "qwen_3b", "phi4"],
-        "knowledge_query": ["gemini_flash", "qwen_7b", "qwen_3b"],
-        "infrastructure_issue": ["qwen_7b", "qwen_3b", "gemini_flash"],
-        "automation_command": ["qwen_3b", "qwen_7b", "gemini_flash"],
-        "diagnostic_request": ["qwen_7b", "qwen_3b", "gemini_flash"],
-        "complex_reasoning": ["gemini_pro", "qwen_7b", "gemini_flash"],
+        "chat": ["openrouter_kimi", "gemini_flash", "qwen_3b", "phi4"],
+        "knowledge_query": ["openrouter_kimi", "gemini_flash", "qwen_7b", "qwen_3b"],
+        "infrastructure_issue": ["qwen_7b", "qwen_3b", "openrouter_kimi", "gemini_flash"],
+        "automation_command": ["qwen_3b", "qwen_7b", "openrouter_kimi", "gemini_flash"],
+        "diagnostic_request": ["qwen_7b", "qwen_3b", "openrouter_kimi", "gemini_flash"],
+        "complex_reasoning": ["gemini_pro", "qwen_7b", "openrouter_kimi", "gemini_flash"],
     }
 
     for model_key in fallback_chains.get(category, ["gemini_flash"]):
@@ -416,7 +557,22 @@ def select_model(
         if available_backends.get(model["tier"], False):
             return model
 
-    # Nothing available — CLOUD FALLBACK (explicit policy)
+    # Nothing available — try OpenRouter before Gemini last resort
+    if _is_openrouter_available():
+        _log({
+            "type": "cloud_fallback",
+            "reason": "all local backends offline — OpenRouter last resort",
+            "category": category,
+            "model": MODELS["openrouter_kimi"]["id"],
+        })
+        _record_metrics(
+            role=CATEGORY_TO_ROLE.get(category, "fast"),
+            model=MODELS["openrouter_kimi"]["id"], backend="cloud_openrouter",
+            v2_used=False, cloud_fallback=True,
+        )
+        return MODELS["openrouter_kimi"]
+
+    # Final fallback — Gemini cloud (explicit policy)
     _log({
         "type": "cloud_fallback",
         "reason": "all backends offline — last resort to Gemini cloud",
@@ -437,9 +593,13 @@ def select_model(
 def get_pipeline(category: str) -> dict:
     """Get pipeline configuration for a category.
 
+    Skill categories (skill:*) map to automation_command pipeline.
     Returns: {name, description, modules, default_model}
     """
-    pipeline = PIPELINES.get(category, PIPELINES["chat"])
+    lookup = category
+    if category.startswith("skill:"):
+        lookup = "automation_command"
+    pipeline = PIPELINES.get(lookup, PIPELINES["chat"])
     return {
         "name": category,
         "description": pipeline["description"],
@@ -606,6 +766,580 @@ def escalate(
     return result
 
 
+# ── Skill Execution ─────────────────────────────────────────────
+
+# Maps skill category → executable command template
+# {command} is run inside the openclaw container via subprocess
+# "destructive": True means the skill modifies state (requires confirmation)
+# "parser": optional callable name to post-process output
+
+SKILL_MAP = {
+    "skill:weather": {
+        "command": (
+            'curl -sf "https://api.open-meteo.com/v1/forecast'
+            '?latitude=-34.61&longitude=-58.38'
+            '&current_weather=true&timezone=America/Buenos_Aires"'
+        ),
+        "destructive": False,
+        "description": "Clima actual en Buenos Aires",
+        "parser": "_parse_weather",
+    },
+    "skill:email": {
+        "command": "himalaya envelope list --folder INBOX --page-size 10",
+        "destructive": False,
+        "description": "Emails recientes",
+    },
+    "skill:calendar": {
+        "command": (
+            "python3 /home/tenazas/.openclaw/workspace/skills/"
+            "calendar-agenda/gcal.py 2"
+        ),
+        "destructive": False,
+        "description": "Eventos del calendario",
+    },
+    "skill:smart-home": {
+        # Default: list light states. Actual action extracted from query.
+        "command": (
+            'curl -sf http://192.168.2.11/api/'
+            '${HUE_API_KEY}/lights'
+        ),
+        "destructive": True,
+        "description": "Control de luces Hue",
+        "handler": "_handle_smart_home",
+    },
+    "skill:tts": {
+        "command": 'bash /home/tenazas/.openclaw/workspace/skills/tts/tts.sh "{text}"',
+        "destructive": True,
+        "description": "Text-to-speech",
+        "handler": "_handle_tts",
+    },
+    "skill:network-scanner": {
+        "command": "nmap -sn 192.168.2.0/24",
+        "destructive": False,
+        "description": "Scan de red LAN",
+    },
+    "skill:arr-monitor": {
+        "command": (
+            "docker ps --filter name=gluetun --filter name=qbittorrent "
+            "--filter name=sonarr --filter name=radarr --filter name=lidarr "
+            "--filter name=prowlarr --filter name=seerr --filter name=requestrr "
+            "--filter name=tautulli --filter name=sabnzbd "
+            '--format "{{.Names}}\t{{.Status}}"'
+        ),
+        "destructive": False,
+        "description": "Estado del arr-stack",
+    },
+    "skill:infra-monitor": {
+        "command": 'docker ps --format "{{.Names}}\t{{.Status}}"',
+        "destructive": False,
+        "description": "Estado de containers Docker",
+    },
+    "skill:morning-greeting": {
+        "command": (
+            "python3 /home/tenazas/.openclaw/workspace/skills/"
+            "calendar-agenda/gcal.py 1"
+        ),
+        "destructive": False,
+        "description": "Saludo matutino",
+        "handler": "_handle_morning_greeting",
+    },
+    "skill:self-evolve": {
+        "command": "cat /home/tenazas/runtime/learning/proposals.json 2>/dev/null || echo '[]'",
+        "destructive": False,
+        "description": "Propuestas de mejora",
+        "parser": "_parse_proposals",
+    },
+    "skill:reminders": {
+        "command": (
+            "cat /home/tenazas/.openclaw/workspace/memory/reminders.json "
+            "2>/dev/null || echo '[]'"
+        ),
+        "destructive": True,
+        "description": "Recordatorios",
+        "handler": "_handle_reminders",
+    },
+}
+
+# Timeout per skill (seconds)
+SKILL_TIMEOUT = 30
+
+
+def execute_skill(skill_category: str, query: str = "") -> dict:
+    """Execute a skill and return real output.
+
+    Args:
+        skill_category: "skill:weather", "skill:email", etc.
+        query: original user query (for parameterized skills)
+
+    Returns:
+        {
+            "skill": str,
+            "success": bool,
+            "output": str,      # human-readable result
+            "raw": str,         # raw command output
+            "destructive": bool,
+            "error": str|None,
+        }
+    """
+    skill = SKILL_MAP.get(skill_category)
+    if not skill:
+        return {
+            "skill": skill_category,
+            "success": False,
+            "output": f"Skill desconocido: {skill_category}",
+            "raw": "",
+            "destructive": False,
+            "error": "unknown_skill",
+        }
+
+    # Check for custom handler
+    handler_name = skill.get("handler")
+    if handler_name:
+        handler = _SKILL_HANDLERS.get(handler_name)
+        if handler:
+            try:
+                return handler(skill_category, query, skill)
+            except Exception as e:
+                return {
+                    "skill": skill_category,
+                    "success": False,
+                    "output": f"Error en handler: {e}",
+                    "raw": str(e),
+                    "destructive": skill.get("destructive", False),
+                    "error": "handler_error",
+                }
+
+    # Standard execution: run command, capture output
+    command = skill["command"]
+    try:
+        result = subprocess.run(
+            ["bash", "-c", command],
+            capture_output=True, text=True,
+            timeout=SKILL_TIMEOUT,
+        )
+        raw_output = result.stdout.strip()
+        if result.returncode != 0 and not raw_output:
+            raw_output = result.stderr.strip()
+
+        # Apply parser if defined
+        parser_name = skill.get("parser")
+        if parser_name and parser_name in _SKILL_PARSERS:
+            parsed = _SKILL_PARSERS[parser_name](raw_output)
+        else:
+            parsed = raw_output
+
+        success = result.returncode == 0 or bool(raw_output)
+
+        _log({
+            "type": "skill_execution",
+            "skill": skill_category,
+            "success": success,
+            "returncode": result.returncode,
+            "output_len": len(raw_output),
+        })
+
+        return {
+            "skill": skill_category,
+            "success": success,
+            "output": parsed,
+            "raw": raw_output,
+            "destructive": skill.get("destructive", False),
+            "error": None if success else "command_failed",
+        }
+
+    except subprocess.TimeoutExpired:
+        _log({"type": "skill_timeout", "skill": skill_category})
+        return {
+            "skill": skill_category,
+            "success": False,
+            "output": f"Timeout ejecutando {skill['description']}",
+            "raw": "",
+            "destructive": skill.get("destructive", False),
+            "error": "timeout",
+        }
+    except Exception as e:
+        return {
+            "skill": skill_category,
+            "success": False,
+            "output": f"Error: {e}",
+            "raw": str(e),
+            "destructive": skill.get("destructive", False),
+            "error": "execution_error",
+        }
+
+
+# ── Skill Parsers ───────────────────────────────────────────────
+
+
+def _parse_weather(raw: str) -> str:
+    """Parse Open-Meteo JSON into human-readable weather."""
+    try:
+        data = json.loads(raw)
+        cw = data.get("current_weather", {})
+        temp = cw.get("temperature", "?")
+        wind = cw.get("windspeed", "?")
+        code = cw.get("weathercode", -1)
+        # WMO weather codes → description
+        weather_codes = {
+            0: "despejado", 1: "mayormente despejado",
+            2: "parcialmente nublado", 3: "nublado",
+            45: "niebla", 48: "niebla con escarcha",
+            51: "llovizna leve", 53: "llovizna", 55: "llovizna intensa",
+            61: "lluvia leve", 63: "lluvia", 65: "lluvia intensa",
+            71: "nieve leve", 73: "nieve", 75: "nieve intensa",
+            80: "chubascos leves", 81: "chubascos", 82: "chubascos intensos",
+            95: "tormenta", 96: "tormenta con granizo",
+        }
+        desc = weather_codes.get(code, f"código {code}")
+        return f"{temp}°C, {desc}, viento {wind} km/h"
+    except (json.JSONDecodeError, KeyError):
+        return raw if raw else "No se pudo obtener el clima"
+
+
+def _parse_proposals(raw: str) -> str:
+    """Parse proposals.json into a summary."""
+    try:
+        proposals = json.loads(raw)
+        if not proposals:
+            return "No hay propuestas pendientes"
+        pending = [p for p in proposals if p.get("status") == "proposed"]
+        if not pending:
+            return f"{len(proposals)} propuestas total, ninguna pendiente"
+        lines = [f"{len(pending)} propuestas pendientes:"]
+        for p in pending[:5]:
+            area = p.get("area", p.get("type", "general"))
+            desc = p.get("description", p.get("proposal", "sin descripción"))
+            if len(desc) > 80:
+                desc = desc[:77] + "..."
+            lines.append(f"  • [{area}] {desc}")
+        if len(pending) > 5:
+            lines.append(f"  ... y {len(pending) - 5} más")
+        return "\n".join(lines)
+    except (json.JSONDecodeError, TypeError):
+        return raw if raw else "Error leyendo propuestas"
+
+
+# ── Skill Handlers (for parameterized/destructive skills) ───────
+
+
+def _handle_smart_home(skill_cat: str, query: str, skill: dict) -> dict:
+    """Handle smart home commands by extracting action from query."""
+    query_lower = query.lower()
+
+    # Determine action
+    hue_key = os.environ.get("HUE_API_KEY", "")
+    if not hue_key:
+        # Try reading from known config location
+        try:
+            config_path = "/home/tenazas/.openclaw/openclaw.json"
+            with open(config_path) as f:
+                config = json.load(f)
+            hue_key = config.get("hue", {}).get("apiKey", "")
+        except Exception:
+            pass
+
+    if not hue_key:
+        return {
+            "skill": skill_cat, "success": False,
+            "output": "No se encontró la API key del Hue Bridge",
+            "raw": "", "destructive": True, "error": "no_hue_key",
+        }
+
+    base_url = f"http://192.168.2.11/api/{hue_key}"
+
+    # Detect action from query
+    if re.search(r"apag[aá]|off|todo.off|all.off", query_lower):
+        action = "all-off"
+    elif re.search(r"prend[eé]|encend|on|todo.on|all.on", query_lower):
+        action = "all-on"
+    elif re.search(r"cine|cinema", query_lower):
+        action = "cinema"
+    elif re.search(r"relax", query_lower):
+        action = "relax"
+    elif re.search(r"trabaj|work", query_lower):
+        action = "work"
+    else:
+        # Default: show light status
+        try:
+            result = subprocess.run(
+                ["curl", "-sf", f"{base_url}/lights"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                lights = json.loads(result.stdout)
+                lines = []
+                for lid, ldata in sorted(lights.items()):
+                    name = ldata.get("name", f"Light {lid}")
+                    on = ldata.get("state", {}).get("on", False)
+                    lines.append(f"  {name}: {'encendida' if on else 'apagada'}")
+                return {
+                    "skill": skill_cat, "success": True,
+                    "output": "Estado de luces:\n" + "\n".join(lines),
+                    "raw": result.stdout, "destructive": False, "error": None,
+                }
+        except Exception as e:
+            return {
+                "skill": skill_cat, "success": False,
+                "output": f"Error consultando luces: {e}",
+                "raw": str(e), "destructive": False, "error": "hue_error",
+            }
+        return {
+            "skill": skill_cat, "success": False,
+            "output": "No entendí qué hacer con las luces. "
+                      "Podés decir: apagar, encender, cinema, relax, work.",
+            "raw": "", "destructive": False, "error": "unknown_action",
+        }
+
+    # Execute scene
+    scenes = {
+        "all-off": {"on": False},
+        "all-on": {"on": True, "bri": 254},
+        "cinema": {"on": True, "bri": 50, "ct": 400},
+        "relax": {"on": True, "bri": 140, "ct": 370},
+        "work": {"on": True, "bri": 254, "ct": 250},
+    }
+    state = scenes[action]
+    light_ids = ["1", "3", "4", "6", "11", "12", "13", "15"]
+    errors = []
+    for lid in light_ids:
+        try:
+            subprocess.run(
+                ["curl", "-sf", "-X", "PUT",
+                 "-d", json.dumps(state),
+                 f"{base_url}/lights/{lid}/state"],
+                capture_output=True, text=True, timeout=5,
+            )
+        except Exception as e:
+            errors.append(f"Light {lid}: {e}")
+
+    if errors:
+        return {
+            "skill": skill_cat, "success": True,
+            "output": f"Luces: {action} (con {len(errors)} errores)",
+            "raw": "\n".join(errors), "destructive": True, "error": None,
+        }
+    return {
+        "skill": skill_cat, "success": True,
+        "output": f"Luces: {action} aplicado",
+        "raw": "", "destructive": True, "error": None,
+    }
+
+
+def _handle_tts(skill_cat: str, query: str, skill: dict) -> dict:
+    """Extract text from query and send to TTS."""
+    # Remove trigger words to get the text to speak
+    text = re.sub(
+        r"^(dec[ií]|habl[aá]|le[eé]|mand[aá]\s+audio)\s*:?\s*",
+        "", query, flags=re.IGNORECASE,
+    ).strip()
+    if not text:
+        return {
+            "skill": skill_cat, "success": False,
+            "output": "¿Qué querés que diga?",
+            "raw": "", "destructive": False, "error": "no_text",
+        }
+    # Sanitize for shell (single quotes)
+    safe_text = text.replace("'", "'\\''")
+    cmd = f"bash /home/tenazas/.openclaw/workspace/skills/tts/tts.sh '{safe_text}'"
+    try:
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            capture_output=True, text=True, timeout=SKILL_TIMEOUT,
+        )
+        if result.returncode == 0:
+            return {
+                "skill": skill_cat, "success": True,
+                "output": f"Audio enviado: \"{text[:60]}\"",
+                "raw": result.stdout, "destructive": True, "error": None,
+            }
+        return {
+            "skill": skill_cat, "success": False,
+            "output": f"Error TTS: {result.stderr[:100]}",
+            "raw": result.stderr, "destructive": True, "error": "tts_error",
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "skill": skill_cat, "success": False,
+            "output": "Timeout en TTS",
+            "raw": "", "destructive": True, "error": "timeout",
+        }
+
+
+def _handle_morning_greeting(skill_cat: str, query: str, skill: dict) -> dict:
+    """Aggregate morning greeting from multiple sources."""
+    parts = []
+    now = datetime.now()
+    parts.append(f"Buenos días Sebas — {now.strftime('%A %d/%m')}")
+
+    # Calendar
+    try:
+        r = subprocess.run(
+            ["python3", "/home/tenazas/.openclaw/workspace/skills/"
+             "calendar-agenda/gcal.py", "1"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            parts.append(f"\nAgenda:\n{r.stdout.strip()}")
+        else:
+            parts.append("\nAgenda: sin eventos")
+    except Exception:
+        parts.append("\nAgenda: no disponible")
+
+    # Weather
+    try:
+        w = subprocess.run(
+            ["curl", "-sf",
+             "https://api.open-meteo.com/v1/forecast"
+             "?latitude=-34.61&longitude=-58.38"
+             "&current_weather=true&timezone=America/Buenos_Aires"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if w.returncode == 0:
+            parts.append(f"\nClima: {_parse_weather(w.stdout)}")
+    except Exception:
+        pass
+
+    # Containers
+    try:
+        d = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}\t{{.Status}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if d.returncode == 0:
+            lines = d.stdout.strip().split("\n")
+            parts.append(f"\nContainers: {len(lines)} corriendo")
+    except Exception:
+        pass
+
+    return {
+        "skill": skill_cat, "success": True,
+        "output": "\n".join(parts),
+        "raw": "", "destructive": False, "error": None,
+    }
+
+
+def _handle_reminders(skill_cat: str, query: str, skill: dict) -> dict:
+    """Handle reminders: list or create."""
+    query_lower = query.lower()
+    reminders_file = "/home/tenazas/.openclaw/workspace/memory/reminders.json"
+
+    # Check if creating a new reminder
+    is_create = bool(re.search(
+        r"(record|acord|avis)[aá]|pon[eé]\s+.*recordatorio|"
+        r"cre[aá]\s+.*recordatorio|agreg[aá]",
+        query_lower,
+    ))
+
+    if not is_create:
+        # List existing reminders
+        try:
+            result = subprocess.run(
+                ["cat", reminders_file],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode != 0 or not result.stdout.strip():
+                return {
+                    "skill": skill_cat, "success": True,
+                    "output": "No hay recordatorios activos",
+                    "raw": "", "destructive": False, "error": None,
+                }
+            reminders = json.loads(result.stdout)
+            if not reminders:
+                return {
+                    "skill": skill_cat, "success": True,
+                    "output": "No hay recordatorios activos",
+                    "raw": "", "destructive": False, "error": None,
+                }
+            lines = ["Recordatorios activos:"]
+            for r in reminders[:10]:
+                text = r.get("text", r.get("message", "?"))
+                when = r.get("when", r.get("time", ""))
+                lines.append(f"  • {text}" + (f" ({when})" if when else ""))
+            return {
+                "skill": skill_cat, "success": True,
+                "output": "\n".join(lines),
+                "raw": result.stdout, "destructive": False, "error": None,
+            }
+        except Exception as e:
+            return {
+                "skill": skill_cat, "success": False,
+                "output": f"Error leyendo recordatorios: {e}",
+                "raw": str(e), "destructive": False, "error": "read_error",
+            }
+
+    # Creating a reminder — return the query for the LLM to process
+    # (reminder creation requires NLP parsing, delegate to LLM)
+    return {
+        "skill": skill_cat, "success": True,
+        "output": f"__DELEGATE_TO_LLM__:Crear recordatorio desde: {query}",
+        "raw": query, "destructive": True, "error": None,
+    }
+
+
+# Registry of handlers and parsers
+_SKILL_HANDLERS = {
+    "_handle_smart_home": _handle_smart_home,
+    "_handle_tts": _handle_tts,
+    "_handle_morning_greeting": _handle_morning_greeting,
+    "_handle_reminders": _handle_reminders,
+}
+
+_SKILL_PARSERS = {
+    "_parse_weather": _parse_weather,
+    "_parse_proposals": _parse_proposals,
+}
+
+
+# ── Route + Execute (main entry point for skill execution) ──────
+
+
+def route_and_execute(
+    query: str,
+    context: dict | None = None,
+    available_backends: dict | None = None,
+) -> dict:
+    """Classify, and if it's a skill, execute it directly.
+
+    For non-skill categories, returns the normal route_query() result
+    with execute=False.
+
+    For skill categories, executes the skill and returns the result
+    with execute=True and the skill output.
+
+    Returns:
+        route_query() result + {
+            "executed": bool,
+            "skill_result": {...} | None,
+        }
+    """
+    classification = classify_query(query, context)
+
+    if classification.startswith("skill:"):
+        # Execute skill directly
+        skill_result = execute_skill(classification, query)
+
+        # Still route for logging and model selection
+        route = route_query(query, context, available_backends)
+        route["classification"] = classification
+        route["executed"] = True
+        route["skill_result"] = skill_result
+
+        _log({
+            "type": "skill_routed",
+            "skill": classification,
+            "success": skill_result["success"],
+            "executed": True,
+        })
+
+        return route
+
+    # Non-skill: normal routing, no execution
+    route = route_query(query, context, available_backends)
+    route["executed"] = False
+    route["skill_result"] = None
+    return route
+
+
 # ── Internal Helpers ─────────────────────────────────────────────
 
 
@@ -694,6 +1428,12 @@ def _record_v1_fallback():
         record_v1_fallback_from_v2()
     except Exception:
         pass
+
+
+def _is_openrouter_available() -> bool:
+    """Check if OpenRouter API key is configured."""
+    import os
+    return bool(os.environ.get("OPENROUTER_API_KEY", ""))
 
 
 def _build_flags_from_context(context: dict | None) -> dict:

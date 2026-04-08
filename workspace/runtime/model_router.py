@@ -41,6 +41,15 @@ BACKENDS = {
         "description": "NAS Ryzen CPU (fallback)",
         "priority": 2,
     },
+    "openrouter": {
+        "url": "https://openrouter.ai/api/v1",
+        "tags_url": "https://openrouter.ai/api/v1/models",
+        "type": "cloud",
+        "gpu": None,
+        "vram_gb": 0,
+        "description": "OpenRouter Cloud (last resort)",
+        "priority": 3,
+    },
 }
 
 # ── Model catalog ────────────────────────────────────────────────
@@ -84,6 +93,17 @@ MODEL_CATALOG = {
         "capabilities": ["embeddings"],
         "role": "embed",
     },
+    # ── Cloud models (OpenRouter) ──
+    "moonshotai/kimi-k2": {
+        "params": "~1T MoE", "vram_gb": 0, "use": "cloud_general",
+        "capabilities": ["general", "reasoning", "analysis", "complex", "code"],
+        "role": "cloud", "cloud": True,
+    },
+    "google/gemini-flash-1.5": {
+        "params": "cloud", "vram_gb": 0, "use": "cloud_fast",
+        "capabilities": ["general", "fast", "reasoning"],
+        "role": "cloud", "cloud": True,
+    },
     # ── Legacy models (NAS CPU fallback only) ──
     "qwen2.5:3b": {
         "params": "3B", "vram_gb": 2.5, "use": "system",
@@ -118,6 +138,7 @@ ROLE_MAP = {
     "code":   ["qwen2.5-coder:14b", "qwen2.5:7b"],
     "vision": ["qwen2.5vl:7b", "qwen2.5:7b"],
     "embed":  ["nomic-embed-text"],
+    "cloud":  ["moonshotai/kimi-k2", "google/gemini-flash-1.5"],
 }
 
 VALID_ROLES = set(ROLE_MAP.keys())
@@ -422,6 +443,11 @@ def _ping_backend(backend_id: str) -> bool:
     backend = BACKENDS.get(backend_id)
     if not backend:
         return False
+
+    if backend_id == "openrouter":
+        import os
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        return bool(api_key)
 
     try:
         result = subprocess.run(
@@ -751,6 +777,34 @@ def route_by_role(
     })
 
     return result
+
+
+def call_openrouter(prompt: str, model: str = "moonshotai/kimi-k2", max_tokens: int = 1000) -> str:
+    """Call OpenRouter API. Returns response text or raises on error."""
+    import os, urllib.request, json
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+
+    payload = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "http://tenazas.local",
+            "X-OpenRouter-Title": "Tenazas",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = json.loads(r.read())
+    return data["choices"][0]["message"]["content"]
 
 
 def _collect_signals(prompt: str, flags: dict | None, role: str) -> list:

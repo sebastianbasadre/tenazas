@@ -325,7 +325,8 @@ class TestCatalogIntegrity(unittest.TestCase):
         expected = {"qwen2.5:7b", "deepseek-r1:14b", "qwen2.5:32b",
                     "qwen2.5-coder:14b", "qwen2.5vl:7b", "qwen3:8b",
                     "nomic-embed-text"}
-        actual = {k for k, v in mr.MODEL_CATALOG.items() if not v.get("legacy")}
+        actual = {k for k, v in mr.MODEL_CATALOG.items()
+                  if not v.get("legacy") and not v.get("cloud")}
         self.assertEqual(expected, actual)
 
 

@@ -12,6 +12,7 @@ services:
       - GOG_KEYRING_PASSWORD=tenazas2026
       - GOG_ACCOUNT=sebastian.basadre@gmail.com
       - GOOGLE_API_KEY=AIzaSyCvTd7GkJDfntrcYRww9LaijPWvHD4B0pg
+      - OPENROUTER_API_KEY=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
     volumes:
       - ./state:/home/tenazas/.openclaw
       - /var/run/docker.sock:/var/run/docker.sock

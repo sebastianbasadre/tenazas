@@ -73,16 +73,14 @@ class TestQueryClassification(unittest.TestCase):
         self.assertIn(result, ("automation_command", "infrastructure_issue"))
 
     def test_automation_scan(self):
-        self.assertEqual(
-            orch.classify_query("escanea la red"),
-            "automation_command",
-        )
+        # "escanea la red" now matches skill:network-scanner (more specific)
+        result = orch.classify_query("escanea la red")
+        self.assertIn(result, ("automation_command", "skill:network-scanner"))
 
     def test_automation_lights(self):
-        self.assertEqual(
-            orch.classify_query("prende las luces"),
-            "automation_command",
-        )
+        # "prende las luces" now matches skill:smart-home (more specific)
+        result = orch.classify_query("prende las luces")
+        self.assertIn(result, ("automation_command", "skill:smart-home"))
 
     def test_diagnostic_request(self):
         self.assertEqual(
