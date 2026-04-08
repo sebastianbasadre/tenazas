@@ -53,7 +53,7 @@ Smart Home (LAN)
 | GPU inference | Ollama (RTX 3090) | 192.168.2.6:11434 |
 | CPU inference | Ollama (Ryzen, fallback) | 127.0.0.1:11434 |
 | Cloud inference | Google Gemini 2.5 Flash/Pro | API (fallback final) |
-| Cloud inference | Kimi K2 via OpenRouter | API (self-evolve analysis) |
+| Cloud inference | Kimi K2 via OpenRouter | API (gateway provider + self-evolve + fallback) |
 | Vector DB (RAG) | ChromaDB | 192.168.2.2:8100 |
 | Embeddings | nomic-embed-text via Ollama | Local, gratis |
 | TTS | Piper (es_MX-claude-high) | Container `piper` |
@@ -108,6 +108,7 @@ Sistema de routing inteligente basado en roles. Clasifica el prompt por heuristi
 | `code` | qwen2.5-coder:14b | qwen2.5:7b | Generacion/refactor de codigo |
 | `vision` | qwen2.5vl:7b | qwen2.5:7b | Input con imagen |
 | `embed` | nomic-embed-text | — | Embeddings RAG |
+| `cloud` | moonshotai/kimi-k2 | google/gemini-flash-1.5 | Cloud fallback cuando local offline |
 
 **Clasificacion automatica (heuristicas):**
 1. Flag explicito (`flags["role"]`) — override directo
@@ -142,6 +143,14 @@ backend, model, url = route("reason")
 ```json
 {"ts": "...", "action": "route_v2", "task_type": "code", "model_chosen": "qwen2.5-coder:14b", "role": "code", "fallback_used": false, "vram_swap": true, "signals": ["keyword:refactor"]}
 ```
+
+**Cloud models (OpenRouter):**
+| Modelo | Uso | Costo (per Mtok) |
+|---|---|---|
+| moonshotai/kimi-k2 | General, reasoning, code, analysis | $0.60 in / $2.40 out |
+| google/gemini-flash-1.5 | Fast cloud fallback | Variable |
+
+**`call_openrouter(prompt, model, max_tokens)`** — helper stdlib para llamar OpenRouter directamente (usa `OPENROUTER_API_KEY` env var).
 
 **Integracion futura con idle learning:** El formato de log permite que `idle_learning_engine.py` analice patrones de routing (tasa de fallback, frecuencia de VRAM swap, distribucion por rol) sin cambios adicionales.
 
@@ -789,8 +798,9 @@ Incluye: lockfile protection, log rotation, heartbeat freeze detection.
 - Cooldown solo cuenta restarts exitosos (fallidos no cuentan)
 
 ### orchestrator.py — Central AI routing (integrado con Router V2)
-- Clasifica queries en: chat, knowledge_query, infrastructure_issue, automation_command, diagnostic_request, complex_reasoning
+- Clasifica queries en: chat, knowledge_query, infrastructure_issue, automation_command, diagnostic_request, complex_reasoning, openrouter_usage, skill:*
 - **Clasificacion lightweight:** keyword + regex rules (sin LLM)
+- **Skill classification:** 11 skill categories (skill:weather, skill:email, skill:calendar, skill:smart-home, skill:tts, skill:network-scanner, skill:arr-monitor, skill:infra-monitor, skill:morning-greeting, skill:self-evolve, skill:reminders). Requieren score >= 3 (pattern match) para evitar falsos positivos. Se normalizan a `automation_command` para model selection.
 - **Model selection (V2):** delega a `model_router.route_by_role()` para seleccion inteligente por rol
   - Prompt-based: codigo detectado → coder, razonamiento → deepseek, imagen → vision
   - Category-based: complex_reasoning → reason role, chat → fast role
@@ -800,17 +810,54 @@ Incluye: lockfile protection, log rotation, heartbeat freeze detection.
 - **Pipeline routing:** cada categoria tiene modulos asignados (rag, diagnostics, action_mapper)
 - **Context-aware:** recent_events, working_memory, ollama_available influyen en routing
 - **Escalation:** low confidence → escala a pipeline mas capaz (knowledge→reasoning, etc.)
+- **OpenRouter en fallback chains:** V1 fallback chains incluyen `openrouter_kimi` antes de `gemini_flash`. Si todos los backends locales offline, intenta OpenRouter antes de Gemini como last resort.
 - **Metricas:** `v2_calls`, `v1_calls`, `v1_fallback_from_v2`, `v2_vram_swaps`, `v2_fallbacks`, `v2_role_{role}`
 - **Telemetria:** `logs/orchestrator.log` (JSON por linea, incluye `router_v2_role` y `router_v2_model`)
 - `route_query(query, context)` → {classification, pipeline, model, parameters, router_v2}
+- `route_and_execute(query, context)` → route_query + ejecucion directa si es skill category
+- `execute_skill(skill_category, query)` → ejecuta skill y retorna {skill, success, output, raw, destructive, error}
 - `escalate(original_route, reason)` → ruta escalada
 - `get_routing_metrics()` → snapshot de metricas de routing
 
+### Skill Execution Engine (orchestrator.py)
+
+Motor de ejecucion directa de skills desde el orchestrator.
+
+**SKILL_MAP:** 11 skills con command templates, parsers y handlers.
+
+| Skill | Tipo | Descripcion |
+|---|---|---|
+| `skill:weather` | command + parser | Open-Meteo → texto legible (WMO codes) |
+| `skill:email` | command | himalaya envelope list |
+| `skill:calendar` | command | gcal.py (proximos eventos) |
+| `skill:smart-home` | handler | Hue lights: on/off/cinema/relax/work + status |
+| `skill:tts` | handler | Piper TTS → Telegram audio |
+| `skill:network-scanner` | command | nmap -sn LAN |
+| `skill:arr-monitor` | command | docker ps arr-stack |
+| `skill:infra-monitor` | command | docker ps all |
+| `skill:morning-greeting` | handler | Agrega calendar + weather + containers |
+| `skill:self-evolve` | command + parser | Lee proposals.json |
+| `skill:reminders` | handler | Lista o delega creacion al LLM |
+
+**Timeout:** 30s por skill.
+
+**Parsers:** `_parse_weather()` (WMO codes → español), `_parse_proposals()` (JSON → resumen).
+
+**Handlers:** skills parametrizadas o destructivas tienen handlers custom que extraen accion del query.
+
+**`route_and_execute(query)`** — entry point principal: clasifica, si es skill la ejecuta directamente y retorna output; si no, retorna route normal con `executed=False`.
+
 ### Cloud Fallback Policy (EXPLÍCITA)
-La caída a Gemini cloud **no es silenciosa**. Ocurre en estos escenarios:
-1. **V2→V1 fallback:** Router V2 detecta todos los backends Ollama offline → V1 toma control → usa Gemini Flash
-2. **V1 chain exhaustion:** Todos los modelos locales en la cadena de fallback no disponibles → Gemini Flash como último recurso
-3. **All offline last resort:** Ningún backend responde → Gemini Flash (cloud siempre disponible)
+La caída a cloud **no es silenciosa**. Cadena: OpenRouter (Kimi K2) → Gemini Flash.
+
+1. **V2→V1 fallback:** Router V2 detecta todos los backends Ollama offline → V1 toma control
+2. **V1 chain exhaustion:** Todos los modelos locales no disponibles → intenta OpenRouter Kimi K2 → luego Gemini Flash
+3. **All offline last resort:** Ningún backend local responde → OpenRouter si `OPENROUTER_API_KEY` presente → Gemini Flash como último recurso
+
+**OpenRouter como provider en OpenClaw gateway:**
+- Configurado en `state/openclaw.json` como provider `openrouter` (api: openai-compatible)
+- Modelo: `moonshotai/kimi-k2` con alias `kimi`
+- API key via env var `OPENROUTER_API_KEY` (docker-compose.yml)
 
 **Visibilidad:**
 - **Log:** `orchestrator.log` con `type: "cloud_fallback"` y motivo explícito
@@ -937,7 +984,7 @@ Ejecuta analisis completo sin guardar ni notificar. Imprime JSON de propuestas e
 | Open-Meteo | Clima | Sin auth (gratis) | Primary weather source |
 | wttr.in | Clima fallback | Sin auth | Secondary |
 | NordVPN | VPN | Via gluetun config | Servidor Espana |
-| OpenRouter | LLM cloud (Kimi K2) | API Key (env var) | Self-evolve analysis semanal |
+| OpenRouter | LLM cloud (Kimi K2) | API Key (env var) | Gateway provider, cloud fallback, self-evolve semanal |
 
 ### APIs internas (LAN, sin auth)
 | Servicio | URL | Uso |
@@ -968,6 +1015,7 @@ services:
       - GOG_KEYRING_PASSWORD=***
       - GOG_ACCOUNT=***
       - GOOGLE_API_KEY=***
+      - OPENROUTER_API_KEY=***
     volumes:
       - ./state:/home/tenazas/.openclaw
       - /var/run/docker.sock:/var/run/docker.sock
