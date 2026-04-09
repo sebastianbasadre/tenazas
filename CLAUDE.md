@@ -648,7 +648,7 @@ python3 skills/rag/ingest.py   # re-indexa todo
 
 ---
 
-## Skills (24 implementadas)
+## Skills (25 implementadas)
 
 Cada skill tiene `SKILL.md` con documentacion, y opcionalmente scripts `.py` / `.sh`.
 Ubicacion: `state/workspace/skills/`
@@ -677,6 +677,7 @@ Ubicacion: `state/workspace/skills/`
 | **tts** | Text-to-speech Piper → Telegram | tts.sh |
 | **voice-transcribe** | Whisper transcription | Solo SKILL.md |
 | **orchestrator-bridge** | MCP bridge: orchestrator skills + status + classify | mcp_server.py |
+| **model-trainer** | Pipeline automatizado de fine-tuning multitool (HomeLab SSH) | trainer_orchestrator.py, promote_model.py |
 | **weather** | Clima via Open-Meteo | Solo SKILL.md |
 
 ### Multi-agent system (agent-dispatcher)

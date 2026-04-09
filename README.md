@@ -58,7 +58,7 @@ Smart Home (LAN)
 | **LLM Routing** | Router V2: role-based (fast/reason/heavy/code/vision/embed) + hardware-aware fallback. Local-first |
 | **Arr-stack** | 10 containers de media gestionados via VPN (gluetun) |
 | **Smart Home** | Control de luces Hue y monitor Samsung M8 |
-| **24 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) |
+| **25 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) + training pipeline |
 | **Multitool Inference** | Modelo finetuned selecciona multiples tools via XML en una query |
 | **Telegram Router** | Intercepcion deterministica de skills + IOL broker + inline approvals |
 | **Memory Dreaming** | Consolidacion REM: extrae lasting truths de memoria episodica en idle |

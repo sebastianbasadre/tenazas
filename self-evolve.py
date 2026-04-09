@@ -400,3 +400,27 @@ try:
     print(f"[self_evolve] Dreaming completado: {dream_result}")
 except Exception as e:
     print(f"[self_evolve] Dreaming skipped: {e}")
+
+# 11. Auto-training semanal — solo si pasaron 6+ dias desde el ultimo
+try:
+    _training_log = Path("/volume1/docker/openclaw/state/training_log.json")
+    _should_train = True
+    if _training_log.exists():
+        _entries = json.loads(_training_log.read_text())
+        if _entries:
+            _last_ts = datetime.fromisoformat(_entries[-1]["timestamp"])
+            _days_since = (datetime.now() - _last_ts).days
+            _should_train = _days_since >= 6
+            if not _should_train:
+                print(f"[self_evolve] Training skipped — last was {_days_since} days ago")
+
+    if _should_train:
+        print("[self_evolve] Launching weekly training pipeline...")
+        subprocess.Popen([
+            "python3",
+            "/home/tenazas/.openclaw/workspace/skills/model-trainer/trainer_orchestrator.py",
+            "--action", "full_pipeline",
+        ])
+        print("[self_evolve] Training pipeline launched in background")
+except Exception as _e:
+    print(f"[self_evolve] Training auto skip: {_e}")

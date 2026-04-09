@@ -285,6 +285,17 @@ CLASSIFICATION_RULES = [
          "avisame", "avísame", "acordar", "recordar"},
     ),
 
+    # Model trainer (fine-tuning pipeline)
+    (
+        "skill:model-trainer",
+        [r"(entren[aá]|re-?entren[aá])\s+(el\s+)?modelo",
+         r"(pipeline|corr[eé])\s+(de\s+)?training",
+         r"fine[\s-]?tun(e|ing)",
+         r"(actualiz[aá]|actualizá)\s+(el\s+)?modelo\s+(de\s+)?tools",
+         r"(estado|[úu]ltimo)\s+(del?\s+)?training"],
+        {"training", "entrenar", "finetune", "finetuning", "multitool"},
+    ),
+
     # ── Generic categories ──────────────────────────────────────────
     # Diagnostic requests
     (
@@ -862,6 +873,15 @@ SKILL_MAP = {
         "description": "Recordatorios",
         "handler": "_handle_reminders",
     },
+    "skill:model-trainer": {
+        "command": (
+            "python3 /home/tenazas/.openclaw/workspace/skills/"
+            "model-trainer/trainer_orchestrator.py --action status"
+        ),
+        "destructive": False,
+        "description": "Pipeline de training multitool",
+        "handler": "_handle_model_trainer",
+    },
 }
 
 # Timeout per skill (seconds)
@@ -1322,6 +1342,52 @@ def _handle_reminders(skill_cat: str, query: str, skill: dict) -> dict:
     }
 
 
+def _handle_model_trainer(skill_cat: str, query: str, skill: dict) -> dict:
+    """Handle model-trainer queries: status, dataset, eval, or full pipeline."""
+    query_lower = query.lower()
+
+    if any(k in query_lower for k in ("estado", "último", "ultimo", "status", "cuándo", "cuando")):
+        action = "status"
+    elif "dataset" in query_lower:
+        action = "dataset_only"
+    elif "eval" in query_lower:
+        action = "eval_only"
+    else:
+        action = "full_pipeline"
+
+    script = "/home/tenazas/.openclaw/workspace/skills/model-trainer/trainer_orchestrator.py"
+
+    if action == "status":
+        try:
+            result = subprocess.run(
+                ["python3", script, "--action", "status"],
+                capture_output=True, text=True, timeout=15,
+            )
+            output = result.stdout.strip() or "Sin trainings registrados"
+        except Exception as e:
+            output = f"Error consultando status: {e}"
+        return {
+            "skill": skill_cat, "success": True,
+            "output": output, "raw": "", "destructive": False, "error": None,
+        }
+
+    # For full_pipeline/dataset/eval: launch in background
+    try:
+        subprocess.Popen(["python3", script, "--action", action])
+        msg = {
+            "full_pipeline": "Pipeline de training iniciado. Te notifico cuando termine cada etapa (~60 min).",
+            "dataset_only": "Generando dataset en background.",
+            "eval_only": "Evaluando modelo en background.",
+        }.get(action, f"Acción {action} iniciada.")
+    except Exception as e:
+        msg = f"Error lanzando {action}: {e}"
+
+    return {
+        "skill": skill_cat, "success": True,
+        "output": msg, "raw": "", "destructive": False, "error": None,
+    }
+
+
 # Registry of handlers and parsers
 _SKILL_HANDLERS = {
     "_handle_smart_home": _handle_smart_home,
@@ -1329,6 +1395,7 @@ _SKILL_HANDLERS = {
     "_handle_morning_greeting": _handle_morning_greeting,
     "_handle_reminders": _handle_reminders,
     "_handle_email": _handle_email,
+    "_handle_model_trainer": _handle_model_trainer,
 }
 
 _SKILL_PARSERS = {
