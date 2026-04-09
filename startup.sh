@@ -18,6 +18,10 @@ echo "Telegram router iniciado (deterministic skill interception)"
 
 sleep 20
 
+# IOL token refresh at startup
+python3 /home/tenazas/tools/iol_refresh.py --force 2>&1 || echo "[startup] IOL refresh failed (non-critical)"
+echo "[startup] IOL token initialized"
+
 # Verify Node version
 NODE_VER=$(node --version)
 echo "[startup] Node version: $NODE_VER"

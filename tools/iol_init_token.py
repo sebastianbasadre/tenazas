@@ -29,15 +29,30 @@ def main():
     print("═══════════════════════════════════════")
     print()
 
-    username = input("Usuario IOL: ").strip()
-    if not username:
-        print("Error: usuario vacío")
-        exit(1)
+    # Try reading credentials from openclaw.json first (non-interactive mode)
+    _username_from_config = None
+    _password_from_config = None
+    try:
+        _cfg = json.load(open(CONFIG_FILE))
+        _username_from_config = _cfg.get("iol_username")
+        _password_from_config = _cfg.get("iol_password")
+    except Exception:
+        pass
 
-    password = getpass.getpass("Contraseña IOL: ")
-    if not password:
-        print("Error: contraseña vacía")
-        exit(1)
+    if _username_from_config and _password_from_config:
+        username = _username_from_config
+        password = _password_from_config
+        print(f"Usando credenciales desde openclaw.json ({username})")
+    else:
+        username = input("Usuario IOL: ").strip()
+        if not username:
+            print("Error: usuario vacío")
+            exit(1)
+
+        password = getpass.getpass("Contraseña IOL: ")
+        if not password:
+            print("Error: contraseña vacía")
+            exit(1)
 
     print()
     print(f"Autenticando como {username}...")

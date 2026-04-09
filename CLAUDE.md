@@ -1178,6 +1178,52 @@ services:
 0 */6 * * *  python3 ingest.py  # Cada 6 horas
 ```
 
+### IOL token refresh
+```
+*/10 * * * *  docker exec openclaw python3 /home/tenazas/tools/iol_refresh.py
+```
+
+### RAG reindex semanal (con reporte)
+```
+0 4 * * 1  docker exec openclaw python3 /home/tenazas/.openclaw/workspace/skills/rag/reindex_all.py
+```
+
+### Knowledge Base (RAG memory)
+
+Archivos de memoria por dominio indexados en ChromaDB (251 chunks):
+
+```
+workspace/memory/
+├── infra/
+│   ├── homelab.md              — nodos, containers, modelos, puertos, cron
+│   ├── docker_troubleshooting.md — diagnostico, crash loops, sintomas
+│   └── gluetun_vpn.md          — NordVPN, arr-stack dependency, puertos
+├── finance/
+│   ├── iol_broker.md           — credenciales, endpoints, refresh, queries
+│   └── inversiones.md          — plataformas, instrumentos, reglas
+├── personal/
+│   ├── preferencias.md         — comunicacion, horarios, principios, aprobaciones
+│   └── smart_home.md           — Hue lights, Samsung M8, escenas
+└── jobs/                       — (futuro: busqueda laboral)
+```
+
+Datasets de routing y evaluacion en `workspace/datasets/`:
+- `router_examples.jsonl` — 39 ejemplos de routing (input → route + role + tool)
+- `eval_set.jsonl` — 24 ejemplos con dificultad (easy/medium/hard)
+- `tool_examples.jsonl` — 23 ejemplos de tool selection con reasoning
+
+### IOL Token Auto-refresh (`tools/iol_refresh.py`)
+
+Refresh automatico del bearer token de IOL InvertirOnline.
+
+- `--status`: ver estado del token (valido/vencido, expiracion)
+- `--force`: forzar refresh aunque no haya vencido
+- Sin args: refresh solo si esta por vencer (2 min margen)
+- Fallback: si refresh_token vencio, re-autentica con usuario/password desde openclaw.json
+- Si todo falla: notifica por Telegram
+
+`iol_init_token.py` modificado: lee credenciales de openclaw.json (iol_username/iol_password) con fallback a input interactivo.
+
 ---
 
 ## VPN y red

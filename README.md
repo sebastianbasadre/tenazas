@@ -64,6 +64,8 @@ Smart Home (LAN)
 | **Memory Dreaming** | Consolidacion REM: extrae lasting truths de memoria episodica en idle |
 | **Exec Approvals** | Botones inline de Telegram para aprobar/cancelar acciones |
 | **Eval Harness** | Precision, recall, F1, hallucination rate — Prometheus + Grafana |
+| **Knowledge Base** | 251 chunks RAG: infra, finance, personal, smart home + datasets routing/eval |
+| **IOL Auto-refresh** | Token refresh cada 10 min, re-auth automatica, Telegram alert on failure |
 
 ---
 
