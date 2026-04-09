@@ -1,0 +1,29 @@
+groups:
+  - name: tenazas_alerts
+    rules:
+      - alert: TenazasNetworkScanStale
+        expr: (time() - tenazas_network_last_scan_timestamp) > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Network scan stale (>15 min)"
+          description: "Último scan de red hace {{ $value | humanizeDuration }}. Revisar cron o router."
+
+      - alert: TenazasIOLTokenExpired
+        expr: (time() - iol_portfolio_last_success_ts) > 600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "IOL data stale (>10 min)"
+          description: "Última colección IOL hace {{ $value | humanizeDuration }}. Probablemente token expirado."
+
+      - alert: TenazasEvalExporterDown
+        expr: tenazas_eval_exporter_up == 0 or absent(tenazas_eval_exporter_up)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Eval exporter caído"
+          description: "El exporter de métricas eval en :9107 no responde."

@@ -122,6 +122,9 @@ if PROM_AVAILABLE:
     G_IOL_LAST_SUCCESS = Gauge("iol_portfolio_last_success_ts", "Timestamp of last successful IOL collection")
     G_IOL_ERRORS = Counter("iol_portfolio_errors_total", "Total IOL collection errors")
 
+    # ── Network Scan Freshness ─────────────────────────────────
+    G_NETWORK_SCAN_TS = Gauge("tenazas_network_last_scan_timestamp", "Timestamp of last network scan")
+
     # ── OpenRouter ─────────────────────────────────────────────
     G_OPENROUTER_BALANCE = Gauge("tenazas_openrouter_balance_usd", "Créditos disponibles en OpenRouter")
     G_OPENROUTER_USED = Gauge("tenazas_openrouter_used_usd", "Total gastado en OpenRouter")
@@ -480,5 +483,13 @@ if __name__ == "__main__":
         if now - last_openrouter_check >= OPENROUTER_CHECK_INTERVAL:
             collect_openrouter_metrics()
             last_openrouter_check = now
+
+        # Network scan freshness (read timestamp file written by router_runtime)
+        try:
+            ts_file = Path("/home/tenazas/runtime/network_scan_last_ts")
+            if ts_file.exists():
+                G_NETWORK_SCAN_TS.set(float(ts_file.read_text().strip()))
+        except Exception:
+            pass
 
         time.sleep(POLL_INTERVAL)

@@ -165,10 +165,16 @@ def update_state() -> tuple:
     nmap_cache = load_json(NMAP_CACHE_FILE, {"last_scan": 0, "hosts": 0})
     if time.time() - nmap_cache.get("last_scan", 0) > NMAP_INTERVAL_SECONDS:
         network_devices = executors.check_network_devices()
+        scan_ts = time.time()
         save_json(NMAP_CACHE_FILE, {
-            "last_scan": time.time(),
+            "last_scan": scan_ts,
             "hosts": network_devices.get("count", 0),
         })
+        # Write freshness timestamp for Prometheus metric
+        try:
+            Path("/home/tenazas/runtime/network_scan_last_ts").write_text(str(scan_ts))
+        except Exception:
+            pass
     else:
         network_devices = {"count": nmap_cache.get("hosts", 0)}
 

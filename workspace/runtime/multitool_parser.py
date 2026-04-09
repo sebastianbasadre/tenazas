@@ -25,7 +25,7 @@ TOOL_REGISTRY = {
     "email":            {"skill_category": "skill:email"},
     "calendar":         {"skill_category": "skill:calendar"},
     "infra-monitor":    {"skill_category": "skill:infra-monitor"},
-    "network-scanner":  {"skill_category": "skill:network-scanner"},
+    "network_scan":     {"skill_category": "skill:network-scanner"},
     "arr-monitor":      {"skill_category": "skill:arr-monitor"},
     "self-evolve":      {"skill_category": "skill:self-evolve"},
     "reminders":        {"skill_category": "skill:reminders"},

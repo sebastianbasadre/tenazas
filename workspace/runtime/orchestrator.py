@@ -1467,7 +1467,7 @@ MULTITOOL_SYSTEM_PROMPT = (
     "Respond only with valid XML. Allowed format:\n"
     "<tools>\n  <tool>TOOL_NAME</tool>\n</tools>\n"
     "Allowed tools: weather, email, calendar, infra-monitor, "
-    "network-scanner, arr-monitor, self-evolve, reminders, "
+    "network_scan, arr-monitor, self-evolve, reminders, "
     "smart-home-on, smart-home-off, smart-home-cinema, "
     "smart-home-relax, smart-home-work, tts.\n"
     "No extra text. If no tools apply, respond with <tools></tools>."

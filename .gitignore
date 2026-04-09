@@ -40,6 +40,7 @@ workspace/runtime/guardrail_state.json
 workspace/runtime/infra_memory.json
 workspace/runtime/nmap_cache.json
 workspace/runtime/pending_approvals.json
+workspace/runtime/network_scan_last_ts
 workspace/runtime/learning/
 
 # Runtime datasets (generated, large)

@@ -72,13 +72,13 @@ SINGLE_TOOL = [
     ("cómo está la infra", "infra-monitor"),
     ("qué containers están corriendo", "infra-monitor"),
 
-    # network-scanner (6)
-    ("escaneá la red", "network-scanner"),
-    ("cuántos dispositivos hay en la red", "network-scanner"),
-    ("quién está conectado", "network-scanner"),
-    ("scan de red", "network-scanner"),
-    ("dispositivos en la red", "network-scanner"),
-    ("nmap", "network-scanner"),
+    # network_scan (6)
+    ("escaneá la red", "network_scan"),
+    ("cuántos dispositivos hay en la red", "network_scan"),
+    ("quién está conectado", "network_scan"),
+    ("scan de red", "network_scan"),
+    ("dispositivos en la red", "network_scan"),
+    ("nmap", "network_scan"),
 
     # arr-monitor (6)
     ("cómo está el arr stack", "arr-monitor"),
@@ -149,11 +149,11 @@ MULTI_TOOL = [
     ("luces y clima", ["smart-home-on", "weather"]),
     ("poneme las luces y decime la temperatura", ["smart-home-on", "weather"]),
 
-    ("escaneá la red y decime el estado del sistema", ["network-scanner", "infra-monitor"]),
-    ("nmap y docker status", ["network-scanner", "infra-monitor"]),
-    ("dispositivos y containers", ["network-scanner", "infra-monitor"]),
-    ("scan de red y estado de infra", ["network-scanner", "infra-monitor"]),
-    ("red y containers", ["network-scanner", "infra-monitor"]),
+    ("escaneá la red y decime el estado del sistema", ["network_scan", "infra-monitor"]),
+    ("nmap y docker status", ["network_scan", "infra-monitor"]),
+    ("dispositivos y containers", ["network_scan", "infra-monitor"]),
+    ("scan de red y estado de infra", ["network_scan", "infra-monitor"]),
+    ("red y containers", ["network_scan", "infra-monitor"]),
 
     ("poné modo cine y decime el clima", ["smart-home-cinema", "weather"]),
     ("modo cinema y temperatura", ["smart-home-cinema", "weather"]),
@@ -186,8 +186,8 @@ MULTI_TOOL = [
     ("sonarr y docker status", ["arr-monitor", "infra-monitor"]),
     ("descargas y containers", ["arr-monitor", "infra-monitor"]),
 
-    ("escaneá la red y fijate el clima", ["network-scanner", "weather"]),
-    ("dispositivos y temperatura", ["network-scanner", "weather"]),
+    ("escaneá la red y fijate el clima", ["network_scan", "weather"]),
+    ("dispositivos y temperatura", ["network_scan", "weather"]),
 
     ("emails y recordatorios", ["email", "reminders"]),
     ("correos y reminders", ["email", "reminders"]),
@@ -212,9 +212,9 @@ MULTI_TOOL = [
     ("pronóstico, agenda y correos", ["weather", "calendar", "email"]),
     ("clima y agenda y inbox", ["weather", "calendar", "email"]),
 
-    ("escaneá la red, docker status y clima", ["network-scanner", "infra-monitor", "weather"]),
-    ("red, containers y temperatura", ["network-scanner", "infra-monitor", "weather"]),
-    ("nmap, docker y pronóstico", ["network-scanner", "infra-monitor", "weather"]),
+    ("escaneá la red, docker status y clima", ["network_scan", "infra-monitor", "weather"]),
+    ("red, containers y temperatura", ["network_scan", "infra-monitor", "weather"]),
+    ("nmap, docker y pronóstico", ["network_scan", "infra-monitor", "weather"]),
 
     ("prendé las luces, decime el clima y la agenda", ["smart-home-on", "weather", "calendar"]),
     ("luces, clima y eventos de hoy", ["smart-home-on", "weather", "calendar"]),
@@ -223,8 +223,8 @@ MULTI_TOOL = [
     ("mails, recordatorios y agenda", ["email", "reminders", "calendar"]),
     ("correos, reminders y eventos", ["email", "reminders", "calendar"]),
 
-    ("containers, descargas y red", ["infra-monitor", "arr-monitor", "network-scanner"]),
-    ("docker, arr stack y dispositivos", ["infra-monitor", "arr-monitor", "network-scanner"]),
+    ("containers, descargas y red", ["infra-monitor", "arr-monitor", "network_scan"]),
+    ("docker, arr stack y dispositivos", ["infra-monitor", "arr-monitor", "network_scan"]),
 
     ("clima, mails y containers", ["weather", "email", "infra-monitor"]),
     ("agenda, clima y propuestas", ["calendar", "weather", "self-evolve"]),
@@ -257,26 +257,26 @@ NO_TOOL = [
 # ── Expansion: weak tools ────────────────────────────────────────
 
 NETWORK_SCANNER_NEW = [
-    ("qué dispositivos hay en la red", "network-scanner"),
-    ("mostrá los dispositivos conectados", "network-scanner"),
-    ("quién está en la red local", "network-scanner"),
-    ("hacé un scan de red", "network-scanner"),
-    ("qué IPs hay activas", "network-scanner"),
-    ("escaneá el homelab", "network-scanner"),
-    ("buscá dispositivos en la LAN", "network-scanner"),
-    ("qué equipos están conectados al router", "network-scanner"),
-    ("mostrá los hosts activos", "network-scanner"),
-    ("hay dispositivos desconocidos en la red?", "network-scanner"),
-    ("escaneá 192.168.2.0/24", "network-scanner"),
-    ("qué está conectado a la red ahora", "network-scanner"),
-    ("listá los equipos de la red", "network-scanner"),
-    ("hacé un nmap", "network-scanner"),
-    ("detectá dispositivos nuevos en la red", "network-scanner"),
-    ("quién se conectó a la red hoy", "network-scanner"),
-    ("escaneá puertos del homelab", "network-scanner"),
-    ("qué dispositivos tiene la LAN", "network-scanner"),
-    ("mostrá la topología de red", "network-scanner"),
-    ("cuántos equipos hay en la red", "network-scanner"),
+    ("qué dispositivos hay en la red", "network_scan"),
+    ("mostrá los dispositivos conectados", "network_scan"),
+    ("quién está en la red local", "network_scan"),
+    ("hacé un scan de red", "network_scan"),
+    ("qué IPs hay activas", "network_scan"),
+    ("escaneá el homelab", "network_scan"),
+    ("buscá dispositivos en la LAN", "network_scan"),
+    ("qué equipos están conectados al router", "network_scan"),
+    ("mostrá los hosts activos", "network_scan"),
+    ("hay dispositivos desconocidos en la red?", "network_scan"),
+    ("escaneá 192.168.2.0/24", "network_scan"),
+    ("qué está conectado a la red ahora", "network_scan"),
+    ("listá los equipos de la red", "network_scan"),
+    ("hacé un nmap", "network_scan"),
+    ("detectá dispositivos nuevos en la red", "network_scan"),
+    ("quién se conectó a la red hoy", "network_scan"),
+    ("escaneá puertos del homelab", "network_scan"),
+    ("qué dispositivos tiene la LAN", "network_scan"),
+    ("mostrá la topología de red", "network_scan"),
+    ("cuántos equipos hay en la red", "network_scan"),
 ]
 
 TTS_NEW = [
@@ -479,7 +479,7 @@ if __name__ == "__main__":
         print(f"No-tool:           {len(NO_TOOL)}")
         print(f"Ambiguous:         {len(AMBIGUOUS_CONSERVATIVE)}")
         print(f"--- Expansion ---")
-        print(f"network-scanner:   {len(NETWORK_SCANNER_NEW)}")
+        print(f"network_scan:   {len(NETWORK_SCANNER_NEW)}")
         print(f"tts:               {len(TTS_NEW)}")
         print(f"infra-monitor:     {len(INFRA_MONITOR_NEW)}")
         print(f"arr-monitor:       {len(ARR_MONITOR_NEW)}")

@@ -89,7 +89,7 @@ ACTION_RULES = [
                       "new.*device"],
         "action": "run_scan",
         "target": "network",
-        "skill": "network-scanner",
+        "skill": "network_scan",
         "description": "Escanear red LAN con nmap",
         "priority": 3,
         "safe": True,
