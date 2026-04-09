@@ -35,6 +35,27 @@ workspace/runtime/memory_log.json
 workspace/runtime/patterns.json
 workspace/runtime/logs/
 
+# Runtime state files (regenerated)
+workspace/runtime/guardrail_state.json
+workspace/runtime/infra_memory.json
+workspace/runtime/nmap_cache.json
+workspace/runtime/pending_approvals.json
+workspace/runtime/learning/
+
+# Runtime datasets (generated, large)
+workspace/runtime/tool_tuning/multitool_dataset.jsonl
+workspace/runtime/tool_tuning/multitool_train.jsonl
+workspace/runtime/tool_tuning/multitool_eval.jsonl
+workspace/runtime/tool_tuning/eval_baseline.json
+workspace/runtime/tool_tuning/eval_finetuned.json
+workspace/runtime/tool_tuning/eval_3b_baseline.json
+
+# Email config (credentials)
+himalaya-config/
+
+# Host logs (not code)
+*.log
+
 # IDE / tools
 .claude/
 __pycache__/

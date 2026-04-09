@@ -234,9 +234,10 @@ CLASSIFICATION_RULES = [
         "skill:network-scanner",
         [r"(escan|scan)\w*\s*(la\s+)?red", r"dispositivos?\s+(en|de)\s+(la\s+)?red",
          r"qui[eé]n\s+est[aá]\s+conectad", r"nmap",
-         r"(cu[aá]ntos|qu[eé])\s+dispositivos"],
+         r"(cu[aá]ntos|qu[eé])\s+dispositivos",
+         r"network[\s-]?scan"],
         {"red", "dispositivos", "nmap", "conectado", "conectados",
-         "scanner", "escanear"},
+         "scanner", "escanear", "scan", "network"},
     ),
     # Arr monitor (media stack) — only status/listing queries
     # Queries with "caido/error/no funciona" go to infrastructure_issue instead

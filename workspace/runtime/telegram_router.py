@@ -22,6 +22,7 @@ import os
 import re
 import sys
 import time
+from collections import deque
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -72,6 +73,47 @@ def _get_allowed_chat_ids() -> set:
 CHAT_ID = "1565794551"
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 POLL_TIMEOUT = 30  # long-polling timeout in seconds
+
+# ── Conversation History ──────────────────────────────────────────
+# Per-chat sliding window so the LLM has context of recent exchanges.
+# Also allows skill outputs to be referenced in follow-up messages.
+
+HISTORY_MAX_TURNS = 10  # max user+assistant pairs kept
+HISTORY_MAX_AGE = 600   # seconds — discard entries older than 10 min
+
+# {chat_id: deque([ {"role": "user"|"assistant", "content": str, "ts": float}, ... ])}
+_chat_history: dict[str, deque] = {}
+
+
+def _get_history(chat_id: str) -> deque:
+    if chat_id not in _chat_history:
+        _chat_history[chat_id] = deque(maxlen=HISTORY_MAX_TURNS * 2)
+    return _chat_history[chat_id]
+
+
+def _append_history(chat_id: str, role: str, content: str):
+    """Append a message to the chat history, trimming old entries."""
+    hist = _get_history(chat_id)
+    hist.append({"role": role, "content": content, "ts": time.time()})
+
+
+def _build_ollama_messages(chat_id: str, system: str) -> list[dict]:
+    """Build messages array for Ollama /api/chat from history.
+
+    Drops entries older than HISTORY_MAX_AGE and caps assistant content
+    to 500 chars to keep the context window reasonable.
+    """
+    now = time.time()
+    msgs = [{"role": "system", "content": system}]
+    for entry in _get_history(chat_id):
+        if now - entry["ts"] > HISTORY_MAX_AGE:
+            continue
+        content = entry["content"]
+        # Cap assistant messages to avoid blowing context with long skill output
+        if entry["role"] == "assistant" and len(content) > 500:
+            content = content[:497] + "..."
+        msgs.append({"role": entry["role"], "content": content})
+    return msgs
 
 
 # ── Telegram API helpers ───────────────────────────────────────────
@@ -163,9 +205,15 @@ def classify_intent(text: str) -> str:
     the message should be handled without the LLM.
     """
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
-    from orchestrator import classify_query
+    try:
+        from orchestrator import classify_query
+        category = classify_query(text)
+    except Exception as e:
+        _log({"action": "classify_error", "error": str(e), "text": text[:80]})
+        category = "chat"
+        return category
 
-    category = classify_query(text)
+    _log({"action": "classified", "category": category, "text": text[:80]})
 
     # Safety net: if orchestrator missed email, check our override patterns
     if category == "chat":
@@ -323,7 +371,7 @@ def _load_soul() -> str:
 
 
 def _call_ollama(url: str, prompt: str, system: str, model: str | None = None) -> str | None:
-    """Call Ollama generate API. Returns response text or None."""
+    """Call Ollama generate API (single-turn). Returns response text or None."""
     payload = json.dumps({
         "model": model or LLM_MODEL,
         "prompt": prompt,
@@ -339,6 +387,25 @@ def _call_ollama(url: str, prompt: str, system: str, model: str | None = None) -
         return data.get("response", "").strip()
     except Exception as e:
         _log({"action": "ollama_error", "url": url, "error": str(e)})
+        return None
+
+
+def _call_ollama_chat(url: str, messages: list[dict], model: str | None = None) -> str | None:
+    """Call Ollama chat API (multi-turn). Returns response text or None."""
+    payload = json.dumps({
+        "model": model or LLM_MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": 0.7, "num_predict": 1024},
+    }).encode()
+    req = Request(f"{url}/api/chat", data=payload,
+                  headers={"Content-Type": "application/json"})
+    try:
+        resp = urlopen(req, timeout=LLM_TIMEOUT)
+        data = json.loads(resp.read())
+        return data.get("message", {}).get("content", "").strip()
+    except Exception as e:
+        _log({"action": "ollama_chat_error", "url": url, "error": str(e)})
         return None
 
 
@@ -410,9 +477,22 @@ def _gather_analysis_context(text: str) -> str:
     if any(k in text_lower for k in ("container", "infra", "docker", "restart")):
         docker_log = RUNTIME_DIR / "logs" / "docker_actions.log"
         try:
-            lines = docker_log.read_text().strip().split("\n")[-30:]
-            context_parts.append(f"=== docker_actions.log (últimas {len(lines)}) ===")
-            context_parts.extend(lines)
+            raw_lines = docker_log.read_text().strip().split("\n")[-50:]
+            # Filter out intentional security blocks — only show real actions
+            lines = []
+            for l in raw_lines:
+                try:
+                    entry = json.loads(l)
+                    err = str(entry.get("error", "")).lower()
+                    if "not allowed" in err or "not in the" in err:
+                        continue  # intentional block, skip
+                    lines.append(l)
+                except (json.JSONDecodeError, ValueError):
+                    lines.append(l)
+            lines = lines[-30:]
+            if lines:
+                context_parts.append(f"=== docker_actions.log (últimas {len(lines)}) ===")
+                context_parts.extend(lines)
         except (FileNotFoundError, OSError):
             pass
 
@@ -425,8 +505,8 @@ def _gather_analysis_context(text: str) -> str:
 GUARDRAIL_STATE_FILE = RUNTIME_DIR / "guardrail_state.json"
 
 
-def handle_non_skill(text: str) -> str:
-    """Forward non-skill message to Ollama LLM with router-selected model."""
+def handle_non_skill(text: str, chat_id: str = CHAT_ID) -> str:
+    """Forward non-skill message to Ollama LLM with conversation history."""
     system = _load_soul()
     model, primary_url = _select_model_for_query(text)
 
@@ -435,19 +515,37 @@ def handle_non_skill(text: str) -> str:
     if context:
         text = text + context
 
-    # Try router-selected model on its backend
-    response = _call_ollama(primary_url, text, system, model=model)
-    if response:
-        return response
+    # Build multi-turn messages from history
+    messages = _build_ollama_messages(chat_id, system)
 
-    # Fallback: default model on GPU
-    if model != LLM_MODEL or primary_url != OLLAMA_GPU_URL:
-        response = _call_ollama(OLLAMA_GPU_URL, text, system)
+    # If we have conversation history (>1 = system + at least one prior exchange),
+    # use chat API for context-aware responses
+    if len(messages) > 1:
+        response = _call_ollama_chat(primary_url, messages, model=model)
+        if response:
+            return response
+        # Fallback: default model on GPU
+        if model != LLM_MODEL or primary_url != OLLAMA_GPU_URL:
+            response = _call_ollama_chat(OLLAMA_GPU_URL, messages)
+            if response:
+                return response
+        # Last resort: NAS CPU
+        response = _call_ollama_chat(OLLAMA_NAS_URL, messages)
         if response:
             return response
 
-    # Last resort: NAS CPU
-    response = _call_ollama(OLLAMA_NAS_URL, text, system)
+    # No history or chat API failed — single-turn fallback
+    prompt = text
+    response = _call_ollama(primary_url, prompt, system, model=model)
+    if response:
+        return response
+
+    if model != LLM_MODEL or primary_url != OLLAMA_GPU_URL:
+        response = _call_ollama(OLLAMA_GPU_URL, prompt, system)
+        if response:
+            return response
+
+    response = _call_ollama(OLLAMA_NAS_URL, prompt, system)
     if response:
         return response
 
@@ -530,6 +628,9 @@ def _process_update(token: str, update: dict, allowed: set):
 
     _log({"action": "incoming", "chat_id": chat_id, "text": text[:120]})
 
+    # Record user message in history
+    _append_history(chat_id, "user", text)
+
     # Classify
     intercept, category = should_intercept(text)
 
@@ -546,11 +647,14 @@ def _process_update(token: str, update: dict, allowed: set):
         _log({"action": "delegating_to_llm", "category": category, "text": text[:80]})
         send_typing(token, chat_id)
 
-        response = handle_non_skill(text)
+        response = handle_non_skill(text, chat_id=chat_id)
 
         _log({"action": "llm_response", "category": category,
               "response_len": len(response)})
         send_message(token, chat_id, response)
+
+    # Record assistant response in history
+    _append_history(chat_id, "assistant", response)
 
 
 # ── Test Mode ──────────────────────────────────────────────────────

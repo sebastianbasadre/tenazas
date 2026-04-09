@@ -58,8 +58,22 @@ def _load_log_lines(log_path: Path, max_lines: int = MAX_LOG_LINES) -> list:
     return lines[-max_lines:]
 
 
+def _is_intentional_block(entry: dict) -> bool:
+    """Check if a log entry is an intentional security block (not a real error)."""
+    error_msg = str(entry.get("error", "")).lower()
+    if "not allowed" in error_msg or "not in the" in error_msg:
+        return True
+    if entry.get("allowed") is False:
+        return True
+    return False
+
+
 def _is_error_entry(entry: dict) -> bool:
     """Check if a log entry represents an error."""
+    # Intentional security blocks are not errors
+    if _is_intentional_block(entry):
+        return False
+
     # Explicit failure markers
     if entry.get("ok") is False:
         return True

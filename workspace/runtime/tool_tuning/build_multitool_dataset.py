@@ -254,6 +254,133 @@ NO_TOOL = [
     ("postulé a una empresa", []),
 ]
 
+# ── Expansion: weak tools ────────────────────────────────────────
+
+NETWORK_SCANNER_NEW = [
+    ("qué dispositivos hay en la red", "network-scanner"),
+    ("mostrá los dispositivos conectados", "network-scanner"),
+    ("quién está en la red local", "network-scanner"),
+    ("hacé un scan de red", "network-scanner"),
+    ("qué IPs hay activas", "network-scanner"),
+    ("escaneá el homelab", "network-scanner"),
+    ("buscá dispositivos en la LAN", "network-scanner"),
+    ("qué equipos están conectados al router", "network-scanner"),
+    ("mostrá los hosts activos", "network-scanner"),
+    ("hay dispositivos desconocidos en la red?", "network-scanner"),
+    ("escaneá 192.168.2.0/24", "network-scanner"),
+    ("qué está conectado a la red ahora", "network-scanner"),
+    ("listá los equipos de la red", "network-scanner"),
+    ("hacé un nmap", "network-scanner"),
+    ("detectá dispositivos nuevos en la red", "network-scanner"),
+    ("quién se conectó a la red hoy", "network-scanner"),
+    ("escaneá puertos del homelab", "network-scanner"),
+    ("qué dispositivos tiene la LAN", "network-scanner"),
+    ("mostrá la topología de red", "network-scanner"),
+    ("cuántos equipos hay en la red", "network-scanner"),
+]
+
+TTS_NEW = [
+    ("leeme eso en voz alta", "tts"),
+    ("decí eso por el parlante", "tts"),
+    ("reproducí eso con la voz", "tts"),
+    ("mandá audio con eso", "tts"),
+    ("leé esto en voz alta", "tts"),
+    ("convertí eso a voz", "tts"),
+    ("que tenazas hable", "tts"),
+    ("respondé con audio", "tts"),
+    ("mandá un mensaje de voz", "tts"),
+    ("decilo por el speaker", "tts"),
+    ("quiero escucharlo, no leerlo", "tts"),
+    ("generá audio con esa respuesta", "tts"),
+    ("usá la voz para responder", "tts"),
+    ("texto a voz", "tts"),
+    ("sintetizá voz con eso", "tts"),
+    ("que lo diga en voz alta", "tts"),
+    ("respuesta en audio", "tts"),
+    ("leé el resumen en voz", "tts"),
+    ("convertí el texto a audio", "tts"),
+    ("mandá voz en lugar de texto", "tts"),
+]
+
+INFRA_MONITOR_NEW = [
+    ("cómo está el homelab", "infra-monitor"),
+    ("estado del servidor", "infra-monitor"),
+    ("cómo va el NAS", "infra-monitor"),
+    ("hay algún problema de infra", "infra-monitor"),
+    ("revisá la infraestructura", "infra-monitor"),
+    ("cómo están los recursos del sistema", "infra-monitor"),
+    ("uso de CPU del NAS", "infra-monitor"),
+    ("temperatura del NAS", "infra-monitor"),
+    ("cómo están los discos", "infra-monitor"),
+    ("espacio disponible en el NAS", "infra-monitor"),
+    ("memoria RAM del NAS", "infra-monitor"),
+    ("cómo está el servidor de Ollama", "infra-monitor"),
+    ("está bien la infra", "infra-monitor"),
+    ("hay alertas de sistema", "infra-monitor"),
+    ("status del homelab completo", "infra-monitor"),
+    ("cómo está el hardware", "infra-monitor"),
+    ("uso de disco del NAS", "infra-monitor"),
+    ("performance del servidor", "infra-monitor"),
+    ("cómo están los recursos", "infra-monitor"),
+    ("revisá el estado general del sistema", "infra-monitor"),
+]
+
+ARR_MONITOR_NEW = [
+    ("cómo están las descargas", "arr-monitor"),
+    ("qué está descargando sonarr", "arr-monitor"),
+    ("estado de radarr", "arr-monitor"),
+    ("hay algo descargando ahora", "arr-monitor"),
+    ("qué hay en la cola de descargas", "arr-monitor"),
+    ("cuánto queda de descarga", "arr-monitor"),
+    ("está funcionando el arr-stack", "arr-monitor"),
+    ("hay errores en sonarr", "arr-monitor"),
+    ("radarr está andando", "arr-monitor"),
+    ("qué series se están bajando", "arr-monitor"),
+    ("está activo qbittorrent", "arr-monitor"),
+    ("hay descargas en progreso", "arr-monitor"),
+    ("cuántos torrents activos", "arr-monitor"),
+    ("cómo está la velocidad de descarga", "arr-monitor"),
+    ("el indexer de prowlarr anda", "arr-monitor"),
+]
+
+# TTS negative examples — must NOT trigger tts
+TTS_NEGATIVE = [
+    ("buenos días", []),
+    ("buenas noches", []),
+    ("hola", []),
+    ("cómo estás", []),
+    ("qué tal", []),
+    ("gracias", []),
+    ("ok", []),
+    ("entendido", []),
+    ("perfecto", []),
+    ("dale", []),
+]
+
+# Chat negative examples — must NOT trigger any tool
+CHAT_NEW = [
+    ("buenos días", []),
+    ("buenas noches", []),
+    ("buenas tardes", []),
+    ("hola Tenazas", []),
+    ("cómo estás", []),
+    ("qué tal", []),
+    ("gracias", []),
+    ("ok entendido", []),
+    ("perfecto", []),
+    ("dale", []),
+    ("muy bien", []),
+    ("qué es el modelo GPT", []),
+    ("explicame qué es un LLM", []),
+    ("cuánto es 15 por ciento de 200", []),
+    ("qué día es hoy", []),
+    ("qué hora es", []),
+    ("contame algo", []),
+    ("qué sabés hacer", []),
+    ("ayuda", []),
+    ("cuáles son tus skills", []),
+]
+
 AMBIGUOUS_CONSERVATIVE = [
     # Ambiguous queries resolved conservatively (no tools)
     ("buen día, cómo andás", []),
@@ -313,6 +440,26 @@ def generate_dataset() -> list[dict]:
     for user_msg, tools in AMBIGUOUS_CONSERVATIVE:
         entries.append(_make_entry(user_msg, tools))
 
+    # Expansion: weak tools
+    for user_msg, tool in NETWORK_SCANNER_NEW:
+        entries.append(_make_entry(user_msg, [tool]))
+
+    for user_msg, tool in TTS_NEW:
+        entries.append(_make_entry(user_msg, [tool]))
+
+    for user_msg, tool in INFRA_MONITOR_NEW:
+        entries.append(_make_entry(user_msg, [tool]))
+
+    for user_msg, tool in ARR_MONITOR_NEW:
+        entries.append(_make_entry(user_msg, [tool]))
+
+    # Negative examples (no tools)
+    for user_msg, tools in TTS_NEGATIVE:
+        entries.append(_make_entry(user_msg, tools))
+
+    for user_msg, tools in CHAT_NEW:
+        entries.append(_make_entry(user_msg, tools))
+
     return entries
 
 
@@ -327,11 +474,22 @@ def write_jsonl(entries: list[dict], output_path: str | None = None):
 
 if __name__ == "__main__":
     if "--stats" in sys.argv:
-        print(f"Single-tool: {len(SINGLE_TOOL)}")
-        print(f"Multi-tool:  {len(MULTI_TOOL)}")
-        print(f"No-tool:     {len(NO_TOOL)}")
-        print(f"Ambiguous:   {len(AMBIGUOUS_CONSERVATIVE)}")
-        print(f"Total:       {len(SINGLE_TOOL) + len(MULTI_TOOL) + len(NO_TOOL) + len(AMBIGUOUS_CONSERVATIVE)}")
+        print(f"Single-tool:       {len(SINGLE_TOOL)}")
+        print(f"Multi-tool:        {len(MULTI_TOOL)}")
+        print(f"No-tool:           {len(NO_TOOL)}")
+        print(f"Ambiguous:         {len(AMBIGUOUS_CONSERVATIVE)}")
+        print(f"--- Expansion ---")
+        print(f"network-scanner:   {len(NETWORK_SCANNER_NEW)}")
+        print(f"tts:               {len(TTS_NEW)}")
+        print(f"infra-monitor:     {len(INFRA_MONITOR_NEW)}")
+        print(f"arr-monitor:       {len(ARR_MONITOR_NEW)}")
+        print(f"tts-negative:      {len(TTS_NEGATIVE)}")
+        print(f"chat-negative:     {len(CHAT_NEW)}")
+        total = (len(SINGLE_TOOL) + len(MULTI_TOOL) + len(NO_TOOL)
+                 + len(AMBIGUOUS_CONSERVATIVE) + len(NETWORK_SCANNER_NEW)
+                 + len(TTS_NEW) + len(INFRA_MONITOR_NEW) + len(ARR_MONITOR_NEW)
+                 + len(TTS_NEGATIVE) + len(CHAT_NEW))
+        print(f"Total:             {total}")
         sys.exit(0)
 
     output = None
