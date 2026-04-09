@@ -11,7 +11,7 @@ Tenazas monitorea infraestructura, controla dispositivos smart home, gestiona un
 ```
 Synology DS923+ (192.168.2.2)
 ├── Docker Engine
-│   ├── openclaw         — Tenazas (Node.js 22, network_mode: host)
+│   ├── openclaw         — Tenazas (Node.js 24, network_mode: host)
 │   ├── gluetun          — VPN gateway (NordVPN, servidor España)
 │   ├── arr-stack (10)   — qbittorrent, sonarr, radarr, lidarr, prowlarr,
 │   │                      seerr, requestrr, tautulli, sabnzbd
@@ -58,7 +58,12 @@ Smart Home (LAN)
 | **LLM Routing** | Router V2: role-based (fast/reason/heavy/code/vision/embed) + hardware-aware fallback. Local-first |
 | **Arr-stack** | 10 containers de media gestionados via VPN (gluetun) |
 | **Smart Home** | Control de luces Hue y monitor Samsung M8 |
-| **22 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) |
+| **24 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) |
+| **Multitool Inference** | Modelo finetuned selecciona multiples tools via XML en una query |
+| **Telegram Router** | Intercepcion deterministica de skills + IOL broker + inline approvals |
+| **Memory Dreaming** | Consolidacion REM: extrae lasting truths de memoria episodica en idle |
+| **Exec Approvals** | Botones inline de Telegram para aprobar/cancelar acciones |
+| **Eval Harness** | Precision, recall, F1, hallucination rate — Prometheus + Grafana |
 
 ---
 
@@ -68,7 +73,7 @@ Smart Home (LAN)
 Scrapea metricas cada 30s de `:9105/metrics`. Retencion 30d/1GB.
 
 ### Grafana (:3000)
-Dashboard "Tenazas Runtime" con 14 paneles:
+5 dashboards Grafana:
 - Health Score (gauge + historia)
 - Ciclos completados, failures, durations
 - Container restarts, VPN disconnects, Ollama failures
@@ -76,6 +81,10 @@ Dashboard "Tenazas Runtime" con 14 paneles:
 - Step durations (update_state, detect_events, run_tasks, nmap)
 - RAG queries, low confidence
 - Memoria y CPU del proceso
+- **Tenazas Agent** — routing V1/V2, roles, latencia, guardrails, VRAM, failover
+- **OpenRouter / Kimi-K2** — gasto, balance, ultimo check
+- **Tenazas APIs** — Gemini, IOL, OpenRouter usage
+- **Multitool Eval** — F1, precision, recall, hallucination, per-tool F1, baseline vs finetuned
 
 ### Metricas exportadas
 ```
@@ -141,7 +150,7 @@ Docker healthcheck reinicia el container si el gateway no responde por 3 minutos
 ## Prerequisitos
 
 - **Synology NAS** con Docker (o cualquier host Linux con Docker)
-- **Node.js 22** (incluido en la imagen Docker)
+- **Node.js 24** (incluido en la imagen Docker)
 - **Python 3** con pip + prometheus_client
 - **Docker socket** accesible (`/var/run/docker.sock`)
 - **API keys** configuradas en `state/openclaw.json`:
@@ -192,7 +201,7 @@ El container `openclaw` arranca con `startup.sh`, que inicia:
 docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 ```
 
-### Test suites (414 tests)
+### Test suites (1435+ tests, 36 suites)
 
 | Suite | Tests | Cobertura |
 |---|---|---|
@@ -218,10 +227,16 @@ docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 | test_stability.py | 17 | Lockfile, nmap cache, crash capture |
 | test_compact.py | 11 | Context compaction |
 | test_cognitive.py | varies | Intent, decomposition, reasoning |
+| test_model_router.py | 93 | V1/V2 routing, classify, guardrails, backends, catalog |
+| test_idle_learning_v2.py | 69 | Idle learning collaborative analysis |
+| test_finance.py | 65 | Finanzas personales, parsing, alertas |
+| test_expenses.py | 68 | Gastos rapidos, montos informales, alertas |
+| test_jobs.py | 75 | Pipeline laboral, analisis JD, match scoring |
+| test_iol_broker.py | 62 | IOL portfolio, cotizaciones, ordenes |
+| test_multitool.py | 38 | Parser XML, registry, policy, orchestrator integration |
+| test_eval_harness.py | 32 | Eval metrics, split dataset, aggregate metrics |
 | test_auto_heal.sh | bash | VPN leak, containers, lock |
 | test_ollama_check.sh | bash | Routing, cache, JSON |
-
-Coverage: **77%** (36 de 47 modulos runtime testeados)
 
 ---
 
@@ -230,7 +245,7 @@ Coverage: **77%** (36 de 47 modulos runtime testeados)
 ```
 openclaw/
 ├── docker-compose.yml       — Servicios (openclaw + prometheus + grafana)
-├── Dockerfile               — Imagen base (node:22-bookworm + python3)
+├── Dockerfile               — Imagen base (node:24-bookworm + python3)
 ├── startup.sh               — Arranque: gateway + metrics + failover + telegram
 ├── prometheus.yml            — Config de Prometheus scraping
 ├── grafana-dashboard.json    — Dashboard Grafana (14 paneles)
@@ -244,7 +259,7 @@ openclaw/
 │       ├── SOUL.md          — Personalidad e instrucciones del bot
 │       └── skills/          — 22 skills con SKILL.md cada una
 │
-├── workspace/runtime/         — Runtime layer (48 modulos)
+├── workspace/runtime/         — Runtime layer (55+ modulos)
 │   ├── runtime.py             — Loop principal event-driven (cada 5 min)
 │   ├── runtime_supervisor.py  — Wrapper legacy con timeout protection
 │   ├── worker_supervisor.py   — Worker orchestrator (5 isolated subprocesses)
@@ -270,9 +285,14 @@ openclaw/
 │   ├── self_dev_engine.py     — Improvement proposals
 │   ├── idle_learning_engine.py — Idle-time optimization
 │   ├── background_agents.py   — Persistent background tasks
+│   ├── dreaming.py            — REM memory consolidation
+│   ├── exec_approvals.py      — Telegram inline keyboard approvals
+│   ├── multitool_parser.py    — XML parser + tool registry + policy
+│   ├── telegram_router.py     — Telegram polling bot (skill interception)
+│   ├── tool_tuning/           — Multitool finetuning + eval harness
 │   └── ... (30+ mas)
 │
-├── tests/                     — 414 tests (unittest + bash)
+├── tests/                     — 1435+ tests (unittest + bash, 36 suites)
 └── CLAUDE.md                — Documentacion completa para Claude Code
 ```
 

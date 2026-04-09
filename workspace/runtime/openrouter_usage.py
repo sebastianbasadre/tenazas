@@ -92,11 +92,12 @@ def get_balance() -> dict:
     is_free = key_data.get("is_free_tier", False)
     rate_limit = key_data.get("rate_limit", {})
 
-    # Balance = limit - usage (if limit set), else just report usage
-    if limit > 0:
-        balance = max(0.0, limit - usage)
-    else:
-        balance = -1.0  # no limit set, balance is unlimited
+    # Balance = limit - usage.  Fallback to known account limit if API
+    # does not report one (OpenRouter free-tier often omits it).
+    KNOWN_LIMIT_USD = 10.0
+    if limit <= 0:
+        limit = KNOWN_LIMIT_USD
+    balance = max(0.0, limit - usage)
 
     result = {
         "balance_usd": round(balance, 4),
@@ -125,10 +126,7 @@ def get_usage_summary() -> str:
 
     lines = ["OpenRouter"]
 
-    if b["balance_usd"] >= 0:
-        lines.append(f"Balance: ${b['balance_usd']:.2f}")
-    else:
-        lines.append("Balance: unlimited (no limit set)")
+    lines.append(f"Balance: ${b['balance_usd']:.2f}")
 
     lines.append(f"Usado: ${b['usage_usd']:.2f}")
 
@@ -155,10 +153,6 @@ def check_balance_alert(threshold_usd: float = 1.0) -> bool:
     try:
         b = get_balance()
     except RuntimeError:
-        return False
-
-    # If no limit set, balance is unlimited — no alert
-    if b["balance_usd"] < 0:
         return False
 
     below = b["balance_usd"] < threshold_usd

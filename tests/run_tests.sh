@@ -90,6 +90,8 @@ run_suite "op_memory"         "python3 $SCRIPT_DIR/test_operational_memory.py"
 run_suite "personal_super"    "python3 $SCRIPT_DIR/test_personal_supervisor.py"
 run_suite "vision_pipeline"   "python3 $SCRIPT_DIR/test_vision_pipeline.py"
 run_suite "iol_broker"        "python3 $SCRIPT_DIR/test_iol_broker.py"
+run_suite "multitool"         "python3 $SCRIPT_DIR/test_multitool.py"
+run_suite "eval_harness"      "python3 $SCRIPT_DIR/test_eval_harness.py"
 
 # Bash suites
 run_bash "auto_heal"          "bash $SCRIPT_DIR/test_auto_heal.sh"

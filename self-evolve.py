@@ -390,3 +390,13 @@ if kimi_msg:
     print("---")
     print(kimi_msg)
 print("---")
+
+# 10. REM dreaming — memory consolidation post-evolve
+try:
+    sys.path.insert(0, RUNTIME_DIR)
+    from dreaming import run_rem_session
+    print("[self_evolve] Iniciando REM dreaming post-evolve...")
+    dream_result = run_rem_session(force=True)
+    print(f"[self_evolve] Dreaming completado: {dream_result}")
+except Exception as e:
+    print(f"[self_evolve] Dreaming skipped: {e}")

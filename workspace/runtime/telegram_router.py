@@ -1,0 +1,624 @@
+#!/usr/bin/env python3
+"""
+Telegram Deterministic Router — Intercepts skill queries before the LLM.
+
+Runs as a standalone Telegram polling bot. For messages that match a known
+skill (email, clima, luces, infra, etc.), executes the skill directly via
+orchestrator.route_and_execute() and responds with real data. For everything
+else, forwards to Ollama with SOUL.md context so the LLM handles it.
+
+This eliminates hallucinated responses for deterministic skills because the
+LLM never sees those queries.
+
+Usage:
+    python3 telegram_router.py           # normal mode
+    python3 telegram_router.py --test    # run classification tests
+    python3 telegram_router.py --dry-run # classify stdin messages without sending
+"""
+
+import json
+import logging
+import os
+import re
+import sys
+import time
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+# ── Paths ──────────────────────────────────────────────────────────
+
+RUNTIME_DIR = Path(__file__).parent
+LOG_DIR = RUNTIME_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+CONFIG_FILE = Path("/home/tenazas/.openclaw/openclaw.json")
+SOUL_FILE = Path("/home/tenazas/.openclaw/workspace/SOUL.md")
+LOG_FILE = LOG_DIR / "telegram_router.log"
+
+# ── Logging ────────────────────────────────────────────────────────
+
+log = logging.getLogger("telegram_router")
+log.setLevel(logging.INFO)
+_handler = RotatingFileHandler(LOG_FILE, maxBytes=2_000_000, backupCount=3)
+_handler.setFormatter(logging.Formatter("%(message)s"))
+log.addHandler(_handler)
+
+
+def _log(entry: dict):
+    entry["ts"] = datetime.now().astimezone().isoformat()
+    log.info(json.dumps(entry, ensure_ascii=False))
+
+
+# ── Config ─────────────────────────────────────────────────────────
+
+def _load_config() -> dict:
+    with open(CONFIG_FILE) as f:
+        return json.load(f)
+
+
+def _get_bot_token() -> str:
+    return _load_config()["channels"]["telegram"]["botToken"]
+
+
+def _get_allowed_chat_ids() -> set:
+    cfg = _load_config()
+    return set(str(x) for x in cfg["channels"]["telegram"].get("allowFrom", []))
+
+
+CHAT_ID = "1565794551"
+TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
+POLL_TIMEOUT = 30  # long-polling timeout in seconds
+
+
+# ── Telegram API helpers ───────────────────────────────────────────
+
+def tg_request(token: str, method: str, data: dict | None = None, timeout: int = 35):
+    """Call Telegram Bot API. Returns parsed JSON or None on error."""
+    url = TELEGRAM_API.format(token=token, method=method)
+    if data:
+        payload = json.dumps(data).encode()
+        req = Request(url, data=payload,
+                      headers={"Content-Type": "application/json"})
+    else:
+        req = Request(url)
+    try:
+        resp = urlopen(req, timeout=timeout)
+        return json.loads(resp.read())
+    except (HTTPError, URLError, OSError) as e:
+        _log({"action": "tg_api_error", "method": method, "error": str(e)})
+        return None
+
+
+def send_message(token: str, chat_id: str, text: str):
+    """Send a Telegram message. Truncates to 4096 chars.
+
+    Tries Markdown first; falls back to plain text if Telegram rejects it
+    (common with special chars in skill output like email tables).
+    """
+    if len(text) > 4096:
+        text = text[:4090] + "\n..."
+    result = tg_request(token, "sendMessage", {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+    })
+    if result and result.get("ok"):
+        return result
+    # Markdown failed — retry without parse_mode
+    return tg_request(token, "sendMessage", {
+        "chat_id": chat_id,
+        "text": text,
+    })
+
+
+def send_typing(token: str, chat_id: str):
+    """Send typing indicator."""
+    tg_request(token, "sendChatAction", {
+        "chat_id": chat_id,
+        "action": "typing",
+    }, timeout=5)
+
+
+# ── Deterministic Classification ───────────────────────────────────
+#
+# Uses orchestrator.classify_query() which is already tested and proven.
+# We import it at runtime to avoid import errors during testing.
+
+# Skills that should be intercepted deterministically
+INTERCEPTED_SKILLS = {
+    "skill:email",
+    "skill:weather",
+    "skill:smart-home",
+    "skill:network-scanner",
+    "skill:arr-monitor",
+    "skill:infra-monitor",
+    "skill:calendar",
+    "skill:morning-greeting",
+    "skill:self-evolve",
+    "skill:reminders",
+    "iol_broker",
+}
+
+# Additional keyword patterns for email that the orchestrator might miss.
+# These serve as a safety net — if orchestrator says "chat" but we detect
+# email keywords, we override to skill:email.
+EMAIL_OVERRIDE_PATTERNS = [
+    r"\b(emails?|e-?mails?|correos?|mails?|inbox)\b",
+    r"\b(leeme|mostrame|revisar?|cheque[aá]r?|abr[ií])\b.{0,15}\b(correo|mail|email|inbox)",
+    r"\b(cu[aá]ntos|hay)\b.{0,10}\b(correo|mail|email)",
+    r"\bhay\s+algo\s+de\b",  # "hay algo de telus?"
+]
+_email_override_re = [re.compile(p, re.IGNORECASE) for p in EMAIL_OVERRIDE_PATTERNS]
+
+
+def classify_intent(text: str) -> str:
+    """Classify a message deterministically.
+
+    Returns a category string. If the category is in INTERCEPTED_SKILLS,
+    the message should be handled without the LLM.
+    """
+    sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
+    from orchestrator import classify_query
+
+    category = classify_query(text)
+
+    # Safety net: if orchestrator missed email, check our override patterns
+    if category == "chat":
+        text_lower = text.lower()
+        for pat in _email_override_re:
+            if pat.search(text_lower):
+                category = "skill:email"
+                _log({"action": "email_override", "original": "chat",
+                      "text": text[:80]})
+                break
+
+    return category
+
+
+def should_intercept(text: str) -> tuple[bool, str]:
+    """Returns (should_intercept, category)."""
+    category = classify_intent(text)
+    return category in INTERCEPTED_SKILLS, category
+
+
+# ── Skill Execution ────────────────────────────────────────────────
+
+def _execute_iol(text: str) -> str:
+    """Execute IOL broker query via iol_handler_cli."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["python3", "/home/tenazas/.openclaw/workspace/skills/iol_broker/iol_handler_cli.py", text],
+            capture_output=True, text=True, timeout=30,
+        )
+        output = result.stdout.strip()
+        if result.returncode == 0 and output:
+            return output
+        return result.stderr.strip() or "No pude obtener datos de IOL."
+    except subprocess.TimeoutExpired:
+        return "Timeout conectando a IOL."
+    except Exception as e:
+        return f"Error IOL: {e}"
+
+
+def execute_intercepted_skill(text: str) -> str:
+    """Execute a skill via orchestrator and return formatted response."""
+    # IOL broker has its own handler (not in orchestrator SKILL_MAP)
+    category = classify_intent(text)
+    if category == "iol_broker":
+        _log({"action": "iol_execute", "text": text[:80]})
+        return _execute_iol(text)
+
+    sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
+    from orchestrator import route_and_execute
+
+    try:
+        result = route_and_execute(text)
+    except Exception as e:
+        _log({"action": "execute_error", "error": str(e), "text": text[:80]})
+        return f"Error ejecutando skill: {e}"
+
+    executed = result.get("executed", False)
+    skill_result = result.get("skill_result")
+
+    if executed and skill_result:
+        if skill_result["success"]:
+            output = skill_result["output"] or ""
+            # Clean up output for Telegram
+            return _format_skill_output(output, result.get("classification", ""))
+        else:
+            error = skill_result.get("error", "unknown")
+            output = skill_result.get("output", "")
+            return f"No pude ejecutar: {output or error}"
+
+    # Shouldn't happen if classification matched, but handle gracefully
+    return f"Skill no ejecutado (clasificación: {result.get('classification', '?')})"
+
+
+def _format_skill_output(output: str, classification: str) -> str:
+    """Clean and format skill output for Telegram."""
+    if not output or not output.strip():
+        if "email" in classification:
+            return "No hay emails en la bandeja."
+        return "Sin datos."
+
+    # For email: parse himalaya table into readable list
+    if "email" in classification:
+        return _format_email_output(output)
+
+    return output.strip()
+
+
+def _format_email_output(output: str) -> str:
+    """Parse himalaya pipe-delimited table into a readable Telegram format."""
+    lines = output.strip().split("\n")
+
+    # Find data rows (skip header, separator, empty)
+    rows = []
+    for line in lines:
+        if "|" not in line:
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        # Filter out header/separator rows
+        if not parts or all(c in "-| " for c in line):
+            continue
+        # parts[0] is empty (before first |), parts[-1] is empty (after last |)
+        cells = [p for p in parts if p]
+        if not cells or cells[0] in ("ID", "id"):
+            continue
+        rows.append(cells)
+
+    if not rows:
+        return output.strip()
+
+    # Format each email as a compact block
+    formatted = []
+    for cells in rows:
+        # Columns: ID, FLAGS, SUBJECT, FROM, DATE
+        if len(cells) >= 4:
+            flags = cells[1].strip() if len(cells) > 1 else ""
+            subject = cells[2].strip() if len(cells) > 2 else ""
+            sender = cells[3].strip() if len(cells) > 3 else ""
+            # Truncate long subjects
+            if len(subject) > 70:
+                subject = subject[:67] + "..."
+            # Clean sender name (remove "via ..." suffixes)
+            if " vía " in sender:
+                sender = sender.split(" vía ")[0]
+            if " via " in sender:
+                sender = sender.split(" via ")[0]
+            unread = "*" if flags and "*" in flags else ""
+            marker = ">> " if unread else "   "
+            formatted.append(f"{marker}{subject}\n     {sender}")
+
+    count = len(formatted)
+    unread = sum(1 for r in rows if len(r) > 1 and "*" in r[1])
+    header = f"{count} emails recientes"
+    if unread:
+        header += f" ({unread} sin leer)"
+
+    return header + "\n\n" + "\n\n".join(formatted)
+
+
+# ── LLM Fallback (non-skill messages) ─────────────────────────────
+
+# Ollama endpoint for non-skill messages
+OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
+OLLAMA_NAS_URL = "http://127.0.0.1:11434"
+LLM_MODEL = "qwen2.5:7b"
+LLM_TIMEOUT = 60
+
+
+def _load_soul() -> str:
+    """Load SOUL.md as system prompt."""
+    try:
+        return SOUL_FILE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "Sos Tenazas, asistente personal de Sebas. Español rioplatense, directo."
+
+
+def _call_ollama(url: str, prompt: str, system: str, model: str | None = None) -> str | None:
+    """Call Ollama generate API. Returns response text or None."""
+    payload = json.dumps({
+        "model": model or LLM_MODEL,
+        "prompt": prompt,
+        "system": system,
+        "stream": False,
+        "options": {"temperature": 0.7, "num_predict": 1024},
+    }).encode()
+    req = Request(f"{url}/api/generate", data=payload,
+                  headers={"Content-Type": "application/json"})
+    try:
+        resp = urlopen(req, timeout=LLM_TIMEOUT)
+        data = json.loads(resp.read())
+        return data.get("response", "").strip()
+    except Exception as e:
+        _log({"action": "ollama_error", "url": url, "error": str(e)})
+        return None
+
+
+def _select_model_for_query(text: str) -> tuple[str, str]:
+    """Use model_router V2 to select the best model for a query.
+
+    Returns (model_name, ollama_url) or falls back to defaults.
+    """
+    try:
+        sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
+        from model_router import route_by_role
+        result = route_by_role(text)
+        if result and result.get("model") and result.get("url"):
+            return result["model"], result["url"]
+    except Exception as e:
+        _log({"action": "router_fallback", "error": str(e)})
+    return LLM_MODEL, OLLAMA_GPU_URL
+
+
+def _gather_analysis_context(text: str) -> str:
+    """Gather relevant log data for analytical queries.
+
+    If the query mentions fallback, routing, guardrails, etc., inject
+    recent log entries so the LLM has real data to analyze.
+    """
+    text_lower = text.lower()
+    context_parts = []
+
+    # Fallback / routing analysis
+    if any(k in text_lower for k in ("fallback", "routing", "rout", "modelo", "model")):
+        log_file = RUNTIME_DIR / "logs" / "model_router.log"
+        try:
+            lines = log_file.read_text().strip().split("\n")
+            # Last 50 entries
+            recent = lines[-50:]
+            context_parts.append(f"=== model_router.log (últimas {len(recent)} entradas) ===")
+            context_parts.extend(recent)
+        except (FileNotFoundError, OSError):
+            pass
+
+    # Guardrail / degradation analysis
+    if any(k in text_lower for k in ("guardrail", "degradaci", "cooldown", "vram")):
+        try:
+            data = json.loads(GUARDRAIL_STATE_FILE.read_text()) if GUARDRAIL_STATE_FILE.exists() else {}
+            context_parts.append("=== guardrail_state.json ===")
+            context_parts.append(json.dumps(data, indent=2))
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Orchestrator / cloud fallback analysis
+    if any(k in text_lower for k in ("fallback", "cloud", "orquestador", "orchestrat")):
+        orch_log = RUNTIME_DIR / "logs" / "orchestrator.log"
+        try:
+            lines = orch_log.read_text().strip().split("\n")
+            # Filter cloud_fallback entries
+            fallbacks = [l for l in lines if "cloud_fallback" in l][-20:]
+            if fallbacks:
+                context_parts.append(f"=== orchestrator.log cloud_fallbacks ({len(fallbacks)}) ===")
+                context_parts.extend(fallbacks)
+            # Also last 20 routing decisions
+            routings = [l for l in lines if '"routing"' in l][-20:]
+            if routings:
+                context_parts.append(f"=== orchestrator.log routing ({len(routings)}) ===")
+                context_parts.extend(routings)
+        except (FileNotFoundError, OSError):
+            pass
+
+    # Container / infra analysis
+    if any(k in text_lower for k in ("container", "infra", "docker", "restart")):
+        docker_log = RUNTIME_DIR / "logs" / "docker_actions.log"
+        try:
+            lines = docker_log.read_text().strip().split("\n")[-30:]
+            context_parts.append(f"=== docker_actions.log (últimas {len(lines)}) ===")
+            context_parts.extend(lines)
+        except (FileNotFoundError, OSError):
+            pass
+
+    if not context_parts:
+        return ""
+
+    return "\n\nDatos reales del sistema para tu análisis:\n" + "\n".join(context_parts)
+
+
+GUARDRAIL_STATE_FILE = RUNTIME_DIR / "guardrail_state.json"
+
+
+def handle_non_skill(text: str) -> str:
+    """Forward non-skill message to Ollama LLM with router-selected model."""
+    system = _load_soul()
+    model, primary_url = _select_model_for_query(text)
+
+    # Enrich analytical queries with real data
+    context = _gather_analysis_context(text)
+    if context:
+        text = text + context
+
+    # Try router-selected model on its backend
+    response = _call_ollama(primary_url, text, system, model=model)
+    if response:
+        return response
+
+    # Fallback: default model on GPU
+    if model != LLM_MODEL or primary_url != OLLAMA_GPU_URL:
+        response = _call_ollama(OLLAMA_GPU_URL, text, system)
+        if response:
+            return response
+
+    # Last resort: NAS CPU
+    response = _call_ollama(OLLAMA_NAS_URL, text, system)
+    if response:
+        return response
+
+    return "No pude conectar con el modelo. Ollama offline?"
+
+
+# ── Main Polling Loop ──────────────────────────────────────────────
+
+def poll_loop():
+    """Main Telegram long-polling loop."""
+    token = _get_bot_token()
+    allowed = _get_allowed_chat_ids()
+    offset = 0
+
+    _log({"action": "startup", "allowed_chats": list(allowed)})
+    print(f"[telegram_router] Started. Polling Telegram. Allowed: {allowed}")
+
+    while True:
+        try:
+            result = tg_request(token, "getUpdates", {
+                "offset": offset,
+                "timeout": POLL_TIMEOUT,
+                "allowed_updates": ["message", "callback_query"],
+            }, timeout=POLL_TIMEOUT + 5)
+
+            if not result or not result.get("ok"):
+                time.sleep(2)
+                continue
+
+            updates = result.get("result", [])
+            for update in updates:
+                offset = update["update_id"] + 1
+                _process_update(token, update, allowed)
+
+        except KeyboardInterrupt:
+            _log({"action": "shutdown", "reason": "keyboard"})
+            break
+        except Exception as e:
+            _log({"action": "poll_error", "error": str(e)})
+            time.sleep(5)
+
+
+def _handle_callback(token: str, callback_query: dict):
+    """Handle an inline keyboard callback (exec approval button tap)."""
+    try:
+        from exec_approvals import handle_callback_query
+        result = handle_callback_query(callback_query, token=token)
+        _log({"action": "callback_processed", "result": result.get("action", "unknown"),
+              "approval_id": result.get("approval_id", "")})
+    except Exception as e:
+        _log({"action": "callback_error", "error": str(e)})
+        # Answer the callback to remove loading indicator
+        cb_id = callback_query.get("id", "")
+        if cb_id:
+            tg_request(token, "answerCallbackQuery", {
+                "callback_query_id": cb_id,
+                "text": "Error procesando la accion",
+            }, timeout=5)
+
+
+def _process_update(token: str, update: dict, allowed: set):
+    """Process a single Telegram update."""
+    # Handle inline keyboard button taps (exec approvals)
+    callback = update.get("callback_query")
+    if callback:
+        cb_chat_id = str(callback.get("message", {}).get("chat", {}).get("id", ""))
+        if cb_chat_id in allowed:
+            _handle_callback(token, callback)
+        return
+
+    msg = update.get("message")
+    if not msg:
+        return
+
+    chat_id = str(msg.get("chat", {}).get("id", ""))
+    text = msg.get("text", "").strip()
+
+    if not text or chat_id not in allowed:
+        return
+
+    _log({"action": "incoming", "chat_id": chat_id, "text": text[:120]})
+
+    # Classify
+    intercept, category = should_intercept(text)
+
+    if intercept:
+        _log({"action": "intercepted", "category": category, "text": text[:80]})
+        send_typing(token, chat_id)
+
+        response = execute_intercepted_skill(text)
+
+        _log({"action": "skill_response", "category": category,
+              "response_len": len(response), "success": True})
+        send_message(token, chat_id, response)
+    else:
+        _log({"action": "delegating_to_llm", "category": category, "text": text[:80]})
+        send_typing(token, chat_id)
+
+        response = handle_non_skill(text)
+
+        _log({"action": "llm_response", "category": category,
+              "response_len": len(response)})
+        send_message(token, chat_id, response)
+
+
+# ── Test Mode ──────────────────────────────────────────────────────
+
+def run_tests():
+    """Run classification tests."""
+    test_cases = [
+        # (input, expected_intercept, expected_category_contains)
+        ("cuántos emails tengo", True, "email"),
+        ("mostrame mis correos", True, "email"),
+        ("revisá el inbox", True, "email"),
+        ("hay algo de telus?", True, "email"),
+        ("leeme los mails", True, "email"),
+        ("emails", True, "email"),
+        ("mis mails", True, "email"),
+        ("cómo está el clima?", True, "weather"),
+        ("qué temperatura hace?", True, "weather"),
+        ("prendé las luces", True, "smart-home"),
+        ("estado de los containers", True, "infra"),
+        ("escaneá la red", True, "network"),
+        ("qué tengo en la agenda?", True, "calendar"),
+        ("buenos días", True, "morning"),
+        ("explicame qué es kubernetes", False, None),
+        ("hola cómo andás", False, None),
+        ("cuánto gasté este mes", False, None),
+        ("postulé a TIVIT", False, None),
+    ]
+
+    passed = 0
+    failed = 0
+
+    for text, expected_intercept, expected_cat in test_cases:
+        intercept, category = should_intercept(text)
+        cat_ok = (expected_cat is None) or (expected_cat in category)
+        ok = (intercept == expected_intercept) and cat_ok
+
+        status = "✓" if ok else "✗"
+        if ok:
+            passed += 1
+        else:
+            failed += 1
+
+        print(f"  {status} \"{text}\"")
+        print(f"    intercept={intercept} (expected {expected_intercept})")
+        print(f"    category={category}" +
+              (f" (expected *{expected_cat}*)" if expected_cat else ""))
+
+    print(f"\n{passed} passed, {failed} failed out of {len(test_cases)}")
+    return failed == 0
+
+
+def run_dry():
+    """Read messages from stdin and classify without sending."""
+    print("Dry-run mode. Type messages (Ctrl+D to exit):")
+    for line in sys.stdin:
+        text = line.strip()
+        if not text:
+            continue
+        intercept, category = should_intercept(text)
+        action = "INTERCEPT" if intercept else "LLM"
+        print(f"  [{action}] {category}: {text}")
+
+
+# ── Entry point ────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    if "--test" in sys.argv:
+        sys.exit(0 if run_tests() else 1)
+    elif "--dry-run" in sys.argv:
+        run_dry()
+    else:
+        poll_loop()

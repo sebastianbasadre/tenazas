@@ -353,5 +353,176 @@ class TestExperimentEngine(unittest.TestCase):
         self.assertEqual(len(exps), 2)
 
 
+# ── Dreaming (REM memory consolidation) ─────────────────────────
+
+from runtime import dreaming as dr
+
+
+class TestDreaming(unittest.TestCase):
+
+    def test_content_hash_deterministic(self):
+        h1 = dr._content_hash("Sebastián prefiere respuestas cortas")
+        h2 = dr._content_hash("Sebastián prefiere respuestas cortas")
+        self.assertEqual(h1, h2)
+
+    def test_content_hash_strips_whitespace(self):
+        h1 = dr._content_hash("  truth  ")
+        h2 = dr._content_hash("truth")
+        self.assertEqual(h1, h2)
+
+    def test_content_hash_case_insensitive(self):
+        h1 = dr._content_hash("Some Truth")
+        h2 = dr._content_hash("some truth")
+        self.assertEqual(h1, h2)
+
+    def test_content_hash_different_texts(self):
+        h1 = dr._content_hash("truth one")
+        h2 = dr._content_hash("truth two")
+        self.assertNotEqual(h1, h2)
+
+    def test_content_hash_length(self):
+        h = dr._content_hash("test")
+        self.assertEqual(len(h), 16)
+
+    def test_write_to_dreams_no_duplicates(self):
+        """Writing same truth twice should deduplicate."""
+        existing = set()
+        # Mock DREAMS_FILE to temp
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            tmp = Path(f.name)
+        orig = dr.DREAMS_FILE
+        try:
+            dr.DREAMS_FILE = tmp
+            new1 = dr._write_to_dreams(["test truth alpha"], existing)
+            new2 = dr._write_to_dreams(["test truth alpha"], existing)
+            self.assertEqual(len(new1), 1)
+            self.assertEqual(len(new2), 0)
+            # Verify file has content
+            content = tmp.read_text()
+            self.assertIn("test truth alpha", content)
+            self.assertIn("<!-- hash:", content)
+        finally:
+            dr.DREAMS_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_write_to_dreams_multiple_truths(self):
+        existing = set()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            tmp = Path(f.name)
+        orig = dr.DREAMS_FILE
+        try:
+            dr.DREAMS_FILE = tmp
+            new = dr._write_to_dreams(["truth A", "truth B", "truth C"], existing)
+            self.assertEqual(len(new), 3)
+            self.assertEqual(len(existing), 3)
+        finally:
+            dr.DREAMS_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_load_existing_hashes_empty(self):
+        orig = dr.DREAMS_FILE
+        try:
+            dr.DREAMS_FILE = Path("/tmp/nonexistent_dreams_test.md")
+            hashes = dr._load_existing_hashes()
+            self.assertEqual(hashes, set())
+        finally:
+            dr.DREAMS_FILE = orig
+
+    def test_load_existing_hashes_parses_file(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("## REM Session\n<!-- hash:abc123 -->\n- truth\n<!-- hash:def456 -->\n- truth2\n")
+            tmp = Path(f.name)
+        orig = dr.DREAMS_FILE
+        try:
+            dr.DREAMS_FILE = tmp
+            hashes = dr._load_existing_hashes()
+            self.assertIn("abc123", hashes)
+            self.assertIn("def456", hashes)
+            self.assertEqual(len(hashes), 2)
+        finally:
+            dr.DREAMS_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_load_recent_episodic_missing_file(self):
+        orig_log = dr.MEMORY_LOG_FILE
+        orig_shared = dr.SHARED_MEMORY_FILE
+        try:
+            dr.MEMORY_LOG_FILE = Path("/tmp/nonexistent_mem.json")
+            dr.SHARED_MEMORY_FILE = Path("/tmp/nonexistent_shared.json")
+            entries = dr._load_recent_episodic(10)
+            self.assertEqual(entries, [])
+        finally:
+            dr.MEMORY_LOG_FILE = orig_log
+            dr.SHARED_MEMORY_FILE = orig_shared
+
+    def test_load_recent_episodic_parses_events(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump([{
+                "ts": "2026-04-08T10:00:00",
+                "events": [{"type": "container_down", "target": "sonarr"}],
+                "results": [{"action": "restart", "target": "sonarr", "ok": True}],
+            }], f)
+            tmp = Path(f.name)
+        orig_log = dr.MEMORY_LOG_FILE
+        orig_shared = dr.SHARED_MEMORY_FILE
+        try:
+            dr.MEMORY_LOG_FILE = tmp
+            dr.SHARED_MEMORY_FILE = Path("/tmp/nonexistent_shared.json")
+            entries = dr._load_recent_episodic(10)
+            self.assertTrue(len(entries) >= 1)
+            self.assertTrue(any("container_down" in e for e in entries))
+        finally:
+            dr.MEMORY_LOG_FILE = orig_log
+            dr.SHARED_MEMORY_FILE = orig_shared
+            tmp.unlink(missing_ok=True)
+
+    def test_log_session_creates_file(self):
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = Path(f.name)
+        tmp.unlink()  # start fresh
+        orig = dr.DREAM_LOG
+        try:
+            dr.DREAM_LOG = tmp
+            dr._log_session(3, 2, 5.5)
+            self.assertTrue(tmp.exists())
+            data = json.loads(tmp.read_text())
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["truths_found"], 3)
+            self.assertEqual(data[0]["new_truths"], 2)
+        finally:
+            dr.DREAM_LOG = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_log_session_caps_at_100(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            existing = [{"timestamp": "t", "truths_found": 0, "new_truths": 0,
+                         "duration_seconds": 1} for _ in range(105)]
+            json.dump(existing, f)
+            tmp = Path(f.name)
+        orig = dr.DREAM_LOG
+        try:
+            dr.DREAM_LOG = tmp
+            dr._log_session(1, 1, 2.0)
+            data = json.loads(tmp.read_text())
+            self.assertEqual(len(data), 100)
+        finally:
+            dr.DREAM_LOG = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_run_rem_no_episodic(self):
+        """Should return skip if no episodic data."""
+        orig_log = dr.MEMORY_LOG_FILE
+        orig_shared = dr.SHARED_MEMORY_FILE
+        try:
+            dr.MEMORY_LOG_FILE = Path("/tmp/nonexistent_mem.json")
+            dr.SHARED_MEMORY_FILE = Path("/tmp/nonexistent_shared.json")
+            result = dr.run_rem_session(force=True)
+            self.assertEqual(result["status"], "skip")
+            self.assertEqual(result["reason"], "no_episodic_data")
+        finally:
+            dr.MEMORY_LOG_FILE = orig_log
+            dr.SHARED_MEMORY_FILE = orig_shared
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

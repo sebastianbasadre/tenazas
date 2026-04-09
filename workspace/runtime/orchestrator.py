@@ -190,10 +190,13 @@ CLASSIFICATION_RULES = [
     # Email
     (
         "skill:email",
-        [r"(revis|cheque|ver|leer)\w*\s*(los\s+)?(e-?mails?|correos?|inbox)",
+        [r"(revis|cheque|ver|leer|mostr|abr[ií])\w*\s*(los\s+|mis\s+)?(e-?mails?|correos?|inbox|mails?)",
          r"e-?mails?\s+(sin\s+leer|nuevos|recientes)",
-         r"(tengo|hay)\s+(e-?mails?|correos?)", r"inbox",
-         r"(unread|correo\s+nuevo)"],
+         r"(tengo|hay)\s+(e-?mails?|correos?|mails?)",
+         r"mis\s+(e-?mails?|correos?|mails?)",
+         r"(cu[aá]ntos|cuantos)\s+(e-?mails?|correos?|mails?)",
+         r"inbox", r"(unread|correo\s+nuevo)",
+         r"^e-?mails?$"],
         {"email", "emails", "correo", "correos", "inbox", "unread",
          "mail", "mails", "gmail"},
     ),
@@ -785,9 +788,10 @@ SKILL_MAP = {
         "parser": "_parse_weather",
     },
     "skill:email": {
-        "command": "himalaya envelope list --folder INBOX --page-size 10",
+        "command": "himalaya envelope list --folder INBOX --page-size 20",
         "destructive": False,
         "description": "Emails recientes",
+        "handler": "_handle_email",
     },
     "skill:calendar": {
         "command": (
@@ -1218,6 +1222,48 @@ def _handle_morning_greeting(skill_cat: str, query: str, skill: dict) -> dict:
     }
 
 
+def _handle_email(skill_cat: str, query: str, skill: dict) -> dict:
+    """Handle email: list recent emails via himalaya CLI."""
+    try:
+        result = subprocess.run(
+            ["himalaya", "envelope", "list", "--folder", "INBOX",
+             "--page-size", "10"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            return {
+                "skill": skill_cat, "success": False,
+                "output": f"Error ejecutando himalaya: {stderr or 'exit code ' + str(result.returncode)}",
+                "raw": stderr, "destructive": False,
+                "error": "command_failed",
+            }
+        raw = result.stdout.strip()
+        if not raw:
+            return {
+                "skill": skill_cat, "success": True,
+                "output": "No hay emails en la bandeja de entrada.",
+                "raw": "", "destructive": False, "error": None,
+            }
+        return {
+            "skill": skill_cat, "success": True,
+            "output": f"Emails recientes:\n{raw}",
+            "raw": raw, "destructive": False, "error": None,
+        }
+    except FileNotFoundError:
+        return {
+            "skill": skill_cat, "success": False,
+            "output": "himalaya no está instalado en el container.",
+            "raw": "", "destructive": False, "error": "not_installed",
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "skill": skill_cat, "success": False,
+            "output": "Timeout conectando al email (himalaya).",
+            "raw": "", "destructive": False, "error": "timeout",
+        }
+
+
 def _handle_reminders(skill_cat: str, query: str, skill: dict) -> dict:
     """Handle reminders: list or create."""
     query_lower = query.lower()
@@ -1282,6 +1328,7 @@ _SKILL_HANDLERS = {
     "_handle_tts": _handle_tts,
     "_handle_morning_greeting": _handle_morning_greeting,
     "_handle_reminders": _handle_reminders,
+    "_handle_email": _handle_email,
 }
 
 _SKILL_PARSERS = {
@@ -1338,6 +1385,177 @@ def route_and_execute(
     route["executed"] = False
     route["skill_result"] = None
     return route
+
+
+# ── Multitool Execution ──────────────────────────────────────────
+# Optional path: when the finetuned multitool model is available in Ollama,
+# queries that request multiple actions can be routed through it.
+# Falls back to route_and_execute() on any failure.
+
+MULTITOOL_MODEL = "tenazas-multitool"
+MULTITOOL_OLLAMA_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
+MULTITOOL_SYSTEM_PROMPT = (
+    "You are a deterministic multi-tool caller. "
+    "Respond only with valid XML. Allowed format:\n"
+    "<tools>\n  <tool>TOOL_NAME</tool>\n</tools>\n"
+    "Allowed tools: weather, email, calendar, infra-monitor, "
+    "network-scanner, arr-monitor, self-evolve, reminders, "
+    "smart-home-on, smart-home-off, smart-home-cinema, "
+    "smart-home-relax, smart-home-work, tts.\n"
+    "No extra text. If no tools apply, respond with <tools></tools>."
+)
+
+
+def _call_multitool_model(query: str) -> str | None:
+    """Call the finetuned multitool model. Returns raw text or None."""
+    import urllib.request
+    payload = json.dumps({
+        "model": MULTITOOL_MODEL,
+        "prompt": query,
+        "system": MULTITOOL_SYSTEM_PROMPT,
+        "stream": False,
+        "options": {"temperature": 0, "top_p": 1, "num_predict": 128},
+    }).encode()
+    req = urllib.request.Request(
+        f"{MULTITOOL_OLLAMA_URL}/api/generate",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
+            return data.get("response", "").strip()
+    except Exception as e:
+        _log({"type": "multitool_model_error", "error": str(e)})
+        return None
+
+
+def route_and_execute_multitool(
+    query: str,
+    context: dict | None = None,
+) -> dict:
+    """Execute multiple tools from a single query via finetuned model.
+
+    Conservative policy: only enters multitool path when the query clearly
+    asks for multiple actions. On any failure, falls back to the normal
+    route_and_execute() path.
+
+    Returns:
+        {
+            "executed": bool,
+            "multitool": True,
+            "tools_used": list[str],
+            "results": list[dict],
+            "aggregated_text": str,
+            "fallback_used": bool,
+            "parse_result": dict,
+        }
+        OR the normal route_and_execute() result on fallback.
+    """
+    try:
+        from runtime.multitool_parser import (
+            parse_multitool_response, should_use_multitool,
+            get_skill_category, get_tool_action,
+        )
+    except ImportError:
+        from multitool_parser import (
+            parse_multitool_response, should_use_multitool,
+            get_skill_category, get_tool_action,
+        )
+
+    t0 = time.monotonic()
+
+    # Policy check: only use multitool if query warrants it
+    if not should_use_multitool(query):
+        _routing_metrics["multitool_policy_skip"] += 1
+        return route_and_execute(query, context)
+
+    _routing_metrics["multitool_requests_total"] += 1
+
+    # Call finetuned model
+    raw_response = _call_multitool_model(query)
+    if raw_response is None:
+        _routing_metrics["multitool_fallback_total"] += 1
+        _log({"type": "multitool_fallback", "reason": "model_offline",
+              "query": query[:100]})
+        return route_and_execute(query, context)
+
+    # Parse XML
+    parse_result = parse_multitool_response(raw_response)
+    if not parse_result["valid"]:
+        _routing_metrics["multitool_parse_failures_total"] += 1
+        _routing_metrics["multitool_fallback_total"] += 1
+        _log({"type": "multitool_parse_fail", "error": parse_result["error"],
+              "raw": raw_response[:200], "query": query[:100]})
+        return route_and_execute(query, context)
+
+    tools = parse_result["tools"]
+    if not tools:
+        # Model said no tools needed — fallback to normal
+        _log({"type": "multitool_empty", "query": query[:100]})
+        return route_and_execute(query, context)
+
+    # Execute each tool via existing execute_skill()
+    results = []
+    output_parts = []
+    for tool_name in tools:
+        skill_cat = get_skill_category(tool_name)
+        if not skill_cat:
+            results.append({"tool": tool_name, "success": False,
+                            "error": "no_skill_mapping"})
+            continue
+
+        # For smart-home tools, inject the action into the query
+        action = get_tool_action(tool_name)
+        exec_query = query
+        if action:
+            # Build a synthetic query the handler understands
+            action_queries = {
+                "on": "prendé las luces",
+                "off": "apagá las luces",
+                "cinema": "modo cinema",
+                "relax": "modo relax",
+                "work": "modo trabajo",
+            }
+            exec_query = action_queries.get(action, query)
+
+        skill_result = execute_skill(skill_cat, exec_query)
+        results.append({
+            "tool": tool_name,
+            "skill": skill_cat,
+            "success": skill_result["success"],
+            "output": skill_result["output"],
+            "error": skill_result.get("error"),
+        })
+        _routing_metrics["multitool_tools_executed_total"] += 1
+
+        if skill_result["success"] and skill_result["output"]:
+            output_parts.append(skill_result["output"])
+
+    duration = time.monotonic() - t0
+    aggregated = "\n\n".join(output_parts) if output_parts else "Sin resultados"
+
+    _log({
+        "type": "multitool_execution",
+        "query": query[:100],
+        "raw_model": raw_response[:200],
+        "tools": tools,
+        "results_ok": sum(1 for r in results if r.get("success")),
+        "results_fail": sum(1 for r in results if not r.get("success")),
+        "duration_s": round(duration, 2),
+    })
+
+    return {
+        "executed": True,
+        "multitool": True,
+        "tools_used": tools,
+        "results": results,
+        "aggregated_text": aggregated,
+        "fallback_used": False,
+        "parse_result": parse_result,
+        "classification": "multitool",
+        "skill_result": None,
+    }
 
 
 # ── Internal Helpers ─────────────────────────────────────────────

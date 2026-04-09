@@ -280,6 +280,15 @@ def analyze_idle() -> dict:
         "high_priority": sum(1 for s in unique if s["priority"] == "high"),
     })
 
+    # REM dreaming — memory consolidation in idle
+    try:
+        from dreaming import run_rem_session
+        rem = run_rem_session()
+        if rem.get("new_truths", 0) > 0:
+            _log({"type": "rem_dreaming", "new_truths": rem["new_truths"]})
+    except Exception as e:
+        _log({"type": "rem_dreaming_skip", "error": str(e)})
+
     return result
 
 

@@ -23,3 +23,9 @@ scrape_configs:
       - targets: ["host.docker.internal:9106"]
         labels:
           instance: "openclaw"
+  - job_name: "tenazas_multitool_eval"
+    scrape_interval: 300s
+    static_configs:
+      - targets: ["host.docker.internal:9107"]
+        labels:
+          instance: "openclaw"

@@ -7,6 +7,7 @@ Corre: python3 tests/test_confidence.py
 import sys
 import json
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -364,6 +365,171 @@ class TestInfraDiagnostics(unittest.TestCase):
                     severity_order.get(issues[i]["severity"], 9),
                     severity_order.get(issues[i + 1]["severity"], 9),
                 )
+
+
+# ── Exec Approvals (Telegram Inline Keyboard) ──────────────────
+
+from runtime import exec_approvals as ea
+
+
+class TestExecApprovals(unittest.TestCase):
+
+    def test_generate_approval_id_unique(self):
+        id1 = ea._generate_approval_id("restart sonarr")
+        id2 = ea._generate_approval_id("restart sonarr")
+        self.assertNotEqual(id1, id2)
+
+    def test_generate_approval_id_length(self):
+        aid = ea._generate_approval_id("test action")
+        self.assertEqual(len(aid), 12)
+
+    def test_cleanup_expired_removes_old(self):
+        pending = {
+            "old": {"created_at": time.time() - 400, "status": "pending"},
+            "new": {"created_at": time.time() - 10, "status": "pending"},
+        }
+        cleaned = ea._cleanup_expired(pending)
+        self.assertNotIn("old", cleaned)
+        self.assertIn("new", cleaned)
+
+    def test_cleanup_expired_keeps_recent(self):
+        pending = {
+            "a": {"created_at": time.time() - 100, "status": "pending"},
+            "b": {"created_at": time.time() - 200, "status": "approved"},
+        }
+        cleaned = ea._cleanup_expired(pending)
+        self.assertEqual(len(cleaned), 2)
+
+    def test_cleanup_expired_empty(self):
+        self.assertEqual(ea._cleanup_expired({}), {})
+
+    def test_get_approval_status_not_found(self):
+        orig = ea.PENDING_FILE
+        try:
+            ea.PENDING_FILE = Path("/tmp/nonexistent_approvals_test.json")
+            result = ea.get_approval_status("nonexistent_id_xyz")
+            self.assertEqual(result, "not_found")
+        finally:
+            ea.PENDING_FILE = orig
+
+    def test_get_approval_status_pending(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({
+                "test123": {
+                    "status": "pending",
+                    "created_at": time.time() - 10,
+                    "action_summary": "test",
+                }
+            }, f)
+            tmp = Path(f.name)
+        orig = ea.PENDING_FILE
+        try:
+            ea.PENDING_FILE = tmp
+            self.assertEqual(ea.get_approval_status("test123"), "pending")
+        finally:
+            ea.PENDING_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_get_approval_status_expired(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({
+                "old123": {
+                    "status": "pending",
+                    "created_at": time.time() - 600,
+                }
+            }, f)
+            tmp = Path(f.name)
+        orig = ea.PENDING_FILE
+        try:
+            ea.PENDING_FILE = tmp
+            self.assertEqual(ea.get_approval_status("old123"), "expired")
+        finally:
+            ea.PENDING_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_get_approval_status_approved(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({
+                "done123": {
+                    "status": "approved",
+                    "created_at": time.time() - 30,
+                }
+            }, f)
+            tmp = Path(f.name)
+        orig = ea.PENDING_FILE
+        try:
+            ea.PENDING_FILE = tmp
+            self.assertEqual(ea.get_approval_status("done123"), "approved")
+        finally:
+            ea.PENDING_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_save_and_load_pending(self):
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = Path(f.name)
+        orig = ea.PENDING_FILE
+        try:
+            ea.PENDING_FILE = tmp
+            data = {"abc": {"status": "pending", "created_at": time.time()}}
+            ea._save_pending(data)
+            loaded = ea._load_pending()
+            self.assertIn("abc", loaded)
+            self.assertEqual(loaded["abc"]["status"], "pending")
+        finally:
+            ea.PENDING_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_load_pending_missing_file(self):
+        orig = ea.PENDING_FILE
+        try:
+            ea.PENDING_FILE = Path("/tmp/nonexistent_pending.json")
+            self.assertEqual(ea._load_pending(), {})
+        finally:
+            ea.PENDING_FILE = orig
+
+    def test_load_pending_corrupt_file(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write("not json{{{")
+            tmp = Path(f.name)
+        orig = ea.PENDING_FILE
+        try:
+            ea.PENDING_FILE = tmp
+            self.assertEqual(ea._load_pending(), {})
+        finally:
+            ea.PENDING_FILE = orig
+            tmp.unlink(missing_ok=True)
+
+    def test_handle_callback_unknown_data(self):
+        """Callback with no colon separator should return unknown."""
+        # Mock the telegram request to not actually call API
+        orig_tg = ea._tg_request
+        ea._tg_request = lambda *a, **kw: {"ok": True}
+        try:
+            result = ea.handle_callback_query({
+                "id": "123",
+                "data": "baddata",
+                "message": {"chat": {"id": 1}, "message_id": 1},
+            }, token="fake")
+            self.assertEqual(result["action"], "unknown")
+        finally:
+            ea._tg_request = orig_tg
+
+    def test_handle_callback_expired_approval(self):
+        """Callback for non-existent approval should return expired."""
+        orig_tg = ea._tg_request
+        orig_pending = ea.PENDING_FILE
+        ea._tg_request = lambda *a, **kw: {"ok": True}
+        ea.PENDING_FILE = Path("/tmp/nonexistent_approvals.json")
+        try:
+            result = ea.handle_callback_query({
+                "id": "123",
+                "data": "approve:nonexistent",
+                "message": {"chat": {"id": 1}, "message_id": 1},
+            }, token="fake")
+            self.assertEqual(result["action"], "expired")
+        finally:
+            ea._tg_request = orig_tg
+            ea.PENDING_FILE = orig_pending
 
 
 if __name__ == "__main__":

@@ -374,14 +374,22 @@ class TestClassifyTask(unittest.TestCase):
         code = "if (x > 0) { return foo(x); } else { return bar(y); }"
         self.assertEqual(mr.classify_task(code), "code")
 
-    def test_reason_keyword_analiza(self):
-        self.assertEqual(mr.classify_task("analiza por que subio la latencia"), "reason")
+    def test_reason_light_stays_fast(self):
+        # Short simple reasoning queries stay on fast to avoid VRAM swaps
+        self.assertEqual(mr.classify_task("analiza por que subio la latencia"), "fast")
+        self.assertEqual(mr.classify_task("evalua el rendimiento del sistema"), "fast")
+        self.assertEqual(mr.classify_task("why did the container keep restarting over and over"), "fast")
 
-    def test_reason_keyword_evalua(self):
-        self.assertEqual(mr.classify_task("evalua el rendimiento del sistema"), "reason")
+    def test_reason_deep_uses_deepseek(self):
+        # Complex reasoning with deep keywords → reason (deepseek-r1:14b)
+        self.assertEqual(mr.classify_task("investiga step by step por que falla el deploy"), "reason")
+        self.assertEqual(mr.classify_task("analiza en detalle profundo los logs de error del ultimo mes"), "reason")
+        self.assertEqual(mr.classify_task("diagnostico completo del root cause del crash loop"), "reason")
 
-    def test_reason_keyword_why(self):
-        self.assertEqual(mr.classify_task("why did the container keep restarting over and over"), "reason")
+    def test_reason_long_prompt_uses_deepseek(self):
+        # Long reasoning prompts (>300 chars) go to deepseek even without deep keywords
+        long_reason = "evalua " + "el rendimiento del sistema con todos los datos " * 8
+        self.assertEqual(mr.classify_task(long_reason), "reason")
 
     def test_reason_long_question(self):
         long = "quiero saber " + "detalle " * 80 + "?"
@@ -436,7 +444,8 @@ class TestRouteByRole(unittest.TestCase):
     @patch("runtime.model_router.detect_backends")
     def test_reason_selects_deepseek(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
-        result = mr.route_by_role("analiza por que subio la latencia")
+        # Deep reasoning prompt triggers deepseek-r1:14b
+        result = mr.route_by_role("investiga step by step por que falla el deploy de produccion")
         self.assertEqual(result["model"], "deepseek-r1:14b")
         self.assertEqual(result["role"], "reason")
 

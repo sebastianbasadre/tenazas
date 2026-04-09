@@ -12,7 +12,18 @@ cd /home/tenazas && python3 /home/tenazas/runtime/model_failover.py &
 python3 -c "from runtime.api_call_counter import start_exporter; start_exporter(); import time; [time.sleep(3600) for _ in iter(int, 1)]" &
 echo "API metrics exporter iniciado en :9106"
 
+# Start Telegram deterministic router (intercepts skills before LLM)
+cd /home/tenazas && python3 /home/tenazas/runtime/telegram_router.py &
+echo "Telegram router iniciado (deterministic skill interception)"
+
 sleep 20
+
+# Verify Node version
+NODE_VER=$(node --version)
+echo "[startup] Node version: $NODE_VER"
+if [[ "$NODE_VER" < "v24" ]]; then
+  echo "[startup] WARN: Node < 24 detectado. OpenClaw 2026.4.x recomienda Node 24."
+fi
 
 LOCKFILE="/tmp/tenazas-startup.lock"
 if [ ! -f "$LOCKFILE" ] || [ $(($(date +%s) - $(cat "$LOCKFILE"))) -gt 300 ]; then

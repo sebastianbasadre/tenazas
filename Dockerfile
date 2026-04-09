@@ -1,4 +1,4 @@
-FROM node:22-bookworm
+FROM node:24-bookworm
 RUN apt-get update && apt-get install -y python3 python3-pip python3-venv ffmpeg curl nmap iputils-ping dnsutils docker.io && rm -rf /var/lib/apt/lists/*
 RUN npm install -g openclaw@latest
 RUN pip3 install --break-system-packages requests torch --index-url https://download.pytorch.org/whl/cpu

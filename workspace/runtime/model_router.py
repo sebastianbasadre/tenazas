@@ -423,6 +423,15 @@ _HEAVY_KEYWORDS = re.compile(
     r"|s[ií]ntesis|resumen\s+(completo|general|ejecutivo)|comprehensive)\b", re.I,
 )
 
+# Deep reasoning markers: prompts that truly need deepseek-r1:14b
+# Short/simple reasoning queries stay on qwen2.5:7b to avoid VRAM swaps
+_DEEP_REASON_KEYWORDS = re.compile(
+    r"\b(step\s+by\s+step|root\s+cause|debug.*log|investiga\w*|diagn[oó]stic\w*"
+    r"|compar[aá]\w*.*(?:ventajas|opciones|alternativas)"
+    r"|evalua\w*.*detall|anali[zs]a\w*.*(?:profund|complet|detall))", re.I,
+)
+REASON_COMPLEXITY_THRESHOLD = 300  # chars: short reason queries stay on fast
+
 _CODE_SPECIAL_CHARS = set("{}();=[]<>")
 _CODE_CHAR_THRESHOLD = 0.08  # 8% special chars → likely code
 
@@ -640,9 +649,13 @@ def classify_task(prompt: str, flags: dict | None = None) -> str:
         if special / len(prompt) >= _CODE_CHAR_THRESHOLD:
             return "code"
 
-    # 5. Reasoning detection
+    # 5. Reasoning detection — split by complexity to reduce VRAM swaps
+    #    Deep reasoning (long prompt or deep keywords) → reason (deepseek-r1:14b)
+    #    Light reasoning (short prompt, simple keywords) → fast (qwen2.5:7b)
     if _REASON_KEYWORDS.search(prompt):
-        return "reason"
+        if _DEEP_REASON_KEYWORDS.search(prompt) or len(prompt) > REASON_COMPLEXITY_THRESHOLD:
+            return "reason"
+        return "fast"  # simple reasoning stays on qwen2.5:7b, avoids VRAM swap
     if len(prompt) > 500 and "?" in prompt:
         return "reason"
 
@@ -829,6 +842,8 @@ def _collect_signals(prompt: str, flags: dict | None, role: str) -> list:
     if _REASON_KEYWORDS.search(prompt):
         match = _REASON_KEYWORDS.search(prompt)
         signals.append(f"keyword:{match.group().lower()}")
+        if not _DEEP_REASON_KEYWORDS.search(prompt) and len(prompt) <= REASON_COMPLEXITY_THRESHOLD:
+            signals.append("reason_light:stayed_on_fast")
     if _HEAVY_KEYWORDS.search(prompt):
         match = _HEAVY_KEYWORDS.search(prompt)
         signals.append(f"keyword:{match.group().lower()}")

@@ -49,7 +49,7 @@ Smart Home (LAN)
 |---|---|---|
 | Runtime host | Synology DS923+, Ryzen CPU | 192.168.2.2 |
 | Container engine | Docker + docker-compose | NAS |
-| Asistente | OpenClaw (Node.js 22, Bookworm) | Container `openclaw` |
+| Asistente | OpenClaw (Node.js 24, Bookworm) | Container `openclaw` |
 | GPU inference | Ollama (RTX 3090) | 192.168.2.6:11434 |
 | CPU inference | Ollama (Ryzen, fallback) | 127.0.0.1:11434 |
 | Cloud inference | Google Gemini 2.5 Flash/Pro | API (fallback final) |
@@ -281,6 +281,80 @@ Mejora [guardrails]: reducir cooldown de 120s a 60s
 ```
 
 **Futuro:** integrar con morning greeting (8AM) para envio automatico por Telegram
+
+### Memory Dreaming — Consolidacion REM (`dreaming.py`)
+
+Motor de consolidacion de memoria en idle. Lee eventos episodicos recientes, extrae "lasting truths" via LLM, y las escribe a `learning/dreams.md` de forma replay-safe (sin duplicados).
+
+**Flujo:**
+```
+load_recent_episodic() → memory_log.json + shared_memory.json
+_extract_truths(LLM)  → qwen2.5:7b (GPU) o phi4-mini (NAS CPU fallback)
+_write_to_dreams()     → learning/dreams.md (dedup por content hash)
+_log_session()         → learning/dream_log.json
+```
+
+**Ejecucion:**
+```bash
+docker exec openclaw python3 /home/tenazas/runtime/dreaming.py
+docker exec openclaw python3 /home/tenazas/runtime/dreaming.py --force
+```
+
+**Output:**
+- `learning/dreams.md` — staging area con lasting truths (nunca se auto-borra)
+- `learning/dream_log.json` — historial de sesiones REM
+- `logs/dreaming.log` — telemetria JSONL
+
+**Integracion:** se ejecuta automaticamente al final de `idle_learning_engine.analyze_idle()` y despues de `self-evolve.py`. Tambien cron standalone Wed/Sat 3AM.
+
+**Seguridad:** nunca modifica archivos existentes, solo append a dreams.md. Dedup via sha256 hash.
+
+### Exec Approvals — Telegram Inline Keyboard (`exec_approvals.py`)
+
+Aprobacion de acciones via botones interactivos de Telegram (reemplaza "escribi SI").
+
+**API:**
+- `send_approval_request(summary, details, skill)` → envia mensaje con botones Aprobar/Cancelar/Ver detalles
+- `handle_callback_query(callback)` → procesa tap de boton
+- `get_approval_status(id)` / `poll_approval(id)` → consulta estado
+
+**Estado:** `pending_approvals.json`. Timeout 5 min. Log: `logs/exec_approvals.log`.
+
+### Telegram Router (`telegram_router.py`)
+
+Bot de polling Telegram que intercepta skills deterministicamente antes del LLM.
+
+**Skills interceptadas:** email, weather, smart-home, network-scanner, arr-monitor, infra-monitor, calendar, morning-greeting, self-evolve, reminders, iol_broker.
+
+**Funcionalidades:**
+- Clasificacion via `orchestrator.classify_query()`
+- IOL broker: ejecuta `iol_handler_cli.py` directamente
+- Model routing V2 para queries no-skill (selecciona modelo por rol)
+- Context injection para queries analiticas (inyecta logs reales)
+- Callback query handling para exec_approvals (botones inline)
+- Formateo de email: parsea tabla himalaya a formato legible
+- Fallback Markdown → texto plano si Telegram rechaza
+
+### Multitool Inference — Ejecucion multi-tool (`multitool_parser.py` + `orchestrator.py`)
+
+Permite que un modelo finetuned seleccione multiples tools en una sola query via XML.
+
+**Parser XML:** `parse_multitool_response(text)` → `{valid, tools, error}`
+- Allowlist cerrada de 14 tools
+- Dedup preservando orden, max 3 tools
+- Rechaza texto fuera del XML
+
+**Registry:** `TOOL_REGISTRY` mapea tool XML → `skill_category` del orchestrator.
+
+**Policy:** `should_use_multitool(query)` → True solo si 2+ dominios + conector ("y", "ademas").
+
+**Orchestrator:** `route_and_execute_multitool(query)` — llama modelo multitool, parsea XML, ejecuta skills en orden, agrega resultados. Fallback a `route_and_execute()` si falla.
+
+**Dataset:** `tool_tuning/build_multitool_dataset.py` genera 201 ejemplos JSONL (80 single, 81 multi, 20 no-tool, 20 ambiguos).
+
+**Training:** `tool_tuning/train_multitool.py` — LoRA/QLoRA para Qwen2.5-7B-Instruct, RTX 3090.
+
+**Eval harness:** `tool_tuning/eval_runner.py` — precision, recall, F1, hallucination rate, per-tool F1. Exporta a Prometheus :9107. Dashboard Grafana `tenazas-multitool-eval`.
 
 ### Personal Supervisor — Orquestación unificada (`personal_supervisor.py`)
 
@@ -671,6 +745,19 @@ workspace/runtime/
 ├── memory/operational.json    — Persistencia de facts
 ├── model_distillation.py      — Transferencia de conocimiento entre modelos
 ├── openrouter_usage.py        — Balance y usage tracking OpenRouter API (stdlib only)
+├── dreaming.py                — REM memory consolidation (lasting truths from episodic)
+├── exec_approvals.py          — Telegram inline keyboard approvals (never auto-exec)
+├── multitool_parser.py        — XML parser + tool registry + multitool policy
+├── telegram_router.py         — Telegram polling bot (deterministic skill interception)
+├── pending_approvals.json     — State file for exec_approvals (gitignored)
+│
+│ ── Tool Tuning ──
+├── tool_tuning/build_multitool_dataset.py  — 201 ejemplos JSONL
+├── tool_tuning/train_multitool.py          — LoRA/QLoRA training script
+├── tool_tuning/split_dataset.py            — Train/eval split (80/20)
+├── tool_tuning/eval_metrics.py             — Precision, recall, F1, hallucination
+├── tool_tuning/eval_runner.py              — Eval runner + Prometheus :9107
+├── tool_tuning/Modelfile                   — Ollama Modelfile para modelo finetuned
 │
 │ ── Learning Output ──
 ├── learning/proposals.json    — Propuestas generadas (nunca auto-aplicadas)
@@ -743,6 +830,7 @@ workspace/runtime/
   - **Tenazas Agent** (`tenazas-agent`) — dashboard dedicado del agente: routing V1/V2, roles, latencia, guardrails, fallbacks, VRAM, failover, ciclos. Todos los panels scoped a `instance="openclaw"` con descriptions operativas
   - **OpenRouter / Kimi-K2** (`openrouter-kimi-k2`) — 4 panels: gastado total (stat $USD), balance (stat, -1=Unlimited), último check (stat relativo), gasto acumulado (timeseries USD)
   - **Tenazas APIs** (`tenazas-apis`) — Gemini (calls, total, distribución), IOL (portfolio, P&L, cuota, freshness, errors), OpenRouter (gasto, balance), todos los servicios. IOL health: freshness (verde<5m, amarillo<10m, rojo>10m), errors (counter), last success (timestamp)
+  - **Tenazas Multitool Eval** (`tenazas-multitool-eval`) — 12 panels: exact match, F1, precision, recall (gauges), hallucination rate, over/under trigger, per-tool F1 (bar gauge baseline vs finetuned), F1 historico (timeseries), delta F1, estado del modelo, umbrales
 
 ### Cron recomendado (DSM Task Scheduler)
 ```bash
@@ -1049,7 +1137,7 @@ services:
 ```
 
 ### Dockerfile
-- Base: `node:22-bookworm`
+- Base: `node:24-bookworm`
 - Deps: python3, pip, ffmpeg, curl, nmap, iputils-ping, dnsutils, docker.io
 - Python: requests, torch (CPU), whisper, google-auth
 - User: `tenazas` (uid 1026), grupo docker
