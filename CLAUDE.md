@@ -330,10 +330,12 @@ Bot de polling Telegram que intercepta skills deterministicamente antes del LLM.
 - Clasificacion via `orchestrator.classify_query()`
 - IOL broker: ejecuta `iol_handler_cli.py` directamente
 - Model routing V2 para queries no-skill (selecciona modelo por rol)
-- Context injection para queries analiticas (inyecta logs reales)
+- **Conversation history:** sliding window por chat (10 turnos, 10 min TTL), usa Ollama `/api/chat` para multi-turn con fallback a single-turn `/api/generate`
+- Context injection para queries analiticas (inyecta logs reales, filtra security blocks)
 - Callback query handling para exec_approvals (botones inline)
 - Formateo de email: parsea tabla himalaya a formato legible
 - Fallback Markdown → texto plano si Telegram rechaza
+- Error handling robusto en classify_intent (fallback a "chat" si orchestrator falla)
 
 ### Multitool Inference — Ejecucion multi-tool (`multitool_parser.py` + `orchestrator.py`)
 
@@ -350,9 +352,22 @@ Permite que un modelo finetuned seleccione multiples tools en una sola query via
 
 **Orchestrator:** `route_and_execute_multitool(query)` — llama modelo multitool, parsea XML, ejecuta skills en orden, agrega resultados. Fallback a `route_and_execute()` si falla.
 
-**Dataset:** `tool_tuning/build_multitool_dataset.py` genera 201 ejemplos JSONL (80 single, 81 multi, 20 no-tool, 20 ambiguos).
+**Dataset:** `tool_tuning/build_multitool_dataset.py` genera ~296 ejemplos JSONL (80 single, 81 multi, 20 no-tool, 20 ambiguos, +95 expansion: network-scanner, tts, infra-monitor, arr-monitor, negativos).
 
 **Training:** `tool_tuning/train_multitool.py` — LoRA/QLoRA para Qwen2.5-7B-Instruct, RTX 3090.
+
+**GGUF Pipeline (HomeLab):**
+```
+train_multitool.py → LoRA adapter → merge_3b.py (background)
+→ convert_to_gguf.bat → tenazas-tools-3b.gguf → ollama create → modelo listo
+```
+- `full_pipeline.bat` — pipeline completo end-to-end (train→merge→gguf→ollama→test)
+- `convert_to_gguf.bat` — conversión obligatoria HF→GGUF (fix: ollama create sobre HF mergeado crashea)
+- `merge_3b.py` — merge de LoRA adapter con modelo base
+- `Modelfile_3b` — Ollama Modelfile para modelo 3B finetuned
+- `compare_models.py` — comparación baseline vs finetuned en eval set
+- `setup_hf_cache_machine.ps1` — configura HF_HOME persistente en D:\hf_cache
+- `verify_python311.bat`, `verify_gguf_env.bat`, `verify_hf_cache.bat` — validación de prereqs
 
 **Eval harness:** `tool_tuning/eval_runner.py` — precision, recall, F1, hallucination rate, per-tool F1. Exporta a Prometheus :9107. Dashboard Grafana `tenazas-multitool-eval`.
 
@@ -753,12 +768,21 @@ workspace/runtime/
 ├── pending_approvals.json     — State file for exec_approvals (gitignored)
 │
 │ ── Tool Tuning ──
-├── tool_tuning/build_multitool_dataset.py  — 201 ejemplos JSONL
+├── tool_tuning/build_multitool_dataset.py  — ~296 ejemplos JSONL (con expansion)
 ├── tool_tuning/train_multitool.py          — LoRA/QLoRA training script
 ├── tool_tuning/split_dataset.py            — Train/eval split (80/20)
 ├── tool_tuning/eval_metrics.py             — Precision, recall, F1, hallucination
 ├── tool_tuning/eval_runner.py              — Eval runner + Prometheus :9107
-├── tool_tuning/Modelfile                   — Ollama Modelfile para modelo finetuned
+├── tool_tuning/Modelfile                   — Ollama Modelfile para modelo finetuned (7B)
+├── tool_tuning/Modelfile_3b                — Ollama Modelfile para modelo 3B
+├── tool_tuning/merge_3b.py                 — Merge LoRA adapter con base model
+├── tool_tuning/convert_to_gguf.bat         — Conversión HF→GGUF (obligatoria para ollama)
+├── tool_tuning/full_pipeline.bat           — Pipeline completo: train→merge→gguf→ollama→test
+├── tool_tuning/compare_models.py           — Comparación baseline vs finetuned
+├── tool_tuning/setup_hf_cache_machine.ps1  — Setup HF_HOME persistente (HomeLab)
+├── tool_tuning/verify_python311.bat        — Verifica Python 3.11+
+├── tool_tuning/verify_gguf_env.bat         — Verifica llama.cpp + dependencias GGUF
+├── tool_tuning/verify_hf_cache.bat         — Verifica HF_HOME configurado
 │
 │ ── Learning Output ──
 ├── learning/proposals.json    — Propuestas generadas (nunca auto-aplicadas)
@@ -775,7 +799,7 @@ workspace/runtime/
 ├── research_engine.py         — Investigacion autonoma de problemas
 │
 │ ── Self-improvement ──
-├── self_debugger.py           — Auto-diagnostico de errores de Tenazas
+├── self_debugger.py           — Auto-diagnostico de errores de Tenazas (filtra security blocks)
 ├── self_dev_engine.py         — Propuestas de mejora de codigo
 ├── self_benchmark.py          — Benchmarking de rendimiento
 ├── dataset_builder.py         — Generacion de datasets operacionales
