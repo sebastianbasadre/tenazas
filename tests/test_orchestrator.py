@@ -113,6 +113,37 @@ class TestQueryClassification(unittest.TestCase):
         self.assertIn(result, ("infrastructure_issue", "knowledge_query"))
 
 
+    # ── Self-evolve vs reminders classification ──
+
+    def test_cual_es_la_propuesta_is_self_evolve(self):
+        self.assertEqual(orch.classify_query("cuál es la propuesta"), "skill:self-evolve")
+
+    def test_tus_propuestas_is_self_evolve(self):
+        self.assertEqual(orch.classify_query("tus propuestas"), "skill:self-evolve")
+
+    def test_propuestas_de_mejora_is_self_evolve(self):
+        self.assertEqual(orch.classify_query("propuestas de mejora"), "skill:self-evolve")
+
+    def test_que_propuso_self_evolve_is_self_evolve(self):
+        self.assertEqual(orch.classify_query("qué propuso self-evolve"), "skill:self-evolve")
+
+    def test_mostrame_las_propuestas_is_self_evolve(self):
+        self.assertEqual(orch.classify_query("mostrame las propuestas"), "skill:self-evolve")
+
+    def test_cuales_son_tus_propuestas_is_self_evolve(self):
+        self.assertEqual(orch.classify_query("cuáles son tus propuestas"), "skill:self-evolve")
+
+    def test_sobre_el_self_evolve_is_self_evolve(self):
+        self.assertEqual(orch.classify_query("y sobre el self evolve?"), "skill:self-evolve")
+
+    def test_mis_recordatorios_is_reminders_not_self_evolve(self):
+        result = orch.classify_query("mis recordatorios")
+        self.assertEqual(result, "skill:reminders")
+
+    def test_recordatorios_pendientes_is_reminders(self):
+        result = orch.classify_query("recordatorios pendientes")
+        self.assertEqual(result, "skill:reminders")
+
     # ── Bug fix tests ──
 
     def test_gastos_rapidos_is_expense(self):

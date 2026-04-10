@@ -283,8 +283,15 @@ CLASSIFICATION_RULES = [
         "skill:self-evolve",
         [r"(propuestas?|mejoras?)\s+(de\s+)?(mejora|sistema|tenazas)",
          r"self[\s-]evolve", r"auto[\s-]mejora",
-         r"(qu[eé]\s+)?propuestas?\s+(hay|tengo|pendientes?)"],
-        {"propuestas", "mejoras", "propuesta", "mejora", "evolve"},
+         r"(qu[eé]\s+)?propuestas?\s+(hay|tengo|pendientes?)",
+         r"cu[aá]l\s+es\s+la\s+propuesta",
+         r"(mostr|cont)[aá]\w*\s+(las?\s+)?propuestas?",
+         r"(cu[aá]les?\s+son\s+)?(tus?|las?|mis)\s+propuestas?",
+         r"qu[eé]\s+propuso\s+self[\s-]?evolve",
+         r"propuestas?\s+de\s+mejora",
+         r"sobre\s+(el\s+)?self[\s-]?evolve"],
+        {"propuestas", "mejoras", "propuesta", "mejora", "evolve",
+         "self-evolve"},
     ),
     # Reminders
     (
@@ -1039,23 +1046,75 @@ def _parse_weather(raw: str) -> str:
 
 
 def _parse_proposals(raw: str) -> str:
-    """Parse proposals.json into a summary."""
+    """Parse proposals.json into a detailed summary."""
     try:
         proposals = json.loads(raw)
         if not proposals:
-            return "No hay propuestas pendientes"
-        pending = [p for p in proposals if p.get("status") == "proposed"]
-        if not pending:
-            return f"{len(proposals)} propuestas total, ninguna pendiente"
-        lines = [f"{len(pending)} propuestas pendientes:"]
-        for p in pending[:5]:
-            area = p.get("area", p.get("type", "general"))
-            desc = p.get("description", p.get("proposal", "sin descripción"))
-            if len(desc) > 80:
-                desc = desc[:77] + "..."
-            lines.append(f"  • [{area}] {desc}")
-        if len(pending) > 5:
-            lines.append(f"  ... y {len(pending) - 5} más")
+            return "No hay propuestas de mejora registradas."
+
+        # Group by status
+        by_status = {}
+        for p in proposals:
+            s = p.get("status", "unknown")
+            by_status.setdefault(s, []).append(p)
+
+        pending = by_status.get("proposed", [])
+        reviewed = by_status.get("reviewed", [])
+        accepted = by_status.get("accepted", [])
+        rejected = by_status.get("rejected", [])
+
+        lines = [f"Propuestas de mejora ({len(proposals)} total):"]
+
+        # Status summary
+        status_parts = []
+        if pending:
+            status_parts.append(f"{len(pending)} pendientes")
+        if reviewed:
+            status_parts.append(f"{len(reviewed)} en revisión")
+        if accepted:
+            status_parts.append(f"{len(accepted)} aceptadas")
+        if rejected:
+            status_parts.append(f"{len(rejected)} rechazadas")
+        if status_parts:
+            lines.append("  " + ", ".join(status_parts))
+        lines.append("")
+
+        # Show pending proposals with detail
+        show = pending or reviewed or accepted
+        if show:
+            label = "Pendientes" if pending else "Recientes"
+            display = (pending or reviewed or accepted)[:5]
+            lines.append(f"{label}:")
+            for p in display:
+                area = p.get("area", p.get("type", "general"))
+                desc = p.get("description", p.get("proposal", "sin descripción"))
+                status = p.get("status", "?")
+                ts = p.get("created_at", p.get("ts", p.get("timestamp", "")))
+                if ts:
+                    # Show just date portion
+                    date_str = str(ts)[:10]
+                else:
+                    date_str = ""
+
+                if len(desc) > 120:
+                    desc = desc[:117] + "..."
+
+                header = f"  • [{area}] {desc}"
+                meta_parts = []
+                if date_str:
+                    meta_parts.append(date_str)
+                if status != "proposed":
+                    meta_parts.append(f"estado: {status}")
+                if meta_parts:
+                    header += f"\n    ({', '.join(meta_parts)})"
+                lines.append(header)
+
+            remaining = len(show) - 5
+            if remaining > 0:
+                lines.append(f"  ... y {remaining} más")
+        else:
+            lines.append("No hay propuestas pendientes de revisión.")
+
         return "\n".join(lines)
     except (json.JSONDecodeError, TypeError):
         return raw if raw else "Error leyendo propuestas"
@@ -1324,14 +1383,14 @@ def _handle_reminders(skill_cat: str, query: str, skill: dict) -> dict:
             if result.returncode != 0 or not result.stdout.strip():
                 return {
                     "skill": skill_cat, "success": True,
-                    "output": "No hay recordatorios activos",
+                    "output": "No tenés recordatorios activos por ahora.",
                     "raw": "", "destructive": False, "error": None,
                 }
             reminders = json.loads(result.stdout)
             if not reminders:
                 return {
                     "skill": skill_cat, "success": True,
-                    "output": "No hay recordatorios activos",
+                    "output": "No tenés recordatorios activos por ahora.",
                     "raw": "", "destructive": False, "error": None,
                 }
             lines = ["Recordatorios activos:"]

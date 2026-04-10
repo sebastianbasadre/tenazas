@@ -84,6 +84,44 @@ HISTORY_MAX_AGE = 600   # seconds — discard entries older than 10 min
 # {chat_id: deque([ {"role": "user"|"assistant", "content": str, "ts": float}, ... ])}
 _chat_history: dict[str, deque] = {}
 
+# ── Self-evolve conversational continuity ─────────────────────────
+# Tracks last skill per chat_id so vague follow-ups can be routed back.
+# Only used for self-evolve. TTL: 5 minutes.
+_SELF_EVOLVE_FOLLOWUP_TTL = 300  # 5 min
+# {chat_id: {"skill": str, "ts": float}}
+_last_skill: dict[str, dict] = {}
+
+# Patterns that indicate a vague follow-up (not a new topic)
+_FOLLOWUP_PATTERNS = re.compile(
+    r"^(y\??|qu[eé]\s+m[aá]s\??|cont[aá]me\s+m[aá]s|detalles?|sobre\s+eso|"
+    r"y\s+sobre\s+eso\??|ampli[aá]|explic[aá]|m[aá]s\s+info|"
+    r"m[aá]s\s+detalles?|y\s+eso\??)$",
+    re.IGNORECASE,
+)
+
+
+def _record_last_skill(chat_id: str, skill: str):
+    """Record the last intercepted skill for a chat."""
+    _last_skill[chat_id] = {"skill": skill, "ts": time.time()}
+
+
+def _check_self_evolve_followup(chat_id: str, text: str) -> bool:
+    """Check if this is a vague follow-up to a self-evolve interaction.
+
+    Returns True only if:
+    1. The last skill for this chat was skill:self-evolve
+    2. It was within the TTL window
+    3. The current message matches a vague follow-up pattern
+    """
+    last = _last_skill.get(chat_id)
+    if not last:
+        return False
+    if last["skill"] != "skill:self-evolve":
+        return False
+    if time.time() - last["ts"] > _SELF_EVOLVE_FOLLOWUP_TTL:
+        return False
+    return bool(_FOLLOWUP_PATTERNS.match(text.strip()))
+
 
 def _get_history(chat_id: str) -> deque:
     if chat_id not in _chat_history:
@@ -632,14 +670,22 @@ def _process_update(token: str, update: dict, allowed: set):
     # Record user message in history
     _append_history(chat_id, "user", text)
 
-    # Classify
-    intercept, category = should_intercept(text)
+    # Check self-evolve conversational follow-up before classifying
+    if _check_self_evolve_followup(chat_id, text):
+        _log({"action": "self_evolve_followup", "text": text[:80]})
+        intercept, category = True, "skill:self-evolve"
+    else:
+        # Classify
+        intercept, category = should_intercept(text)
 
     if intercept:
         _log({"action": "intercepted", "category": category, "text": text[:80]})
         send_typing(token, chat_id)
 
         response = execute_intercepted_skill(text)
+
+        # Track last skill for conversational continuity
+        _record_last_skill(chat_id, category)
 
         _log({"action": "skill_response", "category": category,
               "response_len": len(response), "success": True})
