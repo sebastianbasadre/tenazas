@@ -50,17 +50,52 @@ def parse_args():
                     help="Gradient accumulation steps")
     p.add_argument("--no-4bit", action="store_true",
                     help="Disable 4-bit quantization (use full precision)")
+    p.add_argument("--device", default="auto",
+                    help="Device: cuda:0, cpu, or auto (default: auto)")
     return p.parse_args()
 
 
+SYSTEM_MSG = "Respond only with valid XML tool calls."
+
+
+def _format_tools_xml(tools: list[str]) -> str:
+    if not tools:
+        return "<tools></tools>"
+    return "<tools>" + "".join(f"<tool>{t}</tool>" for t in tools) + "</tools>"
+
+
+def normalize_example(entry: dict) -> dict:
+    """Normalize any input format to messages for training.
+
+    Accepts: {"messages":[...]}, {"input":..,"label":..}, {"input":..,"tools":[..]}
+    """
+    if "messages" in entry:
+        return entry
+    user_msg = entry.get("input", "")
+    if "label" in entry:
+        label = entry["label"]
+        tools = [] if label == "none" or not label else [label]
+    elif "tools" in entry:
+        tools = entry["tools"]
+    else:
+        tools = []
+    return {
+        "messages": [
+            {"role": "system", "content": SYSTEM_MSG},
+            {"role": "user", "content": user_msg},
+            {"role": "assistant", "content": _format_tools_xml(tools)},
+        ]
+    }
+
+
 def load_dataset_jsonl(path: str) -> list[dict]:
-    """Load JSONL dataset into list of conversation dicts."""
+    """Load JSONL dataset, normalizing all entries to messages format."""
     entries = []
     with open(path) as f:
         for line in f:
             line = line.strip()
             if line:
-                entries.append(json.loads(line))
+                entries.append(normalize_example(json.loads(line)))
     return entries
 
 
@@ -99,12 +134,34 @@ def main():
     # Seed
     torch.manual_seed(args.seed)
 
+    # Device detection
+    if args.device == "auto":
+        if torch.cuda.is_available():
+            device_map = "auto"
+            gpu_name = torch.cuda.get_device_name(0)
+            gpu_mem = torch.cuda.get_device_properties(0).total_mem // (1024**3)
+            print(f"[train] Device: cuda:0 ({gpu_name}, {gpu_mem}GB)")
+        else:
+            device_map = "cpu"
+            print("[train] Device: cpu (CUDA not available)")
+    else:
+        device_map = args.device
+        if args.device.startswith("cuda") and torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+            gpu_mem = torch.cuda.get_device_properties(0).total_mem // (1024**3)
+            print(f"[train] Device: {args.device} ({gpu_name}, {gpu_mem}GB)")
+        else:
+            print(f"[train] Device: {args.device}")
+
+    use_bf16 = torch.cuda.is_available()
+    use_4bit = not args.no_4bit and torch.cuda.is_available()
+
     print(f"[train] Model: {args.model}")
     print(f"[train] Dataset: {args.dataset}")
     print(f"[train] Output: {args.output}")
     print(f"[train] Epochs: {args.epochs}, Batch: {args.batch_size}, LR: {args.lr}")
     print(f"[train] LoRA r={args.lora_r}, alpha={args.lora_alpha}")
-    print(f"[train] 4-bit: {not args.no_4bit}")
+    print(f"[train] 4-bit: {use_4bit}, bf16: {use_bf16}")
 
     # Load dataset
     raw = load_dataset_jsonl(args.dataset)
@@ -119,7 +176,7 @@ def main():
 
     # Quantization config
     bnb_config = None
-    if not args.no_4bit:
+    if use_4bit:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -132,12 +189,13 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         quantization_config=bnb_config,
-        device_map="auto",
+        device_map=device_map,
         trust_remote_code=True,
-        torch_dtype=torch.bfloat16 if args.no_4bit else None,
+        torch_dtype=torch.bfloat16 if not use_4bit and use_bf16 else
+                    torch.float32 if not use_4bit else None,
     )
 
-    if not args.no_4bit:
+    if use_4bit:
         model = prepare_model_for_kbit_training(model)
 
     # LoRA config
@@ -162,7 +220,7 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation,
         learning_rate=args.lr,
         fp16=False,
-        bf16=True,
+        bf16=use_bf16,
         logging_steps=10,
         save_strategy="epoch",
         warmup_ratio=0.1,

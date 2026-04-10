@@ -18,6 +18,8 @@ def main():
                     help="Path to LoRA adapter")
     p.add_argument("--output", default="../tenazas-tools-3b-merged",
                     help="Output directory for merged model")
+    p.add_argument("--device", default="cpu",
+                    help="Device: cuda:0, cpu, or auto (default: cpu — merging on CPU saves VRAM)")
     args = p.parse_args()
 
     try:
@@ -29,13 +31,26 @@ def main():
         print("Install: pip install transformers peft torch")
         sys.exit(1)
 
+    # Device detection
+    if args.device == "auto":
+        device_map = "cuda:0" if torch.cuda.is_available() else "cpu"
+    else:
+        device_map = args.device
+
+    if device_map.startswith("cuda") and torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(0)
+        gpu_mem = torch.cuda.get_device_properties(0).total_mem // (1024**3)
+        print(f"[merge] Device: {device_map} ({gpu_name}, {gpu_mem}GB)")
+    else:
+        print(f"[merge] Device: {device_map}")
+
     print(f"[merge] Base: {args.base}")
     print(f"[merge] LoRA: {args.lora}")
     print(f"[merge] Output: {args.output}")
 
     print("[merge] Loading base model...")
     model = AutoModelForCausalLM.from_pretrained(
-        args.base, torch_dtype=torch.float16, device_map="cpu"
+        args.base, torch_dtype=torch.float16, device_map=device_map
     )
     tokenizer = AutoTokenizer.from_pretrained(args.base)
 
