@@ -33,6 +33,12 @@ Uso:
     python router.py "escanea la red"
 """
 
+# ─────────────────────────────────────────────────────────────────
+# router.py — Segunda capa de clasificación de intents
+# Ver contrato: /home/tenazas/runtime/INTERFACE_CONTRACT.md
+# VALID_ROUTES se importa de routes_contract.py — NO duplicar acá
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import json
@@ -48,15 +54,13 @@ from typing import Callable, Dict, Optional
 
 import requests
 
+# Import canonical labels from contract
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from routes_contract import VALID_ROUTES, normalize_route as _contract_normalize
 
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "tenazas-router-labels")
 DEFAULT_OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://192.168.2.6:11434").rstrip("/")
 DEFAULT_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "30"))
-
-VALID_ROUTES = frozenset([
-    "weather", "calendar", "weather_calendar", "lights",
-    "network_scan", "infra", "tts", "arr_monitor", "none",
-])
 
 # ── Structured JSON logging ──────────────────────────────────────────
 
@@ -289,14 +293,14 @@ def normalize_route(text: str) -> str:
 
 def validate_label(label: str) -> str:
     """Validate label against VALID_ROUTES. Returns 'none' on invalid."""
-    if label in VALID_ROUTES:
-        return label
-    _log({
-        "action": "label_validation_failed",
-        "invalid_label": label,
-        "fallback": "none",
-    })
-    return "none"
+    normalized = _contract_normalize(label)
+    if normalized != label and label != "none":
+        _log({
+            "action": "label_validation_failed",
+            "invalid_label": label,
+            "fallback": normalized,
+        })
+    return normalized
 
 
 def ollama_healthcheck(host: str = DEFAULT_OLLAMA_HOST, timeout: int = 5) -> bool:

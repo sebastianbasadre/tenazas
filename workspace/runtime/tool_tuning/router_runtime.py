@@ -27,6 +27,12 @@ Uso:
     python router_runtime.py "escanea la red"
 """
 
+# ─────────────────────────────────────────────────────────────────
+# router_runtime.py — Dispatcher de tools (ejecuta, no clasifica)
+# Ver contrato: /home/tenazas/runtime/INTERFACE_CONTRACT.md
+# VALID_ROUTES se importa de routes_contract.py — NO duplicar acá
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import json
@@ -39,6 +45,10 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
+
+# Import canonical labels from contract
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from routes_contract import VALID_ROUTES
 
 
 # ── Config ──────────────────────────────────────────────────────────
