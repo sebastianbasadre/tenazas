@@ -66,7 +66,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 EVAL_FILES = {
     "baseline": BASE_DIR / "eval_baseline.json",
-    "finetuned": BASE_DIR / "eval_results.json",
+    "finetuned": BASE_DIR / "eval_finetuned.json",
     "3b_baseline": BASE_DIR / "eval_3b_baseline.json",
 }
 
