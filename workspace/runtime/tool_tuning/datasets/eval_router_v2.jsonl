@@ -1,0 +1,80 @@
+{"input":"ver qué hay en la red local","label":"network_scan"}
+{"input":"hacer un escaneo de la LAN","label":"network_scan"}
+{"input":"listar equipos conectados","label":"network_scan"}
+{"input":"quién tiene IP en la red","label":"network_scan"}
+{"input":"detectar dispositivos nuevos","label":"network_scan"}
+{"input":"nmap rápido","label":"network_scan"}
+{"input":"topología de red","label":"network_scan"}
+{"input":"hosts descubiertos","label":"network_scan"}
+{"input":"IPs activas en la LAN","label":"network_scan"}
+{"input":"buscar hosts en 192.168.2.0/24","label":"network_scan"}
+{"input":"temperatura del NAS","label":"infra"}
+{"input":"uso de disco del servidor","label":"infra"}
+{"input":"cómo está el Ryzen","label":"infra"}
+{"input":"containers corriendo ahora","label":"infra"}
+{"input":"health del homelab","label":"infra"}
+{"input":"ollama está andando","label":"infra"}
+{"input":"cómo viene el sistema","label":"infra"}
+{"input":"load del server","label":"infra"}
+{"input":"recursos del docker","label":"infra"}
+{"input":"estado general del sistema","label":"infra"}
+{"input":"está bajando algo ahora","label":"arr_monitor"}
+{"input":"progreso de sonarr","label":"arr_monitor"}
+{"input":"qbittorrent activo","label":"arr_monitor"}
+{"input":"velocidad de descarga","label":"arr_monitor"}
+{"input":"radarr tiene errores","label":"arr_monitor"}
+{"input":"prowlarr funciona","label":"arr_monitor"}
+{"input":"lidarr status","label":"arr_monitor"}
+{"input":"cuántos torrents hay","label":"arr_monitor"}
+{"input":"descargas en curso","label":"arr_monitor"}
+{"input":"sabnzbd andando","label":"arr_monitor"}
+{"input":"el último self evolve qué hizo","label":"self_evolve"}
+{"input":"revisá tus propias mejoras","label":"self_evolve"}
+{"input":"qué propusiste mejorar","label":"self_evolve"}
+{"input":"estado self evolve","label":"self_evolve"}
+{"input":"propuestas sin revisar","label":"self_evolve"}
+{"input":"mejoras sugeridas por vos","label":"self_evolve"}
+{"input":"tus sugerencias de la semana","label":"self_evolve"}
+{"input":"self evolve corrió?","label":"self_evolve"}
+{"input":"hay propuestas mías pendientes","label":"self_evolve"}
+{"input":"qué mejorarías vos","label":"self_evolve"}
+{"input":"ambiente cine por favor","label":"lights"}
+{"input":"modo nocturno luces","label":"lights"}
+{"input":"bajar intensidad luces","label":"lights"}
+{"input":"luces al 50 porciento","label":"lights"}
+{"input":"escena trabajo activar","label":"lights"}
+{"input":"prende la lampara","label":"lights"}
+{"input":"luces de la sala","label":"lights"}
+{"input":"apaga el living","label":"lights"}
+{"input":"enciende todo","label":"lights"}
+{"input":"modo relax activar","label":"lights"}
+{"input":"cómo va a estar el tiempo mañana","label":"weather"}
+{"input":"va a llover hoy","label":"weather"}
+{"input":"temperatura actual","label":"weather"}
+{"input":"pronóstico de la semana","label":"weather"}
+{"input":"hace frío afuera","label":"weather"}
+{"input":"cielo despejado hoy","label":"weather"}
+{"input":"humedad actual","label":"weather"}
+{"input":"alerta de tormenta","label":"weather"}
+{"input":"clima para el fin de semana","label":"weather"}
+{"input":"tiempo en buenos aires","label":"weather"}
+{"input":"reuniones de mañana","label":"calendar"}
+{"input":"qué tengo el jueves","label":"calendar"}
+{"input":"próximo evento","label":"calendar"}
+{"input":"agenda de la semana","label":"calendar"}
+{"input":"tengo algo a las 3","label":"calendar"}
+{"input":"calendario de hoy","label":"calendar"}
+{"input":"eventos del mes","label":"calendar"}
+{"input":"cuándo es la próxima reunión","label":"calendar"}
+{"input":"qué pasa el viernes","label":"calendar"}
+{"input":"libre mañana a la mañana","label":"calendar"}
+{"input":"qué tal","label":"none"}
+{"input":"buenas","label":"none"}
+{"input":"te escucho","label":"none"}
+{"input":"listo","label":"none"}
+{"input":"otro tema","label":"none"}
+{"input":"nada más","label":"none"}
+{"input":"me fui","label":"none"}
+{"input":"después sigo","label":"none"}
+{"input":"bien gracias","label":"none"}
+{"input":"ok perfecto","label":"none"}

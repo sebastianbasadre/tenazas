@@ -1,0 +1,113 @@
+{"input":"escaneá la red","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"escanea la red","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"scan de red","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"scan lan","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"escanear lan","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"qué hay conectado","label":"network_scan","source":"real","difficulty":"medium"}
+{"input":"quién está en la red","label":"network_scan","source":"real","difficulty":"medium"}
+{"input":"dispositivos activos","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"hosts activos","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"descubrir hosts","label":"network_scan","source":"synthetic","difficulty":"medium"}
+{"input":"nmap a la red","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"arp scan","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"ping sweep","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"mapa de red","label":"network_scan","source":"real","difficulty":"medium"}
+{"input":"ver equipos conectados","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"buscar dispositivos en la red","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"scan 192.168","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"escaneo de red","label":"network_scan","source":"real","difficulty":"easy"}
+{"input":"qué IPs hay activas","label":"network_scan","source":"real","difficulty":"medium"}
+{"input":"quién se conectó a la red","label":"network_scan","source":"real","difficulty":"medium"}
+{"input":"cómo está internet","label":"infra","source":"hard_negative","difficulty":"medium"}
+{"input":"anda el wifi","label":"infra","source":"hard_negative","difficulty":"medium"}
+{"input":"cómo están los containers","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"estado del homelab","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"está caído ollama","label":"infra","source":"hard_negative","difficulty":"medium"}
+{"input":"cómo viene el nas","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"cpu del servidor","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"memoria del docker","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"qué propuso self evolve","label":"self_evolve","source":"real","difficulty":"easy"}
+{"input":"cuáles son tus propuestas","label":"self_evolve","source":"real","difficulty":"easy"}
+{"input":"tenés propuestas tuyas","label":"self_evolve","source":"real","difficulty":"medium"}
+{"input":"mejoras que sugeriste","label":"self_evolve","source":"real","difficulty":"medium"}
+{"input":"qué propone self evolve","label":"self_evolve","source":"real","difficulty":"easy"}
+{"input":"tus propuestas internas","label":"self_evolve","source":"real","difficulty":"medium"}
+{"input":"hay alguna propuesta tuya","label":"self_evolve","source":"real","difficulty":"medium"}
+{"input":"self evolve status","label":"self_evolve","source":"real","difficulty":"easy"}
+{"input":"mostrame tus propuestas","label":"self_evolve","source":"real","difficulty":"easy"}
+{"input":"qué sugeriste esta semana","label":"self_evolve","source":"real","difficulty":"hard"}
+{"input":"y sobre el self evolve","label":"self_evolve","source":"real","difficulty":"medium"}
+{"input":"cuál es la propuesta","label":"self_evolve","source":"real","difficulty":"hard"}
+{"input":"mostrame esa propuesta","label":"self_evolve","source":"real","difficulty":"hard"}
+{"input":"de qué se trata la propuesta","label":"self_evolve","source":"real","difficulty":"hard"}
+{"input":"hay alguna pendiente de self evolve","label":"self_evolve","source":"real","difficulty":"hard"}
+{"input":"qué decía la propuesta","label":"self_evolve","source":"real","difficulty":"hard"}
+{"input":"tus mejoras propuestas","label":"self_evolve","source":"synthetic","difficulty":"medium"}
+{"input":"propuestas de mejora tuyas","label":"self_evolve","source":"synthetic","difficulty":"medium"}
+{"input":"self evolve propuestas","label":"self_evolve","source":"real","difficulty":"easy"}
+{"input":"qué cambios propusiste","label":"self_evolve","source":"real","difficulty":"hard"}
+{"input":"tengo recordatorios pendientes","label":"calendar","source":"hard_negative","difficulty":"hard"}
+{"input":"qué tengo pendiente hoy","label":"calendar","source":"hard_negative","difficulty":"hard"}
+{"input":"mis tareas de hoy","label":"calendar","source":"hard_negative","difficulty":"medium"}
+{"input":"recordatorios activos","label":"calendar","source":"hard_negative","difficulty":"medium"}
+{"input":"qué tengo agendado","label":"calendar","source":"hard_negative","difficulty":"easy"}
+{"input":"prendé las luces","label":"lights","source":"real","difficulty":"easy"}
+{"input":"apagá las luces","label":"lights","source":"real","difficulty":"easy"}
+{"input":"modo cine","label":"lights","source":"real","difficulty":"medium"}
+{"input":"poné cine","label":"lights","source":"real","difficulty":"medium"}
+{"input":"escena cine","label":"lights","source":"real","difficulty":"medium"}
+{"input":"activar modo cine","label":"lights","source":"real","difficulty":"easy"}
+{"input":"modo relax","label":"lights","source":"real","difficulty":"medium"}
+{"input":"escena relax","label":"lights","source":"real","difficulty":"medium"}
+{"input":"modo trabajo","label":"lights","source":"real","difficulty":"medium"}
+{"input":"escena trabajo","label":"lights","source":"real","difficulty":"medium"}
+{"input":"ambiente cine","label":"lights","source":"real","difficulty":"medium"}
+{"input":"luces relax","label":"lights","source":"real","difficulty":"easy"}
+{"input":"modo movie","label":"lights","source":"real","difficulty":"medium"}
+{"input":"modo laburo","label":"lights","source":"real","difficulty":"medium"}
+{"input":"prendé todo","label":"lights","source":"real","difficulty":"easy"}
+{"input":"apagá todo","label":"lights","source":"real","difficulty":"easy"}
+{"input":"luces al mínimo","label":"lights","source":"real","difficulty":"easy"}
+{"input":"luces al máximo","label":"lights","source":"real","difficulty":"easy"}
+{"input":"dim lights","label":"lights","source":"real","difficulty":"easy"}
+{"input":"luces de noche","label":"lights","source":"real","difficulty":"easy"}
+{"input":"cómo están las descargas","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"estado sonarr","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"estado radarr","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"hay algo bajando","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"cómo viene sabnzbd","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"estado arr","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"descargas activas","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"media stack status","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"sonarr status","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"radarr status","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"qué está descargando","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"cuánto queda de descarga","label":"arr_monitor","source":"real","difficulty":"medium"}
+{"input":"está activo qbittorrent","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"cola de descargas","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"hay torrents activos","label":"arr_monitor","source":"real","difficulty":"easy"}
+{"input":"cómo están los containers","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"cómo está docker","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"estado servicios","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"containers caídos","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"estado del sistema","label":"infra","source":"hard_negative","difficulty":"easy"}
+{"input":"hola","label":"none","source":"real","difficulty":"easy"}
+{"input":"buen día","label":"none","source":"real","difficulty":"easy"}
+{"input":"gracias","label":"none","source":"real","difficulty":"easy"}
+{"input":"ok","label":"none","source":"real","difficulty":"easy"}
+{"input":"dale","label":"none","source":"real","difficulty":"easy"}
+{"input":"perfecto","label":"none","source":"real","difficulty":"easy"}
+{"input":"después vemos","label":"none","source":"real","difficulty":"easy"}
+{"input":"qué hacés","label":"none","source":"real","difficulty":"easy"}
+{"input":"todo bien","label":"none","source":"real","difficulty":"easy"}
+{"input":"buenas noches","label":"none","source":"real","difficulty":"easy"}
+{"input":"cómo estás","label":"none","source":"real","difficulty":"easy"}
+{"input":"qué tal","label":"none","source":"real","difficulty":"easy"}
+{"input":"contame algo","label":"none","source":"real","difficulty":"easy"}
+{"input":"qué sabés hacer","label":"none","source":"real","difficulty":"easy"}
+{"input":"muy bien","label":"none","source":"real","difficulty":"easy"}
+{"input":"entendido","label":"none","source":"real","difficulty":"easy"}
+{"input":"sí","label":"none","source":"real","difficulty":"easy"}
+{"input":"no","label":"none","source":"real","difficulty":"easy"}
+{"input":"ayuda","label":"none","source":"real","difficulty":"easy"}
+{"input":"buenas tardes","label":"none","source":"real","difficulty":"easy"}

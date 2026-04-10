@@ -1,0 +1,336 @@
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué recordatorios tengo"}, {"role": "assistant", "content": "<tools><tool>reminders</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "explicame qué es un LLM"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mails nuevos y eventos de hoy"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buen día"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "agenda y propuestas"}, {"role": "assistant", "content": "<tools><tool>calendar</tool><tool>self-evolve</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "correos y descargas"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado de sonarr"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "fijate clima, calendario y mails"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mails, recordatorios y agenda"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>reminders</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "temperatura y calendario"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "tengo mails y qué hay en la agenda"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado del servidor"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuántos torrents activos"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "listá los equipos de la red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "está funcionando el arr-stack"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "están todos los containers andando"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "quién se conectó a la red hoy"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"input": "hay alguna pendiente de self evolve", "label": "self_evolve", "source": "real", "difficulty": "hard"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decime el clima"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "inbox y agenda"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "leé el resumen en voz"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuáles son tus skills"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué tal"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué hay en la agenda"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué onda el clima y qué tengo"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo está el homelab"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué IPs hay activas"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo está la infra"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"input": "perfecto", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "emails recientes"}, {"role": "assistant", "content": "<tools><tool>email</tool></tools>"}]}
+{"input": "apagá las luces", "label": "lights", "source": "real", "difficulty": "easy"}
+{"input": "qué decía la propuesta", "label": "self_evolve", "source": "real", "difficulty": "hard"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "emails, agenda y recordatorios"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool><tool>reminders</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "perfecto"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decilo por el speaker"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "audio de prueba y agenda de hoy"}, {"role": "assistant", "content": "<tools><tool>tts</tool><tool>calendar</tool></tools>"}]}
+{"input": "qué propuso self evolve", "label": "self_evolve", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué sabés hacer"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "escaneá 192.168.2.0/24"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "andan las descargas"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "fijate el clima y la agenda"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "luces de trabajo y mails"}, {"role": "assistant", "content": "<tools><tool>smart-home-work</tool><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "chequeá mails y reuniones"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "necesito abrigo hoy"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "fijate si tengo mails"}, {"role": "assistant", "content": "<tools><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hay descargas en progreso"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"input": "estado servicios", "label": "infra", "source": "hard_negative", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "tengo algo hoy"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "va a estar lindo"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "aburrido"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "dispositivos y containers"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "poné modo relax"}, {"role": "assistant", "content": "<tools><tool>smart-home-relax</tool></tools>"}]}
+{"input": "luces al mínimo", "label": "lights", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "recordatorios activos"}, {"role": "assistant", "content": "<tools><tool>reminders</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "respondé con audio"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"input": "self evolve propuestas", "label": "self_evolve", "source": "real", "difficulty": "easy"}
+{"input": "cómo viene sabnzbd", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "escaneá la red y fijate el clima"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool><tool>weather</tool></tools>"}]}
+{"input": "no", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo estás"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "necesito ayuda"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "leeme los correos"}, {"role": "assistant", "content": "<tools><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo está el tiempo"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hay alertas de sistema"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "chau"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "luces relax", "label": "lights", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "propuestas de mejora y estado de containers"}, {"role": "assistant", "content": "<tools><tool>self-evolve</tool><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "eventos y mejoras pendientes"}, {"role": "assistant", "content": "<tools><tool>calendar</tool><tool>self-evolve</tool></tools>"}]}
+{"input": "qué cambios propusiste", "label": "self_evolve", "source": "real", "difficulty": "hard"}
+{"input": "qué sabés hacer", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "estado radarr", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hablemos"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "modo movie", "label": "lights", "source": "real", "difficulty": "medium"}
+{"input": "arp scan", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "uso de CPU del NAS"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"input": "escena trabajo", "label": "lights", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo están los discos"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado del docker"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué temperatura hace"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"input": "cómo está docker", "label": "infra", "source": "hard_negative", "difficulty": "easy"}
+{"input": "de qué se trata la propuesta", "label": "self_evolve", "source": "real", "difficulty": "hard"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "temperatura y estado del torrent"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "ok entendido"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "reminders y eventos de hoy"}, {"role": "assistant", "content": "<tools><tool>reminders</tool><tool>calendar</tool></tools>"}]}
+{"input": "luces al máximo", "label": "lights", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "escaneá la red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "luces, clima y eventos de hoy"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"input": "dispositivos activos", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "convertí el texto a audio"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hace calor y tengo reuniones"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "agenda de mañana"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "pronóstico de hoy"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"input": "media stack status", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "descargas y containers"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué reuniones tengo"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"input": "descubrir hosts", "label": "network_scan", "source": "synthetic", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buenas noches"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hay errores en sonarr"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "todo bien"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué tengo hoy en la agenda"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "self evolve"}, {"role": "assistant", "content": "<tools><tool>self-evolve</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buenas tardes"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hablá y decí test"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"input": "modo relax", "label": "lights", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "docker, arr stack y dispositivos"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool><tool>arr-monitor</tool><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hablame de python"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "buenas tardes", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado del arr stack y containers"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool><tool>infra-monitor</tool></tools>"}]}
+{"input": "gracias", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "quién está en la red", "label": "network_scan", "source": "real", "difficulty": "medium"}
+{"input": "propuestas de mejora tuyas", "label": "self_evolve", "source": "synthetic", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hola Tenazas"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "todo tranqui"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo va a estar el tiempo mañana"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hacé un scan de red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuánto es 2+2"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "revisá correos y calendario"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool></tools>"}]}
+{"input": "está caído ollama", "label": "infra", "source": "hard_negative", "difficulty": "medium"}
+{"input": "qué está descargando", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué hora es"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "mapa de red", "label": "network_scan", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "ok"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "escena cine", "label": "lights", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "recordatorios y agenda"}, {"role": "assistant", "content": "<tools><tool>reminders</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mis recordatorios"}, {"role": "assistant", "content": "<tools><tool>reminders</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué onda"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "qué tengo pendiente hoy", "label": "calendar", "source": "hard_negative", "difficulty": "hard"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "apagá las luces"}, {"role": "assistant", "content": "<tools><tool>smart-home-off</tool></tools>"}]}
+{"input": "scan 192.168", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "modo cinema y temperatura"}, {"role": "assistant", "content": "<tools><tool>smart-home-cinema</tool><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "correos y agenda de hoy"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool></tools>"}]}
+{"input": "qué tal", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "emails y eventos"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>calendar</tool></tools>"}]}
+{"input": "buenas noches", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "ambiente cine", "label": "lights", "source": "real", "difficulty": "medium"}
+{"input": "self evolve status", "label": "self_evolve", "source": "real", "difficulty": "easy"}
+{"input": "poné cine", "label": "lights", "source": "real", "difficulty": "medium"}
+{"input": "está activo qbittorrent", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hay recordatorios pendientes"}, {"role": "assistant", "content": "<tools><tool>reminders</tool></tools>"}]}
+{"input": "memoria del docker", "label": "infra", "source": "hard_negative", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mandame un audio diciendo hola"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "poné modo cine"}, {"role": "assistant", "content": "<tools><tool>smart-home-cinema</tool></tools>"}]}
+{"input": "escaneá la red", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mails y clima"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "espacio disponible en el NAS"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"input": "entendido", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "lo que quieras"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo están los recursos"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hace frío afuera"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"input": "qué IPs hay activas", "label": "network_scan", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "gracias"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "text to speech hola mundo"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"input": "cómo está internet", "label": "infra", "source": "hard_negative", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "perfecto"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decime el clima y qué tengo hoy"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "que tenazas hable"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado de radarr"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mis recordatorios y reuniones"}, {"role": "assistant", "content": "<tools><tool>reminders</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buenos días"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decí buen día en voz alta"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"input": "escanear lan", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo está el hardware"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "usá la voz para responder"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "clima y eventos de mañana"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "dispositivos en la red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "respuesta en audio"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué mejoras hay"}, {"role": "assistant", "content": "<tools><tool>self-evolve</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "temperatura del NAS"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mi calendario"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "encendé las luces"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool></tools>"}]}
+{"input": "qué tengo agendado", "label": "calendar", "source": "hard_negative", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "está activo qbittorrent"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "leeme eso en voz alta"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué tal"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "luces de relax"}, {"role": "assistant", "content": "<tools><tool>smart-home-relax</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "agenda, clima y propuestas"}, {"role": "assistant", "content": "<tools><tool>calendar</tool><tool>weather</tool><tool>self-evolve</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hay algo descargando ahora"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buenas noches"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "hay torrents activos", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "sintetizá voz con eso"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo están los recursos del sistema"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "scan de red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "prendé las luces y decime el clima"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "correos y reminders"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>reminders</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "correos y temperatura"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>weather</tool></tools>"}]}
+{"input": "descargas activas", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "modo trabajo"}, {"role": "assistant", "content": "<tools><tool>smart-home-work</tool></tools>"}]}
+{"input": "qué sugeriste esta semana", "label": "self_evolve", "source": "real", "difficulty": "hard"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué dispositivos hay en la red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo andás"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "cuánto queda de descarga", "label": "arr_monitor", "source": "real", "difficulty": "medium"}
+{"input": "ayuda", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "todo bien", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "tenés propuestas tuyas", "label": "self_evolve", "source": "real", "difficulty": "medium"}
+{"input": "activar modo cine", "label": "lights", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuánto queda de descarga"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "red y containers"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "que lo diga en voz alta"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo está el arr stack"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo anda radarr"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "chequeá mails y cómo está el tiempo"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buenas tardes"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "quién está en la red local"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"input": "estado sonarr", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"input": "hay algo bajando", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "encendé las luces y fijate el tiempo"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mis eventos de hoy"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "dale"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "revisá el estado general del sistema"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué dispositivos tiene la LAN"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué hacemos"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "apagá las luces y decime la agenda"}, {"role": "assistant", "content": "<tools><tool>smart-home-off</tool><tool>calendar</tool></tools>"}]}
+{"input": "escaneo de red", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"input": "mis tareas de hoy", "label": "calendar", "source": "hard_negative", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado de los torrents"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo estás"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hay propuestas pendientes"}, {"role": "assistant", "content": "<tools><tool>self-evolve</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado del media stack"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "clima en buenos aires"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mandame audio y fijate el clima"}, {"role": "assistant", "content": "<tools><tool>tts</tool><tool>weather</tool></tools>"}]}
+{"input": "cómo están los containers", "label": "infra", "source": "hard_negative", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "está lindo afuera"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"input": "contame algo", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "modo trabajo", "label": "lights", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "prendé las luces"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "ok dale"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "radarr está andando"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "escaneá la red, docker status y clima"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool><tool>infra-monitor</tool><tool>weather</tool></tools>"}]}
+{"input": "hosts activos", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"input": "ping sweep", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "performance del servidor"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "pronóstico, agenda y correos"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decí eso por el parlante"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "prendé las luces, decime el clima y la agenda"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "dale"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "va a llover hoy"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"input": "ok", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "leé esto en voz alta"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "encendé luces, temperatura y reuniones"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "nos vemos"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "sonarr status", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hacé un nmap"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buenos días"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "cuál es la propuesta", "label": "self_evolve", "source": "real", "difficulty": "hard"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuánto gasté este mes"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "hay alguna propuesta tuya", "label": "self_evolve", "source": "real", "difficulty": "medium"}
+{"input": "muy bien", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuánto es 15 por ciento de 200"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "generá audio con esa respuesta"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"input": "mostrame tus propuestas", "label": "self_evolve", "source": "real", "difficulty": "easy"}
+{"input": "qué hay conectado", "label": "network_scan", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "sale para salir o llueve"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"input": "cómo viene el nas", "label": "infra", "source": "hard_negative", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo está el tiempo y mis eventos"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "reproducí eso con la voz"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mostrá la topología de red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "temperatura, reuniones y emails"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mostrá los dispositivos conectados"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "red, containers y temperatura"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool><tool>infra-monitor</tool><tool>weather</tool></tools>"}]}
+{"input": "quién se conectó a la red", "label": "network_scan", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "correos, reminders y eventos"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>reminders</tool><tool>calendar</tool></tools>"}]}
+{"input": "luces de noche", "label": "lights", "source": "real", "difficulty": "easy"}
+{"input": "modo laburo", "label": "lights", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué sabés hacer"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "estado del sistema", "label": "infra", "source": "hard_negative", "difficulty": "easy"}
+{"input": "modo cine", "label": "lights", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "quién está conectado"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "pronóstico y reuniones de hoy"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"input": "qué propone self evolve", "label": "self_evolve", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "quiero escucharlo, no leerlo"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mostrame los emails"}, {"role": "assistant", "content": "<tools><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "escaneá puertos del homelab"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "tengo correos nuevos"}, {"role": "assistant", "content": "<tools><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "luces de cine y pronóstico"}, {"role": "assistant", "content": "<tools><tool>smart-home-cinema</tool><tool>weather</tool></tools>"}]}
+{"input": "nmap a la red", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"input": "buscar dispositivos en la red", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "tengo un problema"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decime el clima, mis eventos y los correos"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "eventos de esta semana"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "apagá todo"}, {"role": "assistant", "content": "<tools><tool>smart-home-off</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mis correos"}, {"role": "assistant", "content": "<tools><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué es kubernetes"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hola"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "entendido"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "contame algo"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "scan lan", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "ayuda"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "buscá dispositivos en la LAN"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "dale arrancamos"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo andan los containers"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"input": "buen día", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "cómo estás", "label": "none", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué está descargando sonarr"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mandá audio de prueba"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hace calor hoy"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"input": "estado arr", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuántos containers corren"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"input": "dale", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "recordatorios activos", "label": "calendar", "source": "hard_negative", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué onda el clima"}, {"role": "assistant", "content": "<tools><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuántos mails tengo"}, {"role": "assistant", "content": "<tools><tool>email</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué hay en la cola de descargas"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo está el clima y la infra"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "mails y estado del arr"}, {"role": "assistant", "content": "<tools><tool>email</tool><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "tengo reuniones hoy"}, {"role": "assistant", "content": "<tools><tool>calendar</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "fijate vos"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "qué hacés", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "prendé las luces", "label": "lights", "source": "real", "difficulty": "easy"}
+{"input": "cpu del servidor", "label": "infra", "source": "hard_negative", "difficulty": "easy"}
+{"input": "escena relax", "label": "lights", "source": "real", "difficulty": "medium"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuántos equipos hay en la red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "poneme las luces y decime la temperatura"}, {"role": "assistant", "content": "<tools><tool>smart-home-on</tool><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "self evolve y docker status"}, {"role": "assistant", "content": "<tools><tool>self-evolve</tool><tool>infra-monitor</tool></tools>"}]}
+{"input": "scan de red", "label": "network_scan", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "estado de los containers"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "genial"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo están las descargas"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "nmap y docker status"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué es el modelo GPT"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué podés hacer"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "detectá dispositivos nuevos en la red"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "modo relax y fijate el clima"}, {"role": "assistant", "content": "<tools><tool>smart-home-relax</tool><tool>weather</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué series se están bajando"}, {"role": "assistant", "content": "<tools><tool>arr-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "muy bien"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"input": "sí", "label": "none", "source": "real", "difficulty": "easy"}
+{"input": "mostrame esa propuesta", "label": "self_evolve", "source": "real", "difficulty": "hard"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decime el tiempo y mis citas"}, {"role": "assistant", "content": "<tools><tool>weather</tool><tool>calendar</tool></tools>"}]}
+{"input": "dim lights", "label": "lights", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "postulé a una empresa"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "modo cinema"}, {"role": "assistant", "content": "<tools><tool>smart-home-cinema</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cómo va el NAS"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "convertí eso a voz"}, {"role": "assistant", "content": "<tools><tool>tts</tool></tools>"}]}
+{"input": "cómo están las descargas", "label": "arr_monitor", "source": "real", "difficulty": "easy"}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué está conectado a la red ahora"}, {"role": "assistant", "content": "<tools><tool>network-scanner</tool></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "memoria RAM del NAS"}, {"role": "assistant", "content": "<tools><tool>infra-monitor</tool></tools>"}]}
+{"input": "anda el wifi", "label": "infra", "source": "hard_negative", "difficulty": "medium"}
