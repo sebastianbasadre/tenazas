@@ -1622,11 +1622,14 @@ def route_and_execute_multitool(
     query: str,
     context: dict | None = None,
 ) -> dict:
-    """Execute multiple tools from a single query via finetuned model.
+    """Execute tools from a single query via hybrid router (rules + model).
 
-    Conservative policy: only enters multitool path when the query clearly
-    asks for multiple actions. On any failure, falls back to the normal
-    route_and_execute() path.
+    Flow:
+      1. hybrid_router.route() applies hard rules first (instant, no LLM)
+      2. If no rule matches, calls tenazas-multitool model
+      3. Returns parsed, validated tool list
+
+    On any failure, falls back to the normal route_and_execute() path.
 
     Returns:
         {
@@ -1636,48 +1639,36 @@ def route_and_execute_multitool(
             "results": list[dict],
             "aggregated_text": str,
             "fallback_used": bool,
-            "parse_result": dict,
         }
         OR the normal route_and_execute() result on fallback.
     """
     try:
+        from runtime.hybrid_router import route as hybrid_route
+    except ImportError:
+        from hybrid_router import route as hybrid_route
+
+    try:
         from runtime.multitool_parser import (
-            parse_multitool_response, should_use_multitool,
             get_skill_category, get_tool_action,
         )
     except ImportError:
         from multitool_parser import (
-            parse_multitool_response, should_use_multitool,
             get_skill_category, get_tool_action,
         )
 
     t0 = time.monotonic()
 
-    # Policy check: only use multitool if query warrants it
-    if not should_use_multitool(query):
-        _routing_metrics["multitool_policy_skip"] += 1
-        return route_and_execute(query, context)
-
     _routing_metrics["multitool_requests_total"] += 1
 
-    # Call finetuned model
-    raw_response = _call_multitool_model(query)
-    if raw_response is None:
+    # Hybrid router: hard rules first, model only for ambiguous
+    try:
+        tools = hybrid_route(query)
+    except Exception as e:
         _routing_metrics["multitool_fallback_total"] += 1
-        _log({"type": "multitool_fallback", "reason": "model_offline",
+        _log({"type": "hybrid_router_error", "error": str(e),
               "query": query[:100]})
         return route_and_execute(query, context)
 
-    # Parse XML
-    parse_result = parse_multitool_response(raw_response)
-    if not parse_result["valid"]:
-        _routing_metrics["multitool_parse_failures_total"] += 1
-        _routing_metrics["multitool_fallback_total"] += 1
-        _log({"type": "multitool_parse_fail", "error": parse_result["error"],
-              "raw": raw_response[:200], "query": query[:100]})
-        return route_and_execute(query, context)
-
-    tools = parse_result["tools"]
     if not tools:
         # Model said no tools needed — fallback to normal
         _log({"type": "multitool_empty", "query": query[:100]})
