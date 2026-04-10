@@ -1,0 +1,60 @@
+QUERY                                                        | TOOL_SUGERIDA                  | ESTADO
+--------------------------------------------------------------------------------------------------------------
+a tu evolución                                               | self-evolve                    | INCORPORADA
+agenda de hoy                                                | calendar                       | INCORPORADA
+analiza en detalle profundo los patrones de fallback del último mes | (ninguna)                      | INCORPORADA
+analiza mi portfolio                                         | (ninguna)                      | INCORPORADA
+audita                                                       | (ninguna)                      | INCORPORADA
+auditá mi portafolio                                         | (ninguna)                      | INCORPORADA
+como esta el arrstack ?                                      | arr-monitor                    | INCORPORADA
+como estás                                                   | (ninguna)                      | INCORPORADA
+como generas mejor estabilidad ?                             | (ninguna)                      | INCORPORADA
+containers                                                   | infra-monitor                  | INCORPORADA
+cual es la propuesta total ?                                 | self-evolve                    | INCORPORADA
+cual es la propuesta?                                        | self-evolve                    | INCORPORADA
+cuando es la proxima?                                        | calendar                       | INCORPORADA
+cuantas luces estan encendidas                               | (ninguna)                      | INCORPORADA
+cuantos dispositivos ?                                       | network-scanner                | INCORPORADA
+cuantos emails recibi                                        | email                          | INCORPORADA
+cuantos emails tengo                                         | email                          | INCORPORADA
+Cuántos emails recibí                                        | email                          | INCORPORADA
+describe                                                     | (ninguna)                      | INCORPORADA
+el clima del dia de hoy                                      | weather                        | INCORPORADA
+emails                                                       | email                          | INCORPORADA
+en que area?                                                 | (ninguna)                      | INCORPORADA
+escanea red                                                  | network-scanner                | INCORPORADA
+estado del training                                          | infra-monitor                  | INCORPORADA
+Gastos rapidos ?                                             | (ninguna)                      | INCORPORADA
+hay algo de telus?                                           | email                          | INCORPORADA
+hay mas containers no los podes ver?                         | infra-monitor                  | INCORPORADA
+Infra monitor                                                | infra-monitor                  | INCORPORADA
+la infra ?                                                   | infra-monitor                  | INCORPORADA
+lee ultimo email                                             | email                          | INCORPORADA
+lee ultimos mails                                            | email                          | INCORPORADA
+leeme los mails                                              | email                          | INCORPORADA
+Me das el resumen de finanzas ?                              | (ninguna)                      | INCORPORADA
+me das inforamcion sobre los reminders                       | reminders                      | INCORPORADA
+me decis tus skills ?                                        | (ninguna)                      | INCORPORADA
+me los pasas                                                 | (ninguna)                      | INCORPORADA
+mostrame mis emails                                          | email                          | INCORPORADA
+network scanner                                              | network-scanner                | INCORPORADA
+no entiendo                                                  | (ninguna)                      | INCORPORADA
+no, son tus propuestas de self-evolve                        | self-evolve                    | INCORPORADA
+podes hablar con otros modelos?                              | (ninguna)                      | INCORPORADA
+podes modificar el grafico de grafana de training ?          | infra-monitor                  | INCORPORADA
+podes revisar mi red ?                                       | network-scanner                | INCORPORADA
+podes verificar los logs ?                                   | infra-monitor                  | INCORPORADA
+portafolio                                                   | (ninguna)                      | INCORPORADA
+que sabes del arr stack                                      | arr-monitor                    | INCORPORADA
+que tengo en la agenda?                                      | calendar                       | INCORPORADA
+qué es esto                                                  | (ninguna)                      | INCORPORADA
+revisa los resultados y analizalo                            | (ninguna)                      | INCORPORADA
+self evolve?                                                 | self-evolve                    | INCORPORADA
+tenes nuevas propuestas?                                     | self-evolve                    | INCORPORADA
+training ?                                                   | infra-monitor                  | INCORPORADA
+ver el inbox                                                 | email                          | INCORPORADA
+y sobre el self evolve?                                      | self-evolve                    | INCORPORADA
+
+Total incorporadas: 54 queries nuevas
+Correcciones aplicadas: 6 reclasificaciones
+Duplicadas omitidas: 3 (clima y agenda de hoy, muy bien, self evolve)

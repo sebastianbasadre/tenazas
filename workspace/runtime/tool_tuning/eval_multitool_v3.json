@@ -1,0 +1,499 @@
+{
+  "metrics": {
+    "n": 80,
+    "exact_match": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "hallucination_rate": 0.0,
+    "over_trigger_rate": 0.0,
+    "under_trigger_rate": 0.0,
+    "per_tool_f1": {},
+    "errors": 0,
+    "model": "tenazas-multitool-v3",
+    "timestamp": "2026-04-10T12:37:48.138385",
+    "eval_file": "/home/tenazas/runtime/tool_tuning/datasets/eval_router_v2.jsonl"
+  },
+  "results": [
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    },
+    {
+      "query": "",
+      "predicted": [],
+      "expected": [],
+      "raw": ""
+    }
+  ]
+}

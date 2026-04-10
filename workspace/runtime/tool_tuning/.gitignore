@@ -1,0 +1,5 @@
+tenazas-tools-3b-lora-v3/
+tenazas-tools-3b-merged-v3/
+*.gguf
+logs/
+__pycache__/

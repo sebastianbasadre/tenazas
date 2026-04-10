@@ -1,0 +1,24 @@
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "me decis tus skills ?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "me decís qué hacés?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué hacés?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "podes hablar con otros modelos?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "hablás con otros modelos?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "podés contarme algo?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "decime quién sos"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "quién sos?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué sos?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué podés hacer?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "qué sabés hacer"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuáles son tus funciones?"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "cuantas luces estan encendidas"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "audita mi portafolio"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "auditá mi portafolio"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "auditá esto"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "analizá esto"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "revisá esto"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "analiza mi portfolio"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "revisá mi portfolio"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "analizá mi portafolio"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "portafolio"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "contame un chiste"}, {"role": "assistant", "content": "<tools></tools>"}]}
+{"messages": [{"role": "system", "content": "Respond only with valid XML tool calls."}, {"role": "user", "content": "sabés chistes?"}, {"role": "assistant", "content": "<tools></tools>"}]}
