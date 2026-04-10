@@ -27,3 +27,30 @@ groups:
         annotations:
           summary: "Eval exporter caído"
           description: "El exporter de métricas eval en :9107 no responde."
+
+      - alert: TenazasEvalF1BelowThreshold
+        expr: tenazas_eval_f1{model="finetuned"} < 0.5
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "F1 del modelo finetuned por debajo de 0.5"
+          description: "F1 actual: {{ $value }}. El modelo finetuned tiene performance inaceptable."
+
+      - alert: TenazasEvalFinetunedWorseThanBaseline
+        expr: tenazas_eval_f1{model="finetuned"} < tenazas_eval_f1{model="baseline"}
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Finetuned peor que baseline"
+          description: "El modelo finetuned tiene F1 menor que el baseline. Revisar el ultimo training."
+
+      - alert: TenazasEvalFileStale
+        expr: (time() - tenazas_eval_file_mtime_seconds) > 86400
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Eval results desactualizados (>24h)"
+          description: "Último eval hace {{ $value | humanizeDuration }}. Correr eval_runner.py."

@@ -2,7 +2,7 @@
   "__inputs": [],
   "__requires": [],
   "annotations": { "list": [] },
-  "description": "Tenazas — Eval del modelo multitool (fine-tuning vs baseline vs 3b)",
+  "description": "Tenazas — Eval del modelo tenazas-multitool (fine-tuning vs baseline)",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -218,12 +218,12 @@
       },
       "targets": [
         {
-          "expr": "tenazas_eval_over_trigger_rate",
+          "expr": "tenazas_eval_over_trigger",
           "legendFormat": "over -- {{model}}",
           "refId": "A"
         },
         {
-          "expr": "tenazas_eval_under_trigger_rate",
+          "expr": "tenazas_eval_under_trigger",
           "legendFormat": "under -- {{model}}",
           "refId": "B"
         }
@@ -240,7 +240,7 @@
     {
       "id": 10,
       "title": "Per-tool F1 -- finetuned",
-      "description": "F1 score por tool del modelo fine-tuned. Verde > 0.85, rojo < 0.60. Tools con F1 bajo necesitan mas ejemplos en el dataset.",
+      "description": "F1 score por tool. Verde > 0.85, rojo < 0.60. Tools con F1 bajo necesitan mas ejemplos en el dataset.",
       "type": "bargauge",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "options": {
@@ -317,18 +317,56 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
+      "id": 12,
+      "title": "Delta F1 por tool (finetuned - baseline)",
+      "description": "Diferencia de F1 por tool. Verde = el fine-tuning mejoro esa tool. Rojo = empeoro.",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "valueMode": "color",
+        "namePlacement": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": -1, "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": -0.05 },
+              { "color": "green",  "value": 0.0 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "tenazas_eval_f1_per_tool{model=\"finetuned\"} - on(tool) tenazas_eval_f1_per_tool{model=\"baseline\"}",
+        "legendFormat": "{{tool}}",
+        "refId": "A",
+        "instant": true
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
       "id": 102,
       "title": "Evolucion en el tiempo -- evals historicos",
       "type": "row"
     },
     {
       "id": 20,
-      "title": "F1 historico -- todos los modelos",
+      "title": "F1 historico -- fine-tuned vs baseline",
       "description": "Evolucion del F1 a lo largo de los evals. Cada punto = una corrida de eval_runner.py.",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 17 },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 25 },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last"] }
@@ -358,13 +396,6 @@
               { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [8, 4] } },
               { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
             ]
-          },
-          {
-            "matcher": { "id": "byFrameRefID", "options": "C" },
-            "properties": [
-              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
-              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#8ab8ff" } }
-            ]
           }
         ]
       },
@@ -378,11 +409,6 @@
           "expr": "tenazas_eval_f1{model=\"baseline\"}",
           "legendFormat": "F1 baseline",
           "refId": "B"
-        },
-        {
-          "expr": "tenazas_eval_f1{model=\"3b_baseline\"}",
-          "legendFormat": "F1 3b_baseline",
-          "refId": "C"
         }
       ],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
@@ -392,7 +418,7 @@
       "title": "Delta F1 (finetuned - baseline)",
       "description": "Verde = el fine-tuning mejoro. Rojo = el fine-tuning empeoro.",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 17 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 25 },
       "options": {
         "tooltip": { "mode": "single" },
         "legend": { "displayMode": "hidden" }
@@ -418,7 +444,7 @@
         }
       },
       "targets": [{
-        "expr": "scalar(tenazas_eval_f1{model=\"finetuned\"}) - scalar(tenazas_eval_f1{model=\"baseline\"})",
+        "expr": "tenazas_eval_f1{model=\"finetuned\"} - tenazas_eval_f1{model=\"baseline\"}",
         "legendFormat": "Delta F1",
         "refId": "A"
       }],
@@ -426,7 +452,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
       "id": 103,
       "title": "Alertas de calidad",
       "type": "row"
@@ -436,7 +462,7 @@
       "title": "Estado del modelo",
       "description": "LISTO = F1 > 0.80 y hallucination < 5%. REVISAR = alguna metrica fuera de rango.",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 26 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 34 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "auto",
@@ -459,104 +485,49 @@
         }
       },
       "targets": [{
-        "expr": "(tenazas_eval_f1{model=\"finetuned\"} > bool 0.80) * (tenazas_eval_hallucination_rate{model=\"finetuned\"} < bool 0.05)",
+        "expr": "(tenazas_eval_f1{model=\"finetuned\"} > 0.80) * (tenazas_eval_hallucination_rate{model=\"finetuned\"} < 0.05)",
         "legendFormat": "Calidad",
-        "refId": "A",
-        "instant": true
+        "refId": "A"
       }],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 31,
-      "title": "Ultimo eval",
-      "description": "Timestamp del ultimo archivo de eval procesado",
+      "title": "Freshness eval",
+      "description": "Tiempo desde la ultima corrida de eval. Verde < 1d, rojo > 3d.",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 26 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 34 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "textMode": "value_and_name",
-        "colorMode": "none"
+        "colorMode": "background"
       },
       "fieldConfig": {
-        "defaults": { "unit": "dateTimeAsIso" }
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 86400 },
+              { "color": "red",    "value": 259200 }
+            ]
+          }
+        }
       },
       "targets": [{
-        "expr": "tenazas_eval_file_mtime_seconds{model=\"finetuned\"} * 1000",
-        "legendFormat": "Finetuned",
-        "refId": "A",
-        "instant": true
+        "expr": "time() - tenazas_eval_file_mtime_seconds",
+        "legendFormat": "Hace",
+        "refId": "A"
       }],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 32,
-      "title": "Resumen de umbrales",
-      "description": "Metricas globales de todos los modelos. Verde > 0.85, amarillo > 0.70, rojo < 0.70.",
-      "type": "table",
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 26 },
-      "options": {
-        "footer": { "show": false },
-        "showHeader": true,
-        "sortBy": []
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "custom": { "align": "center", "displayMode": "color-background" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red",    "value": null },
-              { "color": "yellow", "value": 0.70 },
-              { "color": "green",  "value": 0.85 }
-            ]
-          }
-        }
-      },
-      "targets": [
-        {
-          "expr": "tenazas_eval_f1",
-          "legendFormat": "F1 {{model}}",
-          "refId": "A",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "expr": "tenazas_eval_precision",
-          "legendFormat": "Precision {{model}}",
-          "refId": "B",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "expr": "tenazas_eval_recall",
-          "legendFormat": "Recall {{model}}",
-          "refId": "C",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "expr": "tenazas_eval_exact_match",
-          "legendFormat": "Exact {{model}}",
-          "refId": "D",
-          "instant": true,
-          "format": "table"
-        }
-      ],
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        }
-      ]
-    },
-    {
-      "id": 33,
-      "title": "Exporter Status",
-      "description": "1 = exporter corriendo. 0 = caido.",
+      "title": "Exporter status",
+      "description": "1 = exporter corriendo y con datos. 0 = sin archivos de resultados.",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 30 },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 34 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "textMode": "value_and_name",
@@ -580,17 +551,68 @@
       "targets": [{
         "expr": "tenazas_eval_exporter_up",
         "legendFormat": "Exporter",
-        "refId": "A",
-        "instant": true
+        "refId": "A"
       }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 33,
+      "title": "Resumen de umbrales",
+      "description": "Todas las metricas del finetuned de un vistazo.",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 34 },
+      "options": {
+        "footer": { "show": false },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "align": "center", "displayMode": "color-background" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 0.70 },
+              { "color": "green",  "value": 0.85 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        { "expr": "tenazas_eval_f1{model=\"finetuned\"}", "legendFormat": "F1", "refId": "A", "instant": true },
+        { "expr": "tenazas_eval_precision{model=\"finetuned\"}", "legendFormat": "Precision", "refId": "B", "instant": true },
+        { "expr": "tenazas_eval_recall{model=\"finetuned\"}", "legendFormat": "Recall", "refId": "C", "instant": true },
+        { "expr": "tenazas_eval_exact_match{model=\"finetuned\"}", "legendFormat": "Exact Match", "refId": "D", "instant": true },
+        { "expr": "tenazas_eval_hallucination_rate{model=\"finetuned\"}", "legendFormat": "Hallucination", "refId": "E", "instant": true }
+      ],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     }
   ],
-  "refresh": "30s",
+  "refresh": "",
   "schemaVersion": 39,
   "tags": ["tenazas", "multitool", "ml", "eval"],
-  "templating": { "list": [] },
-  "time": { "from": "now-7d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(tenazas_eval_f1, model)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "model",
+        "options": [],
+        "query": { "query": "label_values(tenazas_eval_f1, model)", "refId": "A" },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query",
+        "label": "Modelo"
+      }
+    ]
+  },
+  "time": { "from": "now-30d", "to": "now" },
   "timepicker": {},
   "timezone": "America/Argentina/Buenos_Aires",
   "title": "Tenazas — Multitool Eval",
