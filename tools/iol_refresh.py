@@ -172,6 +172,14 @@ def run(force: bool = False, status_only: bool = False):
         config = _load_config()
         username = config.get("iol_username")
         password = config.get("iol_password")
+        # Fallback: separate credentials file
+        if not username or not password:
+            try:
+                creds = json.load(open("/home/tenazas/.openclaw/iol_credentials.json"))
+                username = username or creds.get("username")
+                password = password or creds.get("password")
+            except Exception:
+                pass
 
         if not username or not password:
             msg = "Token expired, no credentials in openclaw.json (iol_username/iol_password). Manual re-auth needed."

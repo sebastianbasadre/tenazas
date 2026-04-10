@@ -36,6 +36,15 @@ def main():
         _cfg = json.load(open(CONFIG_FILE))
         _username_from_config = _cfg.get("iol_username")
         _password_from_config = _cfg.get("iol_password")
+        # Fallback: read from separate credentials file
+        if not _username_from_config or not _password_from_config:
+            try:
+                import json as _j2
+                _creds = _j2.load(open("/home/tenazas/.openclaw/iol_credentials.json"))
+                _username_from_config = _username_from_config or _creds.get("username")
+                _password_from_config = _password_from_config or _creds.get("password")
+            except Exception:
+                pass
     except Exception:
         pass
 

@@ -39,7 +39,7 @@ Smart Home (LAN)
 └── Samsung M8 Monitor (192.168.2.46) — WebSocket control
 ```
 
-**18 containers esperados** en operacion normal.
+**20 containers esperados** en operacion normal.
 
 ---
 
@@ -845,7 +845,7 @@ workspace/runtime/
 - **Metricas extendidas:** runtime_step_*_seconds, rag_queries_total, rag_low_confidence_total, model_failover_active
 - **Metricas Router V2:** router_v2_decisions_total{role}, router_v1_decisions_total, router_v1_fallback_from_v2_total, router_v2_internal_fallbacks_total{role}, router_vram_swaps_total{role,model}, router_cloud_fallbacks_total, router_decision_latency_seconds{role}, router_model_latency_seconds{model,role}
 - **Metricas NAS Host:** nas_ram_used_bytes, nas_ram_total_bytes, nas_cpu_load_percent, nas_disk_used_bytes, nas_disk_total_bytes, nas_cpu_temp_celsius (lectura directa de /proc y /sys cada 5s)
-- **Metricas Ollama GPU:** ollama_gpu_up, ollama_gpu_latency_seconds, ollama_gpu_models_count (health check cada 60s a OLLAMA_GPU_URL, default http://192.168.2.76:11434)
+- **Metricas Ollama GPU:** ollama_gpu_up, ollama_gpu_latency_seconds, ollama_gpu_models_count (health check cada 60s a OLLAMA_GPU_URL, default http://192.168.2.6:11434)
 - **Metricas Telegram:** telegram_messages_total, telegram_messages_today (parseo de telegram_handler.log cada 30s)
 - **Metricas IOL:** iol_portfolio_value_ars, iol_portfolio_pnl_day_ars, iol_portfolio_last_success_ts, iol_portfolio_errors_total (API IOL cada 5 min, loguea errores)
 - **Metricas OpenRouter:** tenazas_openrouter_balance_usd, tenazas_openrouter_used_usd, tenazas_openrouter_requests_total, tenazas_openrouter_last_check_ts (API OpenRouter cada 60s con cache, falla silenciosamente)
@@ -1567,24 +1567,54 @@ Excluidos via `.gitignore`:
 
 ## Infraestructura — Homelab (GPU Server)
 - Nombre: HOMELAB
-- IP: 192.168.2.76
+- IP: 192.168.2.6
 - OS: Windows 11 Pro (Build 26200)
 - Placa madre: MSI MPG Z690 EDGE WIFI DDR4 (MS-7D31)
 - CPU: Intel Core i7-12700KF 3600MHz, 12 cores, 20 threads
 - RAM: 16 GB físicos / 15.8 GB disponibles
 - GPU: RTX 3090 — 24GB VRAM
-- Ollama: http://192.168.2.76:11434
+- Ollama: http://192.168.2.6:11434
 - NUNCA llamar 'notebook' a esta máquina — es un desktop PC
 
 ## Infraestructura — NAS
 - Nombre: DS923+
 - IP: 192.168.2.2
-- OS: Synology DSM
-- CPU: AMD Ryzen R1600
+- OS: Synology DSM 7.3.2 (build 86009)
+- CPU: AMD Ryzen Embedded R1600
+- RAM: 16 GB
+- Storage: 27T (volume1) + 1.8T (volume2)
+- Docker: 24.0.2
 - Docker host principal
 - Tenazas corre acá en container 'openclaw'
+
+## Containers Docker (20 en producción)
+
+| Container | Imagen | Función |
+|---|---|---|
+| openclaw | openclaw-openclaw | Tenazas (asistente principal) |
+| gluetun | qmcgaw/gluetun | VPN gateway NordVPN |
+| qbittorrent | linuxserver/qbittorrent | Torrent client |
+| sonarr | linuxserver/sonarr | TV series |
+| radarr | linuxserver/radarr | Movies |
+| lidarr | linuxserver/lidarr | Music |
+| prowlarr | linuxserver/prowlarr | Indexer manager |
+| sabnzbd | linuxserver/sabnzbd | Usenet |
+| seerr | seerr-team/seerr | Media requests UI |
+| requestrr | darkalfx/requestrr | Media request bot |
+| tautulli | tautulli/tautulli | Plex stats |
+| chromadb | chromadb/chroma | Vector DB para RAG (:8100) |
+| piper | linuxserver/piper | TTS local |
+| prometheus | prom/prometheus | Métricas (:9090) |
+| grafana | grafana/grafana | Dashboards (:3000) |
+| portainer | portainer/portainer-ee | Docker dashboard |
+| WATCHTOWER | nickfedor/watchtower | Auto-update imágenes |
+| hireswarm-agent-server | dev-agent-pipeline | HireSwarm agente |
+| hireswarm-inngest | inngest/inngest | HireSwarm event engine |
+| backing-track-generator | backing-track-generator | Generador de backing tracks |
 
 ## Build Rules
 - NUNCA usar --no-cache salvo que haya conflicto de dependencias confirmado
 - Comando correcto: docker compose build && docker compose up -d
 - --no-cache solo si hay error de versión o dependencia rota
+- PYTHON_HOMELAB = C:\Python314\python.exe (Python 3.11 bloqueado por WDAC)
+- GGUF conversion: llama.cpp b4924, outtype q8_0 (no q4_k_m)
