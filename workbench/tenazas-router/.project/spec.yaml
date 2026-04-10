@@ -1,0 +1,8 @@
+name: tenazas-router
+description: "Clasificador XML determinista de tools para Tenazas"
+image: nvcr.io/nvidia/pytorch:24.01-py3
+resources:
+  gpu: 1
+mounts:
+  - type: project
+    target: /project
