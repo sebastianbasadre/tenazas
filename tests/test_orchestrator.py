@@ -166,6 +166,15 @@ class TestQueryClassification(unittest.TestCase):
         cmd = orch.SKILL_MAP["skill:infra-monitor"]["command"]
         self.assertIn("-a", cmd)
 
+    def test_containers_solo_is_infra_monitor(self):
+        self.assertEqual(orch.classify_query("containers"), "skill:infra-monitor")
+
+    def test_docker_solo_is_infra_monitor(self):
+        self.assertEqual(orch.classify_query("docker"), "skill:infra-monitor")
+
+    def test_infra_solo_is_infra_monitor(self):
+        self.assertEqual(orch.classify_query("infra"), "skill:infra-monitor")
+
 
 class TestModelSelection(unittest.TestCase):
     """Model selection based on category and availability."""

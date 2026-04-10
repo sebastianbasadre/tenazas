@@ -268,7 +268,10 @@ CLASSIFICATION_RULES = [
          r"(estado|status)\s+(del?\s+)?(sistema|infra)",
          r"(cu[aá]ntos|qu[eé])\s+containers?",
          r"docker\s+(ps|status|estado)",
-         r"(est[aá]n?|andan?)\s+(todos\s+)?(los\s+)?containers?"],
+         r"(est[aá]n?|andan?)\s+(todos\s+)?(los\s+)?containers?",
+         r"^containers?$",
+         r"^docker$",
+         r"^infra$"],
         {"containers", "container", "docker", "infra", "infraestructura"},
     ),
     # Morning greeting
