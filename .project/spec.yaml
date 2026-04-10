@@ -2,7 +2,20 @@ specVersion: v2
 meta:
   name: tenazas
   image: nvcr.io/nvidia/pytorch:24.01-py3
-  description: "Tenazas — AI assistant homelab"
+  description: Tenazas homelab assistant
   labels: []
   createdOn: "2026-04-10T00:00:00Z"
   defaultBranch: main
+layout:
+- path: code/
+  type: code
+  storage: gitlfs
+- path: models/
+  type: models
+  storage: gitlfs
+- path: data/
+  type: data
+  storage: gitlfs
+- path: results/
+  type: results
+  storage: gitlfs
