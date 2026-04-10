@@ -177,6 +177,17 @@ CLASSIFICATION_RULES = [
          "dólar", "dolar", "dollar", "usd", "blue", "mep", "ccl"},
     ),
     # ── Skill-specific rules (before generic categories) ──────────
+    # Finance / Expenses
+    (
+        "skill:expense",
+        [r"gastos?\s+(r[aá]pidos?|de\s+hoy|del\s+d[ií]a|de\s+la\s+semana|semanales?)",
+         r"(qu[eé]|cu[aá]nto)\s+gast[eé]", r"mis\s+gastos",
+         r"resumen\s+(de\s+)?(gastos|finanzas|financiero)",
+         r"(balance|resumen)\s+(del\s+)?mes",
+         r"(cuánto|cuanto)\s+(llevo|gast[eé]|me\s+queda)",
+         r"(agregar?|registrar?|anotar?)\s+(un\s+)?gasto"],
+        {"gastos", "gasto", "gasté", "finanzas", "balance", "resumen"},
+    ),
     # Weather
     (
         "skill:weather",
@@ -846,7 +857,7 @@ SKILL_MAP = {
         "description": "Estado del arr-stack",
     },
     "skill:infra-monitor": {
-        "command": 'docker ps --format "{{.Names}}\t{{.Status}}"',
+        "command": 'docker ps -a --format "{{.Names}}\t{{.Status}}"',
         "destructive": False,
         "description": "Estado de containers Docker",
     },
@@ -873,6 +884,12 @@ SKILL_MAP = {
         "destructive": True,
         "description": "Recordatorios",
         "handler": "_handle_reminders",
+    },
+    "skill:expense": {
+        "command": "",
+        "destructive": False,
+        "description": "Gastos y finanzas personales",
+        "handler": "_handle_expense",
     },
     "skill:model-trainer": {
         "command": (
@@ -1389,6 +1406,46 @@ def _handle_model_trainer(skill_cat: str, query: str, skill: dict) -> dict:
     }
 
 
+def _handle_expense(skill_category, query, skill):
+    """Handle expense/finance queries using expenses.py and finance.py."""
+    try:
+        import importlib.util
+        # Try daily summary first
+        spec = importlib.util.spec_from_file_location(
+            "expenses", "/home/tenazas/runtime/expenses.py")
+        expenses_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(expenses_mod)
+
+        # Check if query asks for weekly
+        is_weekly = any(w in query.lower() for w in ["semana", "semanal", "week"])
+
+        if is_weekly:
+            data, text = expenses_mod.weekly_summary()
+        else:
+            data, text = expenses_mod.daily_summary()
+
+        if data and data.get("count", 0) > 0:
+            output = text
+        else:
+            # Try monthly summary from finance.py
+            spec2 = importlib.util.spec_from_file_location(
+                "finance", "/home/tenazas/runtime/finance.py")
+            finance_mod = importlib.util.module_from_spec(spec2)
+            spec2.loader.exec_module(finance_mod)
+            s = finance_mod.summary("month")
+            if s and s.get("transaction_count", 0) > 0:
+                output = finance_mod.format_summary(s)
+            else:
+                output = "No hay gastos registrados todavía."
+    except Exception as e:
+        output = f"Error al consultar gastos: {e}"
+
+    return {
+        "skill": skill_category, "success": True,
+        "output": output, "raw": "", "destructive": False, "error": None,
+    }
+
+
 # Registry of handlers and parsers
 _SKILL_HANDLERS = {
     "_handle_smart_home": _handle_smart_home,
@@ -1397,6 +1454,7 @@ _SKILL_HANDLERS = {
     "_handle_reminders": _handle_reminders,
     "_handle_email": _handle_email,
     "_handle_model_trainer": _handle_model_trainer,
+    "_handle_expense": _handle_expense,
 }
 
 _SKILL_PARSERS = {

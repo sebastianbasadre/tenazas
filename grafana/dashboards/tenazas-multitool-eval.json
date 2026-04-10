@@ -2,7 +2,7 @@
   "__inputs": [],
   "__requires": [],
   "annotations": { "list": [] },
-  "description": "Tenazas — Eval del modelo tenazas-multitool (fine-tuning vs baseline)",
+  "description": "Tenazas — Eval del modelo multitool (fine-tuning vs baseline vs 3b)",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -47,7 +47,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_eval{metric=\"exact_match\"}",
+        "expr": "tenazas_eval_exact_match",
         "legendFormat": "{{model}}",
         "refId": "A"
       }],
@@ -81,7 +81,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_eval{metric=\"f1\"}",
+        "expr": "tenazas_eval_f1",
         "legendFormat": "{{model}}",
         "refId": "A"
       }],
@@ -115,7 +115,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_eval{metric=\"precision\"}",
+        "expr": "tenazas_eval_precision",
         "legendFormat": "{{model}}",
         "refId": "A"
       }],
@@ -149,7 +149,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_eval{metric=\"recall\"}",
+        "expr": "tenazas_eval_recall",
         "legendFormat": "{{model}}",
         "refId": "A"
       }],
@@ -183,7 +183,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_eval{metric=\"hallucination_rate\"}",
+        "expr": "tenazas_eval_hallucination_rate",
         "legendFormat": "{{model}}",
         "refId": "A"
       }],
@@ -218,12 +218,12 @@
       },
       "targets": [
         {
-          "expr": "tenazas_multitool_eval{metric=\"over_trigger_rate\"}",
+          "expr": "tenazas_eval_over_trigger_rate",
           "legendFormat": "over -- {{model}}",
           "refId": "A"
         },
         {
-          "expr": "tenazas_multitool_eval{metric=\"under_trigger_rate\"}",
+          "expr": "tenazas_eval_under_trigger_rate",
           "legendFormat": "under -- {{model}}",
           "refId": "B"
         }
@@ -239,8 +239,8 @@
     },
     {
       "id": 10,
-      "title": "Per-tool F1 -- tenazas-multitool (fine-tuned)",
-      "description": "F1 score por tool. Verde > 0.85, rojo < 0.60. Tools con F1 bajo necesitan mas ejemplos en el dataset.",
+      "title": "Per-tool F1 -- finetuned",
+      "description": "F1 score por tool del modelo fine-tuned. Verde > 0.85, rojo < 0.60. Tools con F1 bajo necesitan mas ejemplos en el dataset.",
       "type": "bargauge",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "options": {
@@ -270,7 +270,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_tool_f1{model=~\"tenazas.multitool.*\"}",
+        "expr": "tenazas_eval_f1_per_tool{model=\"finetuned\"}",
         "legendFormat": "{{tool}}",
         "refId": "A",
         "instant": true
@@ -279,7 +279,7 @@
     },
     {
       "id": 11,
-      "title": "Per-tool F1 -- baseline (qwen2.5:7b)",
+      "title": "Per-tool F1 -- baseline",
       "description": "F1 score del modelo sin fine-tuning. Comparar con el panel izquierdo.",
       "type": "bargauge",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
@@ -309,7 +309,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_tool_f1{model=~\"qwen.*\"}",
+        "expr": "tenazas_eval_f1_per_tool{model=\"baseline\"}",
         "legendFormat": "{{tool}}",
         "refId": "A",
         "instant": true
@@ -325,8 +325,8 @@
     },
     {
       "id": 20,
-      "title": "F1 historico -- fine-tuned vs baseline",
-      "description": "Evolucion del F1 a lo largo de los evals. Cada punto = una corrida de eval_runner.py --prometheus.",
+      "title": "F1 historico -- todos los modelos",
+      "description": "Evolucion del F1 a lo largo de los evals. Cada punto = una corrida de eval_runner.py.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 16, "x": 0, "y": 17 },
       "options": {
@@ -358,26 +358,38 @@
               { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [8, 4] } },
               { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
             ]
+          },
+          {
+            "matcher": { "id": "byFrameRefID", "options": "C" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#8ab8ff" } }
+            ]
           }
         ]
       },
       "targets": [
         {
-          "expr": "tenazas_multitool_eval{metric=\"f1\", model=~\"tenazas.multitool.*\"}",
-          "legendFormat": "F1 fine-tuned ({{model}})",
+          "expr": "tenazas_eval_f1{model=\"finetuned\"}",
+          "legendFormat": "F1 finetuned",
           "refId": "A"
         },
         {
-          "expr": "tenazas_multitool_eval{metric=\"f1\", model=~\"qwen.*\"}",
-          "legendFormat": "F1 baseline ({{model}})",
+          "expr": "tenazas_eval_f1{model=\"baseline\"}",
+          "legendFormat": "F1 baseline",
           "refId": "B"
+        },
+        {
+          "expr": "tenazas_eval_f1{model=\"3b_baseline\"}",
+          "legendFormat": "F1 3b_baseline",
+          "refId": "C"
         }
       ],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 21,
-      "title": "Delta F1 (fine-tuned - baseline)",
+      "title": "Delta F1 (finetuned - baseline)",
       "description": "Verde = el fine-tuning mejoro. Rojo = el fine-tuning empeoro.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 17 },
@@ -406,7 +418,7 @@
         }
       },
       "targets": [{
-        "expr": "tenazas_multitool_eval{metric=\"f1\", model=~\"tenazas.multitool.*\"} - ignoring(model) tenazas_multitool_eval{metric=\"f1\", model=~\"qwen.*\"}",
+        "expr": "scalar(tenazas_eval_f1{model=\"finetuned\"}) - scalar(tenazas_eval_f1{model=\"baseline\"})",
         "legendFormat": "Delta F1",
         "refId": "A"
       }],
@@ -422,7 +434,7 @@
     {
       "id": 30,
       "title": "Estado del modelo",
-      "description": "LISTO = todos los umbrales OK. REVISAR = alguna metrica fuera de rango.",
+      "description": "LISTO = F1 > 0.80 y hallucination < 5%. REVISAR = alguna metrica fuera de rango.",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 26 },
       "options": {
@@ -447,15 +459,17 @@
         }
       },
       "targets": [{
-        "expr": "(tenazas_multitool_eval{metric=\"f1\", model=~\"tenazas.multitool.*\"} > 0.80) * (tenazas_multitool_eval{metric=\"hallucination_rate\", model=~\"tenazas.multitool.*\"} < 0.05)",
+        "expr": "(tenazas_eval_f1{model=\"finetuned\"} > bool 0.80) * (tenazas_eval_hallucination_rate{model=\"finetuned\"} < bool 0.05)",
         "legendFormat": "Calidad",
-        "refId": "A"
+        "refId": "A",
+        "instant": true
       }],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 31,
       "title": "Ultimo eval",
+      "description": "Timestamp del ultimo archivo de eval procesado",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 26 },
       "options": {
@@ -464,18 +478,20 @@
         "colorMode": "none"
       },
       "fieldConfig": {
-        "defaults": { "unit": "dateTimeFromNow" }
+        "defaults": { "unit": "dateTimeAsIso" }
       },
       "targets": [{
-        "expr": "tenazas_multitool_eval{metric=\"f1\", model=~\"tenazas.multitool.*\"}",
-        "legendFormat": "Hace",
-        "refId": "A"
+        "expr": "tenazas_eval_file_mtime_seconds{model=\"finetuned\"} * 1000",
+        "legendFormat": "Finetuned",
+        "refId": "A",
+        "instant": true
       }],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 32,
       "title": "Resumen de umbrales",
+      "description": "Metricas globales de todos los modelos. Verde > 0.85, amarillo > 0.70, rojo < 0.70.",
       "type": "table",
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 26 },
       "options": {
@@ -498,37 +514,86 @@
         }
       },
       "targets": [
-        { "expr": "tenazas_multitool_eval{model=~\"tenazas.multitool.*\"}", "legendFormat": "{{metric}}", "refId": "A", "instant": true }
+        {
+          "expr": "tenazas_eval_f1",
+          "legendFormat": "F1 {{model}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "tenazas_eval_precision",
+          "legendFormat": "Precision {{model}}",
+          "refId": "B",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "tenazas_eval_recall",
+          "legendFormat": "Recall {{model}}",
+          "refId": "C",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "tenazas_eval_exact_match",
+          "legendFormat": "Exact {{model}}",
+          "refId": "D",
+          "instant": true,
+          "format": "table"
+        }
       ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "title": "Exporter Status",
+      "description": "1 = exporter corriendo. 0 = caido.",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 30 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value_and_name",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "UP",   "color": "green" } } },
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red"   } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",   "value": null },
+              { "color": "green", "value": 1    }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "tenazas_eval_exporter_up",
+        "legendFormat": "Exporter",
+        "refId": "A",
+        "instant": true
+      }],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     }
   ],
-  "refresh": "",
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": ["tenazas", "multitool", "ml", "eval"],
-  "templating": {
-    "list": [
-      {
-        "current": {},
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "definition": "label_values(tenazas_multitool_eval, model)",
-        "hide": 0,
-        "includeAll": true,
-        "multi": true,
-        "name": "model",
-        "options": [],
-        "query": { "query": "label_values(tenazas_multitool_eval, model)", "refId": "A" },
-        "refresh": 2,
-        "sort": 1,
-        "type": "query",
-        "label": "Modelo"
-      }
-    ]
-  },
-  "time": { "from": "now-30d", "to": "now" },
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
   "timepicker": {},
   "timezone": "America/Argentina/Buenos_Aires",
   "title": "Tenazas — Multitool Eval",
   "uid": "tenazas-multitool-eval",
-  "version": 1
+  "version": 2
 }

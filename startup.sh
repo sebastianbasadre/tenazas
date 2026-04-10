@@ -2,6 +2,10 @@
 openclaw gateway &
 OC_PID=$!
 
+# Kill zombie MCP server instances from prior runs
+pkill -f "iol_broker/mcp_server.py" 2>/dev/null || true
+sleep 1
+
 # Start Prometheus metrics server (polls metrics_state.json, serves :9105)
 cd /home/tenazas && python3 /home/tenazas/runtime/metrics_server.py &
 
@@ -16,11 +20,25 @@ echo "API metrics exporter iniciado en :9106"
 cd /home/tenazas && python3 /home/tenazas/runtime/telegram_router.py &
 echo "Telegram router iniciado (deterministic skill interception)"
 
+# Start multitool eval exporter (:9107/metrics — F1, precision, recall, per-tool)
+if ! pgrep -f "eval_exporter.py" >/dev/null 2>&1; then
+  cd /home/tenazas && nohup python3 /home/tenazas/runtime/tool_tuning/eval_exporter.py \
+    >/tmp/eval_exporter.log 2>&1 &
+  echo "Eval exporter iniciado en :9107"
+fi
+
 sleep 20
 
 # IOL token refresh at startup
 python3 /home/tenazas/tools/iol_refresh.py --force 2>&1 || echo "[startup] IOL refresh failed (non-critical)"
 echo "[startup] IOL token initialized"
+
+# IOL token auto-refresh cada 15 minutos (token dura 20 min)
+(while true; do
+  sleep 900
+  python3 /home/tenazas/tools/iol_refresh.py >> /tmp/iol_refresh.log 2>&1
+done) &
+echo "[startup] IOL auto-refresh loop iniciado (cada 15 min)"
 
 # Verify Node version
 NODE_VER=$(node --version)

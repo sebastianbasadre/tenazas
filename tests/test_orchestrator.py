@@ -113,6 +113,29 @@ class TestQueryClassification(unittest.TestCase):
         self.assertIn(result, ("infrastructure_issue", "knowledge_query"))
 
 
+    # ── Bug fix tests ──
+
+    def test_gastos_rapidos_is_expense(self):
+        self.assertEqual(orch.classify_query("gastos rápidos"), "skill:expense")
+
+    def test_gastos_de_hoy_is_expense(self):
+        self.assertEqual(orch.classify_query("gastos de hoy"), "skill:expense")
+
+    def test_que_gaste_is_expense(self):
+        self.assertEqual(orch.classify_query("qué gasté"), "skill:expense")
+
+    def test_mis_gastos_is_expense(self):
+        self.assertEqual(orch.classify_query("mis gastos"), "skill:expense")
+
+    def test_resumen_finanzas_is_expense(self):
+        self.assertEqual(orch.classify_query("resumen de finanzas"), "skill:expense")
+
+    def test_infra_monitor_shows_all_containers(self):
+        """skill:infra-monitor command must include -a flag."""
+        cmd = orch.SKILL_MAP["skill:infra-monitor"]["command"]
+        self.assertIn("-a", cmd)
+
+
 class TestModelSelection(unittest.TestCase):
     """Model selection based on category and availability."""
 

@@ -1,0 +1,520 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "description": "Portfolio IOL InvertirOnline — Vista Analista. Valor total, P&L, freshness, evolución histórica, API quota.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Métricas principales",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "title": "Valor Total Portfolio",
+      "description": "Valor total del portfolio IOL en ARS (API directa)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#E24B4A", "value": null },
+              { "color": "#EF9F27", "value": 1000000 },
+              { "color": "#639922", "value": 5000000 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "iol_portfolio_value_ars",
+        "legendFormat": "Portfolio",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 2,
+      "title": "P&L del Día",
+      "description": "Resultado del día en ARS. Verde = ganancia, rojo = pérdida.",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#E24B4A", "value": null },
+              { "color": "#888780", "value": -100 },
+              { "color": "#639922", "value": 100 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "iol_portfolio_pnl_day_ars",
+        "legendFormat": "P&L Hoy",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 3,
+      "title": "Freshness",
+      "description": "Tiempo desde la última colección exitosa de IOL. Verde < 5m, amarillo < 10m, rojo > 10m.",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#639922", "value": null },
+              { "color": "#EF9F27", "value": 300 },
+              { "color": "#E24B4A", "value": 600 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "time() - iol_portfolio_last_success_ts",
+        "legendFormat": "Hace",
+        "refId": "A",
+        "instant": true
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 4,
+      "title": "Errores Totales",
+      "description": "Errores acumulados de colección IOL. Si crece rápido, revisar token/API.",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#639922", "value": null },
+              { "color": "#EF9F27", "value": 50 },
+              { "color": "#E24B4A", "value": 200 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "iol_portfolio_errors_total",
+        "legendFormat": "Errores",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 101,
+      "title": "Evolución del Portfolio",
+      "type": "row"
+    },
+    {
+      "id": 10,
+      "title": "Valor del Portfolio (ARS)",
+      "description": "Evolución del valor total en el tiempo. Línea azul = valor API, línea gris = valor CLI.",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 7 },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last", "min", "max"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 4,
+            "showPoints": "auto",
+            "spanNulls": true,
+            "lineInterpolation": "smooth"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byFrameRefID", "options": "A" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#185FA5" } },
+              { "id": "displayName", "value": "Portfolio (API)" }
+            ]
+          },
+          {
+            "matcher": { "id": "byFrameRefID", "options": "B" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#888780" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [6, 4] } },
+              { "id": "displayName", "value": "Portfolio (CLI)" }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "iol_portfolio_value_ars",
+          "legendFormat": "API",
+          "refId": "A"
+        },
+        {
+          "expr": "iol_portfolio_total_ars",
+          "legendFormat": "CLI",
+          "refId": "B"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 11,
+      "title": "P&L Diario (ARS)",
+      "description": "Resultado del día en el tiempo. Verde = ganancia, rojo = pérdida. Barras para ver claramente cada día.",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 7 },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "hidden" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 80,
+            "pointSize": 5,
+            "showPoints": "always",
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#E24B4A", "value": null },
+              { "color": "#639922", "value": 0 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [{
+        "expr": "iol_portfolio_pnl_day_ars",
+        "legendFormat": "P&L",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 102,
+      "title": "P&L y Evolución",
+      "type": "row"
+    },
+    {
+      "id": 20,
+      "title": "P&L Actual (ARS)",
+      "description": "Resultado no realizado actual del portfolio. Positivo = ganancia vs costo, negativo = pérdida.",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#E24B4A", "value": null },
+              { "color": "#888780", "value": -100 },
+              { "color": "#639922", "value": 100 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "iol_portfolio_pnl_day_ars",
+        "legendFormat": "P&L",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 21,
+      "title": "Evolución Portfolio (histórico)",
+      "description": "Valor total del portfolio en el tiempo. Timeseries para ver tendencia y máximos/mínimos.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last", "min", "max"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": true,
+            "lineInterpolation": "smooth"
+          },
+          "color": { "mode": "fixed", "fixedColor": "#185FA5" }
+        }
+      },
+      "targets": [{
+        "expr": "iol_portfolio_value_ars",
+        "legendFormat": "Portfolio ARS",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "id": 103,
+      "title": "Salud del Servicio IOL",
+      "type": "row"
+    },
+    {
+      "id": 30,
+      "title": "Status IOL",
+      "description": "OK = datos frescos (<10 min). STALE = sin datos hace >10 min. Revisar token si está stale.",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 27 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "range", "options": { "from": 0, "to": 600, "result": { "text": "OK", "color": "#639922" } } },
+            { "type": "range", "options": { "from": 600, "to": 99999999, "result": { "text": "STALE", "color": "#E24B4A" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#639922", "value": null },
+              { "color": "#E24B4A", "value": 600 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "time() - iol_portfolio_last_success_ts",
+        "legendFormat": "Status",
+        "refId": "A",
+        "instant": true
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 31,
+      "title": "Errores / hora",
+      "description": "Rate de errores de colección IOL por hora. Si > 5/h, probablemente el token expiró.",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 6, "y": 27 },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "hidden" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "auto",
+            "spanNulls": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#639922", "value": null },
+              { "color": "#EF9F27", "value": 2 },
+              { "color": "#E24B4A", "value": 5 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [{
+        "expr": "rate(iol_portfolio_errors_total[1h]) * 3600",
+        "legendFormat": "Errores/h",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 32,
+      "title": "API Quota",
+      "description": "Cuota mensual de IOL API. Límite 25,000 calls.",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 5, "x": 14, "y": 27 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0, "max": 1,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#639922", "value": null },
+              { "color": "#EF9F27", "value": 0.70 },
+              { "color": "#E24B4A", "value": 0.90 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "tenazas_iol_quota_used",
+        "legendFormat": "Uso quota",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 33,
+      "title": "Calls Restantes",
+      "description": "Llamadas API restantes este mes (de 25,000).",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 27 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#E24B4A", "value": null },
+              { "color": "#EF9F27", "value": 2500 },
+              { "color": "#639922", "value": 10000 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "tenazas_iol_quota_remaining",
+        "legendFormat": "Restantes",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 34,
+      "title": "Alertas IOL",
+      "description": "Alertas accionables basadas en las métricas actuales.",
+      "type": "text",
+      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 31 },
+      "options": {
+        "mode": "markdown",
+        "content": "### Reglas de alerta\n\n| Condición | Umbral | Acción |\n|---|---|---|\n| Token expirado | freshness > 10m | `docker exec openclaw python3 /home/tenazas/tools/iol_init_token.py` |\n| Errores altos | > 5/hora | Revisar logs: `docker exec openclaw cat /tmp/metrics_server.log \\| tail -20` |\n| Cuota alta | > 90% usado | Reducir frecuencia de polling IOL |\n| P&L negativo fuerte | < -$50,000/día | Revisar posiciones manualmente en IOL |"
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["iol", "portfolio", "finanzas", "tenazas"],
+  "templating": {
+    "list": [
+      {
+        "name": "periodo",
+        "type": "interval",
+        "query": "1d,1w,1M,3M",
+        "current": { "value": "1M", "text": "1 mes" },
+        "label": "Período",
+        "hide": 0
+      }
+    ]
+  },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "timezone": "America/Argentina/Buenos_Aires",
+  "title": "Portfolio IOL — Vista Analista",
+  "uid": "iol-portfolio-analista",
+  "version": 1
+}

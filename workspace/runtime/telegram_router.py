@@ -184,6 +184,7 @@ INTERCEPTED_SKILLS = {
     "skill:reminders",
     "iol_broker",
     "skill:model-trainer",
+    "skill:expense",
 }
 
 # Additional keyword patterns for email that the orchestrator might miss.
