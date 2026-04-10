@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """
-split_dataset.py — Divide multitool_dataset.jsonl en train/eval.
+split_dataset.py — Divide datasets JSONL en train/eval.
+
+Normaliza todos los ejemplos al formato messages que train_multitool.py espera.
+
+Formatos de entrada aceptados:
+  - {"messages": [...]}          → passthrough
+  - {"input": "...", "label": "..."}  → convertido a messages con XML
+  - {"input": "...", "tools": [...]}  → convertido a messages con XML
 
 Uso:
     python3 split_dataset.py \
@@ -17,6 +24,52 @@ import json
 import random
 import argparse
 
+SYSTEM_MSG = "Respond only with valid XML tool calls."
+
+
+def _format_tools_xml(tools: list[str]) -> str:
+    """Format tool list as XML string."""
+    if not tools:
+        return "<tools></tools>"
+    inner = "".join(f"<tool>{t}</tool>" for t in tools)
+    return f"<tools>{inner}</tools>"
+
+
+def normalize_example(entry: dict) -> dict:
+    """Normalize any input format to the messages format for training.
+
+    Accepts:
+      - {"messages": [...]} → returned as-is
+      - {"input": "...", "label": "..."} → single tool label → messages
+      - {"input": "...", "tools": [...]} → multi-tool list → messages
+
+    Returns:
+      {"messages": [{"role":"system",...}, {"role":"user",...}, {"role":"assistant",...}]}
+    """
+    if "messages" in entry:
+        return entry
+
+    user_msg = entry.get("input", "")
+
+    if "label" in entry:
+        label = entry["label"]
+        if label == "none" or not label:
+            tools = []
+        else:
+            tools = [label]
+    elif "tools" in entry:
+        tools = entry["tools"]
+    else:
+        tools = []
+
+    return {
+        "messages": [
+            {"role": "system", "content": SYSTEM_MSG},
+            {"role": "user", "content": user_msg},
+            {"role": "assistant", "content": _format_tools_xml(tools)},
+        ]
+    }
+
 
 def split_dataset(
     input_path: str,
@@ -26,11 +79,17 @@ def split_dataset(
     seed: int = 42,
 ) -> dict:
     examples = []
+    skipped = 0
     with open(input_path) as f:
         for line in f:
             line = line.strip()
-            if line:
-                examples.append(json.loads(line))
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                examples.append(normalize_example(entry))
+            except (json.JSONDecodeError, KeyError) as e:
+                skipped += 1
 
     random.seed(seed)
     random.shuffle(examples)
@@ -51,8 +110,9 @@ def split_dataset(
         "total": len(examples),
         "train": len(train_set),
         "eval": len(eval_set),
-        "eval_ratio": round(len(eval_set) / len(examples), 3),
+        "eval_ratio": round(len(eval_set) / len(examples), 3) if examples else 0,
         "seed": seed,
+        "skipped": skipped,
     }
     print(f"[split] {stats}")
     return stats
