@@ -340,10 +340,9 @@ CLASSIFICATION_RULES = [
     (
         "automation_command",
         [r"reinici[aá]", r"restart", r"ejecut[aá]", r"corr[eé]",
-         r"prend[eé].*lu[cz]", r"apag[aá].*lu[cz]", r"scan",
-         r"escane[aá]", r"backup"],
-        {"reiniciar", "restart", "ejecutar", "correr", "prender",
-         "apagar", "scan", "escanear", "backup"},
+         r"scan", r"escane[aá]", r"backup"],
+        {"reiniciar", "restart", "ejecutar", "correr",
+         "scan", "escanear", "backup"},
     ),
     # Knowledge queries
     (
