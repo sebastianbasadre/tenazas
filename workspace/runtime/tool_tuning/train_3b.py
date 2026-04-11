@@ -212,7 +212,7 @@ def main():
         quantization_config=bnb_config,
         device_map=device_map,
         trust_remote_code=True,
-        dtype=torch.bfloat16 if not use_4bit and use_bf16 else
+        torch_dtype=torch.bfloat16 if not use_4bit and use_bf16 else
                     torch.float32 if not use_4bit else None,
     )
 
