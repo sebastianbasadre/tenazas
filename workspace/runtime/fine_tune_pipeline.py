@@ -305,7 +305,7 @@ trainer = SFTTrainer(
         logging_steps=10,
         eval_strategy="epoch",
         save_strategy="epoch",
-        fp16=True,
+        bf16=True,
         optim="adamw_8bit",
         seed=42,
     ),
