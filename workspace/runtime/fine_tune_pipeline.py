@@ -29,7 +29,9 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 BASE_DIR = Path(__file__).parent
-EVALS_DIR = BASE_DIR.parent.parent / "state" / "workspace" / "evals"
+_host_evals = BASE_DIR.parent.parent / "state" / "workspace" / "evals"
+_container_evals = Path("/home/tenazas/.openclaw/workspace/evals")
+EVALS_DIR = _container_evals if _container_evals.parent.exists() else _host_evals
 LOG_FILE = BASE_DIR / "logs" / "fine_tune_pipeline.log"
 DEFAULT_DATASET = EVALS_DIR / "dataset_augmented.jsonl"
 
@@ -100,10 +102,12 @@ def _notify(msg: str):
         print(f"[telegram] Error: {e}")
 
 
-def _confirm(phase: str, details: str, auto: bool = False) -> bool:
+def _confirm(phase: str, details: str, auto: bool = False,
+             dry_run: bool = False) -> bool:
     """Ask for confirmation before proceeding. Returns True if approved."""
-    if auto:
-        print(f"[auto-approve] Phase {phase}: proceeding")
+    if auto or dry_run:
+        print(f"[{'dry-run' if dry_run else 'auto-approve'}] "
+              f"Phase {phase}: proceeding")
         return True
 
     _notify(f"Fine-tune Phase {phase}\n{details}\n\nEsperando confirmación...")
@@ -111,7 +115,11 @@ def _confirm(phase: str, details: str, auto: bool = False) -> bool:
     print(f" Phase {phase}")
     print(f" {details}")
     print(f"{'='*60}")
-    answer = input(" Continuar? [y/N] ").strip().lower()
+    try:
+        answer = input(" Continuar? [y/N] ").strip().lower()
+    except EOFError:
+        print(" (no TTY, auto-skipping)")
+        return False
     return answer in ("y", "yes", "si", "sí")
 
 
@@ -573,7 +581,7 @@ def run_pipeline(
     # Phase 1: Prepare
     if skip_phase < 2:
         details = f"Validar dataset, split 90/10, copiar a HomeLab\nDataset: {dataset_path}"
-        if not _confirm("1 — Prepare", details, auto=auto_approve):
+        if not _confirm("1 — Prepare", details, auto=auto_approve, dry_run=dry_run):
             print("Abortado por usuario.")
             return {"aborted": True, "phase": 1}
 
@@ -598,7 +606,7 @@ def run_pipeline(
             f"Base: {cfg['base_model']}\n"
             f"Host: {HOMELAB_HOST} (RTX 3090)"
         )
-        if not _confirm("2 — Fine-tune", details, auto=auto_approve):
+        if not _confirm("2 — Fine-tune", details, auto=auto_approve, dry_run=dry_run):
             print("Abortado por usuario.")
             return {"aborted": True, "phase": 2, "results": results}
 
@@ -615,7 +623,7 @@ def run_pipeline(
     # Phase 3: Deploy
     if skip_phase < 4:
         details = f"Crear {TRAIN_CONFIG['output_name']} en Ollama + test"
-        if not _confirm("3 — Deploy", details, auto=auto_approve):
+        if not _confirm("3 — Deploy", details, auto=auto_approve, dry_run=dry_run):
             print("Abortado por usuario.")
             return {"aborted": True, "phase": 3, "results": results}
 
@@ -634,10 +642,14 @@ def run_pipeline(
     r4 = phase_eval(dataset_path, dry_run=dry_run)
     results["phase_4"] = r4
 
-    if r4.get("improved"):
-        print(f" F1 mejoró: {r4.get('old_f1', 0):.1%} → {r4.get('new_f1', 0):.1%}")
+    old_f1 = r4.get("old_f1", 0)
+    new_f1 = r4.get("new_f1", 0)
+    if r4.get("dry_run"):
+        print(f" (dry-run) Old F1: {old_f1:.1%}, new F1: pending")
+    elif r4.get("improved"):
+        print(f" F1 mejoró: {old_f1:.1%} → {new_f1:.1%}")
     else:
-        print(f" F1 no mejoró: {r4.get('old_f1', 0):.1%} → {r4.get('new_f1', 0):.1%}")
+        print(f" F1 no mejoró: {old_f1:.1%} → {new_f1:.1%}")
         print(f" Modelo anterior sigue activo.")
 
     _log({"action": "pipeline_complete", "results": {

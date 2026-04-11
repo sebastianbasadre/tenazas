@@ -399,7 +399,11 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 OLLAMA_URL = "http://192.168.2.6:11434"
-EVALS_DIR = Path(__file__).parent.parent.parent / "state" / "workspace" / "evals"
+# Resolve evals dir: works both on host (../../state/workspace/evals)
+# and inside container (/home/tenazas/.openclaw/workspace/evals)
+_host_evals = Path(__file__).parent.parent.parent / "state" / "workspace" / "evals"
+_container_evals = Path("/home/tenazas/.openclaw/workspace/evals")
+EVALS_DIR = _container_evals if _container_evals.parent.exists() else _host_evals
 
 SYSTEM_MSG = (
     "Sos Tenazas, asistente personal de Sebastian. "
@@ -732,6 +736,11 @@ def _print_augment_stats(result: dict):
 # ── CLI ────────────────────────────────────────────────────────
 
 
+def _normalize_tool_name(name: str) -> str:
+    """Normalize tool names: underscores → hyphens for consistency."""
+    return name.replace("_", "-")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Dataset Builder — operational datasets + tool augmentation",
@@ -742,7 +751,7 @@ if __name__ == "__main__":
     sub.add_parser("build-all", help="Build all operational datasets")
     sub.add_parser("list", help="List available datasets")
 
-    # Augmentation
+    # Augmentation (also default when --tools is passed)
     aug = sub.add_parser("augment", help="Generate augmented tool training data")
     aug.add_argument("--tools", nargs="+", default=None,
                      help="Tool names to augment (default: all)")
@@ -755,7 +764,23 @@ if __name__ == "__main__":
     aug.add_argument("--seed-file", default=None,
                      help="Extra seed examples JSONL (tool + query per line)")
 
+    # Also accept augment args at top level (default to augment)
+    parser.add_argument("--tools", nargs="+", default=None,
+                        help="Tool names to augment (default: all)")
+    parser.add_argument("--samples", type=int, default=100,
+                        help="Target examples per tool (default: 100)")
+    parser.add_argument("--variations", type=int, default=3,
+                        help="Variations per seed phrase (default: 3)")
+    parser.add_argument("--output", default=None,
+                        help="Output JSONL path")
+    parser.add_argument("--seed-file", default=None,
+                        help="Extra seed examples JSONL (tool + query per line)")
+
     args = parser.parse_args()
+
+    # Default to augment when --tools is passed without subcommand
+    if args.command is None and args.tools:
+        args.command = "augment"
 
     if args.command == "build-all":
         result = build_all_datasets()
@@ -765,8 +790,9 @@ if __name__ == "__main__":
             print(f"  {ds['name']}: {ds['count']} entries "
                   f"(quality {ds['avg_quality']:.2f})")
     elif args.command == "augment":
+        tools = [_normalize_tool_name(t) for t in args.tools] if args.tools else None
         result = augment_tools(
-            tools=args.tools,
+            tools=tools,
             samples=args.samples,
             variations=args.variations,
             output=args.output,

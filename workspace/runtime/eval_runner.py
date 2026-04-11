@@ -20,7 +20,9 @@ from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
-EVALS_DIR = BASE_DIR.parent.parent / "state" / "workspace" / "evals"
+_host_evals = BASE_DIR.parent.parent / "state" / "workspace" / "evals"
+_container_evals = Path("/home/tenazas/.openclaw/workspace/evals")
+EVALS_DIR = _container_evals if _container_evals.parent.exists() else _host_evals
 LOG_FILE = BASE_DIR / "logs" / "eval_runner.log"
 DEFAULT_DATASET = EVALS_DIR / "dataset_augmented.jsonl"
 
