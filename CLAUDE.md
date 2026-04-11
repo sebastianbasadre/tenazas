@@ -433,6 +433,59 @@ python3 /home/tenazas/runtime/operational_memory.py --cleanup
 **TTL:** 90 dias por defecto, `ttl_days=0` para facts permanentes. `cleanup_expired()` limpia.
 **Cap:** max 200 facts por dominio.
 
+### Dataset Builder — Tool Augmentation (`dataset_builder.py`)
+
+Genera datos sinteticos de entrenamiento para tools con bajo F1. Usa Ollama (qwen2.5:3b) para parafrasear, con fallback a variaciones rule-based.
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/dataset_builder.py augment --tools smart-home-cinema smart-home-on --samples 100
+python3 /home/tenazas/runtime/dataset_builder.py augment --seed-file custom_seeds.jsonl
+python3 /home/tenazas/runtime/dataset_builder.py build-all   # datasets operacionales (legacy)
+python3 /home/tenazas/runtime/dataset_builder.py list         # listar datasets
+```
+
+**Output:** `state/workspace/evals/dataset_augmented.jsonl` (ChatML format)
+
+**Tools con seeds hardcodeados:** smart-home-cinema, smart-home-on, self-evolve, calendar, email, weather, infra-monitor, arr-monitor
+
+### Eval Runner — Evaluacion de clasificacion (`eval_runner.py`)
+
+Evalua el orchestrator.classify_query() contra datasets etiquetados. Calcula P/R/F1 por tool con deteccion de acciones smart-home.
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/eval_runner.py --dataset path/to/dataset.jsonl
+python3 /home/tenazas/runtime/eval_runner.py --push-to-prometheus
+python3 /home/tenazas/runtime/eval_runner.py --json-only
+```
+
+**Output:** Console table + `state/workspace/evals/eval_results_{timestamp}.json`
+
+**Recomendaciones automaticas:** F1 < 75% → mas ejemplos, P < R → regex amplio, R < P → faltan variaciones.
+
+### Fine-Tune Pipeline — Entrenamiento end-to-end (`fine_tune_pipeline.py`)
+
+Pipeline de 4 fases que orquesta fine-tuning desde el NAS al HomeLab via SSH.
+
+| Fase | Accion | Confirmacion |
+|---|---|---|
+| 1. Prepare | Validar dataset, split 90/10, SCP a HomeLab | Si |
+| 2. Fine-tune | Unsloth LoRA en RTX 3090 via SSH | Si |
+| 3. Deploy | ollama create + test query | Si |
+| 4. Eval | eval_runner + comparar F1 + rollback si peor | Auto |
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/fine_tune_pipeline.py --dry-run
+python3 /home/tenazas/runtime/fine_tune_pipeline.py --skip-phase 3
+python3 /home/tenazas/runtime/fine_tune_pipeline.py --auto-approve
+```
+
+**Notificaciones:** Telegram en cada transicion de fase.
+
+**Seguridad:** nunca auto-ejecuta sin aprobacion (salvo --auto-approve). Si F1 no mejora, modelo anterior sigue activo.
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
@@ -802,7 +855,9 @@ workspace/runtime/
 ├── self_debugger.py           — Auto-diagnostico de errores de Tenazas (filtra security blocks)
 ├── self_dev_engine.py         — Propuestas de mejora de codigo
 ├── self_benchmark.py          — Benchmarking de rendimiento
-├── dataset_builder.py         — Generacion de datasets operacionales
+├── dataset_builder.py         — Generacion de datasets operacionales + tool augmentation
+├── eval_runner.py             — Eval orchestrator classification vs labeled JSONL datasets
+├── fine_tune_pipeline.py      — Pipeline end-to-end: prepare→finetune→deploy→eval (HomeLab SSH)
 │
 │ ── Testing & Evolution ──
 ├── simulation_lab.py          — Simulacion de escenarios de infra

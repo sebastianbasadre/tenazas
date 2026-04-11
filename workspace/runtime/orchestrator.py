@@ -222,15 +222,22 @@ CLASSIFICATION_RULES = [
          "reuniones", "mañana"},
     ),
     # Smart home — lights (action-oriented only, not informational)
+    # Cinema patterns evaluated first in handler (_handle_smart_home)
     (
         "skill:smart-home",
         [r"(prend|encend|apag|cambi)\w*\s*(las?\s+)?lu[cz]",
-         r"modo\s+(cine|cinema|relax|trabajo|work)",
-         r"(pon[eé]|activ[aá])\s*(modo|escena)",
+         r"modo\s+(cine|cinema|pel[ií]cula|relax|trabajo|work)",
+         r"(pon[eé]|activ[aá])\s*(modo|escena|cine|cinema)",
          r"(subi|baj)\w*\s*(el\s+)?brillo",
          r"hue\s+(on|off)", r"escena\s+\w+",
-         r"(estado|status)\s+(de\s+)?(las?\s+)?lu[cz]"],
-        {"apagar", "encender", "prender", "cinema", "relax", "escena"},
+         r"(estado|status)\s+(de\s+)?(las?\s+)?lu[cz]",
+         r"\b(cine|cinema)\b",
+         r"(prepar|pon[eé])\w*\s*(netflix|hbo|disney|serie|pel[ií]cula|movie)",
+         r"(ver|mirar)\s+(una?\s+)?(peli|pel[ií]cula|serie|movie)",
+         r"(netflix|hbo|disney)\s*(plus)?"],
+        {"apagar", "encender", "prender", "cinema", "relax", "escena",
+         "cine", "película", "netflix", "hbo", "disney", "serie",
+         "luces", "luz", "brillo", "lámpara"},
     ),
     # TTS
     (
@@ -1150,13 +1157,22 @@ def _handle_smart_home(skill_cat: str, query: str, skill: dict) -> dict:
 
     base_url = f"http://192.168.2.11/api/{hue_key}"
 
-    # Detect action from query
-    if re.search(r"apag[aá]|off|todo.off|all.off", query_lower):
+    # Detect action from query — cinema has priority over on/off
+    # to resolve overlap (e.g. "prendé modo cine" → cinema, not on)
+    _cinema_re = (
+        r"cine|cinema|pel[ií]cula|movie|netflix|hbo|disney|serie"
+        r"|modo\s*cine|modo\s*pel[ií]cula"
+    )
+    _lights_only_re = r"lu[cz]|brillo|l[aá]mpara"
+
+    if re.search(_cinema_re, query_lower):
+        # Cinema wins unless query is ONLY about lights with no cinema intent
+        # e.g. "prendé las luces" with "cine" somewhere → cinema
+        action = "cinema"
+    elif re.search(r"apag[aá]|off|todo.off|all.off", query_lower):
         action = "all-off"
     elif re.search(r"prend[eé]|encend|on|todo.on|all.on", query_lower):
         action = "all-on"
-    elif re.search(r"cine|cinema", query_lower):
-        action = "cinema"
     elif re.search(r"relax", query_lower):
         action = "relax"
     elif re.search(r"trabaj|work", query_lower):

@@ -384,3 +384,394 @@ def list_datasets() -> list:
             continue
 
     return datasets
+
+
+# ── Tool Augmentation ──────────────────────────────────────────
+# Generates synthetic training data for low-F1 tools in ChatML format.
+# Uses Ollama for paraphrasing with fallback to rule-based variations.
+
+import argparse
+import hashlib
+import random
+import re
+import time
+from urllib.error import URLError
+from urllib.request import Request, urlopen
+
+OLLAMA_URL = "http://192.168.2.6:11434"
+EVALS_DIR = Path(__file__).parent.parent.parent / "state" / "workspace" / "evals"
+
+SYSTEM_MSG = (
+    "Sos Tenazas, asistente personal de Sebastian. "
+    "Respondé siempre con JSON válido indicando el tool a ejecutar."
+)
+
+# Seed examples per tool (español rioplatense)
+TOOL_SEEDS: dict[str, list[str]] = {
+    "smart-home-cinema": [
+        "modo cine", "poneme cine", "activá el cine",
+        "quiero ver peli", "prepará netflix", "modo película",
+        "poné modo cine", "activá cinema", "vamos a ver una serie",
+        "poné hbo", "disney plus", "quiero ver una movie",
+    ],
+    "smart-home-on": [
+        "prendé las luces", "encendé luz", "apagá todo",
+        "bajá las luces", "subí el brillo", "prendé la lámpara",
+        "apagá las luces", "encendé todas", "luces on",
+        "luces off", "subí brillo", "bajá el brillo",
+    ],
+    "self-evolve": [
+        "análisis semanal", "cómo estás funcionando",
+        "qué podés mejorar", "hacé el review",
+        "mostrame las propuestas", "qué mejoras hay",
+        "evolución del sistema", "self evolve",
+        "revisá cómo venís", "analizate",
+    ],
+    "calendar": [
+        "qué tengo mañana", "mis eventos de hoy",
+        "agregá reunión", "libre el viernes",
+        "agenda de la semana", "próximos eventos",
+        "tengo algo a las 3", "qué hay en el calendario",
+    ],
+    "email": [
+        "leé mis mails", "hay algo urgente",
+        "resumí el inbox", "mandá mail a",
+        "mis correos", "qué emails tengo",
+        "chequeá el mail", "hay mails nuevos",
+    ],
+    "weather": [
+        "cómo está el clima", "va a llover",
+        "temperatura hoy", "pronóstico semana",
+        "hace frío afuera", "qué onda el tiempo",
+        "llueve hoy", "clima mañana",
+    ],
+    "infra-monitor": [
+        "cómo está el nas", "containers caídos",
+        "espacio en disco", "estado del sistema",
+        "hay algo roto", "cómo andan los containers",
+        "estado de docker", "salud de la infra",
+    ],
+    "arr-monitor": [
+        "descargas activas", "qué está bajando",
+        "estado sonarr", "cola de radarr",
+        "hay algo descargando", "cómo va el torrent",
+        "qué baja sonarr", "estado de lidarr",
+    ],
+}
+
+# Fillers for rule-based variation
+_FILLERS = ["por favor", "che", "dale", "ey", "mirá"]
+_SOFTENERS = ["podés", "podrías", "me", ""]
+
+
+def _ollama_generate(prompt: str, model: str = "qwen2.5:3b",
+                     timeout: int = 5) -> str | None:
+    """Call Ollama generate endpoint. Returns text or None on failure."""
+    payload = json.dumps({
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": 0.9, "num_predict": 512},
+    }).encode()
+    req = Request(
+        f"{OLLAMA_URL}/api/generate",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        resp = urlopen(req, timeout=timeout)
+        data = json.loads(resp.read())
+        return data.get("response", "").strip()
+    except (URLError, OSError, json.JSONDecodeError, Exception):
+        return None
+
+
+def _generate_ollama_variations(seed: str, n: int = 3) -> list[str]:
+    """Generate N variations of a seed phrase via Ollama."""
+    prompt = (
+        f"Generá {n} variaciones de esta frase en español rioplatense, "
+        f"misma intención, distinto vocabulario. Solo las frases, una por "
+        f"línea, sin explicaciones ni numeración: '{seed}'"
+    )
+    text = _ollama_generate(prompt)
+    if not text:
+        return []
+    lines = [
+        re.sub(r"^\d+[\.\)\-]\s*", "", line).strip().strip('"').strip("'")
+        for line in text.splitlines()
+        if line.strip() and len(line.strip()) > 3
+    ]
+    # Filter out lines that are too similar to seed or too long
+    return [
+        line for line in lines[:n]
+        if line.lower() != seed.lower() and len(line) < 120
+    ]
+
+
+def _generate_synthetic_variations(seed: str, n: int = 3) -> list[str]:
+    """Rule-based fallback variations when Ollama is unavailable."""
+    rng = random.Random(hashlib.md5(seed.encode()).hexdigest())
+    variations = []
+    words = seed.split()
+
+    for _ in range(n):
+        variant = list(words)
+        # Random filler insertion
+        if rng.random() < 0.5 and len(variant) > 1:
+            filler = rng.choice(_FILLERS)
+            pos = rng.choice([0, len(variant)])
+            if pos == 0:
+                variant.insert(0, filler)
+            else:
+                variant.append(filler)
+
+        # Random softener prefix
+        if rng.random() < 0.3:
+            soft = rng.choice(_SOFTENERS)
+            if soft:
+                variant.insert(0, soft)
+
+        # Random case variation
+        if rng.random() < 0.3:
+            variant = [w.upper() if rng.random() < 0.3 else w for w in variant]
+
+        result = " ".join(variant).strip()
+        if result.lower() != seed.lower() and result not in variations:
+            variations.append(result)
+
+    return variations[:n]
+
+
+def _make_chatml_entry(query: str, tool: str, seed: str) -> dict:
+    """Create a single ChatML training entry."""
+    return {
+        "messages": [
+            {"role": "system", "content": SYSTEM_MSG},
+            {"role": "user", "content": query},
+            {"role": "assistant", "content": json.dumps(
+                {"tool": tool, "confidence": 0.95}, ensure_ascii=False,
+            )},
+        ],
+        "metadata": {"tool": tool, "source": "augmented", "seed": seed},
+    }
+
+
+def _load_seed_file(path: str) -> dict[str, list[str]]:
+    """Load seed examples from a JSONL file. Each line: {tool, query}."""
+    seeds: dict[str, list[str]] = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                tool = entry.get("tool", "")
+                query = entry.get("query", "")
+                if tool and query:
+                    seeds.setdefault(tool, []).append(query)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return seeds
+
+
+def augment_tools(
+    tools: list[str] | None = None,
+    samples: int = 100,
+    variations: int = 3,
+    output: str | None = None,
+    seed_file: str | None = None,
+) -> dict:
+    """Generate augmented training data for specified tools.
+
+    Args:
+        tools: Tool names to augment (default: all in TOOL_SEEDS)
+        samples: Target examples per tool
+        variations: Variations per seed phrase
+        output: Output JSONL path
+        seed_file: Optional JSONL with extra seed examples
+
+    Returns:
+        Stats dict with counts per tool and output path.
+    """
+    if tools is None:
+        tools = list(TOOL_SEEDS.keys())
+
+    output_path = Path(output) if output else EVALS_DIR / "dataset_augmented.jsonl"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Merge hardcoded seeds with seed file
+    all_seeds = {t: list(TOOL_SEEDS.get(t, [])) for t in tools}
+    if seed_file:
+        extra = _load_seed_file(seed_file)
+        for t in tools:
+            if t in extra:
+                all_seeds[t].extend(extra[t])
+    else:
+        # Auto-discover seed files in evals dir
+        for candidate in EVALS_DIR.glob("*.jsonl"):
+            if "augmented" not in candidate.name:
+                extra = _load_seed_file(str(candidate))
+                for t in tools:
+                    if t in extra:
+                        all_seeds[t].extend(extra[t])
+
+    stats: dict[str, dict] = {}
+    all_entries: list[dict] = []
+    seen_queries: set[str] = set()
+
+    for tool in tools:
+        seeds = all_seeds.get(tool, [])
+        if not seeds:
+            stats[tool] = {"total": 0, "ollama": 0, "synthetic": 0,
+                           "skipped": "no seeds"}
+            continue
+
+        tool_entries: list[dict] = []
+        ollama_count = 0
+        synthetic_count = 0
+
+        # Add seed examples first
+        for seed in seeds:
+            key = f"{tool}:{seed.lower().strip()}"
+            if key not in seen_queries:
+                seen_queries.add(key)
+                tool_entries.append(_make_chatml_entry(seed, tool, seed))
+
+        # Generate variations until we hit target
+        seed_idx = 0
+        while len(tool_entries) < samples and seeds:
+            seed = seeds[seed_idx % len(seeds)]
+            seed_idx += 1
+
+            # Try Ollama first
+            ollama_vars = _generate_ollama_variations(seed, variations)
+            if ollama_vars:
+                for v in ollama_vars:
+                    key = f"{tool}:{v.lower().strip()}"
+                    if key not in seen_queries:
+                        seen_queries.add(key)
+                        tool_entries.append(_make_chatml_entry(v, tool, seed))
+                        ollama_count += 1
+                    if len(tool_entries) >= samples:
+                        break
+            else:
+                # Fallback to synthetic
+                syn_vars = _generate_synthetic_variations(seed, variations)
+                for v in syn_vars:
+                    key = f"{tool}:{v.lower().strip()}"
+                    if key not in seen_queries:
+                        seen_queries.add(key)
+                        tool_entries.append(_make_chatml_entry(v, tool, seed))
+                        synthetic_count += 1
+                    if len(tool_entries) >= samples:
+                        break
+
+            # Safety: avoid infinite loop if seeds are exhausted
+            if seed_idx > len(seeds) * (variations + 2) * 3:
+                break
+
+        stats[tool] = {
+            "total": len(tool_entries),
+            "ollama": ollama_count,
+            "synthetic": synthetic_count,
+            "seeds": len(seeds),
+        }
+        all_entries.extend(tool_entries)
+
+    # Shuffle and write JSONL
+    random.shuffle(all_entries)
+    with open(output_path, "w", encoding="utf-8") as f:
+        for entry in all_entries:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    total = len(all_entries)
+    total_ollama = sum(s.get("ollama", 0) for s in stats.values())
+    total_synthetic = sum(s.get("synthetic", 0) for s in stats.values())
+
+    _log({
+        "type": "tool_augmentation",
+        "tools": tools,
+        "total": total,
+        "ollama": total_ollama,
+        "synthetic": total_synthetic,
+        "output": str(output_path),
+    })
+
+    return {
+        "total": total,
+        "ollama": total_ollama,
+        "synthetic": total_synthetic,
+        "per_tool": stats,
+        "output": str(output_path),
+    }
+
+
+def _print_augment_stats(result: dict):
+    """Pretty-print augmentation stats."""
+    print(f"\n{'='*60}")
+    print(f" Dataset Augmentation — {result['total']} ejemplos generados")
+    print(f"{'='*60}")
+    print(f" {'Tool':<22} {'Total':>6} {'Ollama':>8} {'Synth':>8} {'Seeds':>6}")
+    print(f" {'-'*22} {'-'*6} {'-'*8} {'-'*8} {'-'*6}")
+    for tool, s in result["per_tool"].items():
+        if isinstance(s, dict) and "total" in s:
+            print(f" {tool:<22} {s['total']:>6} {s.get('ollama',0):>8} "
+                  f"{s.get('synthetic',0):>8} {s.get('seeds',0):>6}")
+        else:
+            print(f" {tool:<22} {'skip':>6}   {s.get('skipped','?')}")
+    print(f" {'-'*22} {'-'*6} {'-'*8} {'-'*8}")
+    print(f" {'TOTAL':<22} {result['total']:>6} {result['ollama']:>8} "
+          f"{result['synthetic']:>8}")
+    print(f"\n Output: {result['output']}")
+    print(f"\n Copiar al HomeLab:")
+    print(f"   scp {result['output']} sbasadre@192.168.2.6:~/tenazas_finetune/datasets/")
+    print()
+
+
+# ── CLI ────────────────────────────────────────────────────────
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Dataset Builder — operational datasets + tool augmentation",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # Legacy: build operational datasets
+    sub.add_parser("build-all", help="Build all operational datasets")
+    sub.add_parser("list", help="List available datasets")
+
+    # Augmentation
+    aug = sub.add_parser("augment", help="Generate augmented tool training data")
+    aug.add_argument("--tools", nargs="+", default=None,
+                     help="Tool names to augment (default: all)")
+    aug.add_argument("--samples", type=int, default=100,
+                     help="Target examples per tool (default: 100)")
+    aug.add_argument("--variations", type=int, default=3,
+                     help="Variations per seed phrase (default: 3)")
+    aug.add_argument("--output", default=None,
+                     help="Output JSONL path")
+    aug.add_argument("--seed-file", default=None,
+                     help="Extra seed examples JSONL (tool + query per line)")
+
+    args = parser.parse_args()
+
+    if args.command == "build-all":
+        result = build_all_datasets()
+        print(json.dumps(result, indent=2))
+    elif args.command == "list":
+        for ds in list_datasets():
+            print(f"  {ds['name']}: {ds['count']} entries "
+                  f"(quality {ds['avg_quality']:.2f})")
+    elif args.command == "augment":
+        result = augment_tools(
+            tools=args.tools,
+            samples=args.samples,
+            variations=args.variations,
+            output=args.output,
+            seed_file=args.seed_file,
+        )
+        _print_augment_stats(result)
+    else:
+        parser.print_help()
