@@ -468,8 +468,8 @@ _FILLERS = ["por favor", "che", "dale", "ey", "mirá"]
 _SOFTENERS = ["podés", "podrías", "me", ""]
 
 
-def _ollama_generate(prompt: str, model: str = "qwen2.5:3b",
-                     timeout: int = 5) -> str | None:
+def _ollama_generate(prompt: str, model: str = "qwen3:8b",
+                     timeout: int = 30) -> str | None:
     """Call Ollama generate endpoint. Returns text or None on failure."""
     payload = json.dumps({
         "model": model,
@@ -505,11 +505,34 @@ def _generate_ollama_variations(seed: str, n: int = 3) -> list[str]:
         for line in text.splitlines()
         if line.strip() and len(line.strip()) > 3
     ]
-    # Filter out lines that are too similar to seed or too long
+    # Filter: not too similar to seed, not too long, must be Spanish
     return [
         line for line in lines[:n]
-        if line.lower() != seed.lower() and len(line) < 120
+        if line.lower() != seed.lower()
+        and len(line) < 120
+        and _is_spanish(line)
     ]
+
+
+def _is_spanish(text: str) -> bool:
+    """Reject obvious non-Spanish variations (Portuguese, etc)."""
+    t = text.lower()
+    # Portuguese markers that don't appear in Spanish
+    _pt_markers = [
+        "você", "voce", "não", "nao ", "também", "tambem",
+        "está ", "isso", "aqui", "fazer", "muito", "agora",
+        "hoje", "amanhã", "manhã", "obrigad", "bom dia",
+        "boa noite", "tudo bem", "lá ", " lá", "então",
+        "entao", "chegad", "falar", "olhar", "ficar",
+        "baixar ", "botar ", "colocar ",
+    ]
+    for marker in _pt_markers:
+        if marker in t:
+            return False
+    # Reject if too many non-Spanish characters/patterns
+    if re.search(r"[ãõç]", t):
+        return False
+    return True
 
 
 def _generate_synthetic_variations(seed: str, n: int = 3) -> list[str]:
