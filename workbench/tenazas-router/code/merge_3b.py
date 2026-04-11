@@ -1,70 +1,45 @@
-#!/usr/bin/env python3
-"""
-merge_3b.py — Merge LoRA adapter into qwen2.5:3b base model.
+# merge_3b.py — RAM-efficient merge
+import argparse, gc, torch
+from pathlib import Path
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 
-Usage (from HomeLab):
-    python merge_3b.py --lora ./tenazas-tools-3b-lora --output ../tenazas-tools-3b-merged
-"""
+def merge(args):
+    print("[merge] Loading tokenizer...")
+    tok = AutoTokenizer.from_pretrained(args.base, trust_remote_code=True)
 
-import argparse
-import sys
-
-
-def main():
-    p = argparse.ArgumentParser(description="Merge LoRA into base 3b model")
-    p.add_argument("--base", default="Qwen/Qwen2.5-3B-Instruct",
-                    help="Base model name")
-    p.add_argument("--lora", default="./tenazas-tools-3b-lora",
-                    help="Path to LoRA adapter")
-    p.add_argument("--output", default="../tenazas-tools-3b-merged",
-                    help="Output directory for merged model")
-    p.add_argument("--device", default="cpu",
-                    help="Device: cuda:0, cpu, or auto (default: cpu — merging on CPU saves VRAM)")
-    args = p.parse_args()
-
-    try:
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        from peft import PeftModel
-    except ImportError as e:
-        print(f"Missing dependency: {e}")
-        print("Install: pip install transformers peft torch")
-        sys.exit(1)
-
-    # Device detection
-    if args.device == "auto":
-        device_map = "cuda:0" if torch.cuda.is_available() else "cpu"
-    else:
-        device_map = args.device
-
-    if device_map.startswith("cuda") and torch.cuda.is_available():
-        gpu_name = torch.cuda.get_device_name(0)
-        gpu_mem = torch.cuda.get_device_properties(0).total_mem // (1024**3)
-        print(f"[merge] Device: {device_map} ({gpu_name}, {gpu_mem}GB)")
-    else:
-        print(f"[merge] Device: {device_map}")
-
-    print(f"[merge] Base: {args.base}")
-    print(f"[merge] LoRA: {args.lora}")
-    print(f"[merge] Output: {args.output}")
-
-    print("[merge] Loading base model...")
+    print("[merge] Loading base model in float32 sharded on CPU...")
+    # Clave: low_cpu_mem_usage=True reduce pico durante carga
     model = AutoModelForCausalLM.from_pretrained(
-        args.base, torch_dtype=torch.float16, device_map=device_map
+        args.base,
+        torch_dtype=torch.float16,
+        device_map="cpu",
+        low_cpu_mem_usage=True,   # ← evita duplicar tensores al cargar
     )
-    tokenizer = AutoTokenizer.from_pretrained(args.base)
 
     print("[merge] Loading LoRA adapter...")
-    model = PeftModel.from_pretrained(model, args.lora)
+    model = PeftModel.from_pretrained(model, args.adapter, device_map="cpu")
 
-    print("[merge] Merging...")
+    print("[merge] Merging (esto pica RAM ~30s)...")
+    # Forzar GC antes del pico
+    gc.collect()
     model = model.merge_and_unload()
+    gc.collect()
 
-    print(f"[merge] Saving to {args.output}...")
-    model.save_pretrained(args.output)
-    tokenizer.save_pretrained(args.output)
-    print("[merge] Done.")
-
+    print("[merge] Saving merged model in shards de 2GB...")
+    out = Path(args.output)
+    out.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(
+        str(out),
+        max_shard_size="2GB",   # ← evita pico durante serialización
+        safe_serialization=True,
+    )
+    tok.save_pretrained(str(out))
+    print(f"[merge] OK → {out}")
 
 if __name__ == "__main__":
-    main()
+    p = argparse.ArgumentParser()
+    p.add_argument("--base",    default="models/base/qwen2.5-3b")
+    p.add_argument("--adapter", default="models/lora")
+    p.add_argument("--output",  default="models/merged")
+    merge(p.parse_args())
