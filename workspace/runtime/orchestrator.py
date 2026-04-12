@@ -65,13 +65,13 @@ MODELS = {
         "strengths": ["complex_reasoning", "analysis"],
     },
     "qwen_7b": {
-        "id": "ollama/qwen2.5:7b",
+        "id": "ollama/qwen3:8b",
         "alias": "local-heavy",
         "tier": "local_gpu",
         "strengths": ["reasoning", "diagnostics", "analysis"],
     },
     "qwen_3b": {
-        "id": "ollama/qwen2.5:7b",
+        "id": "ollama/qwen2.5:3b",
         "alias": "local-fast",
         "tier": "local_gpu",
         "strengths": ["system", "logs", "json", "fast_response"],
@@ -438,7 +438,7 @@ def classify_query(query: str, context: dict | None = None) -> str:
             _cfg = json.loads(_cfg_path.read_text())
         else:
             _cfg = {}
-        if _cfg.get("use_finetuned_router"):
+        if _cfg.get("tenazas", {}).get("use_finetuned_router"):
             from finetuned_router import route as _ft_route
             from intent_normalizer import normalize_or_chat as _ft_normalize
             _router_out = _ft_route(query)

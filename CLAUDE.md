@@ -1050,7 +1050,7 @@ Incluye: lockfile protection, log rotation, heartbeat freeze detection.
   - Category-based: complex_reasoning → reason role, chat → fast role
   - V2 flags desde context: `has_image`, `critical`, `embed`, `role`
 - **Feature flag:** `USE_ROUTER_V2 = True` — set False para revertir a V1 sin cambios de codigo
-- **Feature flag:** `use_finetuned_router: true` en openclaw.json — activa Router V3 (finetuned_router + intent_normalizer). Si confianza >= medium, usa resultado del modelo. Si falla o low confidence, cae al scoring deterministico.
+- **Feature flag:** `tenazas.use_finetuned_router: true` en openclaw.json — activa Router V3 (finetuned_router + intent_normalizer). Si confianza >= medium, usa resultado del modelo. Si falla o low confidence, cae al scoring deterministico. Bajo namespace `tenazas` para no romper el schema del gateway.
 - **Fallback seguro:** si V2 falla (backends offline, import error) → V1 automatico
 - **Pipeline routing:** cada categoria tiene modulos asignados (rag, diagnostics, action_mapper)
 - **Context-aware:** recent_events, working_memory, ollama_available influyen en routing
