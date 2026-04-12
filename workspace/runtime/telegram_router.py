@@ -397,7 +397,7 @@ def _format_email_output(output: str) -> str:
 # Ollama endpoint for non-skill messages
 OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
 OLLAMA_NAS_URL = "http://127.0.0.1:11434"
-LLM_MODEL = "qwen2.5:7b"
+LLM_MODEL = "qwen3:8b"
 LLM_TIMEOUT = 60
 
 
