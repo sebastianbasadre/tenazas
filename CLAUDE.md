@@ -859,6 +859,7 @@ workspace/runtime/
 ├── eval_runner.py             — Eval orchestrator classification vs labeled JSONL datasets
 ├── fine_tune_pipeline.py      — Pipeline end-to-end: prepare→finetune→deploy→eval (HomeLab SSH)
 ├── finetuned_router.py        — Intent classifier via Ollama (4-level tolerant parse + keyword fallback)
+├── intent_normalizer.py       — Converts router intents to NormalizedCall with skill mapping + slot defaults
 │
 │ ── Testing & Evolution ──
 ├── simulation_lab.py          — Simulacion de escenarios de infra
@@ -1391,7 +1392,8 @@ docker exec openclaw python3 /home/tenazas/tests/test_worker_super.py  # 22 test
 docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
 docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
-docker exec openclaw python3 /home/tenazas/tests/test_finetuned_router.py # 31 tests
+docker exec openclaw python3 /home/tenazas/tests/test_finetuned_router.py # 29 tests
+docker exec openclaw python3 /home/tenazas/tests/test_intent_normalizer.py # 42 tests
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
 ```
