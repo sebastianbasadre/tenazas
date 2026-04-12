@@ -427,6 +427,31 @@ def classify_query(query: str, context: dict | None = None) -> str:
     Fast, no LLM needed. Returns category string.
     """
     query_lower = query.lower().strip()
+
+    # ── Router V3: finetuned_router + intent_normalizer ──────────
+    # Feature flag: "use_finetuned_router": true in openclaw.json
+    # If active and router gives >= medium confidence, use that result.
+    # If it fails or gives low confidence, fall through to deterministic scoring.
+    try:
+        _cfg_path = Path("/home/tenazas/.openclaw/openclaw.json")
+        if _cfg_path.exists():
+            _cfg = json.loads(_cfg_path.read_text())
+        else:
+            _cfg = {}
+        if _cfg.get("use_finetuned_router"):
+            from finetuned_router import route as _ft_route
+            from intent_normalizer import normalize_or_chat as _ft_normalize
+            _router_out = _ft_route(query)
+            _call = _ft_normalize(_router_out, query)
+            if _call and _call.confidence in ("high", "medium") and _call.valid:
+                _log({"type": "router_v3", "intent": _call.intent,
+                      "skill": _call.skill, "confidence": _call.confidence,
+                      "source": _call.source, "query": query[:100]})
+                return _call.skill if _call.skill != "chat" else "chat"
+    except Exception:
+        pass  # any failure → fall through to deterministic scoring
+    # ── end Router V3 ────────────────────────────────────────────
+
     words = set(re.findall(r"\w+", query_lower))
 
     # Check context for recent infra events (boosts infra classification)
