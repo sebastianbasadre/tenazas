@@ -49,9 +49,9 @@ TRAIN_CONFIG = {
     "batch_size": 4,
     "gradient_accumulation": 4,
     "learning_rate": 2e-4,
-    "epochs": 3,
+    "epochs": 8,
     "max_seq_length": 2048,
-    "output_name": "tenazas-qwen25-7b-v2",
+    "output_name": "tenazas-qwen25-7b-v3",
     "quantization": "q8_0",
 }
 
