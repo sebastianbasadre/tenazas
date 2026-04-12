@@ -486,6 +486,78 @@ python3 /home/tenazas/runtime/fine_tune_pipeline.py --auto-approve
 
 **Seguridad:** nunca auto-ejecuta sin aprobacion (salvo --auto-approve). Si F1 no mejora, modelo anterior sigue activo.
 
+### Finetuned Router — Intent classifier via Ollama (`finetuned_router.py`)
+
+Wrapper para el modelo finetuneado. Extrae intent + args con parseo tolerante en 4 niveles. Nunca explota.
+
+**Flujo:** mensaje → Ollama /api/chat → parseo tolerante → intent + args
+
+**Parseo (4 niveles, en orden):**
+1. JSON directo (clean)
+2. JSON extraido de texto libre (`{...}` embedded)
+3. Keyword fallback deterministico (sin LLM)
+4. No match → intent=None
+
+**Config:**
+- `FINETUNED_MODEL`: modelo Ollama a usar (default: `tenazas-qwen25-7b-v2:latest`)
+- `OLLAMA_URL`: endpoint `/api/chat` del HomeLab
+- `KNOWN_INTENTS`: lights_on, lights_off, cinema_mode, weather, media_search, infra_check, chat
+
+**API:**
+```python
+from finetuned_router import route
+result = route("prendé las luces del living")
+# → {"intent": "lights_on", "args": {"room": "living"}, "_parsed_by": "model_json", "_raw": "...", "_error": None}
+```
+
+**Garantia:** siempre retorna dict con claves `intent`, `args`, `_parsed_by`, `_raw`, `_error`. Si Ollama falla → keyword fallback sobre el mensaje original.
+
+### Intent Normalizer — Schema-based slot filling (`intent_normalizer.py`)
+
+Convierte el output de finetuned_router en un `NormalizedCall` validado con skill names exactos del orchestrator.
+
+**Flujo:** `finetuned_router.route()` → `normalize()` → `NormalizedCall` → orchestrator
+
+**NormalizedCall:**
+```python
+@dataclass
+class NormalizedCall:
+    intent:        str           # "lights_on", "cinema_mode", etc.
+    skill:         str           # "skill:smart-home", "skill:weather", etc.
+    action:        str           # "on", "cinema", "current", etc.
+    args:          dict          # slots validados con defaults
+    confidence:    str           # "high" | "medium" | "low"
+    source:        str           # origen del parseo
+    missing_slots: list          # slots requeridos faltantes
+    valid:         bool          # True si listo para ejecutar
+```
+
+**Schemas (10 intents):**
+
+| Intent | Skill | Action | Defaults |
+|---|---|---|---|
+| lights_on | skill:smart-home | on | brightness=100, room=all |
+| lights_off | skill:smart-home | off | room=all |
+| cinema_mode | skill:smart-home | cinema | brightness=10, room=living |
+| weather | skill:weather | current | location=Buenos Aires, days=1 |
+| media_search | skill:arr-monitor | search | type=any |
+| infra_check | skill:infra-monitor | check | target=all |
+| email | skill:email | digest | count=10 |
+| calendar | skill:calendar-agenda | agenda | days=2 |
+| self_evolve | skill:self-evolve | run | — |
+| chat | chat | respond | — |
+
+**Seguridad:** args fuera del schema son rechazados. None/empty usan default. Intent desconocido → chat.
+
+**Confianza:** model_json=high, extracted=medium, keyword/error=low.
+
+**API:**
+```python
+from intent_normalizer import normalize, normalize_or_chat
+call = normalize(router_output, "prende las luces")     # puede retornar None
+call = normalize_or_chat(router_output, "hola")          # nunca None, fallback chat
+```
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
