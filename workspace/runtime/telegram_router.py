@@ -217,6 +217,7 @@ INTERCEPTED_SKILLS = {
     "skill:arr-monitor",
     "skill:infra-monitor",
     "skill:calendar",
+    "skill:calendar-agenda",
     "skill:morning-greeting",
     "skill:self-evolve",
     "skill:reminders",
