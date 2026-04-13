@@ -110,15 +110,133 @@ def _scp(local: str, remote: str) -> bool:
         return False
 
 
-# ── Step 1: Eval actual ─────────────────────────────────────────
+# ── Step 1: Eval actual (via Ollama model, not regex) ────────────
 
-def step_eval(dataset_path: str) -> dict:
-    sys.path.insert(0, str(RUNTIME))
+def step_eval(dataset_path: str, model_name: str = None) -> dict:
+    """Evaluate the finetuned model directly via Ollama HTTP.
+
+    Calls the model for each example, extracts tool from JSON response,
+    compares with expected tool. Returns {avg_f1, per_tool, total, correct}.
+    """
+    from collections import defaultdict
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError
+
+    if model_name is None:
+        cfg = _load_config()
+        version = cfg.get("model_version", "v6")
+        model_name = f"tenazas-qwen25-7b-{version}"
+
     try:
-        from eval_runner import run_eval
-        return run_eval(dataset_path)
+        lines = Path(dataset_path).read_text().splitlines()
     except Exception as e:
         return {"avg_f1": 0.0, "per_tool": {}, "error": str(e)}
+
+    examples = []
+    for l in lines:
+        if not l.strip():
+            continue
+        try:
+            ex = json.loads(l)
+            user_msgs = [m for m in ex.get("messages", []) if m["role"] == "user"]
+            asst_msgs = [m for m in ex.get("messages", []) if m["role"] == "assistant"]
+            if user_msgs and asst_msgs:
+                query = user_msgs[0]["content"]
+                expected_json = json.loads(asst_msgs[0]["content"])
+                expected_tool = expected_json.get("tool", "")
+                if query and expected_tool:
+                    examples.append({"query": query, "tool": expected_tool})
+        except Exception:
+            continue
+
+    if not examples:
+        return {"avg_f1": 0.0, "per_tool": {}, "error": "no valid examples"}
+
+    # Sample if too many (eval 200 max to keep it under 10 min)
+    import random
+    if len(examples) > 200:
+        random.seed(42)
+        examples = random.sample(examples, 200)
+
+    log.info("Evaluating %s on %d examples", model_name, len(examples))
+
+    tp = defaultdict(int)
+    fp = defaultdict(int)
+    fn = defaultdict(int)
+    total = 0
+    correct = 0
+
+    for ex in examples:
+        total += 1
+        predicted_tool = _call_model_for_eval(model_name, ex["query"])
+        expected_tool = ex["tool"]
+
+        if predicted_tool == expected_tool:
+            tp[expected_tool] += 1
+            correct += 1
+        else:
+            fn[expected_tool] += 1
+            if predicted_tool:
+                fp[predicted_tool] += 1
+
+    # Calculate per-tool metrics
+    all_tools = set(list(tp.keys()) + list(fn.keys()) + list(fp.keys()))
+    per_tool = {}
+    for t in sorted(all_tools):
+        t_tp = tp.get(t, 0)
+        t_fp = fp.get(t, 0)
+        t_fn = fn.get(t, 0)
+        precision = t_tp / (t_tp + t_fp) if (t_tp + t_fp) > 0 else 0.0
+        recall = t_tp / (t_tp + t_fn) if (t_tp + t_fn) > 0 else 0.0
+        f1 = (2 * precision * recall / (precision + recall)
+               if (precision + recall) > 0 else 0.0)
+        per_tool[t] = {"tp": t_tp, "fp": t_fp, "fn": t_fn,
+                       "precision": round(precision, 4),
+                       "recall": round(recall, 4),
+                       "f1": round(f1, 4)}
+
+    accuracy = correct / total if total > 0 else 0.0
+    avg_f1 = (sum(m["f1"] for m in per_tool.values()) / len(per_tool)
+              if per_tool else 0.0)
+
+    log.info("Eval: %d/%d correct (%.1f%%), avg F1 %.1f%%",
+             correct, total, accuracy * 100, avg_f1 * 100)
+
+    return {
+        "total": total, "correct": correct,
+        "accuracy": round(accuracy, 4),
+        "avg_f1": round(avg_f1, 4),
+        "per_tool": per_tool,
+        "model": model_name,
+    }
+
+
+def _call_model_for_eval(model: str, query: str) -> str:
+    """Call Ollama model and extract tool from JSON response."""
+    from urllib.request import Request, urlopen
+    try:
+        payload = json.dumps({
+            "model": model, "prompt": query, "stream": False,
+            "options": {"temperature": 0.1, "num_predict": 128},
+        }).encode()
+        req = Request(f"{OLLAMA_URL}/api/generate",
+                      data=payload,
+                      headers={"Content-Type": "application/json"})
+        resp = urlopen(req, timeout=30)
+        raw = json.loads(resp.read()).get("response", "")
+        # Extract tool from JSON response
+        try:
+            parsed = json.loads(raw.strip())
+            return parsed.get("tool", "")
+        except Exception:
+            # Try extracting JSON from text
+            import re
+            match = re.search(r'\{[^{}]*"tool"\s*:\s*"([^"]+)"', raw)
+            if match:
+                return match.group(1)
+        return ""
+    except Exception:
+        return ""
 
 
 # ── Step 2: Detect weak tools ───────────────────────────────────
