@@ -71,11 +71,17 @@ find "${DEST}" -maxdepth 1 -type d -mtime +${RETAIN_DAYS} -exec rm -rf {} \; 2>/
 KEPT=$(ls -1d "${DEST}"/20* 2>/dev/null | wc -l)
 echo "[backup] Retained backups: ${KEPT}"
 
-# Optional: rsync to NAS 2
-if ping -c 1 -W 2 192.168.2.3 >/dev/null 2>&1; then
-    rsync -a --delete "${DEST}/" sbasadre@192.168.2.3:/volume1/backups/tenazas/ 2>/dev/null && \
-        echo "[backup] Synced to NAS 2 (192.168.2.3)" || \
-        echo "[backup] WARN: rsync to NAS 2 failed"
+# Sync to NAS 2 via SSH/SCP
+NAS2="sbasadre@192.168.2.3"
+NAS2_DEST="/var/services/homes/sbasadre/backups/tenazas"
+NAS2_KEY="/var/services/homes/sbasadre/.ssh/id_ed25519"
+SSH_OPTS="-o ConnectTimeout=3 -o StrictHostKeyChecking=no -i ${NAS2_KEY}"
+if ssh ${SSH_OPTS} "${NAS2}" "mkdir -p ${NAS2_DEST}" 2>/dev/null; then
+    scp -i "${NAS2_KEY}" -r "${BACKUP_DIR}" "${NAS2}:${NAS2_DEST}/" 2>/dev/null && \
+        echo "[backup] Copied to NAS 2 (192.168.2.3)" || \
+        echo "[backup] WARN: SCP to NAS 2 failed"
+    # Cleanup old backups on NAS 2
+    ssh ${SSH_OPTS} "${NAS2}" "find ${NAS2_DEST} -maxdepth 1 -type d -mtime +${RETAIN_DAYS} -exec rm -rf {} \;" 2>/dev/null
 else
     echo "[backup] SKIP: NAS 2 not reachable"
 fi
