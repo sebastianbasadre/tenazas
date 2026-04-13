@@ -1639,6 +1639,39 @@ def route_and_execute(
 
         return route
 
+    # ── Multi-agent reasoning for complex queries ─────────────────
+    if classification == "complex_reasoning":
+        try:
+            from multi_agent_engine import reason as _ma_reason
+            ctx = json.dumps(context or {})[:2000]
+            ma_result = _ma_reason(query, ctx)
+            if ma_result.get("success") and ma_result.get("conclusion"):
+                route = route_query(query, context, available_backends)
+                route["classification"] = classification
+                route["executed"] = True
+                route["skill_result"] = {
+                    "skill": "multi_agent",
+                    "success": True,
+                    "output": ma_result["conclusion"],
+                    "raw": json.dumps({
+                        "analysis": ma_result.get("analysis", ""),
+                        "verification": ma_result.get("verification", ""),
+                        "agents_used": ma_result.get("agents_used", []),
+                    }),
+                    "destructive": False,
+                    "error": None,
+                }
+                _log({
+                    "type": "multi_agent_reasoning",
+                    "agents": ma_result.get("agents_used", []),
+                    "success": True,
+                    "query": query[:100],
+                })
+                return route
+        except Exception:
+            pass  # fall through to normal routing
+    # ── end multi-agent ─────────────────────────────────────────
+
     # Non-skill: normal routing, no execution
     route = route_query(query, context, available_backends)
     route["executed"] = False
