@@ -97,6 +97,13 @@ if PROM_AVAILABLE:
     G_SMOKING_DAY = Gauge("tenazas_smoking_day", "Cigarettes per day", ["date", "label"])
     G_SMOKING_HOUR = Gauge("tenazas_smoking_hour", "Cigarettes per hour per day", ["date", "hour"])
 
+    # Self-evolve proposals
+    G_EVOLVE_TOTAL = Gauge("tenazas_evolve_proposals_total", "Total proposals in queue")
+    G_EVOLVE_BY_TYPE = Gauge("tenazas_evolve_proposals", "Proposals by type and priority", ["type", "priority"])
+    G_EVOLVE_BY_STATUS = Gauge("tenazas_evolve_status", "Proposals by status", ["status"])
+    G_EVOLVE_RUNS = Gauge("tenazas_evolve_runs_total", "Total self-evolve runs")
+    G_EVOLVE_LAST_RUN = Gauge("tenazas_evolve_last_run_ts", "Timestamp of last self-evolve run")
+
     # Guardrails
     G_GR_COOLDOWN = Gauge("guardrail_cooldown_total", "Heavy degraded by cooldown")
     G_GR_FREQUENCY = Gauge("guardrail_frequency_total", "Heavy degraded by frequency limit")
@@ -394,6 +401,49 @@ def update_ollama_metrics():
 SMOKING_METRICS_PATH = Path(__file__).parent / "smoking" / "metrics.json"
 
 
+EVOLVE_QUEUE_PATH = Path(__file__).parent / "learning" / "improvement_queue.json"
+EVOLVE_LOG_PATH = Path("/home/tenazas/.openclaw/workspace/memory/evolution-log.md")
+
+
+def update_evolve_metrics():
+    """Read improvement_queue.json and evolution-log.md for self-evolve metrics."""
+    try:
+        # Proposals from queue
+        if EVOLVE_QUEUE_PATH.exists():
+            proposals = json.loads(EVOLVE_QUEUE_PATH.read_text())
+            G_EVOLVE_TOTAL.set(len(proposals))
+
+            # By type + priority
+            by_type = {}
+            by_status = {}
+            for p in proposals:
+                key = (p.get("type", "unknown"), p.get("priority", "unknown"))
+                by_type[key] = by_type.get(key, 0) + 1
+                st = p.get("status", "unknown")
+                by_status[st] = by_status.get(st, 0) + 1
+
+            for (t, prio), count in by_type.items():
+                G_EVOLVE_BY_TYPE.labels(type=t, priority=prio).set(count)
+            for st, count in by_status.items():
+                G_EVOLVE_BY_STATUS.labels(status=st).set(count)
+
+        # Run count from evolution-log.md (count ## headers)
+        if EVOLVE_LOG_PATH.exists():
+            text = EVOLVE_LOG_PATH.read_text()
+            runs = text.count("\n## ")
+            G_EVOLVE_RUNS.set(runs)
+
+            # Last run timestamp from last ## header
+            import re
+            dates = re.findall(r"## (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", text)
+            if dates:
+                from datetime import datetime
+                last = datetime.strptime(dates[-1], "%Y-%m-%d %H:%M")
+                G_EVOLVE_LAST_RUN.set(last.timestamp())
+    except Exception:
+        pass
+
+
 def update_smoking_metrics():
     """Read smoking metrics.json and update Prometheus gauges."""
     try:
@@ -518,8 +568,9 @@ if __name__ == "__main__":
             collect_openrouter_metrics()
             last_openrouter_check = now
 
-        # Every 30s: Smoking tracker metrics (local JSON read)
+        # Every 30s: Smoking + Self-evolve metrics (local JSON reads)
         update_smoking_metrics()
+        update_evolve_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:
