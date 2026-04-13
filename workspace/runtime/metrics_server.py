@@ -90,6 +90,11 @@ if PROM_AVAILABLE:
     G_RV2_ROLE_VISION = Gauge("router_v2_role_vision_total", "Routing decisions for vision role")
     G_RV2_ROLE_EMBED = Gauge("router_v2_role_embed_total", "Routing decisions for embed role")
 
+    # Smoking tracker
+    G_SMOKING_TODAY = Gauge("tenazas_smoking_today", "Cigarettes smoked today")
+    G_SMOKING_WEEK = Gauge("tenazas_smoking_week", "Cigarettes smoked this week")
+    G_SMOKING_TOTAL = Gauge("tenazas_smoking_total", "Total cigarettes logged")
+
     # Guardrails
     G_GR_COOLDOWN = Gauge("guardrail_cooldown_total", "Heavy degraded by cooldown")
     G_GR_FREQUENCY = Gauge("guardrail_frequency_total", "Heavy degraded by frequency limit")
@@ -382,6 +387,23 @@ def update_ollama_metrics():
         log.warning("Ollama models check failed: %s", e)
 
 
+# ── Smoking Tracker ──────────────────────────────────────────
+
+SMOKING_METRICS_PATH = Path(__file__).parent / "smoking" / "metrics.json"
+
+
+def update_smoking_metrics():
+    """Read smoking metrics.json and update Prometheus gauges."""
+    try:
+        if SMOKING_METRICS_PATH.exists():
+            data = json.loads(SMOKING_METRICS_PATH.read_text())
+            G_SMOKING_TODAY.set(data.get("today", 0))
+            G_SMOKING_WEEK.set(data.get("week", 0))
+            G_SMOKING_TOTAL.set(data.get("total", 0))
+    except Exception:
+        pass  # silent — file may not exist yet
+
+
 # ── OpenRouter Usage ─────────────────────────────────────────
 
 
@@ -483,6 +505,9 @@ if __name__ == "__main__":
         if now - last_openrouter_check >= OPENROUTER_CHECK_INTERVAL:
             collect_openrouter_metrics()
             last_openrouter_check = now
+
+        # Every 30s: Smoking tracker metrics (local JSON read)
+        update_smoking_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:
