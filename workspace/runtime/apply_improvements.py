@@ -167,13 +167,15 @@ def process_approved():
         summary = approval.get("action_summary", "")
         _log(f"Processing: {summary[:80]}")
 
-        # Detect type from summary
-        if "[low_f1]" in summary:
+        # Detect type from summary (supports both [type] prefix and keyword detection)
+        if "[low_f1]" in summary or "F1=" in summary or "necesita mas seeds" in summary:
             result = _apply_low_f1(summary, approval)
-        elif "[classification_gap]" in summary:
+        elif "[classification_gap]" in summary or "queries cayeron a chat" in summary:
             result = _apply_classification_gap(summary, approval)
-        elif "[container_down]" in summary:
+        elif "[container_down]" in summary or "container" in summary.lower() and "caido" in summary.lower():
             result = {"action": "manual", "note": "Container restart requires manual action"}
+        elif "[recurring_errors]" in summary or "errores recurrentes" in summary:
+            result = {"action": "logged", "note": "Recurring errors logged for review"}
         else:
             result = {"action": "skipped", "note": f"Unknown type in: {summary[:50]}"}
 
