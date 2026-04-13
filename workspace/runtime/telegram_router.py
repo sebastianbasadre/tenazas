@@ -220,6 +220,8 @@ INTERCEPTED_SKILLS = {
     "skill:morning-greeting",
     "skill:self-evolve",
     "skill:reminders",
+    "skill:smoking-tracker",
+    "skill:tts",
     "iol_broker",
     "skill:model-trainer",
     "skill:expense",
