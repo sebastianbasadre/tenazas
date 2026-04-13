@@ -42,6 +42,7 @@ workspace/runtime/nmap_cache.json
 workspace/runtime/pending_approvals.json
 workspace/runtime/network_scan_last_ts
 workspace/runtime/learning/
+workspace/runtime/smoking/
 
 # Runtime datasets (generated, large)
 workspace/runtime/tool_tuning/multitool_dataset.jsonl

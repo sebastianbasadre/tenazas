@@ -558,6 +558,26 @@ call = normalize(router_output, "prende las luces")     # puede retornar None
 call = normalize_or_chat(router_output, "hola")          # nunca None, fallback chat
 ```
 
+### Smoking Tracker (`smoking.py`)
+
+Registra cigarrillos fumados con timestamp. Telegram triggers + Grafana dashboard.
+
+**Triggers:** "estoy fumando", "pucho", "me fumo uno", "cuanto fume", "mis cigarrillos"
+
+**Storage:** `runtime/smoking/log.json` + `metrics.json`
+
+**Prometheus:** `tenazas_smoking_today`, `tenazas_smoking_week`, `tenazas_smoking_total`, `tenazas_smoking_day{date,label}`, `tenazas_smoking_hour{date,hour}`
+
+**Grafana:** dashboard `tenazas-smoking` — stats + bar por dia + bar por hora + timeline
+
+### Apply Improvements (`apply_improvements.py`)
+
+Procesa propuestas aprobadas de self-evolve. Genera seeds via Ollama para tools con bajo F1.
+
+**Flujo:** `pending_approvals.json` (approved) → genera seeds → `auto_seeds.jsonl` → sincroniza `improvement_queue.json`
+
+**CLI:** `python3 /home/tenazas/runtime/apply_improvements.py`
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
@@ -932,6 +952,9 @@ workspace/runtime/
 ├── fine_tune_pipeline.py      — Pipeline end-to-end: prepare→finetune→deploy→eval (HomeLab SSH)
 ├── finetuned_router.py        — Intent classifier via Ollama (4-level tolerant parse + keyword fallback)
 ├── intent_normalizer.py       — Converts router intents to NormalizedCall with skill mapping + slot defaults
+├── smoking.py                 — Smoking tracker: log cigarettes, stats, Prometheus metrics
+├── smoking/                   — Smoking data: log.json + metrics.json (gitignored)
+├── apply_improvements.py      — Auto-apply approved self-evolve proposals (seeds via Ollama)
 │
 │ ── Testing & Evolution ──
 ├── simulation_lab.py          — Simulacion de escenarios de infra
