@@ -518,6 +518,22 @@ TOOL_SEEDS: dict[str, list[str]] = {
         "nada más por ahora", "chau", "hasta luego",
         "jaja", "buen día", "qué tal",
     ],
+    "smoking-tracker": [
+        "cuánto fumé", "cuántos cigarrillos hoy", "mis cigarrillos",
+        "estoy fumando", "me fumo uno", "pucho", "prendí uno",
+        "fumé uno", "me prendo uno", "estadísticas tabaco",
+        "cuánto fumo por día", "registro cigarrillos",
+    ],
+    "tts": [
+        "que me hables", "mandame un audio", "decime por voz",
+        "hablame", "respondé con voz", "voice", "tts",
+        "mandame un mensaje de voz", "quiero escucharte",
+    ],
+    "reminders": [
+        "recordame", "avisame a las", "poné un recordatorio",
+        "acordame de", "reminder", "alarma para",
+        "recordatorio para mañana", "no me olvides de",
+    ],
 }
 
 # Fillers for rule-based variation
