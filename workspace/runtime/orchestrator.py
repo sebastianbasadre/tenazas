@@ -243,7 +243,7 @@ CLASSIFICATION_RULES = [
          r"(agreg[aá]|cre[aá]|pon[eé])\w*\s+(una?\s+)?(reuni[oó]n|evento|cita)",
          r"(sin\s+)?reservas?\s+(el\s+)?(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)"],
         {"calendario", "agenda", "eventos", "evento", "reunión", "reunion",
-         "reuniones", "mañana", "horario", "cita"},
+         "reuniones", "horario", "cita"},
     ),
     # Smart home — lights (action-oriented only, not informational)
     # Cinema patterns evaluated first in handler (_handle_smart_home)
@@ -920,6 +920,7 @@ SKILL_MAP = {
         ),
         "destructive": False,
         "description": "Eventos del calendario",
+        "parser": "_parse_calendar",
     },
     "skill:calendar-agenda": {
         "command": (
@@ -928,6 +929,7 @@ SKILL_MAP = {
         ),
         "destructive": False,
         "description": "Eventos del calendario",
+        "parser": "_parse_calendar",
     },
     "skill:smart-home": {
         # Default: list light states. Actual action extracted from query.
@@ -1123,6 +1125,39 @@ def execute_skill(skill_category: str, query: str = "") -> dict:
 
 
 # ── Skill Parsers ───────────────────────────────────────────────
+
+
+def _parse_calendar(raw: str) -> str:
+    """Parse gcal.py output into readable format."""
+    if not raw or not raw.strip():
+        return "No hay eventos proximos."
+    lines = raw.strip().splitlines()
+    from datetime import datetime as _dt, date as _date
+    today = _date.today()
+    parts = ["Proximos eventos:"]
+    for line in lines:
+        if "|" not in line:
+            continue
+        ts_str, title = line.split("|", 1)
+        ts_str = ts_str.strip()
+        title = title.strip()
+        try:
+            dt = _dt.fromisoformat(ts_str)
+            d = dt.date()
+            time_str = dt.strftime("%H:%M")
+            delta = (d - today).days
+            if delta == 0:
+                day_label = "Hoy"
+            elif delta == 1:
+                day_label = "Manana"
+            elif delta == -1:
+                day_label = "Ayer"
+            else:
+                day_label = d.strftime("%a %d/%m")
+            parts.append(f"  {day_label} {time_str} — {title}")
+        except Exception:
+            parts.append(f"  {line.strip()}")
+    return "\n".join(parts) if len(parts) > 1 else "No hay eventos proximos."
 
 
 def _parse_weather(raw: str) -> str:
@@ -1679,6 +1714,7 @@ _SKILL_PARSERS = {
     "_parse_weather": _parse_weather,
     "_parse_proposals": _parse_proposals,
     "_parse_infra": _parse_infra,
+    "_parse_calendar": _parse_calendar,
 }
 
 
