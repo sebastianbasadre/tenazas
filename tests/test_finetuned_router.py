@@ -23,10 +23,10 @@ import finetuned_router as router
 # ──────────────────────────────────────────────
 
 def mock_ollama(response_text: str):
-    """Retorna un mock de requests.post que devuelve response_text (formato /api/chat)."""
+    """Retorna un mock de requests.post que devuelve response_text (formato /api/generate)."""
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"message": {"content": response_text}}
+    mock_resp.json.return_value = {"response": response_text}
     return patch("finetuned_router.requests.post", return_value=mock_resp)
 
 
