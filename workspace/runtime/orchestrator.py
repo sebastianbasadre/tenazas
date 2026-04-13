@@ -440,7 +440,17 @@ def classify_query(query: str, context: dict | None = None) -> str:
 
     Fast, no LLM needed. Returns category string.
     """
-    query_lower = query.lower().strip()
+    # Normalize: collapse spaces, fix common typos
+    query_lower = re.sub(r"\s+", " ", query.lower()).strip()
+    _TYPO_MAP = {
+        "apga": "apaga", "prende": "prendé", "encende": "encendé",
+        "infr a": "infra", "clim a": "clima", "contaner": "container",
+        "containr": "container", "tempratura": "temperatura",
+        "descarag": "descarga", "cigarrilo": "cigarrillo",
+    }
+    for typo, fix in _TYPO_MAP.items():
+        if typo in query_lower:
+            query_lower = query_lower.replace(typo, fix)
 
     # ── Router V3: finetuned_router + intent_normalizer ──────────
     # Feature flag: "use_finetuned_router": true in openclaw.json
