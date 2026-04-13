@@ -630,7 +630,20 @@ def poll_loop():
 
 
 def _handle_callback(token: str, callback_query: dict):
-    """Handle an inline keyboard callback (exec approval button tap)."""
+    """Handle an inline keyboard callback (exec approval or skill feedback)."""
+    data = callback_query.get("data", "")
+
+    # Route feedback callbacks
+    if data.startswith("fb_"):
+        try:
+            from skill_feedback import handle_feedback_callback
+            result = handle_feedback_callback(callback_query, token=token)
+            _log({"action": "feedback_processed", "feedback": result.get("feedback", "?")})
+            return
+        except Exception as e:
+            _log({"action": "feedback_error", "error": str(e)})
+
+    # Route exec approval callbacks
     try:
         from exec_approvals import handle_callback_query
         result = handle_callback_query(callback_query, token=token)
@@ -684,6 +697,13 @@ def _process_update(token: str, update: dict, allowed: set):
         _log({"action": "intercepted", "category": category, "text": text[:80]})
         send_typing(token, chat_id)
 
+        # Check implicit feedback (repeat query within 2 min)
+        try:
+            from skill_feedback import check_repeat
+            check_repeat(chat_id, text, category)
+        except Exception:
+            pass
+
         response = execute_intercepted_skill(text)
 
         # Track last skill for conversational continuity
@@ -691,7 +711,13 @@ def _process_update(token: str, update: dict, allowed: set):
 
         _log({"action": "skill_response", "category": category,
               "response_len": len(response), "success": True})
-        send_message(token, chat_id, response)
+
+        # Send with feedback buttons for skills
+        try:
+            from skill_feedback import send_with_feedback
+            send_with_feedback(token, chat_id, response, text, category)
+        except Exception:
+            send_message(token, chat_id, response)
     else:
         _log({"action": "delegating_to_llm", "category": category, "text": text[:80]})
         send_typing(token, chat_id)
