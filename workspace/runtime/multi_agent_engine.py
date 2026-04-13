@@ -26,8 +26,8 @@ TELEMETRY_LOG = BASE_DIR / "logs" / "multi_agent.log"
 
 # Model endpoints
 OLLAMA_URL = "http://192.168.2.6:11434"
-ANALYSIS_MODEL = "qwen2.5:7b"
-VERIFICATION_MODEL = "phi4-mini"
+ANALYSIS_MODEL = "qwen3:8b"
+VERIFICATION_MODEL = "qwen2.5:3b"
 SYNTHESIS_MODEL = "qwen2.5:3b"
 
 # Timeouts
