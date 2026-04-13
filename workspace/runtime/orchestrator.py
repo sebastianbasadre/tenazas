@@ -921,6 +921,14 @@ SKILL_MAP = {
         "destructive": False,
         "description": "Eventos del calendario",
     },
+    "skill:calendar-agenda": {
+        "command": (
+            "python3 /home/tenazas/.openclaw/workspace/skills/"
+            "calendar-agenda/gcal.py 2"
+        ),
+        "destructive": False,
+        "description": "Eventos del calendario",
+    },
     "skill:smart-home": {
         # Default: list light states. Actual action extracted from query.
         "command": (
