@@ -103,29 +103,33 @@ def _classify_gemma(message: str) -> dict | None:
     if not key:
         return None
 
-    payload = json.dumps({
-        "model": OPENROUTER_MODEL,
-        "messages": [
-            {"role": "system", "content": OPENROUTER_SYSTEM},
-            {"role": "user", "content": message},
-        ],
-        "max_tokens": 20,
-    }).encode()
-
-    req = Request(OPENROUTER_URL, data=payload, headers={
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-    })
-
     try:
-        resp = urlopen(req, timeout=OPENROUTER_TIMEOUT)
-        data = json.loads(resp.read())
+        resp = requests.post(
+            OPENROUTER_URL,
+            json={
+                "model": OPENROUTER_MODEL,
+                "messages": [
+                    {"role": "system", "content": OPENROUTER_SYSTEM},
+                    {"role": "user", "content": message},
+                ],
+                "max_tokens": 20,
+            },
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+            },
+            timeout=OPENROUTER_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
         raw = data["choices"][0]["message"]["content"].strip()
         parsed = json.loads(raw)
         tool = parsed.get("tool", "")
         if tool and tool in KNOWN_TOOLS:
             return {"tool": tool, "intent": _TOOL_TO_INTENT.get(tool, tool),
                     "args": {}, "_parsed_by": "gemma", "_raw": raw}
+    except requests.exceptions.Timeout:
+        logger.debug("Gemma timeout after %ds", OPENROUTER_TIMEOUT)
     except Exception:
         pass
     return None
