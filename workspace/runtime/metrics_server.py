@@ -103,6 +103,8 @@ if PROM_AVAILABLE:
     G_EVOLVE_BY_STATUS = Gauge("tenazas_evolve_status", "Proposals by status", ["status"])
     G_EVOLVE_RUNS = Gauge("tenazas_evolve_runs_total", "Total self-evolve runs")
     G_EVOLVE_LAST_RUN = Gauge("tenazas_evolve_last_run_ts", "Timestamp of last self-evolve run")
+    G_EVOLVE_DETAIL = Gauge("tenazas_evolve_detail", "Proposal detail for table",
+                            ["status", "priority", "type", "description"])
 
     # Guardrails
     G_GR_COOLDOWN = Gauge("guardrail_cooldown_total", "Heavy degraded by cooldown")
@@ -427,6 +429,16 @@ def update_evolve_metrics():
             for st, count in by_status.items():
                 G_EVOLVE_BY_STATUS.labels(status=st).set(count)
 
+        # Per-proposal detail (for Grafana table)
+        G_EVOLVE_DETAIL._metrics.clear()  # reset to avoid stale entries
+        for i, p in enumerate(proposals[-20:]):  # last 20
+            G_EVOLVE_DETAIL.labels(
+                status=p.get("status", "?"),
+                priority=p.get("priority", "?"),
+                type=p.get("type", "?"),
+                description=p.get("description", "")[:80],
+            ).set(1 if p.get("status") == "processed" else 0)
+
         # Run count from evolution-log.md (count ## headers)
         if EVOLVE_LOG_PATH.exists():
             text = EVOLVE_LOG_PATH.read_text()
@@ -440,6 +452,56 @@ def update_evolve_metrics():
                 from datetime import datetime
                 last = datetime.strptime(dates[-1], "%Y-%m-%d %H:%M")
                 G_EVOLVE_LAST_RUN.set(last.timestamp())
+    except Exception:
+        pass
+
+
+EVOLVE_HTML_PATH = Path(__file__).parent / "learning" / "proposals_dashboard.html"
+
+
+def update_evolve_html():
+    """Generate HTML for Grafana Text panel with proposal checklist."""
+    try:
+        queue = json.loads(EVOLVE_QUEUE_PATH.read_text()) if EVOLVE_QUEUE_PATH.exists() else []
+        if not queue:
+            EVOLVE_HTML_PATH.write_text("<p>Sin propuestas.</p>")
+            return
+
+        lines = ['<table style="width:100%;font-size:13px;border-collapse:collapse">']
+        lines.append('<tr style="border-bottom:1px solid #444"><th>Estado</th>'
+                     '<th>Prioridad</th><th>Tipo</th><th>Descripcion</th></tr>')
+
+        status_icons = {
+            "processed": "&#9989;",   # green check
+            "approved": "&#128308;",  # yellow pending
+            "proposed": "&#9898;",    # white circle
+            "failed": "&#10060;",     # red X
+            "rejected": "&#10060;",
+        }
+        prio_colors = {
+            "high": "#ff4444",
+            "medium": "#ffaa00",
+            "low": "#888888",
+        }
+
+        for p in queue:
+            st = p.get("status", "proposed")
+            icon = status_icons.get(st, "&#9898;")
+            prio = p.get("priority", "?")
+            pcolor = prio_colors.get(prio, "#888")
+            typ = p.get("type", "?")
+            desc = p.get("description", "")[:80]
+            lines.append(
+                f'<tr style="border-bottom:1px solid #333">'
+                f'<td style="text-align:center">{icon}</td>'
+                f'<td style="color:{pcolor};text-align:center">{prio}</td>'
+                f'<td>{typ}</td>'
+                f'<td>{desc}</td></tr>'
+            )
+
+        lines.append('</table>')
+        EVOLVE_HTML_PATH.parent.mkdir(parents=True, exist_ok=True)
+        EVOLVE_HTML_PATH.write_text("\n".join(lines))
     except Exception:
         pass
 
@@ -571,6 +633,7 @@ if __name__ == "__main__":
         # Every 30s: Smoking + Self-evolve metrics (local JSON reads)
         update_smoking_metrics()
         update_evolve_metrics()
+        update_evolve_html()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:
