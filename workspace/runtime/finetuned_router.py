@@ -1,7 +1,7 @@
 import re, json, logging, requests
 from typing import Optional
 logger = logging.getLogger(__name__)
-FINETUNED_MODEL = "tenazas-qwen25-7b-v4"
+FINETUNED_MODEL = "tenazas-qwen25-7b-v5"
 OLLAMA_URL = "http://192.168.2.6:11434/api/generate"
 TIMEOUT_SECS = 15
 TEMPERATURE = 0.1
