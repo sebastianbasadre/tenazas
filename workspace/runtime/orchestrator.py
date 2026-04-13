@@ -190,6 +190,16 @@ CLASSIFICATION_RULES = [
     ),
     # Weather
     (
+        "skill:smoking-tracker",
+        [r"estoy\s+fumando", r"me\s+fumo\s+uno", r"prend[ií]\s+uno",
+         r"fum[eé]\s+uno", r"me\s+prendo\s+uno", r"\bpucho\b",
+         r"cu[aá]nto\s+fum[eé]", r"estad[ií]sticas?\s+tabaco",
+         r"mis\s+cigarrillos", r"cu[aá]ntos\s+cigarrillos"],
+        {"cigarrillo", "cigarrillos", "pucho", "puchos", "fumando",
+         "tabaco", "fumar", "fumé", "cigarro"},
+    ),
+    # Weather
+    (
         "skill:weather",
         [r"(qu[eé]\s+)?clima", r"(qu[eé]\s+)?temperatura",
          r"(qu[eé]\s+)?tiempo\s+(hace|hay|hará|va\s+a\s+hacer)",
@@ -969,6 +979,12 @@ SKILL_MAP = {
         "description": "Gastos y finanzas personales",
         "handler": "_handle_expense",
     },
+    "skill:smoking-tracker": {
+        "command": "",
+        "destructive": False,
+        "description": "Registro de cigarrillos fumados",
+        "handler": "_handle_smoking",
+    },
     "skill:model-trainer": {
         "command": (
             "python3 /home/tenazas/.openclaw/workspace/skills/"
@@ -1604,6 +1620,31 @@ def _handle_expense(skill_category, query, skill):
     }
 
 
+def _handle_smoking(skill_category, query, skill):
+    """Handle smoking tracker — log or stats."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "smoking", str(Path(__file__).parent / "smoking.py"))
+        smoking_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(smoking_mod)
+
+        q = query.lower()
+        is_stats = any(w in q for w in [
+            "cuánto", "cuanto", "estadística", "estadistica",
+            "stats", "cuántos", "cuantos", "historial",
+        ])
+        action = "stats" if is_stats else "log"
+        output = smoking_mod.format_response(action)
+    except Exception as e:
+        output = f"Error en smoking tracker: {e}"
+
+    return {
+        "skill": skill_category, "success": True,
+        "output": output, "raw": "", "destructive": False, "error": None,
+    }
+
+
 # Registry of handlers and parsers
 _SKILL_HANDLERS = {
     "_handle_smart_home": _handle_smart_home,
@@ -1613,6 +1654,7 @@ _SKILL_HANDLERS = {
     "_handle_email": _handle_email,
     "_handle_model_trainer": _handle_model_trainer,
     "_handle_expense": _handle_expense,
+    "_handle_smoking": _handle_smoking,
 }
 
 _SKILL_PARSERS = {
