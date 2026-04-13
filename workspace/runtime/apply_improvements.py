@@ -181,10 +181,13 @@ def process_approved():
         result["summary"] = summary[:100]
         results.append(result)
 
-        # Mark as processed in pending
+        # Mark as processed in pending_approvals
         pending[approval_id]["status"] = "processed"
         pending[approval_id]["processed_at"] = datetime.now().isoformat()
         pending[approval_id]["result"] = result.get("action", "unknown")
+
+        # Sync: mark matching proposals in improvement_queue
+        _sync_queue_status(summary, result.get("action", "unknown"))
 
     # Save updated pending
     _save_json(PENDING_PATH, pending)
@@ -200,6 +203,37 @@ def process_approved():
         _log(f"Applied {len(applied)} improvements")
 
     return {"processed": len(results), "applied": len(applied), "results": results}
+
+
+def _sync_queue_status(approval_summary: str, action: str):
+    """Sync improvement_queue.json status when an approval is processed."""
+    queue = _load_json(QUEUE_PATH, [])
+    if not queue:
+        return
+
+    # Extract type and key info from approval summary
+    # e.g. "[low_f1] Tool arr-monitor: F1=34%..."
+    import re
+    match_type = re.search(r"\[(\w+)\]", approval_summary)
+    match_tool = re.search(r"Tool\s+(\S+):", approval_summary)
+    a_type = match_type.group(1) if match_type else ""
+    a_tool = match_tool.group(1) if match_tool else ""
+
+    updated = False
+    for p in queue:
+        if p.get("status") != "proposed":
+            continue
+        # Match by type + tool (for low_f1) or by type alone
+        if a_type and p.get("type") == a_type:
+            if a_tool and p.get("tool", "") == a_tool:
+                p["status"] = "processed" if action != "failed" else "failed"
+                updated = True
+            elif not a_tool:
+                p["status"] = "processed" if action != "failed" else "failed"
+                updated = True
+
+    if updated:
+        _save_json(QUEUE_PATH, queue)
 
 
 def _apply_low_f1(summary: str, approval: dict) -> dict:
