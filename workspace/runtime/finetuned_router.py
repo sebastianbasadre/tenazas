@@ -1,7 +1,7 @@
 import re, json, logging, requests
 from typing import Optional
 logger = logging.getLogger(__name__)
-FINETUNED_MODEL = "tenazas-router-3b-v1:latest"
+FINETUNED_MODEL = "qwen3:8b"
 OLLAMA_URL = "http://192.168.2.6:11434/api/chat"
 TIMEOUT_SECS = 15
 TEMPERATURE = 0.1
@@ -39,7 +39,7 @@ def _parse_tolerant(raw):
 def route(message):
     raw_output = ""
     try:
-        resp = requests.post(OLLAMA_URL, json={"model":FINETUNED_MODEL,"stream":False,"options":{"temperature":TEMPERATURE,"num_predict":128},"messages":[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":message}]}, timeout=TIMEOUT_SECS)
+        resp = requests.post(OLLAMA_URL, json={"model":FINETUNED_MODEL,"stream":False,"format":"json","options":{"temperature":TEMPERATURE,"num_predict":512},"messages":[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":message}]}, timeout=TIMEOUT_SECS)
         resp.raise_for_status()
         raw_output = resp.json().get("message",{}).get("content","")
         result = _parse_tolerant(raw_output)
