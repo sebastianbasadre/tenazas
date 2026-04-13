@@ -54,8 +54,8 @@ def send_with_feedback(token: str, chat_id: str, text: str,
 
     keyboard = {
         "inline_keyboard": [[
-            {"text": "OK", "callback_data": f"fb_ok:{feedback_id}"},
-            {"text": "Mal", "callback_data": f"fb_bad:{feedback_id}"},
+            {"text": "👍", "callback_data": f"fb_ok:{feedback_id}"},
+            {"text": "👎", "callback_data": f"fb_bad:{feedback_id}"},
         ]]
     }
 
