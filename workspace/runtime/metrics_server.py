@@ -97,6 +97,12 @@ if PROM_AVAILABLE:
     G_SMOKING_DAY = Gauge("tenazas_smoking_day", "Cigarettes per day", ["date", "label"])
     G_SMOKING_HOUR = Gauge("tenazas_smoking_hour", "Cigarettes per hour per day", ["date", "hour"])
 
+    # Skill feedback
+    G_FEEDBACK_POSITIVE = Gauge("tenazas_feedback_positive_total", "Positive feedback count")
+    G_FEEDBACK_NEGATIVE = Gauge("tenazas_feedback_negative_total", "Negative feedback count")
+    G_FEEDBACK_IMPLICIT = Gauge("tenazas_feedback_implicit_neg_total", "Implicit negative (repeat) count")
+    G_FEEDBACK_BY_SKILL = Gauge("tenazas_feedback_by_skill", "Feedback by skill", ["category", "feedback"])
+
     # Self-evolve proposals
     G_EVOLVE_TOTAL = Gauge("tenazas_evolve_proposals_total", "Total proposals in queue")
     G_EVOLVE_BY_TYPE = Gauge("tenazas_evolve_proposals", "Proposals by type and priority", ["type", "priority"])
@@ -403,6 +409,42 @@ def update_ollama_metrics():
 SMOKING_METRICS_PATH = Path(__file__).parent / "smoking" / "metrics.json"
 
 
+FEEDBACK_LOG_PATH = Path(__file__).parent / "learning" / "feedback_log.jsonl"
+
+
+def update_feedback_metrics():
+    """Read feedback_log.jsonl and update Prometheus gauges."""
+    try:
+        if not FEEDBACK_LOG_PATH.exists():
+            return
+        pos = neg = implicit = 0
+        by_skill = {}
+        for line in FEEDBACK_LOG_PATH.read_text().splitlines():
+            try:
+                e = json.loads(line)
+                fb = e.get("feedback", "")
+                cat = e.get("category", "unknown")
+                if fb == "positive":
+                    pos += 1
+                    by_skill.setdefault(cat, {"pos": 0, "neg": 0})["pos"] += 1
+                elif fb == "negative":
+                    neg += 1
+                    by_skill.setdefault(cat, {"pos": 0, "neg": 0})["neg"] += 1
+                elif fb == "negative_repeat":
+                    implicit += 1
+                    by_skill.setdefault(cat, {"pos": 0, "neg": 0})["neg"] += 1
+            except Exception:
+                continue
+        G_FEEDBACK_POSITIVE.set(pos)
+        G_FEEDBACK_NEGATIVE.set(neg)
+        G_FEEDBACK_IMPLICIT.set(implicit)
+        for cat, counts in by_skill.items():
+            G_FEEDBACK_BY_SKILL.labels(category=cat, feedback="positive").set(counts["pos"])
+            G_FEEDBACK_BY_SKILL.labels(category=cat, feedback="negative").set(counts["neg"])
+    except Exception:
+        pass
+
+
 EVOLVE_QUEUE_PATH = Path(__file__).parent / "learning" / "improvement_queue.json"
 EVOLVE_LOG_PATH = Path("/home/tenazas/.openclaw/workspace/memory/evolution-log.md")
 
@@ -630,10 +672,11 @@ if __name__ == "__main__":
             collect_openrouter_metrics()
             last_openrouter_check = now
 
-        # Every 30s: Smoking + Self-evolve metrics (local JSON reads)
+        # Every 30s: Smoking + Self-evolve + Feedback metrics (local reads)
         update_smoking_metrics()
         update_evolve_metrics()
         update_evolve_html()
+        update_feedback_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:
