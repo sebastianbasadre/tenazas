@@ -6,7 +6,7 @@ from urllib.request import urlopen, Request
 
 WORKSPACE = "/volume1/docker/openclaw/state/workspace"
 MEMORY = WORKSPACE + "/memory/learnings.md"
-LOGS_DIR = "/volume1/docker/openclaw/state/logs"
+LOGS_DIR = "/volume1/docker/openclaw/workspace/runtime/logs"
 OLLAMA_URL = "http://192.168.2.6:11434"
 
 now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -82,7 +82,9 @@ for log in sorted(glob.glob(LOGS_DIR + "/*.log"))[-5:]:
         with open(log) as f:
             for line in f:
                 low = line.lower()
-                if "message" in low and "telegram" in low:
+                if ("message" in low and "telegram" in low) or \
+                   ('"action": "incoming"' in low) or \
+                   ('"text":' in low and '"chat_id"' in low):
                     conversations.append(line.strip()[:200])
                 if "error" in low or "fail" in low:
                     if "bonjour" not in low and "probing" not in low:
