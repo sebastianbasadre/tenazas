@@ -11,9 +11,6 @@ import logging
 import re
 import time
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import Request, urlopen
-
 import requests
 
 logger = logging.getLogger(__name__)
@@ -22,16 +19,20 @@ logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
-# Tier 1: Gemma via OpenRouter (free)
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free"
-OPENROUTER_TIMEOUT = 5
-OPENROUTER_SYSTEM = (
+# Tier 1: Gemma 3 27B local via Ollama (HomeLab)
+GEMMA_URL = "http://192.168.2.6:11434/v1/chat/completions"
+GEMMA_MODEL = "gemma3:27b"
+GEMMA_TIMEOUT = 5
+GEMMA_SYSTEM = (
     'You are a tool classifier. Respond ONLY with JSON: {"tool": "<name>"}. '
     "Tools: weather, chat, smart-home-on, smart-home-off, smart-home-cinema, "
     "arr-monitor, email, calendar, infra-monitor, tts, reminders, "
     "self-evolve, smoking-tracker."
 )
+
+# OpenRouter (kept as reference, not used in main flow)
+# OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free"
 
 # Tier 2: Finetuned model via Ollama
 FINETUNED_MODEL = "tenazas-qwen25-7b-v6"
@@ -83,42 +84,22 @@ def _log_classify(query: str, tool: str, tier: str, ms: int):
         pass
 
 
-def _load_openrouter_key() -> str:
-    try:
-        cfg = json.loads(CONFIG_PATH.read_text())
-        key = cfg.get("tenazas", {}).get("openrouter_api_key", "")
-        if not key:
-            import os
-            key = os.environ.get("OPENROUTER_API_KEY", "")
-        return key
-    except Exception:
-        return ""
-
-
-# ── Tier 1: Gemma via OpenRouter ─────────────────────────────────
+# ── Tier 1: Gemma 3 27B local ────────────────────────────────────
 
 def _classify_gemma(message: str) -> dict | None:
-    """Call Gemma 4 26B via OpenRouter. Returns parsed result or None."""
-    key = _load_openrouter_key()
-    if not key:
-        return None
-
+    """Call Gemma 3 27B local via Ollama OpenAI-compatible API."""
     try:
         resp = requests.post(
-            OPENROUTER_URL,
+            GEMMA_URL,
             json={
-                "model": OPENROUTER_MODEL,
+                "model": GEMMA_MODEL,
                 "messages": [
-                    {"role": "system", "content": OPENROUTER_SYSTEM},
+                    {"role": "system", "content": GEMMA_SYSTEM},
                     {"role": "user", "content": message},
                 ],
                 "max_tokens": 20,
             },
-            headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            },
-            timeout=OPENROUTER_TIMEOUT,
+            timeout=GEMMA_TIMEOUT,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -129,7 +110,7 @@ def _classify_gemma(message: str) -> dict | None:
             return {"tool": tool, "intent": _TOOL_TO_INTENT.get(tool, tool),
                     "args": {}, "_parsed_by": "gemma", "_raw": raw}
     except requests.exceptions.Timeout:
-        logger.debug("Gemma timeout after %ds", OPENROUTER_TIMEOUT)
+        logger.debug("Gemma local timeout after %ds", GEMMA_TIMEOUT)
     except Exception:
         pass
     return None
