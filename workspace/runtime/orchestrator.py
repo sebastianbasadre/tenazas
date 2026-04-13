@@ -914,22 +914,16 @@ SKILL_MAP = {
         "handler": "_handle_email",
     },
     "skill:calendar": {
-        "command": (
-            "python3 /home/tenazas/.openclaw/workspace/skills/"
-            "calendar-agenda/gcal.py 2"
-        ),
+        "command": "",
         "destructive": False,
         "description": "Eventos del calendario",
-        "parser": "_parse_calendar",
+        "handler": "_handle_calendar",
     },
     "skill:calendar-agenda": {
-        "command": (
-            "python3 /home/tenazas/.openclaw/workspace/skills/"
-            "calendar-agenda/gcal.py 2"
-        ),
+        "command": "",
         "destructive": False,
         "description": "Eventos del calendario",
-        "parser": "_parse_calendar",
+        "handler": "_handle_calendar",
     },
     "skill:smart-home": {
         # Default: list light states. Actual action extracted from query.
@@ -1434,6 +1428,108 @@ def _handle_tts(skill_cat: str, query: str, skill: dict) -> dict:
         }
 
 
+def _handle_calendar(skill_cat: str, query: str, skill: dict) -> dict:
+    """Smart calendar handler — filters events based on query."""
+    from datetime import date, timedelta
+
+    q = query.lower()
+    today = date.today()
+
+    # Detect if it's a date question (not agenda)
+    is_date_question = any(w in q for w in [
+        "que dia es", "que fecha es", "qué día es", "qué fecha es",
+    ])
+    if is_date_question:
+        days = {"lunes": 0, "martes": 1, "miercoles": 2, "miércoles": 2,
+                "jueves": 3, "viernes": 4, "sabado": 5, "sábado": 5, "domingo": 6}
+        if "mañana" in q:
+            d = today + timedelta(days=1)
+        elif "pasado" in q:
+            d = today + timedelta(days=2)
+        else:
+            d = today
+        day_names = ["Lunes", "Martes", "Miercoles", "Jueves",
+                     "Viernes", "Sabado", "Domingo"]
+        return {
+            "skill": skill_cat, "success": True,
+            "output": f"{day_names[d.weekday()]} {d.strftime('%d/%m/%Y')}",
+            "raw": "", "destructive": False, "error": None,
+        }
+
+    # Get calendar events
+    try:
+        days_ahead = "7" if any(w in q for w in ["semana", "week"]) else "2"
+        r = subprocess.run(
+            ["python3", "/home/tenazas/.openclaw/workspace/skills/"
+             "calendar-agenda/gcal.py", days_ahead],
+            capture_output=True, text=True, timeout=15,
+        )
+        raw = r.stdout.strip() if r.returncode == 0 else ""
+    except Exception as e:
+        return {
+            "skill": skill_cat, "success": False,
+            "output": f"Error consultando calendario: {e}",
+            "raw": "", "destructive": False, "error": "gcal_error",
+        }
+
+    if not raw:
+        return {
+            "skill": skill_cat, "success": True,
+            "output": "No hay eventos proximos.",
+            "raw": "", "destructive": False, "error": None,
+        }
+
+    # Parse and filter
+    parsed = _parse_calendar(raw)
+    lines = parsed.split("\n")
+
+    # Filter by day name if mentioned
+    day_filters = {
+        "lunes": "Lun", "martes": "Mar", "miercoles": "Mie", "miércoles": "Mie",
+        "jueves": "Jue", "viernes": "Vie", "sabado": "Sab", "sábado": "Sab",
+        "domingo": "Dom", "mañana": "Manana", "hoy": "Hoy",
+    }
+    active_filter = None
+    for word, label in day_filters.items():
+        if word in q:
+            active_filter = label
+            break
+
+    # Filter by keyword (doctor, reunión, etc)
+    keyword_filter = None
+    # Map common words to calendar search terms
+    kw_aliases = {"doctor": ["doctor", "medic", "oftalm", "clinic", "turno"],
+                  "reunion": ["reunion", "meeting", "call"]}
+    for alias_key, alias_list in kw_aliases.items():
+        if alias_key in q:
+            keyword_filter = "|".join(alias_list)
+            break
+    if not keyword_filter:
+        for kw in ["oftalm", "hackathon", "conservatorio", "psic", "ucema"]:
+            if kw in q:
+                keyword_filter = kw
+                break
+
+    if active_filter or keyword_filter:
+        kw_terms = keyword_filter.split("|") if keyword_filter else []
+        filtered = [lines[0]]  # Keep header
+        for line in lines[1:]:
+            low_line = line.lower()
+            if active_filter and active_filter.lower() in low_line:
+                filtered.append(line)
+            elif kw_terms and any(t in low_line for t in kw_terms):
+                filtered.append(line)
+        if len(filtered) > 1:
+            parsed = "\n".join(filtered)
+        else:
+            parsed = f"No hay eventos que matcheen '{active_filter or keyword_filter}'."
+
+    return {
+        "skill": skill_cat, "success": True,
+        "output": parsed, "raw": raw, "destructive": False, "error": None,
+    }
+
+
 def _handle_morning_greeting(skill_cat: str, query: str, skill: dict) -> dict:
     """Aggregate morning greeting from multiple sources."""
     parts = []
@@ -1708,6 +1804,7 @@ _SKILL_HANDLERS = {
     "_handle_model_trainer": _handle_model_trainer,
     "_handle_expense": _handle_expense,
     "_handle_smoking": _handle_smoking,
+    "_handle_calendar": _handle_calendar,
 }
 
 _SKILL_PARSERS = {

@@ -296,25 +296,30 @@ def _execute_iol(text: str) -> str:
         return f"Error IOL: {e}"
 
 
-def execute_intercepted_skill(text: str) -> str:
-    """Execute a skill via orchestrator and return formatted response."""
+def execute_intercepted_skill(text: str, category: str = None) -> str:
+    """Execute a skill via orchestrator and return formatted response.
+
+    If category is provided, skips re-classification (avoids double-classify bug).
+    """
+    if category is None:
+        category = classify_intent(text)
+
     # IOL broker has its own handler (not in orchestrator SKILL_MAP)
-    category = classify_intent(text)
     if category == "iol_broker":
         _log({"action": "iol_execute", "text": text[:80]})
         return _execute_iol(text)
 
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
-    from orchestrator import route_and_execute
+    from orchestrator import execute_skill
 
     try:
-        result = route_and_execute(text)
+        skill_result = execute_skill(category, text)
     except Exception as e:
         _log({"action": "execute_error", "error": str(e), "text": text[:80]})
         return f"Error ejecutando skill: {e}"
 
-    executed = result.get("executed", False)
-    skill_result = result.get("skill_result")
+    executed = True
+    result = {"classification": category}
 
     if executed and skill_result:
         if skill_result["success"]:
@@ -705,7 +710,7 @@ def _process_update(token: str, update: dict, allowed: set):
         except Exception:
             pass
 
-        response = execute_intercepted_skill(text)
+        response = execute_intercepted_skill(text, category=category)
 
         # Track last skill for conversational continuity
         _record_last_skill(chat_id, category)
