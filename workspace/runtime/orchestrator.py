@@ -932,6 +932,7 @@ SKILL_MAP = {
         "command": 'docker ps -a --format "{{.Names}}\t{{.Status}}"',
         "destructive": False,
         "description": "Estado de containers Docker",
+        "parser": "_parse_infra",
     },
     "skill:morning-greeting": {
         "command": (
@@ -1108,6 +1109,25 @@ def _parse_weather(raw: str) -> str:
         return f"{temp}°C, {desc}, viento {wind} km/h"
     except (json.JSONDecodeError, KeyError):
         return raw if raw else "No se pudo obtener el clima"
+
+
+def _parse_infra(raw: str) -> str:
+    """Parse docker ps output into a readable status summary."""
+    if not raw or not raw.strip():
+        return "No se pudo obtener el estado de los containers."
+    lines = [l.strip() for l in raw.strip().splitlines() if l.strip()]
+    up = [l for l in lines if "Up" in l or "running" in l.lower()]
+    down = [l for l in lines if "Exited" in l or "Restarting" in l]
+    total = len(lines)
+    parts = [f"Containers: {total} total, {len(up)} activos, {len(down)} caídos."]
+    if down:
+        parts.append("Caídos:")
+        for d in down:
+            name = d.split("\t")[0].split()[0] if "\t" in d else d.split()[0]
+            parts.append(f"  - {name}")
+    if not down:
+        parts.append("Todo funcionando correctamente.")
+    return "\n".join(parts)
 
 
 def _parse_proposals(raw: str) -> str:
@@ -1593,6 +1613,7 @@ _SKILL_HANDLERS = {
 _SKILL_PARSERS = {
     "_parse_weather": _parse_weather,
     "_parse_proposals": _parse_proposals,
+    "_parse_infra": _parse_infra,
 }
 
 
