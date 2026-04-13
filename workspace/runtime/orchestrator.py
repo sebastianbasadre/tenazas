@@ -260,9 +260,13 @@ CLASSIFICATION_RULES = [
     (
         "skill:tts",
         [r"(dec[ií]|habl[aá]|le[eé])\s+en\s+voz", r"dec[ií]\s+",
-         r"habl[aá]\s+", r"(mand|envi)[aá]\s+(un\s+)?audio",
-         r"text.to.speech", r"voz\s+alta"],
-        {"decí", "habla", "hablá", "audio", "voz", "deci", "tts"},
+         r"habl[aá]\w*\s+", r"(mand|envi)\w*\s+(un\s+)?audio",
+         r"text.to.speech", r"voz\s+alta",
+         r"(que\s+me\s+)?habl[eé]s", r"por\s+voz",
+         r"(mandam|enviame|mand[aá]me)\s+(un\s+)?audio",
+         r"(salud|respond)[aáeé]\w*\s+(en|por)\s+voz"],
+        {"decí", "habla", "hablá", "hables", "audio", "voz", "deci", "tts",
+         "hablame", "decime", "mandarme", "mandame"},
     ),
     # Network scanner
     (
@@ -385,7 +389,7 @@ CLASSIFICATION_RULES = [
     # Knowledge queries
     (
         "knowledge_query",
-        [r"(c[oó]mo|qu[eé]|cu[aá]l|d[oó]nde|por\s*qu[eé])",
+        [r"(c[oó]mo|qu[eé]|cu[aá]l|d[oó]nde|por\s*qu[eé])\s+(es|son|fue|funciona|significa|hace|hago|configur|se\s+usa)",
          r"explic[aá]", r"config", r"ip\s+de", r"puerto",
          r"skill", r"modelo", r"container"],
         {"como", "que", "cual", "donde", "porque", "explicar",
@@ -443,11 +447,12 @@ def classify_query(query: str, context: dict | None = None) -> str:
             from intent_normalizer import normalize_or_chat as _ft_normalize
             _router_out = _ft_route(query)
             _call = _ft_normalize(_router_out, query)
-            if _call and _call.confidence in ("high", "medium") and _call.valid:
+            if (_call and _call.confidence in ("high", "medium")
+                    and _call.valid and _call.skill != "chat"):
                 _log({"type": "router_v3", "intent": _call.intent,
                       "skill": _call.skill, "confidence": _call.confidence,
                       "source": _call.source, "query": query[:100]})
-                return _call.skill if _call.skill != "chat" else "chat"
+                return _call.skill
     except Exception:
         pass  # any failure → fall through to deterministic scoring
     # ── end Router V3 ────────────────────────────────────────────
