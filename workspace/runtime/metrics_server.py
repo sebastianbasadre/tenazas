@@ -94,6 +94,8 @@ if PROM_AVAILABLE:
     G_SMOKING_TODAY = Gauge("tenazas_smoking_today", "Cigarettes smoked today")
     G_SMOKING_WEEK = Gauge("tenazas_smoking_week", "Cigarettes smoked this week")
     G_SMOKING_TOTAL = Gauge("tenazas_smoking_total", "Total cigarettes logged")
+    G_SMOKING_DAY = Gauge("tenazas_smoking_day", "Cigarettes per day", ["date", "label"])
+    G_SMOKING_HOUR = Gauge("tenazas_smoking_hour", "Cigarettes per hour per day", ["date", "hour"])
 
     # Guardrails
     G_GR_COOLDOWN = Gauge("guardrail_cooldown_total", "Heavy degraded by cooldown")
@@ -395,13 +397,23 @@ SMOKING_METRICS_PATH = Path(__file__).parent / "smoking" / "metrics.json"
 def update_smoking_metrics():
     """Read smoking metrics.json and update Prometheus gauges."""
     try:
-        if SMOKING_METRICS_PATH.exists():
-            data = json.loads(SMOKING_METRICS_PATH.read_text())
-            G_SMOKING_TODAY.set(data.get("today", 0))
-            G_SMOKING_WEEK.set(data.get("week", 0))
-            G_SMOKING_TOTAL.set(data.get("total", 0))
+        if not SMOKING_METRICS_PATH.exists():
+            return
+        data = json.loads(SMOKING_METRICS_PATH.read_text())
+        G_SMOKING_TODAY.set(data.get("today", 0))
+        G_SMOKING_WEEK.set(data.get("week", 0))
+        G_SMOKING_TOTAL.set(data.get("total", 0))
+
+        # Per-day breakdown
+        for d_str, d_data in data.get("by_day", {}).items():
+            label = d_data.get("label", d_str)
+            G_SMOKING_DAY.labels(date=d_str, label=label).set(d_data.get("count", 0))
+
+            # Per-hour per-day
+            for h, count in d_data.get("hours", {}).items():
+                G_SMOKING_HOUR.labels(date=d_str, hour=h).set(count)
     except Exception:
-        pass  # silent — file may not exist yet
+        pass
 
 
 # ── OpenRouter Usage ─────────────────────────────────────────

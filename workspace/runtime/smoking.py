@@ -31,26 +31,50 @@ def _save(entries: list):
 
 
 def _update_metrics(entries: list):
-    """Escribe metricas para Prometheus."""
-    today = date.today().isoformat()
+    """Escribe metricas para Prometheus — incluye breakdown por dia y hora."""
+    now = datetime.now(TZ)
+    today_str = date.today().isoformat()
     week_ago = (date.today() - timedelta(days=7)).isoformat()
 
-    today_count = sum(1 for e in entries if e["date"] == today)
+    today_count = sum(1 for e in entries if e["date"] == today_str)
     week_count = sum(1 for e in entries if e["date"] >= week_ago)
     total_count = len(entries)
 
-    by_hour = {}
+    # Per-day breakdown (last 7 days)
+    by_day = {}
+    for i in range(7):
+        d = (date.today() - timedelta(days=i))
+        d_str = d.isoformat()
+        day_name = ["Lunes", "Martes", "Miércoles", "Jueves",
+                    "Viernes", "Sábado", "Domingo"][d.weekday()]
+        label = f"{day_name} {d.strftime('%d/%m')}"
+        by_day[d_str] = {
+            "count": sum(1 for e in entries if e["date"] == d_str),
+            "label": label,
+            "day_name": day_name,
+            "hours": {},
+        }
+
+    # Per-hour per-day breakdown (last 7 days)
     for e in entries:
-        if e["date"] == today:
+        if e["date"] >= week_ago and e["date"] in by_day:
+            h = str(e["hour"])
+            by_day[e["date"]]["hours"][h] = by_day[e["date"]]["hours"].get(h, 0) + 1
+
+    # Global per-hour (today)
+    by_hour_today = {}
+    for e in entries:
+        if e["date"] == today_str:
             h = e["hour"]
-            by_hour[h] = by_hour.get(h, 0) + 1
+            by_hour_today[h] = by_hour_today.get(h, 0) + 1
 
     metrics = {
         "today": today_count,
         "week": week_count,
         "total": total_count,
-        "by_hour": by_hour,
-        "updated": datetime.now(TZ).isoformat(),
+        "by_hour_today": by_hour_today,
+        "by_day": by_day,
+        "updated": now.isoformat(),
     }
     METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
     METRICS_PATH.write_text(json.dumps(metrics, indent=2))
