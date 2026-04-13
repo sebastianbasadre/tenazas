@@ -7,7 +7,7 @@ from urllib.request import urlopen, Request
 WORKSPACE = "/volume1/docker/openclaw/state/workspace"
 MEMORY = WORKSPACE + "/memory/learnings.md"
 LOGS_DIR = "/volume1/docker/openclaw/state/logs"
-OLLAMA_URL = "http://127.0.0.1:11434"
+OLLAMA_URL = "http://192.168.2.6:11434"
 
 now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
