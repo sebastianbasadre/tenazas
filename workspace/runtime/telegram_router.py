@@ -722,7 +722,7 @@ def poll_loop():
 
 
 def _handle_callback(token: str, callback_query: dict):
-    """Handle an inline keyboard callback (exec approval or skill feedback)."""
+    """Handle an inline keyboard callback (approval_queue, exec approval, or feedback)."""
     data = callback_query.get("data", "")
 
     # Route feedback callbacks
@@ -735,7 +735,25 @@ def _handle_callback(token: str, callback_query: dict):
         except Exception as e:
             _log({"action": "feedback_error", "error": str(e)})
 
-    # Route exec approval callbacks
+    # Route approval_queue callbacks (Sprint 1 approval flow)
+    if data.startswith("aq_"):
+        try:
+            from approval_queue import handle_callback as aq_handle
+            result = aq_handle(callback_query)
+            _log({"action": "aq_callback_processed", "result": result.get("action", "unknown"),
+                  "id": result.get("id", "")})
+            return
+        except Exception as e:
+            _log({"action": "aq_callback_error", "error": str(e)})
+            cb_id = callback_query.get("id", "")
+            if cb_id:
+                tg_request(token, "answerCallbackQuery", {
+                    "callback_query_id": cb_id,
+                    "text": "Error procesando aprobacion",
+                }, timeout=5)
+            return
+
+    # Route exec approval callbacks (legacy)
     try:
         from exec_approvals import handle_callback_query
         result = handle_callback_query(callback_query, token=token)
@@ -776,6 +794,90 @@ def _process_update(token: str, update: dict, allowed: set):
 
     # Record user message in history
     _append_history(chat_id, "user", text)
+
+    # ── Text-based approval/status commands ──
+    text_lower = text.lower().strip()
+    if text_lower.startswith("aprobar ") or text_lower.startswith("approve "):
+        target = text[len(text_lower.split()[0]) + 1:].strip()
+        response = None
+        # Try exec approval_queue first
+        try:
+            from approval_queue import approve_by_text
+            result = approve_by_text(target)
+            if result:
+                response = f"Aprobado: {target} (ID: {result})"
+        except Exception:
+            pass
+        # Try improvement_candidates if not found in exec queue
+        if not response:
+            try:
+                from improvement_candidates import update_status, stage_candidate, list_candidates
+                # If target looks like a candidate ID (hex), stage then approve
+                candidates = list_candidates()
+                match = [c for c in candidates if c.get("id", "").startswith(target)]
+                if match:
+                    c = match[0]
+                    if c["status"] == "proposed":
+                        stage_candidate(c["id"])
+                    update_status(c["id"], "approved", note="approved via Telegram")
+                    response = f"Mejora aprobada: [{c['type']}] {c['title']}"
+            except Exception:
+                pass
+        if not response:
+            response = f"No encontre aprobacion pendiente para '{target}'"
+        send_message(token, chat_id, response)
+        _append_history(chat_id, "assistant", response)
+        return
+
+    if text_lower.startswith("rechazar ") or text_lower.startswith("reject "):
+        target = text[len(text_lower.split()[0]) + 1:].strip()
+        response = None
+        # Try exec approval_queue first
+        try:
+            from approval_queue import _load_queue, _expire_old, _save_queue
+            queue = _load_queue()
+            _expire_old(queue)
+            for entry in queue:
+                if entry.get("status") != "pending":
+                    continue
+                if (target.lower() in entry.get("action_name", "").lower()
+                        or target.lower() in entry.get("target", "").lower()):
+                    entry["status"] = "rejected"
+                    entry["resolved_at"] = time.time()
+                    _save_queue(queue)
+                    response = f"Rechazado: {entry['action_name']} -> {entry.get('target', '')}"
+                    break
+        except Exception:
+            pass
+        # Try improvement_candidates if not found
+        if not response:
+            try:
+                from improvement_candidates import update_status, list_candidates
+                candidates = list_candidates()
+                match = [c for c in candidates if c.get("id", "").startswith(target)]
+                if match:
+                    c = match[0]
+                    update_status(c["id"], "rejected", note="rejected via Telegram")
+                    response = f"Mejora rechazada: [{c['type']}] {c['title']}"
+            except Exception:
+                pass
+        if not response:
+            response = f"No encontre aprobacion pendiente para '{target}'"
+        send_message(token, chat_id, response)
+        _append_history(chat_id, "assistant", response)
+        return
+
+    if text_lower in ("estado homelab", "homelab status", "status homelab", "estado"):
+        send_typing(token, chat_id)
+        try:
+            from homelab_snapshot import snapshot, format_telegram
+            snap = snapshot()
+            response = format_telegram(snap)
+        except Exception as e:
+            response = f"Error generando snapshot: {e}"
+        send_message(token, chat_id, response)
+        _append_history(chat_id, "assistant", response)
+        return
 
     # Check email send follow-up before classifying
     try:
