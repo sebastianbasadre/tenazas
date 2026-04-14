@@ -96,6 +96,10 @@ KNOWN_OVERRIDES = {
     "192.168.2.32": {"name": "Tab A9 Viviana", "category": "tablet", "control": None},
     "192.168.2.35": {"name": "Android (ethernet)", "category": "client", "control": None},
     "192.168.2.56": {"name": "Phone (5GHz)", "category": "phone", "control": None},
+    "192.168.2.8": {"name": "NetGear GS108T", "category": "network", "control": "http"},
+    "192.168.2.13": {"name": "TP-Link Deco extender 3", "category": "network", "control": "http"},
+    "192.168.2.45": {"name": "Hikvision", "category": "camera", "control": "http"},
+    "192.168.2.78": {"name": "TP-Link Switch 16p", "category": "network", "control": None},
 }
 
 # ── Device classification rules ─────────────────────────────────
