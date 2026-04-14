@@ -20,6 +20,10 @@ echo "API metrics exporter iniciado en :9106"
 cd /home/tenazas && python3 /home/tenazas/runtime/telegram_router.py &
 echo "Telegram router iniciado (deterministic skill interception)"
 
+# Start network exporter (:9108/metrics — device inventory + Deco WiFi)
+cd /home/tenazas && python3 /home/tenazas/runtime/network_exporter.py &
+echo "Network exporter iniciado en :9108"
+
 # Start multitool eval exporter (:9107/metrics — F1, precision, recall, per-tool)
 if ! pgrep -f "eval_exporter.py" >/dev/null 2>&1; then
   cd /home/tenazas && nohup python3 /home/tenazas/runtime/tool_tuning/eval_exporter.py \

@@ -31,3 +31,9 @@ scrape_configs:
       - targets: ["host.docker.internal:9107"]
         labels:
           instance: "openclaw"
+  - job_name: 'tenazas_network'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["host.docker.internal:9108"]
+        labels:
+          instance: "openclaw"

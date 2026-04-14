@@ -8,7 +8,7 @@
     "refresh": "30s",
     "time": { "from": "now-24h", "to": "now" },
     "schemaVersion": 39,
-    "version": 1,
+    "version": 2,
     "editable": true,
     "graphTooltip": 1,
     "templating": { "list": [] },
@@ -23,13 +23,13 @@
       },
       {
         "id": 1,
-        "title": "Total Dispositivos",
-        "description": "Dispositivos en el inventario persistente",
+        "title": "Total",
+        "description": "Dispositivos en inventario",
         "type": "stat",
-        "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+        "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
-          { "expr": "device_discovery_total{instance=\"openclaw\"}", "legendFormat": "Total" }
+          { "expr": "tenazas_devices_total{instance=\"openclaw\"}", "legendFormat": "Total" }
         ],
         "fieldConfig": {
           "defaults": {
@@ -48,164 +48,221 @@
       {
         "id": 2,
         "title": "Online",
-        "description": "Dispositivos detectados en el ultimo scan",
         "type": "stat",
-        "gridPos": { "h": 5, "w": 4, "x": 4, "y": 1 },
+        "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
-          { "expr": "device_discovery_online{instance=\"openclaw\"}", "legendFormat": "Online" }
+          { "expr": "tenazas_devices_online{instance=\"openclaw\"}", "legendFormat": "Online" }
         ],
         "fieldConfig": {
-          "defaults": {
-            "unit": "short",
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "green", "value": null }
-              ]
-            }
-          }
+          "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }
         }
       },
       {
         "id": 3,
         "title": "Missing",
-        "description": "Dispositivos que desaparecieron del ultimo scan",
         "type": "stat",
-        "gridPos": { "h": 5, "w": 4, "x": 8, "y": 1 },
+        "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
-          { "expr": "device_discovery_missing{instance=\"openclaw\"}", "legendFormat": "Missing" }
+          { "expr": "tenazas_devices_missing{instance=\"openclaw\"}", "legendFormat": "Missing" }
         ],
         "fieldConfig": {
           "defaults": {
             "unit": "short",
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "green", "value": null },
-                { "color": "yellow", "value": 1 },
-                { "color": "orange", "value": 3 },
-                { "color": "red", "value": 5 }
-              ]
-            }
+            "thresholds": { "mode": "absolute", "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]}
           }
         }
       },
       {
         "id": 4,
         "title": "Clasificados",
-        "description": "Dispositivos con categoria conocida (no unknown)",
         "type": "stat",
-        "gridPos": { "h": 5, "w": 4, "x": 12, "y": 1 },
+        "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
-          { "expr": "device_discovery_classified{instance=\"openclaw\"}", "legendFormat": "Classified" }
+          { "expr": "tenazas_devices_classified{instance=\"openclaw\"}", "legendFormat": "Classified" }
         ],
         "fieldConfig": {
-          "defaults": {
-            "unit": "short",
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "yellow", "value": null },
-                { "color": "green", "value": 10 }
-              ]
-            }
-          }
+          "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [
+            { "color": "yellow", "value": null },
+            { "color": "green", "value": 10 }
+          ]}}
         }
       },
       {
         "id": 5,
         "title": "Controlables",
-        "description": "Dispositivos con metodo de control (ssh/http/mqtt/websocket)",
         "type": "stat",
-        "gridPos": { "h": 5, "w": 4, "x": 16, "y": 1 },
+        "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
-          { "expr": "device_discovery_controllable{instance=\"openclaw\"}", "legendFormat": "Controllable" }
+          { "expr": "tenazas_devices_controllable{instance=\"openclaw\"}", "legendFormat": "Controllable" }
         ],
         "fieldConfig": {
-          "defaults": {
-            "unit": "short",
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "blue", "value": null }
-              ]
-            }
-          }
+          "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }
         }
       },
       {
         "id": 6,
-        "title": "Ultimo Scan",
-        "description": "Tiempo desde el ultimo scan exitoso",
+        "title": "Deco WiFi",
+        "description": "Clientes WiFi conectados al mesh Deco",
         "type": "stat",
-        "gridPos": { "h": 5, "w": 4, "x": 20, "y": 1 },
+        "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
-          { "expr": "time() - device_discovery_last_scan_ts{instance=\"openclaw\"}", "legendFormat": "Ago" }
+          { "expr": "tenazas_deco_clients_total{instance=\"openclaw\"}", "legendFormat": "WiFi" }
         ],
         "fieldConfig": {
-          "defaults": {
-            "unit": "s",
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "green", "value": null },
-                { "color": "yellow", "value": 3600 },
-                { "color": "orange", "value": 7200 },
-                { "color": "red", "value": 86400 }
-              ]
-            }
-          }
+          "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [
+            { "color": "purple", "value": null }
+          ]}}
         }
       },
       {
         "id": 200,
+        "title": "Inventario de Dispositivos",
+        "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+        "collapsed": false
+      },
+      {
+        "id": 11,
+        "title": "Dispositivos",
+        "description": "Tabla completa del inventario de red",
+        "type": "table",
+        "gridPos": { "h": 14, "w": 24, "x": 0, "y": 6 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          {
+            "expr": "tenazas_device_info{instance=\"openclaw\"}",
+            "legendFormat": "",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "Value": true,
+                "__name__": true,
+                "instance": true,
+                "job": true
+              },
+              "indexByName": {
+                "ip": 0,
+                "name": 1,
+                "vendor": 2,
+                "category": 3,
+                "mac": 4,
+                "control": 5
+              },
+              "renameByName": {
+                "ip": "IP",
+                "name": "Nombre",
+                "vendor": "Vendor",
+                "category": "Categoria",
+                "mac": "MAC",
+                "control": "Control"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "left",
+              "filterable": true
+            }
+          },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "IP" },
+              "properties": [{ "id": "custom.width", "value": 140 }]
+            },
+            {
+              "matcher": { "id": "byName", "options": "Nombre" },
+              "properties": [{ "id": "custom.width", "value": 200 }]
+            },
+            {
+              "matcher": { "id": "byName", "options": "Categoria" },
+              "properties": [
+                { "id": "custom.width", "value": 120 },
+                {
+                  "id": "mappings",
+                  "value": [
+                    { "type": "value", "options": { "server": { "text": "Server", "color": "blue" } } },
+                    { "type": "value", "options": { "network": { "text": "Network", "color": "yellow" } } },
+                    { "type": "value", "options": { "smart_home": { "text": "Smart Home", "color": "green" } } },
+                    { "type": "value", "options": { "display": { "text": "Display", "color": "purple" } } },
+                    { "type": "value", "options": { "iot": { "text": "IoT", "color": "orange" } } },
+                    { "type": "value", "options": { "phone": { "text": "Phone", "color": "cyan" } } },
+                    { "type": "value", "options": { "speaker": { "text": "Speaker", "color": "light-green" } } }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "MAC" },
+              "properties": [{ "id": "custom.width", "value": 160 }]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [{ "displayName": "IP", "desc": false }],
+          "footer": { "show": true, "reducer": ["count"], "countRows": true }
+        }
+      },
+      {
+        "id": 300,
         "title": "Distribucion",
         "type": "row",
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
         "collapsed": false
       },
       {
         "id": 7,
-        "title": "Dispositivos por Categoria",
-        "description": "server, network, smart_home, display, iot, client, camera, printer, unknown",
+        "title": "Por Categoria",
         "type": "piechart",
-        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 7 },
+        "gridPos": { "h": 9, "w": 8, "x": 0, "y": 21 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
+          { "expr": "tenazas_devices_total{instance=\"openclaw\"} - ignoring() device_discovery_by_category{instance=\"openclaw\",category=\"unknown\"}", "legendFormat": "Classified", "hide": true },
           { "expr": "device_discovery_by_category{instance=\"openclaw\"}", "legendFormat": "{{category}}" }
         ],
         "options": {
           "reduceOptions": { "calcs": ["lastNotNull"] },
           "pieType": "donut",
-          "tooltip": { "mode": "single" },
           "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
         },
         "fieldConfig": {
-          "defaults": {
-            "unit": "short"
-          },
+          "defaults": { "unit": "short" },
           "overrides": [
             { "matcher": { "id": "byName", "options": "server" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
             { "matcher": { "id": "byName", "options": "smart_home" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
             { "matcher": { "id": "byName", "options": "display" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] },
             { "matcher": { "id": "byName", "options": "iot" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
-            { "matcher": { "id": "byName", "options": "client" }, "properties": [{ "id": "color", "value": { "fixedColor": "cyan", "mode": "fixed" } }] },
             { "matcher": { "id": "byName", "options": "network" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
-            { "matcher": { "id": "byName", "options": "unknown" }, "properties": [{ "id": "color", "value": { "fixedColor": "semi-dark-red", "mode": "fixed" } }] }
+            { "matcher": { "id": "byName", "options": "unknown" }, "properties": [{ "id": "color", "value": { "fixedColor": "semi-dark-red", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "client" }, "properties": [{ "id": "color", "value": { "fixedColor": "cyan", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "phone" }, "properties": [{ "id": "color", "value": { "fixedColor": "light-blue", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "speaker" }, "properties": [{ "id": "color", "value": { "fixedColor": "light-green", "mode": "fixed" } }] }
           ]
         }
       },
       {
         "id": 8,
-        "title": "Dispositivos por Vendor",
-        "description": "Fabricante identificado por MAC OUI lookup",
+        "title": "Por Vendor",
         "type": "bargauge",
-        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 7 },
+        "gridPos": { "h": 9, "w": 8, "x": 8, "y": 21 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
           { "expr": "device_discovery_by_vendor{instance=\"openclaw\"} > 0", "legendFormat": "{{vendor}}" }
@@ -214,54 +271,65 @@
           "reduceOptions": { "calcs": ["lastNotNull"] },
           "orientation": "horizontal",
           "displayMode": "gradient",
-          "showUnfilled": true,
-          "minVizWidth": 0,
-          "minVizHeight": 10
+          "showUnfilled": true
         },
         "fieldConfig": {
           "defaults": {
-            "unit": "short",
-            "min": 0,
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "blue", "value": null },
-                { "color": "green", "value": 2 },
-                { "color": "yellow", "value": 5 }
-              ]
-            }
+            "unit": "short", "min": 0,
+            "thresholds": { "mode": "absolute", "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 2 },
+              { "color": "yellow", "value": 5 }
+            ]}
           }
         }
       },
       {
-        "id": 300,
+        "id": 12,
+        "title": "WiFi vs Ethernet",
+        "description": "Conexiones por tipo (requiere Deco API)",
+        "type": "piechart",
+        "gridPos": { "h": 9, "w": 8, "x": 16, "y": 21 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_deco_by_connection{instance=\"openclaw\"}", "legendFormat": "{{connection_type}}" }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"] },
+          "pieType": "donut",
+          "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+        },
+        "fieldConfig": {
+          "defaults": { "unit": "short" },
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "wifi_5g" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "wifi_2.4g" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "ethernet" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 400,
         "title": "Historico",
         "type": "row",
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
         "collapsed": false
       },
       {
         "id": 9,
-        "title": "Total Dispositivos (historico)",
-        "description": "Evolucion del numero de dispositivos en la red",
+        "title": "Dispositivos (historico)",
         "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
-          { "expr": "device_discovery_total{instance=\"openclaw\"}", "legendFormat": "Total" },
-          { "expr": "device_discovery_online{instance=\"openclaw\"}", "legendFormat": "Online" },
-          { "expr": "device_discovery_missing{instance=\"openclaw\"}", "legendFormat": "Missing" }
+          { "expr": "tenazas_devices_total{instance=\"openclaw\"}", "legendFormat": "Total" },
+          { "expr": "tenazas_devices_online{instance=\"openclaw\"}", "legendFormat": "Online" },
+          { "expr": "tenazas_devices_missing{instance=\"openclaw\"}", "legendFormat": "Missing" }
         ],
         "fieldConfig": {
           "defaults": {
             "unit": "short",
-            "custom": {
-              "drawStyle": "line",
-              "lineInterpolation": "smooth",
-              "fillOpacity": 15,
-              "pointSize": 5,
-              "showPoints": "auto"
-            }
+            "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 15, "pointSize": 5, "showPoints": "auto" }
           },
           "overrides": [
             { "matcher": { "id": "byName", "options": "Total" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
@@ -273,9 +341,8 @@
       {
         "id": 10,
         "title": "Categorias (historico)",
-        "description": "Evolucion de dispositivos por categoria",
         "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
           { "expr": "device_discovery_by_category{instance=\"openclaw\",category!=\"unknown\"}", "legendFormat": "{{category}}" }
@@ -283,11 +350,7 @@
         "fieldConfig": {
           "defaults": {
             "unit": "short",
-            "custom": {
-              "drawStyle": "bars",
-              "fillOpacity": 50,
-              "stacking": { "mode": "normal" }
-            }
+            "custom": { "drawStyle": "bars", "fillOpacity": 50, "stacking": { "mode": "normal" } }
           }
         }
       }

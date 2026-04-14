@@ -162,6 +162,7 @@ def update_state() -> tuple:
     executors.write_ollama_status(ollama_notebook.get("ok", False))
 
     # Rate-limit nmap scans via cache file (every 30 min)
+    # Also updates device_inventory.json for discovery tracking
     nmap_cache = load_json(NMAP_CACHE_FILE, {"last_scan": 0, "hosts": 0})
     if time.time() - nmap_cache.get("last_scan", 0) > NMAP_INTERVAL_SECONDS:
         network_devices = executors.check_network_devices()
@@ -175,6 +176,14 @@ def update_state() -> tuple:
             Path("/home/tenazas/runtime/network_scan_last_ts").write_text(str(scan_ts))
         except Exception:
             pass
+        # Update device inventory (quick scan + ARP enrichment)
+        try:
+            from . import device_discovery
+            result = device_discovery.discover(mode="quick")
+            _log({"action": "device_inventory_updated",
+                  "total": result.get("summary", {}).get("total", 0)})
+        except Exception as e:
+            _log({"action": "device_inventory_error", "error": str(e)})
     else:
         network_devices = {"count": nmap_cache.get("hosts", 0)}
 
