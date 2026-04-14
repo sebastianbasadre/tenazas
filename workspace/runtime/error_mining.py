@@ -135,23 +135,74 @@ def mine_tool_failures() -> list:
 
 
 def mine_backend_offline() -> list:
-    """Detect HomeLab/backend offline events from orchestrator.log cloud fallbacks."""
-    errors = []
+    """Detect HomeLab/backend offline events, grouped by outage session.
+
+    Reads cloud_fallback entries from orchestrator.log. Groups events
+    within 5 minutes of each other into a single outage session.
+    Returns one error per session with timestamps, count, and duration.
+    """
+    raw_events = []
 
     for entry in _load_jsonl(ORCHESTRATOR_LOG):
         if entry.get("type") == "cloud_fallback":
-            reason = entry.get("reason", "")
-            model = entry.get("model", "")
-            errors.append({
-                "type": "backend_offline",
-                "subtype": "cloud_fallback",
-                "detail": f"HomeLab offline → {model} ({reason[:100]})",
-                "source": "orchestrator.log",
-                "ts": entry.get("ts"),
-                "severity": "high",
-                "model_used": model,
+            ts_str = entry.get("ts", "")
+            try:
+                ts = datetime.fromisoformat(ts_str)
+            except (ValueError, TypeError):
+                continue
+            raw_events.append({
+                "ts": ts,
+                "ts_str": ts_str,
+                "reason": entry.get("reason", ""),
+                "model": entry.get("model", ""),
                 "category": entry.get("category", ""),
             })
+
+    if not raw_events:
+        return []
+
+    # Sort by timestamp and group into outage sessions (gap > 5 min = new session)
+    raw_events.sort(key=lambda e: e["ts"])
+    SESSION_GAP = timedelta(minutes=5)
+
+    sessions = []
+    current_session = [raw_events[0]]
+
+    for event in raw_events[1:]:
+        if event["ts"] - current_session[-1]["ts"] <= SESSION_GAP:
+            current_session.append(event)
+        else:
+            sessions.append(current_session)
+            current_session = [event]
+    sessions.append(current_session)
+
+    # One error per outage session
+    errors = []
+    for session in sessions:
+        first = session[0]
+        last = session[-1]
+        duration = last["ts"] - first["ts"]
+        duration_sec = int(duration.total_seconds())
+        models_used = list({e["model"] for e in session})
+        categories = list({e["category"] for e in session if e["category"]})
+        timestamps = [e["ts_str"] for e in session]
+
+        errors.append({
+            "type": "backend_offline",
+            "subtype": "outage_session",
+            "detail": f"HomeLab offline {duration_sec}s — {len(session)} fallbacks "
+                      f"({', '.join(models_used)})",
+            "source": "orchestrator.log",
+            "ts": first["ts_str"],
+            "severity": "high",
+            "count": len(session),
+            "duration_seconds": duration_sec,
+            "session_start": first["ts_str"],
+            "session_end": last["ts_str"],
+            "timestamps": timestamps,
+            "models_used": models_used,
+            "categories": categories,
+        })
 
     return errors
 
