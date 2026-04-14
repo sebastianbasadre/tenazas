@@ -777,6 +777,19 @@ def _process_update(token: str, update: dict, allowed: set):
     # Record user message in history
     _append_history(chat_id, "user", text)
 
+    # Check email send follow-up before classifying
+    try:
+        from orchestrator import complete_email_send, _EMAIL_PENDING_SEND
+        if _EMAIL_PENDING_SEND.get("default"):
+            email_result = complete_email_send(text)
+            if email_result:
+                response = email_result.get("output", "")
+                _log({"action": "email_send_complete", "success": email_result.get("success")})
+                send_message(token, chat_id, response)
+                return
+    except Exception:
+        pass
+
     # Check self-evolve conversational follow-up before classifying
     if _check_self_evolve_followup(chat_id, text):
         _log({"action": "self_evolve_followup", "text": text[:80]})

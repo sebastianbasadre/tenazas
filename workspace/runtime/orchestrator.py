@@ -1590,8 +1590,26 @@ def _handle_morning_greeting(skill_cat: str, query: str, skill: dict) -> dict:
     }
 
 
+_EMAIL_PENDING_SEND = {}  # chat_id → {to, subject, body, state}
+
+
 def _handle_email(skill_cat: str, query: str, skill: dict) -> dict:
-    """Handle email: list recent emails via himalaya CLI."""
+    """Handle email: list, read, or send via himalaya CLI."""
+    q = query.lower()
+
+    # Detect send intent
+    is_send = bool(re.search(
+        r"(mand[aá]|envi[aá]|escrib[ií])\w*\s+(un\s+)?"
+        r"(mail|email|correo|e-?mail)", q
+    ))
+
+    if is_send:
+        return _handle_email_send_start(skill_cat, query)
+
+    # Check if this is a follow-up to a pending send
+    # (handled in telegram_router via conversational state)
+
+    # Default: list emails
     try:
         result = subprocess.run(
             ["himalaya", "envelope", "list", "--folder", "INBOX",
@@ -1629,6 +1647,126 @@ def _handle_email(skill_cat: str, query: str, skill: dict) -> dict:
             "skill": skill_cat, "success": False,
             "output": "Timeout conectando al email (himalaya).",
             "raw": "", "destructive": False, "error": "timeout",
+        }
+
+
+def _handle_email_send_start(skill_cat: str, query: str) -> dict:
+    """Start email send flow — extract recipient, ask for details."""
+    # Try to extract recipient from query
+    # "mandá mail a Viviana González" → "Viviana González"
+    match = re.search(
+        r"(?:mail|email|correo)\s+a\s+(.+?)(?:\s+(?:con|sobre|diciendo|que)\s|$)",
+        query, re.IGNORECASE,
+    )
+    to_name = match.group(1).strip() if match else ""
+
+    # Try to extract subject if present
+    # "Asunto: Te amo, desde Tenazas"
+    subj_match = re.search(r"asunto:\s*(.+?)(?:\.|$)", query, re.IGNORECASE)
+    subject = subj_match.group(1).strip() if subj_match else ""
+
+    # Try to extract body
+    body_match = re.search(
+        r"(?:diciendo|que\s+diga|con\s+el\s+mensaje)\s+(.+)",
+        query, re.IGNORECASE,
+    )
+    body = body_match.group(1).strip() if body_match else ""
+
+    if to_name and subject and body:
+        # All info present — send directly
+        return _send_email(skill_cat, to_name, subject, body)
+
+    # Store pending state and ask for missing info
+    _EMAIL_PENDING_SEND["default"] = {
+        "to": to_name, "subject": subject, "body": body,
+    }
+
+    missing = []
+    if not to_name:
+        missing.append("destinatario")
+    if not subject:
+        missing.append("asunto")
+    if not body:
+        missing.append("mensaje")
+
+    prompt = f"Para mandar el mail necesito: {', '.join(missing)}."
+    if to_name:
+        prompt = f"Mail para {to_name}. " + prompt
+
+    return {
+        "skill": skill_cat, "success": True,
+        "output": prompt,
+        "raw": json.dumps(_EMAIL_PENDING_SEND["default"]),
+        "destructive": False, "error": None,
+    }
+
+
+def complete_email_send(query: str) -> dict | None:
+    """Complete a pending email send with follow-up info. Returns result or None."""
+    pending = _EMAIL_PENDING_SEND.get("default")
+    if not pending:
+        return None
+
+    q = query.strip()
+
+    # Parse "Asunto: X, Mensaje: Y" or just free text
+    subj_match = re.search(r"asunto:\s*(.+?)(?:,|\.|$)", q, re.IGNORECASE)
+    body_match = re.search(r"(?:mensaje|cuerpo|body):\s*(.+)", q, re.IGNORECASE)
+
+    if subj_match:
+        pending["subject"] = subj_match.group(1).strip()
+    if body_match:
+        pending["body"] = body_match.group(1).strip()
+
+    # If only one thing was missing and user just typed it
+    if not pending["subject"] and not pending["body"]:
+        # Assume it's "Asunto: <first line>, Body: <rest>"
+        lines = q.split("\n", 1)
+        pending["subject"] = lines[0].strip()
+        if len(lines) > 1:
+            pending["body"] = lines[1].strip()
+        else:
+            pending["body"] = lines[0].strip()
+    elif not pending["subject"]:
+        pending["subject"] = q
+    elif not pending["body"]:
+        pending["body"] = q
+
+    # Check if we have everything
+    if pending["to"] and pending["subject"] and pending["body"]:
+        result = _send_email("skill:email", pending["to"], pending["subject"], pending["body"])
+        _EMAIL_PENDING_SEND.pop("default", None)
+        return result
+
+    return None
+
+
+def _send_email(skill_cat: str, to: str, subject: str, body: str) -> dict:
+    """Actually send an email via himalaya template send."""
+    template = f"From: sbasadre@gmail.com\nTo: {to}\nSubject: {subject}\n\n{body}"
+
+    try:
+        result = subprocess.run(
+            ["himalaya", "template", "send"],
+            input=template,
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode == 0:
+            return {
+                "skill": skill_cat, "success": True,
+                "output": f"Mail enviado a {to}: \"{subject}\"",
+                "raw": result.stdout, "destructive": True, "error": None,
+            }
+        return {
+            "skill": skill_cat, "success": False,
+            "output": f"Error enviando mail: {result.stderr[:100]}",
+            "raw": result.stderr, "destructive": False, "error": "send_failed",
+        }
+    except Exception as e:
+        return {
+            "skill": skill_cat, "success": False,
+            "output": f"Error enviando mail: {e}",
+            "raw": str(e), "destructive": False, "error": "exception",
         }
 
 
