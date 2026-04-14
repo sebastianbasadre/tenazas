@@ -118,7 +118,14 @@ def _generate_research_topics() -> list[str]:
         except Exception:
             pass
 
-    return topics[:5] if topics else ["tendencias homelab 2026", "ollama optimizacion"]
+    # Default topics based on actual system needs
+    if not topics:
+        topics = [
+            "ollama keep_alive config prevent model unload",
+            "synology docker container auto restart policy",
+            "qwen2.5 fine-tuning chat classification accuracy",
+        ]
+    return topics[:5]
 
 
 # ── Step 2: Extract ──────────────────────────────────────────────
@@ -135,25 +142,35 @@ def extract_insights(findings: list[dict]) -> list[dict]:
         payload = json.dumps({
             "model": "qwen2.5:3b",
             "prompt": (
-                f"De estos hallazgos, extrae 1-3 reglas accionables para un asistente AI "
-                f"que corre en Docker/NAS. Solo reglas concretas, una por linea.\n\n"
-                f"{summaries}\n\nReglas:"
+                f"Sos Tenazas, un asistente AI corriendo en Docker en un NAS Synology con "
+                f"Ollama en HomeLab (RTX 3090). Analizá estos hallazgos y extraé 1-3 reglas "
+                f"CONCRETAS y APLICABLES. Cada regla debe decir exactamente QUE hacer, "
+                f"DONDE (archivo o servicio), y CUANDO aplicarla.\n\n"
+                f"Ejemplo bueno: 'Si ollama no responde en 5s, reiniciar el servicio en HomeLab'\n"
+                f"Ejemplo malo: 'Asegurate de incorporar funcionalidades innovadoras'\n\n"
+                f"Hallazgos:\n{summaries}\n\n"
+                f"Reglas concretas (una por linea, sin numeracion):"
             ),
             "stream": False,
-            "options": {"temperature": 0.3, "num_predict": 256},
+            "options": {"temperature": 0.2, "num_predict": 256},
         }).encode()
         resp = urlopen(Request(f"{OLLAMA_URL}/api/generate",
                                data=payload, headers={"Content-Type": "application/json"}), timeout=60)
         raw = json.loads(resp.read()).get("response", "")
 
         for line in raw.strip().splitlines():
-            line = line.strip().lstrip("-•0123456789. ")
-            if len(line) > 10:
+            line = line.strip().lstrip("-•0123456789. ").replace("**", "")
+            # Skip meta lines (DONDE, CUANDO as separate lines)
+            if line.startswith("DONDE:") or line.startswith("CUANDO:"):
+                continue
+            if len(line) > 15 and len(line) < 200:
                 insights.append({
-                    "rule": line[:200],
+                    "rule": line,
                     "source": "research",
                     "confidence": 0.5,
                 })
+        # Max 3 rules per run
+        insights = insights[:3]
     except Exception:
         pass
 

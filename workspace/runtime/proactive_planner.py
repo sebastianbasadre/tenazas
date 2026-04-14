@@ -93,7 +93,9 @@ def _check_gpu() -> list:
         has_gemma = any("gemma3:12b" in m["name"] for m in models)
         if not has_gemma:
             tasks.append({"type": "gpu", "priority": "high",
-                          "action": "load_gemma", "detail": "gemma3:12b not in VRAM"})
+                          "action": "load_gemma",
+                          "detail": "gemma3:12b no esta en VRAM — primera query va a tardar ~13s. "
+                                    "Decí 'cargar gemma' para precargarla."})
     except Exception:
         tasks.append({"type": "gpu", "priority": "high",
                       "action": "check_ollama", "detail": "Ollama not responding"})
@@ -158,15 +160,13 @@ def plan():
     # Save for reference only (not an execution queue)
     QUEUE_PATH.write_text(json.dumps(suggestions, indent=2, default=str))
 
-    # Send suggestions to Telegram — Sebas responds "hacer X" to execute
-    if suggestions:
-        lines = ["Tenazas sugiere:"]
-        for s in suggestions:
-            icon = {"high": "!", "medium": "~", "low": "."}[s.get("priority", "low")]
-            lines.append(f"  {icon} {s['detail']}")
-        if any(s.get("priority") == "high" for s in suggestions):
-            lines.append("\nResponde 'hacer X' para ejecutar.")
-        _notify("\n".join(lines))
+    # Send suggestions to Telegram — only if there's something actionable
+    high = [s for s in suggestions if s.get("priority") == "high"]
+    if high:
+        lines = []
+        for s in high:
+            lines.append(f"- {s['detail']}")
+        _notify("Alertas:\n" + "\n".join(lines))
 
     _log({"action": "plan_complete", "suggestions": len(suggestions),
           "high": sum(1 for s in suggestions if s.get("priority") == "high")})
