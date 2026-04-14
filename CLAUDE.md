@@ -1951,6 +1951,9 @@ infra_monitor detecta problema
 | 4 | `skill_gap_detector.py` | Detecta necesidades sin skill asignado |
 | 4 | `experiment_runner.py` | A/B con guardrails (10% traffic, rollback) |
 | 5 | `homelab_dashboard_payload.py` | Dashboard unificado "estado tenazas" |
+| 6 | `infra_predictor.py` | Predice problemas por tendencias (VRAM, RAM, disco, latencia) |
+| 6 | `root_cause_engine.py` | Cadenas causales X→Y→Z, fix correcto al root cause |
+| 6 | `incident_clustering.py` | Agrupa incidentes similares, detecta patrones ocultos |
 
 ### Comandos Telegram disponibles
 
@@ -2016,9 +2019,11 @@ docker exec openclaw python3 /home/tenazas/tests/test_adversarial_governance.py 
 docker exec openclaw python3 /home/tenazas/tests/test_policy_enforcement.py                # 32 tests
 docker exec openclaw python3 /home/tenazas/tests/test_cross_failure_chains.py              # 18 tests
 docker exec openclaw python3 /home/tenazas/tests/test_self_improvement_regression.py       # 32 tests
+# Sprint 6 — operational intelligence
+docker exec openclaw python3 /home/tenazas/tests/test_sprint6.py                          # 47 tests
 ```
 
-**Total B+A tests: 430** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32)
+**Total B+A tests: 477** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47)
 
 #### Test categories
 
