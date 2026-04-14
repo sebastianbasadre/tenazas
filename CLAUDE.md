@@ -1954,6 +1954,10 @@ infra_monitor detecta problema
 | 6 | `infra_predictor.py` | Predice problemas por tendencias (VRAM, RAM, disco, latencia) |
 | 6 | `root_cause_engine.py` | Cadenas causales X→Y→Z, fix correcto al root cause |
 | 6 | `incident_clustering.py` | Agrupa incidentes similares, detecta patrones ocultos |
+| 7 | `improvement_loop.py` | Closed-loop: approved → experiment → validate → staging |
+| 7 | `meta_optimizer.py` | Optimiza frecuencia de mining, calidad de senales, trafico |
+| 7 | `skill_evolution.py` | Adopcion progresiva: proposed → shadow → 10% → active |
+| 7 | `benchmark_continuous.py` | Monitoreo 24/7 con alertas por umbrales |
 
 ### Comandos Telegram disponibles
 
@@ -2021,9 +2025,11 @@ docker exec openclaw python3 /home/tenazas/tests/test_cross_failure_chains.py   
 docker exec openclaw python3 /home/tenazas/tests/test_self_improvement_regression.py       # 32 tests
 # Sprint 6 — operational intelligence
 docker exec openclaw python3 /home/tenazas/tests/test_sprint6.py                          # 47 tests
+# Sprint 7 — strong self-improvement
+docker exec openclaw python3 /home/tenazas/tests/test_sprint7.py                          # 38 tests
 ```
 
-**Total B+A tests: 477** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47)
+**Total B+A tests: 515** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47, Sprint 7: 38)
 
 #### Test categories
 
