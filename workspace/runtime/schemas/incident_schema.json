@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TenazasIncident",
+  "description": "Unified incident schema for Tenazas B+A runtime. All detectors, diagnostics, and self-heal modules emit incidents conforming to this schema.",
+  "type": "object",
+  "required": ["incident_id", "source", "category", "severity", "title", "status"],
+  "properties": {
+    "incident_id": {
+      "type": "string",
+      "description": "Unique ID (sha256[:12] of source+title+timestamp)"
+    },
+    "source": {
+      "type": "string",
+      "description": "Module that detected the incident",
+      "enum": [
+        "infra_self_heal",
+        "proactive_planner",
+        "runtime",
+        "infra_diagnostics",
+        "goal_tracker",
+        "background_agents",
+        "manual"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "description": "Incident category",
+      "enum": [
+        "container_down",
+        "container_crash_loop",
+        "vpn_down",
+        "vpn_leak",
+        "network_down",
+        "ollama_offline",
+        "high_memory",
+        "high_latency",
+        "model_error",
+        "skill_failure",
+        "disk_full",
+        "backup_failure",
+        "unknown"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["critical", "warning", "info"],
+      "description": "critical=immediate action, warning=review soon, info=log only"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable one-line summary",
+      "maxLength": 200
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Raw data supporting the detection",
+      "properties": {
+        "container_name": {"type": "string"},
+        "container_status": {"type": "string"},
+        "error_message": {"type": "string"},
+        "metric_value": {"type": "number"},
+        "metric_threshold": {"type": "number"},
+        "raw_output": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "probable_cause": {
+      "type": "string",
+      "description": "Best-guess root cause",
+      "maxLength": 500
+    },
+    "recommended_action": {
+      "type": "object",
+      "description": "Action from action_registry",
+      "properties": {
+        "action_name": {"type": "string"},
+        "target": {"type": "string"},
+        "params": {"type": "object"}
+      }
+    },
+    "requires_approval": {
+      "type": "boolean",
+      "description": "True if action needs Sebas to approve before execution"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Detection confidence (0-1)"
+    },
+    "rollback": {
+      "type": "object",
+      "description": "How to undo the recommended action",
+      "properties": {
+        "action_name": {"type": "string"},
+        "target": {"type": "string"},
+        "description": {"type": "string"}
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["detected", "pending_approval", "approved", "executing", "resolved", "failed", "expired"],
+      "description": "Lifecycle state of this incident"
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "approval_id": {
+      "type": "string",
+      "description": "Links to approval_queue entry if requires_approval"
+    }
+  },
+  "additionalProperties": false
+}
