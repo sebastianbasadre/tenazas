@@ -1381,9 +1381,16 @@ def _handle_smart_home(skill_cat: str, query: str, skill: dict) -> dict:
             "output": f"Luces: {action} (con {len(errors)} errores)",
             "raw": "\n".join(errors), "destructive": True, "error": None,
         }
+    _ACTION_MSGS = {
+        "all-on": "Luces encendidas!",
+        "all-off": "Luces apagadas!",
+        "cinema": "Modo cine activado!",
+        "relax": "Modo relax activado!",
+        "work": "Modo trabajo activado!",
+    }
     return {
         "skill": skill_cat, "success": True,
-        "output": f"Luces: {action} aplicado",
+        "output": _ACTION_MSGS.get(action, f"Luces: {action}"),
         "raw": "", "destructive": True, "error": None,
     }
 
