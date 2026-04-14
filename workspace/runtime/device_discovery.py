@@ -65,6 +65,34 @@ KNOWN_OVERRIDES = {
     "192.168.2.23": {"name": "TP-Link Deco extender 2", "category": "network", "control": "http"},
     "192.168.2.62": {"name": "Google Nest Mini", "category": "speaker", "control": "cast"},
     "192.168.2.57": {"name": "Moto G75 Sebas", "category": "phone", "control": None},
+    # Cameras (EZVIZ)
+    "192.168.2.10": {"name": "EZVIZ C6N (2)", "category": "camera", "control": "http"},
+    "192.168.2.16": {"name": "EZVIZ H3c (2)", "category": "camera", "control": "http"},
+    "192.168.2.17": {"name": "EZVIZ C6N (3)", "category": "camera", "control": "http"},
+    "192.168.2.18": {"name": "EZVIZ H1c", "category": "camera", "control": "http"},
+    "192.168.2.19": {"name": "EZVIZ H1c (2)", "category": "camera", "control": "http"},
+    "192.168.2.25": {"name": "EZVIZ H9c", "category": "camera", "control": "http"},
+    "192.168.2.27": {"name": "EZVIZ H3c", "category": "camera", "control": "http"},
+    "192.168.2.68": {"name": "EZVIZ BE3729184", "category": "camera", "control": "http"},
+    "192.168.2.138": {"name": "EZVIZ C6N", "category": "camera", "control": "http"},
+    # NVR
+    "192.168.2.4": {"name": "Dahua NVR", "category": "camera", "control": "http"},
+    # Media
+    "192.168.2.80": {"name": "Marantz CINEMA 60", "category": "media", "control": "http"},
+    "192.168.2.36": {"name": "Hue Sync Box", "category": "smart_home", "control": "http"},
+    "192.168.2.83": {"name": "Google Home Mini", "category": "speaker", "control": "cast"},
+    "192.168.2.22": {"name": "Nest Doorbell Wired", "category": "smart_home", "control": None},
+    # IoT
+    "192.168.2.99": {"name": "Xiaomi Vacuum", "category": "iot", "control": None},
+    "192.168.2.61": {"name": "ESP32", "category": "iot", "control": None},
+    "192.168.2.5": {"name": "Epson Printer", "category": "printer", "control": "http"},
+    # Phones & tablets
+    "192.168.2.14": {"name": "Tab S11 Sebas", "category": "tablet", "control": None},
+    "192.168.2.100": {"name": "S25 Ultra Sebas", "category": "phone", "control": None},
+    "192.168.2.102": {"name": "S25 Viviana", "category": "phone", "control": None},
+    "192.168.2.128": {"name": "Tab A9 Sebas", "category": "tablet", "control": None},
+    "192.168.2.60": {"name": "Tab S6 Lite Juliana", "category": "tablet", "control": None},
+    "192.168.2.29": {"name": "Samsung TV", "category": "display", "control": None},
 }
 
 # ── Device classification rules ─────────────────────────────────
@@ -662,7 +690,7 @@ def format_telegram(devices: list) -> str:
         "server": "S", "network": "N", "smart_home": "H",
         "display": "D", "iot": "I", "client": "C",
         "camera": "K", "printer": "P", "media": "M",
-        "mobile": "F", "phone": "F", "speaker": "A",
+        "mobile": "F", "phone": "F", "tablet": "T", "speaker": "A",
         "unknown": "?",
     }
 
