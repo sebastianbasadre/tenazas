@@ -1792,14 +1792,22 @@ def complete_email_send(query: str) -> dict | None:
 
 
 def _send_email(skill_cat: str, to: str, subject: str, body: str) -> dict:
-    """Actually send an email via himalaya template send."""
-    template = f"From: sbasadre@gmail.com\nTo: {to}\nSubject: {subject}\n\n{body}"
+    """Actually send an email via himalaya message send."""
+    # Build raw RFC822 message
+    msg = (
+        f"From: sebastian.basadre@gmail.com\r\n"
+        f"To: {to}\r\n"
+        f"Subject: {subject}\r\n"
+        f"Content-Type: text/plain; charset=utf-8\r\n"
+        f"\r\n"
+        f"{body}"
+    )
 
     try:
         result = subprocess.run(
-            ["himalaya", "template", "send"],
-            input=template,
-            capture_output=True, text=True, timeout=15,
+            ["himalaya", "message", "send"],
+            input=msg,
+            capture_output=True, text=True, timeout=30,
         )
         if result.returncode == 0:
             return {
