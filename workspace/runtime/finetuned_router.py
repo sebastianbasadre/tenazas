@@ -21,8 +21,8 @@ CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
 # Tier 1: Gemma 3 27B local via Ollama (HomeLab)
 GEMMA_URL = "http://192.168.2.6:11434/v1/chat/completions"
-GEMMA_MODEL = "gemma3:27b"
-GEMMA_TIMEOUT = 5
+GEMMA_MODEL = "gemma3:12b"
+GEMMA_TIMEOUT = 15
 GEMMA_SYSTEM = (
     'You are a tool classifier. Respond ONLY with JSON: {"tool": "<name>"}. '
     "Tools: weather, chat, smart-home-on, smart-home-off, smart-home-cinema, "
