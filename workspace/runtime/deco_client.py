@@ -30,7 +30,7 @@ OUTPUT_FILE = BASE_DIR / "deco_clients.json"
 LOG_FILE = BASE_DIR / "logs" / "deco_client.log"
 
 # Deco config
-DECO_IP = os.environ.get("DECO_IP", "192.168.2.12")
+DECO_IP = os.environ.get("DECO_IP", "192.168.2.30")
 DECO_PASSWORD = os.environ.get("DECO_PASSWORD", "")
 
 # Try to load password from openclaw.json
