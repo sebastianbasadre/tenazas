@@ -270,8 +270,118 @@ def run_pipeline(topics: list[str] = None):
     if insights:
         stage_rules(insights)
 
+    # Step 6: Research-to-runbook for repeated incidents (Sprint 4)
+    runbook_count = 0
+    try:
+        runbook_count = _research_to_runbook()
+    except Exception as e:
+        _log({"step": "research_to_runbook", "error": str(e)[:200]})
+
     print(f"Pipeline complete: {len(findings)} findings → {len(insights)} rules staged, "
-          f"{error_count} errors mined → {candidate_count} improvement candidates")
+          f"{error_count} errors mined → {candidate_count} candidates, "
+          f"{runbook_count} runbooks generated")
+
+
+# ── Research-to-Runbook (Sprint 4) ─────────────────────────────
+
+
+def _research_to_runbook() -> int:
+    """Find repeated incidents from error_mining, research fixes, generate runbooks.
+
+    Returns count of runbooks generated.
+    """
+    # Load today's error mining report
+    try:
+        from . import error_mining
+        report = error_mining.get_today()
+    except Exception:
+        try:
+            import error_mining
+            report = error_mining.get_today()
+        except Exception:
+            return 0
+
+    if not report:
+        return 0
+
+    repeated = [e for e in report.get("errors", [])
+                if e.get("type") == "repeated_incident"]
+    if not repeated:
+        return 0
+
+    staging_runbooks = RUNTIME.parent / "staging" / "runbooks"
+    staging_runbooks.mkdir(parents=True, exist_ok=True)
+
+    generated = 0
+    for incident in repeated[:2]:  # max 2 runbooks per run
+        detail = incident.get("detail", "")
+        count = incident.get("count", 0)
+
+        # Search for solutions
+        search_query = f"{detail[:50]} fix homelab docker synology"
+        search_findings = research([search_query])
+
+        # Generate runbook summary via LLM
+        runbook_content = _generate_runbook_content(detail, count, search_findings)
+        if not runbook_content:
+            continue
+
+        # Save to staging
+        incident_id = incident.get("id", "unknown")[:12]
+        runbook_path = staging_runbooks / f"runbook_{incident_id}.md"
+        runbook_path.write_text(runbook_content)
+
+        _log({"step": "runbook_generated", "incident": detail[:60],
+              "path": str(runbook_path)})
+        generated += 1
+
+    if generated > 0:
+        _log({"step": "research_to_runbook", "generated": generated})
+
+    return generated
+
+
+def _generate_runbook_content(detail: str, count: int, findings: list) -> str:
+    """Generate runbook markdown from incident detail and research findings."""
+    findings_text = ""
+    if findings:
+        findings_text = "\n".join(
+            f"- {f['title']}: {f['snippet'][:100]}" for f in findings[:3])
+
+    # Try LLM for summary
+    try:
+        payload = json.dumps({
+            "model": "qwen2.5:7b",
+            "prompt": (
+                f"Generá un runbook conciso para resolver este incidente recurrente "
+                f"({count} veces) en un homelab Docker/Synology:\n\n"
+                f"Problema: {detail}\n\n"
+                f"Hallazgos de investigacion:\n{findings_text}\n\n"
+                f"Formato: markdown con secciones Problema, Diagnostico, Solucion, "
+                f"Prevencion. Maximo 200 palabras."
+            ),
+            "stream": False,
+            "options": {"temperature": 0.2, "num_predict": 512},
+        }).encode()
+        resp = urlopen(Request(f"{OLLAMA_URL}/api/generate",
+                               data=payload, headers={"Content-Type": "application/json"}),
+                       timeout=60)
+        content = json.loads(resp.read()).get("response", "")
+        if content and len(content) > 50:
+            return f"# Runbook: {detail[:60]}\n\n_Generado automaticamente ({count}x recurrente)_\n\n{content}"
+    except Exception:
+        pass
+
+    # Fallback: template without LLM
+    return (
+        f"# Runbook: {detail[:60]}\n\n"
+        f"_Incidente recurrente ({count}x). Requiere revision manual._\n\n"
+        f"## Problema\n{detail}\n\n"
+        f"## Investigacion\n{findings_text or 'Sin hallazgos automaticos.'}\n\n"
+        f"## Diagnostico\nTODO: agregar pasos de diagnostico\n\n"
+        f"## Solucion\nTODO: agregar pasos de solucion\n\n"
+        f"## Prevencion\nTODO: agregar medidas preventivas\n"
+    )
 
 
 if __name__ == "__main__":

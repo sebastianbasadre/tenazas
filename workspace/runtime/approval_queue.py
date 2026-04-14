@@ -227,6 +227,11 @@ def handle_callback(callback_query: dict) -> dict:
         entry["status"] = "rejected"
         entry["resolved_at"] = time.time()
         _save_queue(queue)
+        try:
+            from preference_learning import record_signal
+            record_signal("rejection", entry.get("action_name", "unknown"))
+        except Exception:
+            pass
         _tg_request("answerCallbackQuery", {
             "callback_query_id": callback_id, "text": "Rechazado"}, token)
         _tg_request("editMessageText", {
@@ -282,6 +287,12 @@ def approve_by_text(text: str) -> str | None:
             entry["resolved_at"] = time.time()
             _save_queue(queue)
             _log({"action": "approved_by_text", "id": entry["id"], "text": text})
+            # Record preference signal
+            try:
+                from preference_learning import record_signal
+                record_signal("approval", entry.get("action_name", "unknown"))
+            except Exception:
+                pass
             return entry["id"]
     return None
 
