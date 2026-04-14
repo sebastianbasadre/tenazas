@@ -232,3 +232,67 @@ def query_knowledge(problem: str) -> dict:
     })
 
     return result
+
+
+# ── Web Search via SearXNG ───────────────────────────────────────
+
+SEARXNG_URL = "http://192.168.2.2:8890"
+
+
+def web_search(query: str, num_results: int = 3, language: str = "es") -> list[dict]:
+    """Search the web via local SearXNG instance.
+
+    Returns list of {title, url, snippet}.
+    """
+    from urllib.parse import quote_plus
+    from urllib.request import Request, urlopen as _urlopen
+
+    url = f"{SEARXNG_URL}/search?q={quote_plus(query)}&format=json&language={language}"
+    try:
+        req = Request(url, headers={"Accept": "application/json"})
+        resp = _urlopen(req, timeout=10)
+        data = json.loads(resp.read())
+        results = []
+        for r in data.get("results", [])[:num_results]:
+            results.append({
+                "title": r.get("title", ""),
+                "url": r.get("url", ""),
+                "snippet": r.get("content", "")[:200],
+            })
+        return results
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def format_search_results(results: list[dict]) -> str:
+    """Format search results for display."""
+    if not results:
+        return "Sin resultados."
+    if "error" in results[0]:
+        return f"Error buscando: {results[0]['error']}"
+
+    lines = []
+    for i, r in enumerate(results, 1):
+        lines.append(f"{i}. {r['title']}")
+        if r.get("snippet"):
+            lines.append(f"   {r['snippet']}")
+        lines.append(f"   {r['url']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+if __name__ == "__main__":
+    import argparse as _ap
+    parser = _ap.ArgumentParser(description="Research engine + web search")
+    parser.add_argument("--search", help="Web search via SearXNG")
+    parser.add_argument("--query", help="Local knowledge search")
+    args = parser.parse_args()
+
+    if args.search:
+        results = web_search(args.search)
+        print(format_search_results(results))
+    elif args.query:
+        result = query_knowledge(args.query)
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        parser.print_help()
