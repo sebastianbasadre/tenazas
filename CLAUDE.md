@@ -1958,12 +1958,16 @@ infra_monitor detecta problema
 | 7 | `meta_optimizer.py` | Optimiza frecuencia de mining, calidad de senales, trafico |
 | 7 | `skill_evolution.py` | Adopcion progresiva: proposed → shadow → 10% → active |
 | 7 | `benchmark_continuous.py` | Monitoreo 24/7 con alertas por umbrales |
+| 8 | `unified_briefing.py` | Briefing diario unico 08:00 (agenda, email, finanzas, homelab) |
+| 8 | `contextual_awareness.py` | Decide cuando interrumpir (calendar, ausencia, critical) |
+| 8 | `personal_optimizer.py` | Aprende patrones personales (active hours, skill rhythm) |
 
 ### Comandos Telegram disponibles
 
 | Comando | Funcion |
 |---------|---------|
 | `estado tenazas` / `dashboard` | Dashboard completo B+A |
+| (cron 08:00) | Briefing diario unificado (unified_briefing.py) |
 | `estado homelab` / `estado` | Snapshot del homelab |
 | `aprobar [ID]` | Aprobar propuesta (exec queue o improvement) |
 | `rechazar [ID]` | Rechazar propuesta |
@@ -2027,9 +2031,11 @@ docker exec openclaw python3 /home/tenazas/tests/test_self_improvement_regressio
 docker exec openclaw python3 /home/tenazas/tests/test_sprint6.py                          # 47 tests
 # Sprint 7 — strong self-improvement
 docker exec openclaw python3 /home/tenazas/tests/test_sprint7.py                          # 38 tests
+# Sprint 8 — total copilot
+docker exec openclaw python3 /home/tenazas/tests/test_sprint8.py                          # 28 tests
 ```
 
-**Total B+A tests: 515** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47, Sprint 7: 38)
+**Total B+A tests: 543** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47, Sprint 7: 38, Sprint 8: 28)
 
 #### Test categories
 
