@@ -187,6 +187,7 @@ def stage_rules(insights: list[dict]):
     """
     existing = _load_json(STAGING_PATH)
 
+    new_count = 0
     for insight in insights:
         # Dedup by rule text
         if any(r.get("rule") == insight["rule"] for r in existing):
@@ -194,6 +195,7 @@ def stage_rules(insights: list[dict]):
         insight["staged_at"] = datetime.now().astimezone().isoformat()
         insight["status"] = "staged"
         existing.append(insight)
+        new_count += 1
 
     # Keep last 50
     existing = existing[-50:]
