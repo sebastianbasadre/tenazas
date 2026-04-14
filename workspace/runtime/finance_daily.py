@@ -208,29 +208,49 @@ def get_iol_portfolio(test: bool = False) -> dict | None:
 
 # ── Format + Notify ──────────────────────────────────────────────
 
+def _trend_icon(change_pct: float) -> str:
+    """Return trend indicator based on change percentage."""
+    if change_pct >= 3:
+        return "🟢🔥"  # strong up
+    elif change_pct >= 0.5:
+        return "🟢"    # up
+    elif change_pct > -0.5:
+        return "⚪"    # flat
+    elif change_pct > -3:
+        return "🔴"    # down
+    else:
+        return "🔴📉"  # strong down
+
+
 def format_daily(binance: dict | None, iol: dict | None) -> str:
-    """Format daily finance summary."""
+    """Format daily finance summary with trend indicators."""
     today = datetime.now().strftime("%d/%m/%Y")
-    lines = [f"Finance daily — {today}", ""]
+    lines = ["Finance daily — " + today, ""]
 
     if binance:
-        pnl_sign = "+" if binance["pnl_usd"] >= 0 else ""
-        lines.append(f"Binance: ${binance['total_usd']:,.0f} | PNL hoy: {pnl_sign}${binance['pnl_usd']:,.0f}")
+        pnl = binance["pnl_usd"]
+        icon = "👍" if pnl >= 0 else "👎"
+        pnl_sign = "+" if pnl >= 0 else ""
+        lines.append(f"{icon} Binance: ${binance['total_usd']:,.0f} | PNL hoy: {pnl_sign}${pnl:,.0f}")
         for a in binance["assets"][:5]:
             if a["value_usd"] > 10:
+                t = _trend_icon(a["change_pct"])
                 sign = "+" if a["change_pct"] >= 0 else ""
-                lines.append(f"  {a['asset']}: ${a['value_usd']:,.0f} ({sign}{a['change_pct']}%)")
+                lines.append(f"  {t} {a['asset']}: ${a['value_usd']:,.0f} ({sign}{a['change_pct']}%)")
     else:
-        lines.append("Binance: sin configurar (agregar binance_api_key en openclaw.json)")
+        lines.append("Binance: sin configurar")
 
     lines.append("")
 
     if iol:
-        pnl_sign = "+" if iol["pnl_day_ars"] >= 0 else ""
-        lines.append(f"IOL: ${iol['total_ars']:,.0f} ARS | hoy: {pnl_sign}${iol['pnl_day_ars']:,.0f}")
+        pnl = iol["pnl_day_ars"]
+        icon = "👍" if pnl >= 0 else "👎"
+        pnl_sign = "+" if pnl >= 0 else ""
+        lines.append(f"{icon} IOL: ${iol['total_ars']:,.0f} ARS | hoy: {pnl_sign}${pnl:,.0f}")
         for p in iol["positions"][:3]:
+            t = _trend_icon(p["change_pct"])
             sign = "+" if p["change_pct"] >= 0 else ""
-            lines.append(f"  {p['symbol']}: ${p['value']:,.0f} ({sign}{p['change_pct']}%)")
+            lines.append(f"  {t} {p['symbol']}: ${p['value']:,.0f} ({sign}{p['change_pct']}%)")
     else:
         lines.append("IOL: no disponible")
 
