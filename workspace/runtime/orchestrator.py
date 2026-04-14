@@ -1590,7 +1590,30 @@ def _handle_morning_greeting(skill_cat: str, query: str, skill: dict) -> dict:
     }
 
 
-_EMAIL_PENDING_SEND = {}  # chat_id → {to, subject, body, state}
+_EMAIL_PENDING_FILE = Path(__file__).parent / "email_pending.json"
+
+
+def _load_email_pending() -> dict:
+    try:
+        if _EMAIL_PENDING_FILE.exists():
+            return json.loads(_EMAIL_PENDING_FILE.read_text())
+    except Exception:
+        pass
+    return {}
+
+
+def _save_email_pending(data: dict):
+    try:
+        _EMAIL_PENDING_FILE.write_text(json.dumps(data))
+    except Exception:
+        pass
+
+
+def _clear_email_pending():
+    try:
+        _EMAIL_PENDING_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def _handle_email(skill_cat: str, query: str, skill: dict) -> dict:
@@ -1674,23 +1697,18 @@ def _handle_email_send_start(skill_cat: str, query: str) -> dict:
 
     # Validate email address
     if to_name and "@" not in to_name:
-        # Name without email — ask for address
-        _EMAIL_PENDING_SEND["default"] = {
-            "to": "", "to_name": to_name, "subject": subject, "body": body,
-        }
-        prompt = f"No tengo el mail de {to_name}. Pasame la dirección de email."
+        _save_email_pending({"to": "", "to_name": to_name, "subject": subject, "body": body})
         return {
             "skill": skill_cat, "success": True,
-            "output": prompt,
+            "output": f"No tengo el mail de {to_name}. Pasame la dirección de email.",
             "raw": "", "destructive": False, "error": None,
         }
 
     if to_name and subject and body:
+        _clear_email_pending()
         return _send_email(skill_cat, to_name, subject, body)
 
-    _EMAIL_PENDING_SEND["default"] = {
-        "to": to_name, "subject": subject, "body": body,
-    }
+    _save_email_pending({"to": to_name, "subject": subject, "body": body})
 
     missing = []
     if not to_name:
@@ -1706,15 +1724,13 @@ def _handle_email_send_start(skill_cat: str, query: str) -> dict:
 
     return {
         "skill": skill_cat, "success": True,
-        "output": prompt,
-        "raw": json.dumps(_EMAIL_PENDING_SEND["default"]),
-        "destructive": False, "error": None,
+        "output": prompt, "raw": "", "destructive": False, "error": None,
     }
 
 
 def complete_email_send(query: str) -> dict | None:
     """Complete a pending email send with follow-up info. Returns result or None."""
-    pending = _EMAIL_PENDING_SEND.get("default")
+    pending = _load_email_pending()
     if not pending:
         return None
 
@@ -1727,7 +1743,7 @@ def complete_email_send(query: str) -> dict | None:
         # If we now have everything, send
         if pending["to"] and pending.get("subject") and pending.get("body"):
             result = _send_email("skill:email", pending["to"], pending["subject"], pending["body"])
-            _EMAIL_PENDING_SEND.pop("default", None)
+            _clear_email_pending()
             return result
         # Still missing subject/body
         missing = []
@@ -1735,6 +1751,7 @@ def complete_email_send(query: str) -> dict | None:
             missing.append("asunto")
         if not pending.get("body"):
             missing.append("mensaje")
+        _save_email_pending(pending)
         name = pending.get("to_name", pending["to"])
         return {
             "skill": "skill:email", "success": True,
@@ -1768,7 +1785,7 @@ def complete_email_send(query: str) -> dict | None:
     # Check if we have everything
     if pending["to"] and pending["subject"] and pending["body"]:
         result = _send_email("skill:email", pending["to"], pending["subject"], pending["body"])
-        _EMAIL_PENDING_SEND.pop("default", None)
+        _clear_email_pending()
         return result
 
     return None

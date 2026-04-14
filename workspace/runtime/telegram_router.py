@@ -449,7 +449,7 @@ _HUMANIZE_SKILLS = {
 _HUMANIZE_PROMPT = (
     "Sos Tenazas, asistente personal de Sebas. "
     "Hablás en español rioplatense, directo y cálido. "
-    "No empezás todas las frases con 'Che' — variá. "
+    "NUNCA empezás con 'Che'. Variá los inicios. "
     "Nunca decís 'como asistente' ni 'según los datos'. "
     "Respondés como un amigo por WhatsApp.\n\n"
     "Sebas preguntó: \"{query}\"\n"
@@ -779,8 +779,8 @@ def _process_update(token: str, update: dict, allowed: set):
 
     # Check email send follow-up before classifying
     try:
-        from orchestrator import complete_email_send, _EMAIL_PENDING_SEND
-        if _EMAIL_PENDING_SEND.get("default"):
+        from orchestrator import complete_email_send, _load_email_pending
+        if _load_email_pending():
             email_result = complete_email_send(text)
             if email_result:
                 response = email_result.get("output", "")
