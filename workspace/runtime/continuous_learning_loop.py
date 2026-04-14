@@ -232,21 +232,46 @@ def approve_all():
 # ── Main pipeline ────────────────────────────────────────────────
 
 def run_pipeline(topics: list[str] = None):
-    """Full pipeline: research → extract → stage (never auto-apply)."""
+    """Full pipeline: research → extract → error_mine → candidates → stage.
+
+    Never auto-applies. Everything stays in staging for approval.
+    """
     _log({"action": "pipeline_start"})
 
+    # Step 1: Research
     findings = research(topics)
-    if not findings:
-        print("No findings from research")
-        return
 
-    insights = extract_insights(findings)
-    if not insights:
-        print("No insights extracted")
-        return
+    # Step 2: Extract insights from research
+    insights = []
+    if findings:
+        insights = extract_insights(findings)
 
-    stage_rules(insights)
-    print(f"Pipeline complete: {len(findings)} findings → {len(insights)} rules staged")
+    # Step 3: Mine production errors (Sprint 3)
+    error_count = 0
+    try:
+        from . import error_mining
+        report = error_mining.mine_all()
+        error_count = report.get("total_errors", 0)
+        _log({"step": "error_mining", "errors": error_count})
+    except Exception as e:
+        _log({"step": "error_mining", "error": str(e)[:200]})
+
+    # Step 4: Generate improvement candidates from errors (Sprint 3)
+    candidate_count = 0
+    try:
+        from . import improvement_candidates
+        candidates = improvement_candidates.generate()
+        candidate_count = len(candidates)
+        _log({"step": "improvement_candidates", "new": candidate_count})
+    except Exception as e:
+        _log({"step": "improvement_candidates", "error": str(e)[:200]})
+
+    # Step 5: Stage research insights (original behavior)
+    if insights:
+        stage_rules(insights)
+
+    print(f"Pipeline complete: {len(findings)} findings → {len(insights)} rules staged, "
+          f"{error_count} errors mined → {candidate_count} improvement candidates")
 
 
 if __name__ == "__main__":

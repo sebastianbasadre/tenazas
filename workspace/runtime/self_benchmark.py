@@ -264,6 +264,250 @@ def get_latest_results() -> dict:
     return _load_json(BENCHMARK_FILE, {})
 
 
+# ── Sprint 3: Benchmark Gate + New Suites ──────────────────────
+
+ROUTER_LOG = BASE_DIR / "logs" / "model_router.log"
+ORCHESTRATOR_LOG = BASE_DIR / "logs" / "orchestrator.log"
+APPROVAL_LOG = BASE_DIR / "logs" / "approval_queue.log"
+
+
+def _load_jsonl(path: Path, max_age_hours: int = 24) -> list:
+    """Load JSONL log entries from last N hours."""
+    entries = []
+    cutoff = _now() - timedelta(hours=max_age_hours)
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    ts_str = entry.get("ts", "")
+                    if ts_str:
+                        ts = datetime.fromisoformat(ts_str)
+                        if ts >= cutoff:
+                            entries.append(entry)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+    except FileNotFoundError:
+        pass
+    return entries
+
+
+def benchmark_router_accuracy() -> dict:
+    """Test 20 known queries against the router and measure accuracy."""
+    KNOWN_QUERIES = [
+        ("que temperatura hace", "skill:weather"),
+        ("prende las luces", "skill:smart-home"),
+        ("apaga las luces del living", "skill:smart-home"),
+        ("modo cine", "skill:smart-home"),
+        ("escanea la red", "skill:network-scanner"),
+        ("como estan los containers", "skill:infra-monitor"),
+        ("que hay en sonarr", "skill:arr-monitor"),
+        ("mis emails", "skill:email"),
+        ("que tengo manana", "skill:calendar"),
+        ("buen dia", "skill:morning-greeting"),
+        ("cuanto fume", "chat"),
+        ("analiza los logs", "complex_reasoning"),
+        ("que es kubernetes", "knowledge_query"),
+        ("reinicia sonarr", "automation_command"),
+        ("ping a google", "diagnostic_request"),
+        ("hola", "chat"),
+        ("gracias", "chat"),
+        ("decime el clima", "skill:weather"),
+        ("estado de la vpn", "skill:infra-monitor"),
+        ("evoluciona", "skill:self-evolve"),
+    ]
+
+    try:
+        # Import orchestrator to test classification
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "orchestrator", str(BASE_DIR / "orchestrator.py"))
+        orch = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(orch)
+
+        correct = 0
+        results = []
+        for query, expected in KNOWN_QUERIES:
+            try:
+                result = orch.classify_query(query)
+                actual = result if isinstance(result, str) else result.get("classification", "")
+                match = actual == expected
+                if match:
+                    correct += 1
+                results.append({"query": query, "expected": expected,
+                                "actual": actual, "match": match})
+            except Exception:
+                results.append({"query": query, "expected": expected,
+                                "actual": "ERROR", "match": False})
+
+        accuracy = round(correct / len(KNOWN_QUERIES), 4) if KNOWN_QUERIES else 0
+        return {
+            "total": len(KNOWN_QUERIES),
+            "correct": correct,
+            "accuracy": accuracy,
+            "failures": [r for r in results if not r["match"]],
+        }
+    except Exception as e:
+        return {"error": str(e)[:200], "accuracy": 0}
+
+
+def benchmark_structured_output() -> dict:
+    """Verify router responses are valid tool enums."""
+    VALID_CATEGORIES = {
+        "chat", "knowledge_query", "infrastructure_issue",
+        "automation_command", "diagnostic_request", "complex_reasoning",
+        "openrouter_usage",
+    }
+    # Add skill categories (all registered in orchestrator SKILL_MAP)
+    VALID_CATEGORIES.update({
+        "skill:weather", "skill:email", "skill:calendar",
+        "skill:calendar-agenda", "skill:smart-home", "skill:tts",
+        "skill:network-scanner", "skill:arr-monitor", "skill:infra-monitor",
+        "skill:morning-greeting", "skill:self-evolve", "skill:reminders",
+        "skill:smoking", "skill:smoking-tracker", "skill:expense",
+        "skill:model-trainer", "skill:iol-broker",
+    })
+
+    entries = _load_jsonl(ORCHESTRATOR_LOG, max_age_hours=24)
+    classify_entries = [e for e in entries if e.get("type") == "classify" or e.get("classification")]
+
+    if not classify_entries:
+        return {"total": 0, "valid": 0, "validity_rate": 1.0}
+
+    valid = 0
+    invalid_examples = []
+    for e in classify_entries:
+        cat = e.get("classification", e.get("category", ""))
+        if cat in VALID_CATEGORIES:
+            valid += 1
+        else:
+            invalid_examples.append(cat)
+
+    return {
+        "total": len(classify_entries),
+        "valid": valid,
+        "validity_rate": round(valid / len(classify_entries), 4),
+        "invalid_examples": invalid_examples[:5],
+    }
+
+
+def benchmark_false_positive_rate() -> dict:
+    """Measure alerts generated vs useful (not rejected)."""
+    entries = _load_jsonl(APPROVAL_LOG, max_age_hours=168)  # 7 days
+
+    total_alerts = 0
+    rejected = 0
+    auto_resolved = 0
+
+    for e in entries:
+        if e.get("action") in ("enqueue", "created"):
+            total_alerts += 1
+        if e.get("action") == "rejected" or e.get("result") == "rejected":
+            rejected += 1
+        if e.get("action") == "auto_resolved":
+            auto_resolved += 1
+
+    useful = total_alerts - rejected - auto_resolved
+    fp_rate = round((rejected + auto_resolved) / max(total_alerts, 1), 4)
+
+    return {
+        "total_alerts": total_alerts,
+        "rejected": rejected,
+        "auto_resolved": auto_resolved,
+        "useful": useful,
+        "false_positive_rate": fp_rate,
+    }
+
+
+def benchmark_latency_p95() -> dict:
+    """Measure router decision latency P95 from last 24h."""
+    entries = _load_jsonl(ROUTER_LOG, max_age_hours=24)
+
+    latencies = []
+    for e in entries:
+        lat = e.get("latency") or e.get("decision_latency")
+        if lat is not None:
+            try:
+                latencies.append(float(lat))
+            except (ValueError, TypeError):
+                pass
+
+    if not latencies:
+        return {"samples": 0, "p95_ms": 0}
+
+    latencies.sort()
+    p95_idx = min(int(len(latencies) * 0.95), len(latencies) - 1)
+
+    return {
+        "samples": len(latencies),
+        "avg_ms": round(sum(latencies) / len(latencies) * 1000, 1),
+        "p95_ms": round(latencies[p95_idx] * 1000, 1),
+        "max_ms": round(max(latencies) * 1000, 1),
+    }
+
+
+# ── Benchmark Gate ──────────────────────────────────────────────
+
+# Thresholds for gate pass
+GATE_THRESHOLDS = {
+    "router_accuracy": 0.70,        # >= 70% correct
+    "structured_output": 0.95,       # >= 95% valid
+    "false_positive_rate": 0.50,     # <= 50% false positives
+    "latency_p95_ms": 5000,          # <= 5 seconds
+}
+
+
+def run_gate(candidate_id: str = None) -> dict:
+    """Run benchmark gate. Returns pass/fail with details.
+
+    If candidate_id is given, checks if promoting it would break metrics.
+    """
+    results = {
+        "gate_run_at": _now().isoformat(),
+        "candidate_id": candidate_id,
+        "checks": {},
+        "passed": True,
+        "failures": [],
+    }
+
+    # Run all gate benchmarks
+    router = benchmark_router_accuracy()
+    results["checks"]["router_accuracy"] = router
+    if router.get("accuracy", 0) < GATE_THRESHOLDS["router_accuracy"]:
+        results["passed"] = False
+        results["failures"].append(
+            f"router_accuracy {router['accuracy']:.2f} < {GATE_THRESHOLDS['router_accuracy']}")
+
+    structured = benchmark_structured_output()
+    results["checks"]["structured_output"] = structured
+    if structured.get("validity_rate", 0) < GATE_THRESHOLDS["structured_output"]:
+        results["passed"] = False
+        results["failures"].append(
+            f"structured_output {structured['validity_rate']:.2f} < {GATE_THRESHOLDS['structured_output']}")
+
+    fp = benchmark_false_positive_rate()
+    results["checks"]["false_positive_rate"] = fp
+    if fp.get("false_positive_rate", 0) > GATE_THRESHOLDS["false_positive_rate"]:
+        results["passed"] = False
+        results["failures"].append(
+            f"false_positive_rate {fp['false_positive_rate']:.2f} > {GATE_THRESHOLDS['false_positive_rate']}")
+
+    latency = benchmark_latency_p95()
+    results["checks"]["latency_p95"] = latency
+    if latency.get("p95_ms", 0) > GATE_THRESHOLDS["latency_p95_ms"]:
+        results["passed"] = False
+        results["failures"].append(
+            f"latency_p95 {latency['p95_ms']}ms > {GATE_THRESHOLDS['latency_p95_ms']}ms")
+
+    _log({"action": "gate_run", "candidate": candidate_id,
+          "passed": results["passed"], "failures": results["failures"]})
+
+    return results
+
+
 def compare_benchmarks(current: dict, previous: dict) -> dict:
     """Compare two benchmark reports and highlight changes.
 
@@ -296,3 +540,42 @@ def compare_benchmarks(current: dict, previous: dict) -> dict:
         )
 
     return changes
+
+
+# ── CLI ─────────────────────────────────────────────────────────
+
+
+if __name__ == "__main__":
+    import argparse
+    p = argparse.ArgumentParser(description="Self-Benchmark — performance measurement + gate")
+    p.add_argument("--run", action="store_true", help="Run full benchmark suite")
+    p.add_argument("--gate", type=str, metavar="CANDIDATE_ID", nargs="?", const="__all__",
+                   help="Run benchmark gate (optionally for a specific candidate)")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    args = p.parse_args()
+
+    if args.run:
+        report = run_benchmark()
+        if args.json:
+            print(json.dumps(report, indent=2, default=str))
+        else:
+            print(f"Benchmark: {report['total_metrics_entries']} entries analyzed")
+            print(f"  Models: {report['model_quality']['models_benchmarked']}")
+            print(f"  Pipelines: {report['pipeline_latency']['pipelines_benchmarked']}")
+            print(f"  Diagnostic accuracy: {report['diagnostic_accuracy']['accuracy']:.2%}")
+    elif args.gate is not None:
+        cid = args.gate if args.gate != "__all__" else None
+        result = run_gate(candidate_id=cid)
+        if args.json:
+            print(json.dumps(result, indent=2, default=str))
+        else:
+            status = "PASS" if result["passed"] else "FAIL"
+            print(f"Gate: {status}")
+            for check, data in result["checks"].items():
+                print(f"  {check}: {json.dumps(data, default=str)}")
+            if result["failures"]:
+                print(f"\nFailures:")
+                for f in result["failures"]:
+                    print(f"  ! {f}")
+    else:
+        p.print_help()
