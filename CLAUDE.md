@@ -1968,6 +1968,11 @@ infra_monitor detecta problema
 | 9 | `agent_self_improve.py` | Agente auto-mejora (mining, experiments) |
 | 9 | `agent_arbitrator.py` | Resolucion de conflictos entre agentes |
 | 9 | `agent_coordinator.py` | Routing multi-agente, agregacion de respuestas |
+| 10 | `trading_observer.py` | Observacion pasiva: precios, F&G, MA, volatilidad |
+| 10 | `trading_journal.py` | Journal diario automatico del mercado |
+| 10 | `trading_hypothesis.py` | Genera y trackea hipotesis de trading |
+| 10 | `trading_paper.py` | Paper trading (simulacion, $10k virtual) |
+| 10 | `trading_scorer.py` | Scoring: win rate, profit factor, drawdown, sharpe |
 
 ### Comandos Telegram disponibles
 
@@ -2042,9 +2047,11 @@ docker exec openclaw python3 /home/tenazas/tests/test_sprint7.py                
 docker exec openclaw python3 /home/tenazas/tests/test_sprint8.py                          # 28 tests
 # Sprint 9 — multi-agent system
 docker exec openclaw python3 /home/tenazas/tests/test_sprint9.py                          # 42 tests
+# Sprint 10 — autonomous trading (safe phases only)
+docker exec openclaw python3 /home/tenazas/tests/test_sprint10.py                         # 37 tests
 ```
 
-**Total B+A tests: 585** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47, Sprint 7: 38, Sprint 8: 28, Sprint 9: 42)
+**Total B+A tests: 622** (Sprint 3-9: 585, Sprint 10: 37)
 
 #### Test categories
 
