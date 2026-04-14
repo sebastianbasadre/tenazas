@@ -1672,18 +1672,29 @@ def _handle_email_send_start(skill_cat: str, query: str) -> dict:
     )
     body = body_match.group(1).strip() if body_match else ""
 
+    # Validate email address
+    if to_name and "@" not in to_name:
+        # Name without email — ask for address
+        _EMAIL_PENDING_SEND["default"] = {
+            "to": "", "to_name": to_name, "subject": subject, "body": body,
+        }
+        prompt = f"No tengo el mail de {to_name}. Pasame la dirección de email."
+        return {
+            "skill": skill_cat, "success": True,
+            "output": prompt,
+            "raw": "", "destructive": False, "error": None,
+        }
+
     if to_name and subject and body:
-        # All info present — send directly
         return _send_email(skill_cat, to_name, subject, body)
 
-    # Store pending state and ask for missing info
     _EMAIL_PENDING_SEND["default"] = {
         "to": to_name, "subject": subject, "body": body,
     }
 
     missing = []
     if not to_name:
-        missing.append("destinatario")
+        missing.append("destinatario (email)")
     if not subject:
         missing.append("asunto")
     if not body:
@@ -1708,6 +1719,28 @@ def complete_email_send(query: str) -> dict | None:
         return None
 
     q = query.strip()
+
+    # Check if user provided an email address
+    email_match = re.search(r"[\w.+-]+@[\w.-]+\.\w+", q)
+    if email_match and not pending.get("to"):
+        pending["to"] = email_match.group(0)
+        # If we now have everything, send
+        if pending["to"] and pending.get("subject") and pending.get("body"):
+            result = _send_email("skill:email", pending["to"], pending["subject"], pending["body"])
+            _EMAIL_PENDING_SEND.pop("default", None)
+            return result
+        # Still missing subject/body
+        missing = []
+        if not pending.get("subject"):
+            missing.append("asunto")
+        if not pending.get("body"):
+            missing.append("mensaje")
+        name = pending.get("to_name", pending["to"])
+        return {
+            "skill": "skill:email", "success": True,
+            "output": f"Mail para {name} ({pending['to']}). Necesito: {', '.join(missing)}.",
+            "raw": "", "destructive": False, "error": None,
+        }
 
     # Parse "Asunto: X, Mensaje: Y" or just free text
     subj_match = re.search(r"asunto:\s*(.+?)(?:,|\.|$)", q, re.IGNORECASE)
