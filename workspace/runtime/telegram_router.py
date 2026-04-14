@@ -241,12 +241,43 @@ _email_override_re = [re.compile(p, re.IGNORECASE) for p in EMAIL_OVERRIDE_PATTE
 
 
 def classify_intent(text: str) -> str:
-    """Classify a message deterministically.
+    """Classify a message using Gemma router → orchestrator regex fallback.
 
     Returns a category string. If the category is in INTERCEPTED_SKILLS,
     the message should be handled without the LLM.
     """
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
+
+    # Tier 1: Use finetuned_router (Gemma 12B → finetuned v8 → keyword)
+    try:
+        from finetuned_router import route as _ft_route
+        result = _ft_route(text)
+        tool = result.get("tool")
+        tier = result.get("_parsed_by", "?")
+        if tool and tool != "chat":
+            # Map tool name to skill category
+            _TOOL_TO_SKILL = {
+                "smart-home-on": "skill:smart-home",
+                "smart-home-off": "skill:smart-home",
+                "smart-home-cinema": "skill:smart-home",
+                "weather": "skill:weather",
+                "email": "skill:email",
+                "calendar": "skill:calendar-agenda",
+                "arr-monitor": "skill:arr-monitor",
+                "infra-monitor": "skill:infra-monitor",
+                "self-evolve": "skill:self-evolve",
+                "tts": "skill:tts",
+                "reminders": "skill:reminders",
+                "smoking-tracker": "skill:smoking-tracker",
+            }
+            category = _TOOL_TO_SKILL.get(tool, f"skill:{tool}")
+            _log({"action": "classified", "category": category,
+                  "text": text[:80], "tier": tier})
+            return category
+    except Exception as e:
+        _log({"action": "router_classify_error", "error": str(e)})
+
+    # Tier 2: Orchestrator regex fallback
     try:
         from orchestrator import classify_query
         category = classify_query(text)
@@ -255,7 +286,8 @@ def classify_intent(text: str) -> str:
         category = "chat"
         return category
 
-    _log({"action": "classified", "category": category, "text": text[:80]})
+    _log({"action": "classified", "category": category, "text": text[:80],
+          "tier": "orchestrator"})
 
     # Safety net: if orchestrator missed email, check our override patterns
     if category == "chat":
@@ -398,6 +430,60 @@ def _format_email_output(output: str) -> str:
         header += f" ({unread} sin leer)"
 
     return header + "\n\n" + "\n\n".join(formatted)
+
+
+# ── Humanize skill output ─────────────────────────────────────────
+
+# Skills that should be humanized (raw output → natural response)
+# Some skills already return good output (smoking-tracker, smart-home)
+_HUMANIZE_SKILLS = {
+    "skill:calendar", "skill:calendar-agenda",
+    "skill:infra-monitor",
+    "skill:arr-monitor",
+    "skill:weather",
+    "skill:email",
+    "skill:self-evolve",
+    "skill:network-scanner",
+}
+
+_HUMANIZE_PROMPT = (
+    "Sos Tenazas, el asistente personal de Sebas. "
+    "Hablás en español rioplatense como un amigo cercano — "
+    "usás 'che', 'dale', 'tenés', 'fijate'. Sos directo y cálido. "
+    "Nunca decís 'como asistente' ni 'según los datos'. "
+    "Respondés como si fueras un amigo que le está contando algo.\n\n"
+    "Sebas preguntó: \"{query}\"\n"
+    "Datos del sistema:\n{data}\n\n"
+    "Respondé de forma natural, como si hablaras por WhatsApp. "
+    "Priorizá lo relevante a la pregunta. "
+    "Si son eventos, mencioná hora y nombre de forma casual. "
+    "Si es clima, decí si necesita abrigo o paraguas. "
+    "Si es infra, decí si está todo bien o si hay algo roto. "
+    "Máximo 3-4 líneas. Sin emojis salvo que sea natural."
+)
+
+
+def _humanize_response(query: str, raw_output: str, category: str) -> str:
+    """Pass skill output through LLM for natural language response."""
+    if category not in _HUMANIZE_SKILLS:
+        return raw_output
+    if not raw_output or len(raw_output) < 10:
+        return raw_output
+
+    prompt = _HUMANIZE_PROMPT.format(query=query[:100], data=raw_output[:1500])
+
+    try:
+        result = _call_ollama_chat(OLLAMA_GPU_URL, [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": query},
+        ])
+        if result and len(result) > 5:
+            return result
+    except Exception:
+        pass
+
+    # Fallback: return raw
+    return raw_output
 
 
 # ── LLM Fallback (non-skill messages) ─────────────────────────────
@@ -710,13 +796,17 @@ def _process_update(token: str, update: dict, allowed: set):
         except Exception:
             pass
 
-        response = execute_intercepted_skill(text, category=category)
+        raw_response = execute_intercepted_skill(text, category=category)
+
+        # Humanize skill output through LLM
+        response = _humanize_response(text, raw_response, category)
 
         # Track last skill for conversational continuity
         _record_last_skill(chat_id, category)
 
         _log({"action": "skill_response", "category": category,
-              "response_len": len(response), "success": True})
+              "response_len": len(response), "humanized": response != raw_response,
+              "success": True})
 
         # Send with feedback buttons for skills
         try:
