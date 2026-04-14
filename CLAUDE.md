@@ -1991,13 +1991,77 @@ infra_monitor detecta problema
 | Tenazas Runtime | `tenazas-runtime` | Infra general, NAS, Ollama, Telegram |
 | Tenazas Agent | `tenazas-agent` | Router V2, roles, guardrails |
 
-### Tests
+### Tests B+A
 
 ```bash
-# Sprint 3
-docker exec openclaw python3 /home/tenazas/tests/test_sprint3.py     # 26 tests
-# Sprint 4
-docker exec openclaw python3 /home/tenazas/tests/test_sprint4.py     # 23 tests
-# Sprint 5 E2E
-docker exec openclaw python3 /home/tenazas/tests/test_e2e_sprint5.py # 15 tests
+# Sprint 3 — self-improvement pipeline
+docker exec openclaw python3 /home/tenazas/tests/test_sprint3.py                          # 26 tests
+# Sprint 4 — useful learning
+docker exec openclaw python3 /home/tenazas/tests/test_sprint4.py                          # 23 tests
+# Sprint 5 — e2e integration
+docker exec openclaw python3 /home/tenazas/tests/test_e2e_sprint5.py                      # 15 tests
+# Sprint 5 — governance unit tests
+docker exec openclaw python3 /home/tenazas/tests/test_sprint5_governance.py               # 64 tests
+docker exec openclaw python3 /home/tenazas/tests/test_sprint5_expanded.py                 # 131 tests
+# Simulation — governance scenarios
+docker exec openclaw python3 /home/tenazas/tests/simulation/governance/test_sim_container_flapping.py  # 10 tests
+docker exec openclaw python3 /home/tenazas/tests/simulation/governance/test_sim_ollama_gpu.py          # 7 tests
+docker exec openclaw python3 /home/tenazas/tests/simulation/governance/test_sim_noise_storm.py         # 9 tests
+docker exec openclaw python3 /home/tenazas/tests/simulation/governance/test_sim_multi_incident.py      # 10 tests
+# Long-run simulations
+docker exec openclaw python3 /home/tenazas/tests/simulation/longrun/test_longrun_1h.py                # 10 tests
+docker exec openclaw python3 /home/tenazas/tests/simulation/longrun/test_longrun_degradation.py        # 9 tests
+# Hardening — adversarial, policy, chains, regression
+docker exec openclaw python3 /home/tenazas/tests/test_adversarial_governance.py            # 34 tests
+docker exec openclaw python3 /home/tenazas/tests/test_policy_enforcement.py                # 32 tests
+docker exec openclaw python3 /home/tenazas/tests/test_cross_failure_chains.py              # 18 tests
+docker exec openclaw python3 /home/tenazas/tests/test_self_improvement_regression.py       # 32 tests
+```
+
+**Total B+A tests: 430** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32)
+
+#### Test categories
+
+| Categoria | Suites | Tests | Que cubre |
+|-----------|--------|-------|-----------|
+| Unit | governance + expanded | 195 | decision_quality, noise_filter, action_budget, confidence_calibration |
+| Simulation | 4 scenarios | 36 | container flapping, Ollama GPU, noise storm, multi-incident |
+| Long-run | 2 scenarios | 19 | 1h activity (60 events), progressive degradation (300 decisions) |
+| Adversarial | 1 suite | 34 | Manipulated scores, corrupted data, spam, bypass attempts |
+| Policy | 1 suite | 32 | Security invariants (container protection, staging isolation) |
+| Failure chains | 1 suite | 18 | Cascading failures (GPU+Ollama, VPN+arr, RAM+unhealthy, heal loops) |
+| Regression | 1 suite | 32 | Error mining corruption, benchmark gate edge cases, feedback loops |
+| E2E | 1 suite | 15 | incident→staging, preference→blacklist, skill_gap→staging |
+| Sprint 3+4 | 2 suites | 49 | error_mining, improvement_candidates, preference, skill_gap, experiments |
+
+#### Metric asserts en simulaciones
+
+| Metrica | Umbral | Donde se verifica |
+|---------|--------|-------------------|
+| decision_accuracy | >= 70% | container_flapping, longrun_1h |
+| false_positive_rate | <= 15% | noise_storm, container_flapping |
+| alert_reduction_rate | >= 60% | noise_storm, longrun_1h |
+| action_success_rate | >= 80% | longrun_1h, multi_incident |
+| rollback_rate | <= 10% | longrun_1h, container_flapping |
+| confidence_calibration_error | <= 0.15 | ollama_gpu, degradation |
+
+### Network Discovery
+
+| Componente | Descripcion |
+|---|---|
+| `device_discovery.py` | Scanner nmap + ARP + OUI vendor lookup |
+| `deco_client.py` | TP-Link Deco B63 API (WiFi clients, band, signal) |
+| `network_exporter.py` | Prometheus :9108 per-device metrics |
+| `device_inventory.json` | Inventario persistente (42 dispositivos, 0 unknown) |
+
+Dispositivos conocidos: 11 cameras, 8 network, 4 phones, 4 tablets, 3 smart_home, 2 servers, 2 speakers, 2 displays, 2 IoT, 1 media, 1 printer.
+
+```bash
+# Scan rapido (~10s)
+docker exec openclaw python3 /home/tenazas/runtime/device_discovery.py --quick
+# Scan profundo (~5 min)
+docker exec openclaw python3 /home/tenazas/runtime/device_discovery.py --deep
+# Deco WiFi clients
+docker exec openclaw python3 /home/tenazas/runtime/deco_client.py
+# Dashboard Grafana: http://192.168.2.2:3000/d/tenazas-device-discovery
 ```
