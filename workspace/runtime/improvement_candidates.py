@@ -202,6 +202,33 @@ def _gen_guardrail_policies(errors: list) -> list:
     return proposals
 
 
+def _gen_resilience(errors: list) -> list:
+    """Generate resilience proposals from backend_offline events."""
+    offline = [e for e in errors if e["type"] == "backend_offline"]
+    if len(offline) < 2:
+        return []
+
+    # Count unique timestamps (each offline window produces paired entries)
+    from collections import OrderedDict
+    timestamps = OrderedDict()
+    for e in offline:
+        ts = e.get("ts", "")[:16]  # group by minute
+        timestamps[ts] = timestamps.get(ts, 0) + 1
+    offline_windows = len(timestamps)
+
+    return [{
+        "type": "new_runbook",
+        "title": f"Deteccion proactiva de HomeLab offline ({offline_windows} ventanas)",
+        "description": f"{len(offline)} cloud fallbacks en {offline_windows} ventanas de tiempo. "
+                       f"HomeLab estuvo offline y las queries cayeron a cloud sin aviso previo. "
+                       f"Implementar keepalive NAS→HomeLab con notificacion proactiva antes "
+                       f"de que fallen queries.",
+        "expected_gain": f"Aviso proactivo antes de {len(offline)} fallbacks a cloud",
+        "risk": "low",
+        "evidence": [e["detail"][:120] for e in offline[:3]],
+    }]
+
+
 # ── Main API ────────────────────────────────────────────────────
 
 
@@ -232,6 +259,7 @@ def generate(date: str = None) -> list:
         _gen_runbooks,
         _gen_tests,
         _gen_guardrail_policies,
+        _gen_resilience,
     ]
 
     new_candidates = []

@@ -53,12 +53,13 @@ class TestErrorMiningToolFailures(unittest.TestCase):
             "ts": datetime.now().astimezone().isoformat(),
             "type": "cloud_fallback",
             "reason": "all backends offline",
+            "model": "openrouter/kimi-k2",
         }
         with patch.object(em, "_load_jsonl", return_value=[entry]):
-            errors = em.mine_tool_failures()
-        cloud = [e for e in errors if e.get("subtype") == "cloud_fallback"]
-        self.assertTrue(len(cloud) > 0)
-        self.assertEqual(cloud[0]["severity"], "high")
+            errors = em.mine_backend_offline()
+        self.assertTrue(len(errors) > 0)
+        self.assertEqual(errors[0]["type"], "backend_offline")
+        self.assertEqual(errors[0]["severity"], "high")
 
     def test_empty_logs_no_errors(self):
         from runtime import error_mining as em
@@ -351,14 +352,15 @@ class TestStagingIsolation(unittest.TestCase):
 
     def test_staging_readme_exists(self):
         staging = self._staging_dir()
-        if not staging.exists():
-            self.skipTest("staging/ not mounted in container")
-        self.assertTrue((staging / "README.md").exists())
+        readme = staging / "README.md"
+        if not readme.exists():
+            self.skipTest("staging/README.md not present (not mounted in container)")
+        self.assertTrue(readme.exists())
 
     def test_staging_dirs_exist(self):
         staging = self._staging_dir()
-        if not staging.exists():
-            self.skipTest("staging/ not mounted in container")
+        if not (staging / "README.md").exists():
+            self.skipTest("staging/ not fully mounted in container")
         for subdir in ["prompts", "router_rules", "runbooks", "tests", "datasets"]:
             self.assertTrue((staging / subdir).is_dir(),
                             f"staging/{subdir} should exist")

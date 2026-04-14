@@ -121,16 +121,7 @@ def mine_tool_failures() -> list:
             })
 
     for entry in _load_jsonl(ORCHESTRATOR_LOG):
-        if entry.get("type") == "cloud_fallback":
-            errors.append({
-                "type": "tool_failure",
-                "subtype": "cloud_fallback",
-                "detail": f"all local backends offline, fell to cloud: {entry.get('reason', '')}",
-                "source": "orchestrator.log",
-                "ts": entry.get("ts"),
-                "severity": "high",
-            })
-        if entry.get("error"):
+        if entry.get("error") and entry.get("type") != "cloud_fallback":
             errors.append({
                 "type": "tool_failure",
                 "subtype": "execution_error",
@@ -138,6 +129,28 @@ def mine_tool_failures() -> list:
                 "source": "orchestrator.log",
                 "ts": entry.get("ts"),
                 "severity": "medium",
+            })
+
+    return errors
+
+
+def mine_backend_offline() -> list:
+    """Detect HomeLab/backend offline events from orchestrator.log cloud fallbacks."""
+    errors = []
+
+    for entry in _load_jsonl(ORCHESTRATOR_LOG):
+        if entry.get("type") == "cloud_fallback":
+            reason = entry.get("reason", "")
+            model = entry.get("model", "")
+            errors.append({
+                "type": "backend_offline",
+                "subtype": "cloud_fallback",
+                "detail": f"HomeLab offline → {model} ({reason[:100]})",
+                "source": "orchestrator.log",
+                "ts": entry.get("ts"),
+                "severity": "high",
+                "model_used": model,
+                "category": entry.get("category", ""),
             })
 
     return errors
@@ -162,28 +175,16 @@ def mine_timeouts() -> list:
 
 
 def mine_dubious_classifications() -> list:
-    """Detect queries where router fell to keyword/regex instead of model."""
+    """Detect queries where orchestrator classification may be wrong.
+
+    The Tenazas router uses keyword/regex heuristics in orchestrator.py
+    (not a model like Gemma). We flag cases where:
+    - Router V2 signals show keyword-only classification (no model confidence)
+    - Orchestrator logged a classify event with low-confidence method
+    """
     errors = []
 
-    for entry in _load_jsonl(ROUTER_LOG):
-        signals = entry.get("signals", [])
-        parsed_by = entry.get("_parsed_by", "")
-
-        # Keyword fallback instead of model
-        is_keyword = any("keyword" in str(s) for s in signals)
-        is_fallback = parsed_by in ("keyword", "regex", "extracted")
-
-        if is_keyword or is_fallback:
-            errors.append({
-                "type": "dubious_classification",
-                "detail": f"prompt='{entry.get('prompt_preview', '')[:60]}' "
-                          f"classified as {entry.get('task_type', '?')} via {parsed_by or 'keyword'}",
-                "source": "model_router.log",
-                "ts": entry.get("ts"),
-                "severity": "low",
-                "signals": signals,
-            })
-
+    # From orchestrator: explicit classify events with method info
     for entry in _load_jsonl(ORCHESTRATOR_LOG):
         if entry.get("type") == "classify" and entry.get("method") in ("keyword", "regex"):
             errors.append({
@@ -191,6 +192,19 @@ def mine_dubious_classifications() -> list:
                 "detail": f"query='{entry.get('query', '')[:60]}' "
                           f"classified as {entry.get('category', '?')} via {entry.get('method')}",
                 "source": "orchestrator.log",
+                "ts": entry.get("ts"),
+                "severity": "low",
+            })
+
+    # From router: V2 routing where all signals are keyword-based (no model)
+    for entry in _load_jsonl(ROUTER_LOG):
+        parsed_by = entry.get("_parsed_by", "")
+        if parsed_by in ("keyword", "regex", "extracted"):
+            errors.append({
+                "type": "dubious_classification",
+                "detail": f"prompt='{entry.get('prompt_preview', '')[:60]}' "
+                          f"routed as {entry.get('task_type', '?')} via {parsed_by}",
+                "source": "model_router.log",
                 "ts": entry.get("ts"),
                 "severity": "low",
             })
@@ -330,6 +344,7 @@ def mine_all() -> dict:
     all_errors = []
     miners = [
         ("tool_failures", mine_tool_failures),
+        ("backend_offline", mine_backend_offline),
         ("timeouts", mine_timeouts),
         ("dubious_classifications", mine_dubious_classifications),
         ("chain_failures", mine_chain_failures),
