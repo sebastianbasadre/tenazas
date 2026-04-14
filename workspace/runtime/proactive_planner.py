@@ -160,13 +160,16 @@ def plan():
     # Save for reference only (not an execution queue)
     QUEUE_PATH.write_text(json.dumps(suggestions, indent=2, default=str))
 
-    # Send suggestions to Telegram — only if there's something actionable
-    high = [s for s in suggestions if s.get("priority") == "high"]
-    if high:
+    # Only notify for critical issues that need human action
+    # GPU/infra stuff is handled by gpu_scheduler and self_heal automatically
+    critical = [s for s in suggestions
+                 if s.get("priority") == "high"
+                 and s.get("type") not in ("gpu", "infra")]  # auto-handled
+    if critical:
         lines = []
-        for s in high:
+        for s in critical:
             lines.append(f"- {s['detail']}")
-        _notify("Alertas:\n" + "\n".join(lines))
+        _notify("Alerta:\n" + "\n".join(lines))
 
     _log({"action": "plan_complete", "suggestions": len(suggestions),
           "high": sum(1 for s in suggestions if s.get("priority") == "high")})

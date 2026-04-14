@@ -199,15 +199,8 @@ def stage_rules(insights: list[dict]):
     existing = existing[-50:]
     _save_json(STAGING_PATH, existing)
 
-    # Notify Sebas
-    new_count = len(insights)
-    if new_count > 0:
-        rules_text = "\n".join(f"  - {i['rule'][:80]}" for i in insights[:5])
-        _notify(
-            f"Aprendizaje continuo — {new_count} reglas nuevas en staging:\n"
-            f"{rules_text}\n\n"
-            f"Responde 'aprobar reglas' para aplicar."
-        )
+    # Don't spam Telegram with learning rules — log only.
+    # Sebas can check with: python3 continuous_learning_loop.py --status
 
     _log({"step": "stage", "new_rules": new_count, "total_staged": len(existing)})
 
