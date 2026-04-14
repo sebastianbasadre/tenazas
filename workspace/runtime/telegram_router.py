@@ -879,6 +879,17 @@ def _process_update(token: str, update: dict, allowed: set):
         _append_history(chat_id, "assistant", response)
         return
 
+    if text_lower in ("estado tenazas", "dashboard", "tenazas status", "tenazas dashboard"):
+        send_typing(token, chat_id)
+        try:
+            from homelab_dashboard_payload import format_telegram as fmt_dashboard
+            response = fmt_dashboard()
+        except Exception as e:
+            response = f"Error generando dashboard: {e}"
+        send_message(token, chat_id, response)
+        _append_history(chat_id, "assistant", response)
+        return
+
     # Check email send follow-up before classifying
     try:
         from orchestrator import complete_email_send, _load_email_pending

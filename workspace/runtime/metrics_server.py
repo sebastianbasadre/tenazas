@@ -157,6 +157,13 @@ if PROM_AVAILABLE:
     G_DD_BY_VENDOR = Gauge("device_discovery_by_vendor", "Devices by vendor", ["vendor"])
     G_DD_LAST_SCAN = Gauge("device_discovery_last_scan_ts", "Timestamp of last inventory update")
 
+    # ── B+A Roadmap (Sprint 5) ─────────────────────────────────
+    G_BA_GOALS_FAILING = Gauge("tenazas_goals_failing", "Goals in fail state")
+    G_BA_STAGING_PENDING = Gauge("tenazas_staging_pending", "Proposals in staging pending approval")
+    G_BA_EXPERIMENTS_ACTIVE = Gauge("tenazas_experiments_active", "Active experiments running")
+    G_BA_BACKEND_OFFLINE_24H = Gauge("tenazas_backend_offline_events_24h", "Backend offline outages in last 24h")
+    G_BA_PREFERENCE_CONF = Gauge("tenazas_preference_confidence", "Preference confidence by category", ["category"])
+
     # ── OpenRouter ─────────────────────────────────────────────
     G_OPENROUTER_BALANCE = Gauge("tenazas_openrouter_balance_usd", "Créditos disponibles en OpenRouter")
     G_OPENROUTER_USED = Gauge("tenazas_openrouter_used_usd", "Total gastado en OpenRouter")
@@ -634,6 +641,79 @@ def _iol_cli_loop():
 
 INVENTORY_FILE = BASE_DIR / "device_inventory.json"
 
+def update_ba_metrics():
+    """Update B+A roadmap metrics: goals, staging, experiments, offline, preferences."""
+    if not PROM_AVAILABLE:
+        return
+    try:
+        # Goals failing
+        try:
+            goals_file = BASE_DIR / "homelab_goals_state.json"
+            if not goals_file.exists():
+                goals_file = Path("/home/tenazas/.openclaw/state/homelab_goals.json")
+            if goals_file.exists():
+                goals = json.loads(goals_file.read_text())
+                if isinstance(goals, list):
+                    failing = sum(1 for g in goals if g.get("status") == "fail")
+                    G_BA_GOALS_FAILING.set(failing)
+        except Exception:
+            pass
+
+        # Staging pending
+        try:
+            STATE = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
+            cand_file = STATE / "improvement_candidates.json"
+            if cand_file.exists():
+                cands = json.loads(cand_file.read_text())
+                if isinstance(cands, list):
+                    pending = sum(1 for c in cands if c.get("status") in ("proposed", "staged"))
+                    G_BA_STAGING_PENDING.set(pending)
+        except Exception:
+            pass
+
+        # Experiments active
+        try:
+            exp_dir = STATE / "experiments"
+            if exp_dir.exists():
+                active = 0
+                for f in exp_dir.glob("*.json"):
+                    try:
+                        e = json.loads(f.read_text())
+                        if e.get("status") == "active":
+                            active += 1
+                    except Exception:
+                        pass
+                G_BA_EXPERIMENTS_ACTIVE.set(active)
+        except Exception:
+            pass
+
+        # Backend offline events 24h
+        try:
+            mining_dir = STATE / "error_mining"
+            today = datetime.now().strftime("%Y-%m-%d")
+            mining_file = mining_dir / f"daily_{today}.json"
+            if mining_file.exists():
+                report = json.loads(mining_file.read_text())
+                offline = sum(1 for e in report.get("errors", [])
+                              if e.get("type") == "backend_offline")
+                G_BA_BACKEND_OFFLINE_24H.set(offline)
+        except Exception:
+            pass
+
+        # Preference confidence (top categories only)
+        try:
+            prefs_file = STATE / "preferences.json"
+            if prefs_file.exists():
+                prefs = json.loads(prefs_file.read_text())
+                for cat, conf in list(prefs.get("confidence", {}).items())[:20]:
+                    G_BA_PREFERENCE_CONF.labels(category=cat).set(conf)
+        except Exception:
+            pass
+
+    except Exception as e:
+        log.warning("B+A metrics update failed: %s", e)
+
+
 def update_device_discovery_metrics():
     """Read device_inventory.json and update device discovery gauges."""
     if not PROM_AVAILABLE:
@@ -751,6 +831,7 @@ if __name__ == "__main__":
         update_evolve_html()
         update_feedback_metrics()
         update_device_discovery_metrics()
+        update_ba_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:

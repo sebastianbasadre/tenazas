@@ -1907,3 +1907,97 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 
 Overall average: **60-90% token reduction** on common development operations.
 <!-- /rtk-instructions -->
+
+---
+
+## B+A Roadmap — Completado
+
+### Flujo completo end-to-end
+
+```
+infra_monitor detecta problema
+  → incident_schema normaliza
+  → policy_engine clasifica riesgo (SAFE/LOW/MEDIUM/HIGH)
+  → proactive_planner propone accion
+  → approval_queue envia a Telegram con botones
+  → Sebas aprueba/rechaza
+  → skill_chain_executor ejecuta
+  → action_validator confirma resultado
+  → decision_trace registra
+  → error_mining analiza outcome (daily)
+  → improvement_candidates genera propuestas
+  → self_benchmark --gate evalua
+  → queda en staging/ para aprobacion
+  → preference_learning aprende de la decision
+```
+
+### Modulos B+A (por Sprint)
+
+| Sprint | Modulo | Funcion |
+|--------|--------|---------|
+| 1 | `action_registry.py` | Registro de acciones con risk levels |
+| 1 | `policy_engine.py` | Evaluacion de riesgo antes de ejecutar |
+| 1 | `homelab_snapshot.py` | Snapshot unificado del homelab |
+| 1 | `homelab_goals.py` | Objetivos evaluables (uptime, availability) |
+| 1 | `temporal_guard.py` | Filtro de notificaciones por horario |
+| 2 | `device_discovery.py` | Scanner de red + inventario persistente |
+| 2 | `deco_client.py` | TP-Link Deco API (WiFi clients, band, signal) |
+| 2 | `network_exporter.py` | Prometheus :9108 per-device metrics |
+| 3 | `error_mining.py` | Extrae fallas de produccion de logs |
+| 3 | `improvement_candidates.py` | Transforma errores en propuestas tipadas |
+| 3 | `self_benchmark.py` | Gate de benchmark antes de promover |
+| 3 | `staging/` | Pre-produccion aislada (nada auto-aplica) |
+| 4 | `preference_learning.py` | Aprende de aprobaciones/rechazos |
+| 4 | `skill_gap_detector.py` | Detecta necesidades sin skill asignado |
+| 4 | `experiment_runner.py` | A/B con guardrails (10% traffic, rollback) |
+| 5 | `homelab_dashboard_payload.py` | Dashboard unificado "estado tenazas" |
+
+### Comandos Telegram disponibles
+
+| Comando | Funcion |
+|---------|---------|
+| `estado tenazas` / `dashboard` | Dashboard completo B+A |
+| `estado homelab` / `estado` | Snapshot del homelab |
+| `aprobar [ID]` | Aprobar propuesta (exec queue o improvement) |
+| `rechazar [ID]` | Rechazar propuesta |
+| `scan red` / `escanear red` | Network discovery |
+
+### Politica de staging
+
+| Accion | Auto? | Requiere aprobacion? |
+|--------|-------|---------------------|
+| Restart arr-stack container | No | Si (Telegram buttons) |
+| Restart gluetun (VPN down) | No | Si |
+| Improvement candidate → staging | Auto | No (va a staging) |
+| Staging → produccion | Nunca auto | Si (Sebas aprueba) |
+| Skill gap → propuesta | Auto | No (JSON en staging) |
+| Experimento A/B | Auto (10%) | No (guardrails automaticos) |
+
+### Prometheus B+A Metrics (:9105)
+
+| Metrica | Descripcion |
+|---------|-------------|
+| `tenazas_goals_failing` | Goals en estado fail |
+| `tenazas_staging_pending` | Propuestas pendientes en staging |
+| `tenazas_experiments_active` | Experimentos A/B corriendo |
+| `tenazas_backend_offline_events_24h` | Outages HomeLab en 24h |
+| `tenazas_preference_confidence{category}` | Confianza por categoria |
+
+### Grafana Dashboards
+
+| Dashboard | UID | Paneles |
+|-----------|-----|---------|
+| Tenazas Device Discovery | `tenazas-device-discovery` | Inventario, categorias, vendors, WiFi/Ethernet |
+| Tenazas Runtime | `tenazas-runtime` | Infra general, NAS, Ollama, Telegram |
+| Tenazas Agent | `tenazas-agent` | Router V2, roles, guardrails |
+
+### Tests
+
+```bash
+# Sprint 3
+docker exec openclaw python3 /home/tenazas/tests/test_sprint3.py     # 26 tests
+# Sprint 4
+docker exec openclaw python3 /home/tenazas/tests/test_sprint4.py     # 23 tests
+# Sprint 5 E2E
+docker exec openclaw python3 /home/tenazas/tests/test_e2e_sprint5.py # 15 tests
+```
