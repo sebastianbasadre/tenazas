@@ -60,6 +60,11 @@ KNOWN_OVERRIDES = {
                       "control": "http", "api": "http://192.168.2.11/api"},
     "192.168.2.46": {"name": "Samsung M8", "category": "display",
                       "control": "websocket", "api": "ws://192.168.2.46:8001"},
+    "192.168.2.12": {"name": "TP-Link Deco B63", "category": "network", "control": "http"},
+    "192.168.2.23": {"name": "TP-Link Deco extender 1", "category": "network", "control": "http"},
+    "192.168.2.33": {"name": "TP-Link Deco extender 2", "category": "network", "control": "http"},
+    "192.168.2.62": {"name": "Google Nest Mini", "category": "speaker", "control": "cast"},
+    "192.168.2.57": {"name": "Moto G75 Sebas", "category": "phone", "control": None},
 }
 
 # ── Device classification rules ─────────────────────────────────
@@ -657,7 +662,8 @@ def format_telegram(devices: list) -> str:
         "server": "S", "network": "N", "smart_home": "H",
         "display": "D", "iot": "I", "client": "C",
         "camera": "K", "printer": "P", "media": "M",
-        "mobile": "F", "unknown": "?",
+        "mobile": "F", "phone": "F", "speaker": "A",
+        "unknown": "?",
     }
 
     for cat in sorted(by_cat.keys()):

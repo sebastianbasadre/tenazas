@@ -98,7 +98,7 @@ class TestGetEntityDevice(unittest.TestCase):
 
     @_mock_state()
     def test_get_unknown_device(self, mock):
-        result = wm.get_entity("device", "192.168.2.99")
+        result = wm.get_entity("device", "192.168.2.254")
         self.assertEqual(result, {})
 
     @_mock_state()
