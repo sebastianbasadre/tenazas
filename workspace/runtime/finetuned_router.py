@@ -20,15 +20,30 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
 # Tier 1: Gemma 3 27B local via Ollama (HomeLab)
-GEMMA_URL = "http://192.168.2.6:11434/v1/chat/completions"
+GEMMA_URL = "http://192.168.2.6:11434/api/chat"
 GEMMA_MODEL = "gemma3:12b"
 GEMMA_TIMEOUT = 15
 GEMMA_SYSTEM = (
     'You are a tool classifier. Respond ONLY with JSON: {"tool": "<name>"}. '
     "Tools: weather, chat, smart-home-on, smart-home-off, smart-home-cinema, "
     "arr-monitor, email, calendar, infra-monitor, tts, reminders, "
-    "self-evolve, smoking-tracker."
+    "self-evolve, smoking-tracker, network-scanner."
 )
+GEMMA_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tool": {
+            "type": "string",
+            "enum": [
+                "weather", "chat", "smart-home-on", "smart-home-off",
+                "smart-home-cinema", "arr-monitor", "email", "calendar",
+                "infra-monitor", "tts", "reminders", "self-evolve",
+                "smoking-tracker", "network-scanner",
+            ],
+        },
+    },
+    "required": ["tool"],
+}
 
 # OpenRouter (kept as reference, not used in main flow)
 # OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -87,7 +102,7 @@ def _log_classify(query: str, tool: str, tier: str, ms: int):
 # ── Tier 1: Gemma 3 27B local ────────────────────────────────────
 
 def _classify_gemma(message: str) -> dict | None:
-    """Call Gemma 3 27B local via Ollama OpenAI-compatible API."""
+    """Call Gemma 3 12B via Ollama native API with structured output schema."""
     try:
         resp = requests.post(
             GEMMA_URL,
@@ -97,22 +112,26 @@ def _classify_gemma(message: str) -> dict | None:
                     {"role": "system", "content": GEMMA_SYSTEM},
                     {"role": "user", "content": message},
                 ],
-                "max_tokens": 20,
+                "format": GEMMA_SCHEMA,
+                "stream": False,
+                "options": {"num_predict": 20},
             },
             timeout=GEMMA_TIMEOUT,
         )
         resp.raise_for_status()
         data = resp.json()
-        raw = data["choices"][0]["message"]["content"].strip()
+        raw = data.get("message", {}).get("content", "").strip()
         parsed = json.loads(raw)
         tool = parsed.get("tool", "")
         if tool and tool in KNOWN_TOOLS:
             return {"tool": tool, "intent": _TOOL_TO_INTENT.get(tool, tool),
                     "args": {}, "_parsed_by": "gemma", "_raw": raw}
+        # Tool not in enum — log and fall through
+        logger.warning("Gemma returned invalid tool: %s", tool)
     except requests.exceptions.Timeout:
-        logger.debug("Gemma local timeout after %ds", GEMMA_TIMEOUT)
-    except Exception:
-        pass
+        logger.debug("Gemma timeout after %ds", GEMMA_TIMEOUT)
+    except Exception as e:
+        logger.debug("Gemma error: %s", e)
     return None
 
 

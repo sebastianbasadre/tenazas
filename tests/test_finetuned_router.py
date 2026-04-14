@@ -35,11 +35,11 @@ def _make_side_effect(gemma_tool=None, finetuned_tool=None, gemma_fail=False, fi
     def side_effect(url, **kwargs):
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        if "11434" in str(url) and "v1/chat" in str(url):
-            # Gemma local
+        if "11434" in str(url) and "api/chat" in str(url):
+            # Gemma local (native Ollama API)
             if gemma_fail:
                 raise Exception("gemma timeout")
-            mock_resp.json.return_value = {"choices": [{"message": {"content": json.dumps({"tool": gemma_tool})}}]}
+            mock_resp.json.return_value = {"message": {"content": json.dumps({"tool": gemma_tool})}}
         elif "11434" in str(url):
             # Finetuned Ollama
             if finetuned_fail:
