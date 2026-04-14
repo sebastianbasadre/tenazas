@@ -147,6 +147,16 @@ if PROM_AVAILABLE:
     # ── Network Scan Freshness ─────────────────────────────────
     G_NETWORK_SCAN_TS = Gauge("tenazas_network_last_scan_timestamp", "Timestamp of last network scan")
 
+    # ── Device Discovery ───────────────────────────────────────
+    G_DD_TOTAL = Gauge("device_discovery_total", "Total devices in inventory")
+    G_DD_ONLINE = Gauge("device_discovery_online", "Devices seen in last scan")
+    G_DD_MISSING = Gauge("device_discovery_missing", "Devices missing from last scan")
+    G_DD_CLASSIFIED = Gauge("device_discovery_classified", "Devices with known category")
+    G_DD_CONTROLLABLE = Gauge("device_discovery_controllable", "Devices with control method")
+    G_DD_BY_CATEGORY = Gauge("device_discovery_by_category", "Devices by category", ["category"])
+    G_DD_BY_VENDOR = Gauge("device_discovery_by_vendor", "Devices by vendor", ["vendor"])
+    G_DD_LAST_SCAN = Gauge("device_discovery_last_scan_ts", "Timestamp of last inventory update")
+
     # ── OpenRouter ─────────────────────────────────────────────
     G_OPENROUTER_BALANCE = Gauge("tenazas_openrouter_balance_usd", "Créditos disponibles en OpenRouter")
     G_OPENROUTER_USED = Gauge("tenazas_openrouter_used_usd", "Total gastado en OpenRouter")
@@ -620,6 +630,69 @@ def _iol_cli_loop():
         time.sleep(IOL_CLI_INTERVAL)
 
 
+# ── Device Discovery ──────────────────────────────────────────
+
+INVENTORY_FILE = BASE_DIR / "device_inventory.json"
+
+def update_device_discovery_metrics():
+    """Read device_inventory.json and update device discovery gauges."""
+    if not PROM_AVAILABLE:
+        return
+    try:
+        if not INVENTORY_FILE.exists():
+            return
+        with open(INVENTORY_FILE) as f:
+            devices = json.load(f)
+        if not isinstance(devices, list):
+            return
+
+        total = len(devices)
+        missing = sum(1 for d in devices if d.get("missing_since"))
+        online = total - missing
+        classified = sum(1 for d in devices if d.get("category", "unknown") != "unknown")
+        controllable = sum(1 for d in devices if d.get("control"))
+
+        G_DD_TOTAL.set(total)
+        G_DD_ONLINE.set(online)
+        G_DD_MISSING.set(missing)
+        G_DD_CLASSIFIED.set(classified)
+        G_DD_CONTROLLABLE.set(controllable)
+
+        # By category
+        by_cat = {}
+        for d in devices:
+            cat = d.get("category", "unknown")
+            by_cat[cat] = by_cat.get(cat, 0) + 1
+        for cat, count in by_cat.items():
+            G_DD_BY_CATEGORY.labels(category=cat).set(count)
+
+        # By vendor (only known vendors)
+        by_vendor = {}
+        for d in devices:
+            vendor = d.get("vendor")
+            if vendor:
+                by_vendor[vendor] = by_vendor.get(vendor, 0) + 1
+        for vendor, count in by_vendor.items():
+            G_DD_BY_VENDOR.labels(vendor=vendor).set(count)
+
+        # Last scan timestamp from most recent last_seen
+        latest = 0
+        for d in devices:
+            ls = d.get("last_seen", "")
+            if ls:
+                try:
+                    ts = datetime.fromisoformat(ls).timestamp()
+                    if ts > latest:
+                        latest = ts
+                except (ValueError, TypeError):
+                    pass
+        if latest > 0:
+            G_DD_LAST_SCAN.set(latest)
+
+    except Exception as e:
+        log.warning("Device discovery metrics failed: %s", e)
+
+
 # ── Main Loop ──────────────────────────────────────────────────
 
 
@@ -672,11 +745,12 @@ if __name__ == "__main__":
             collect_openrouter_metrics()
             last_openrouter_check = now
 
-        # Every 30s: Smoking + Self-evolve + Feedback metrics (local reads)
+        # Every 30s: Smoking + Self-evolve + Feedback + Device Discovery (local reads)
         update_smoking_metrics()
         update_evolve_metrics()
         update_evolve_html()
         update_feedback_metrics()
+        update_device_discovery_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:

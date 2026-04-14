@@ -155,7 +155,7 @@ class TestGetEntitySkill(unittest.TestCase):
     def test_skill_returns_count(self, mock):
         result = wm.get_entity("skill")
         self.assertIn("count", result)
-        self.assertEqual(result["count"], 22)
+        self.assertEqual(result["count"], 25)
 
 
 class TestGetEntityUnknown(unittest.TestCase):

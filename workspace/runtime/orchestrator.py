@@ -942,9 +942,10 @@ SKILL_MAP = {
         "handler": "_handle_tts",
     },
     "skill:network-scanner": {
-        "command": "nmap -sn 192.168.2.0/24",
+        "command": "python3 /home/tenazas/runtime/device_discovery.py --quick",
         "destructive": False,
-        "description": "Scan de red LAN",
+        "description": "Scan de red LAN + inventario de dispositivos",
+        "handler": "_handle_network_scanner",
     },
     "skill:arr-monitor": {
         "command": (
@@ -1997,6 +1998,38 @@ def _handle_smoking(skill_category, query, skill):
     }
 
 
+def _handle_network_scanner(skill_category, query, skill):
+    """Handle network scan — quick or deep based on query."""
+    q = query.lower()
+    is_deep = any(w in q for w in [
+        "profundo", "deep", "completo", "fingerprint", "puertos", "ports",
+        "servicios", "services", "detallado",
+    ])
+    mode = "--deep" if is_deep else "--quick"
+    try:
+        result = subprocess.run(
+            ["python3", "/home/tenazas/runtime/device_discovery.py", mode],
+            capture_output=True, text=True, timeout=SKILL_TIMEOUT if not is_deep else 600,
+        )
+        if result.returncode == 0:
+            return {
+                "skill": skill_category, "success": True,
+                "output": result.stdout[:3000],
+                "raw": result.stdout, "destructive": False, "error": None,
+            }
+        return {
+            "skill": skill_category, "success": False,
+            "output": f"Error en scan: {result.stderr[:200]}",
+            "raw": result.stderr, "destructive": False, "error": "scan_error",
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "skill": skill_category, "success": False,
+            "output": "Timeout en network scan",
+            "raw": "", "destructive": False, "error": "timeout",
+        }
+
+
 # Registry of handlers and parsers
 _SKILL_HANDLERS = {
     "_handle_smart_home": _handle_smart_home,
@@ -2008,6 +2041,7 @@ _SKILL_HANDLERS = {
     "_handle_expense": _handle_expense,
     "_handle_smoking": _handle_smoking,
     "_handle_calendar": _handle_calendar,
+    "_handle_network_scanner": _handle_network_scanner,
 }
 
 _SKILL_PARSERS = {

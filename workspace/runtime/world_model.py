@@ -15,13 +15,14 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 STATE_FILE = BASE_DIR / "state.json"
+INVENTORY_FILE = BASE_DIR / "device_inventory.json"
 LOG_FILE = BASE_DIR / "logs" / "world_model.log"
 
 SUBNET = "192.168.2.0/24"
 
-# ── Known devices (hardcoded from CLAUDE.md) ─────────────────────
+# ── Known devices (hardcoded fallback) ───────────────────────────
 
-KNOWN_DEVICES = {
+_FALLBACK_DEVICES = {
     "192.168.2.1": {"name": "Router", "type": "network"},
     "192.168.2.2": {"name": "NAS DS923+", "type": "nas"},
     "192.168.2.3": {"name": "NAS Backup", "type": "nas"},
@@ -29,6 +30,33 @@ KNOWN_DEVICES = {
     "192.168.2.46": {"name": "Samsung M8", "type": "display"},
     "192.168.2.6": {"name": "HomeLab", "type": "compute"},
 }
+
+
+def _load_devices() -> dict:
+    """Load devices from inventory file, merged with hardcoded fallbacks."""
+    # Start with fallbacks so known devices are always present
+    result = {ip: dict(info) for ip, info in _FALLBACK_DEVICES.items()}
+    try:
+        with open(INVENTORY_FILE) as f:
+            data = json.load(f)
+        if isinstance(data, list) and data:
+            for d in data:
+                ip = d.get("ip")
+                if not ip:
+                    continue
+                entry = {"name": d.get("name", d.get("hostname", ip)),
+                         "type": d.get("category", "unknown")}
+                # Copy extra fields from inventory
+                for k, v in d.items():
+                    if k not in ("ip", "name", "category"):
+                        entry[k] = v
+                result[ip] = entry
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        pass
+    return result
+
+
+KNOWN_DEVICES = _load_devices()
 
 # ── Known services ───────────────────────────────────────────────
 
@@ -81,7 +109,13 @@ KNOWN_MODELS = {
     "nomic-embed-text": {"params": "-", "use": "embeddings RAG", "backend": "notebook_gpu"},
 }
 
-SKILL_COUNT = 22
+SKILL_COUNT = 25
+
+
+def refresh_devices():
+    """Reload devices from inventory file."""
+    global KNOWN_DEVICES
+    KNOWN_DEVICES = _load_devices()
 
 
 def _now():
