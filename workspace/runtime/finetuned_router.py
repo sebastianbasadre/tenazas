@@ -35,7 +35,7 @@ GEMMA_SYSTEM = (
 # OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free"
 
 # Tier 2: Finetuned model via Ollama
-FINETUNED_MODEL = "tenazas-qwen25-7b-v6"
+FINETUNED_MODEL = "tenazas-qwen25-7b-v8"
 OLLAMA_URL = "http://192.168.2.6:11434/api/generate"
 OLLAMA_TIMEOUT = 15
 
