@@ -93,6 +93,9 @@ KNOWN_OVERRIDES = {
     "192.168.2.128": {"name": "Tab A9 Sebas", "category": "tablet", "control": None},
     "192.168.2.60": {"name": "Tab S6 Lite Juliana", "category": "tablet", "control": None},
     "192.168.2.29": {"name": "Samsung TV", "category": "display", "control": None},
+    "192.168.2.32": {"name": "Tab A9 Viviana", "category": "tablet", "control": None},
+    "192.168.2.35": {"name": "Android (ethernet)", "category": "client", "control": None},
+    "192.168.2.56": {"name": "Phone (5GHz)", "category": "phone", "control": None},
 }
 
 # ── Device classification rules ─────────────────────────────────
