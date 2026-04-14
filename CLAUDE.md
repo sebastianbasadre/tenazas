@@ -1961,6 +1961,13 @@ infra_monitor detecta problema
 | 8 | `unified_briefing.py` | Briefing diario unico 08:00 (agenda, email, finanzas, homelab) |
 | 8 | `contextual_awareness.py` | Decide cuando interrumpir (calendar, ausencia, critical) |
 | 8 | `personal_optimizer.py` | Aprende patrones personales (active hours, skill rhythm) |
+| 9 | `agent_infra.py` | Agente infra (containers, GPU, VPN, disco) |
+| 9 | `agent_personal.py` | Agente personal (calendar, email, reminders) |
+| 9 | `agent_finance.py` | Agente finanzas (Binance, IOL, alertas) |
+| 9 | `agent_research.py` | Agente investigacion (SearXNG, RAG) |
+| 9 | `agent_self_improve.py` | Agente auto-mejora (mining, experiments) |
+| 9 | `agent_arbitrator.py` | Resolucion de conflictos entre agentes |
+| 9 | `agent_coordinator.py` | Routing multi-agente, agregacion de respuestas |
 
 ### Comandos Telegram disponibles
 
@@ -2033,9 +2040,11 @@ docker exec openclaw python3 /home/tenazas/tests/test_sprint6.py                
 docker exec openclaw python3 /home/tenazas/tests/test_sprint7.py                          # 38 tests
 # Sprint 8 — total copilot
 docker exec openclaw python3 /home/tenazas/tests/test_sprint8.py                          # 28 tests
+# Sprint 9 — multi-agent system
+docker exec openclaw python3 /home/tenazas/tests/test_sprint9.py                          # 42 tests
 ```
 
-**Total B+A tests: 543** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47, Sprint 7: 38, Sprint 8: 28)
+**Total B+A tests: 585** (Sprint 3: 26, Sprint 4: 23, Sprint 5: 15+64+131+10+7+9+10+10+9+34+32+18+32, Sprint 6: 47, Sprint 7: 38, Sprint 8: 28, Sprint 9: 42)
 
 #### Test categories
 
