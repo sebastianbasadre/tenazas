@@ -25,6 +25,8 @@ from urllib.error import URLError
 
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 IOL_CONFIG = Path("/home/tenazas/.openclaw/iol_config.json")
+STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else Path(__file__).parent.parent / "state"
+HISTORY_DIR = STATE_DIR / "finance_history"
 CHAT_ID = "1565794551"
 GLUETUN_PROXY = "http://192.168.2.2:8888"
 
@@ -60,7 +62,12 @@ def _binance_sign(params: dict, secret: str) -> str:
 
 def get_binance_pnl(test: bool = False) -> dict | None:
     """Get Binance account balance + 24h PNL."""
-    cfg = _load_config().get("tenazas", {})
+    # Load tenazas-specific config (split from openclaw.json)
+    _tcfg_path = Path("/home/tenazas/.openclaw/tenazas.json")
+    try:
+        cfg = json.loads(_tcfg_path.read_text()) if _tcfg_path.exists() else {}
+    except Exception:
+        cfg = {}
     api_key = cfg.get("binance_api_key", "")
     secret = cfg.get("binance_secret", "")
 
@@ -257,10 +264,53 @@ def format_daily(binance: dict | None, iol: dict | None) -> str:
     return "\n".join(lines)
 
 
+def _save_daily_snapshot(binance: dict | None, iol: dict | None):
+    """Persist daily finance snapshot to history."""
+    try:
+        HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+        today = datetime.now().strftime("%Y-%m-%d")
+        snapshot = {
+            "date": today,
+            "ts": datetime.now().astimezone().isoformat(),
+            "binance": {
+                "total_usd": binance["total_usd"],
+                "pnl_usd": binance["pnl_usd"],
+                "assets": binance["assets"],
+            } if binance else None,
+            "iol": {
+                "total_ars": iol["total_ars"],
+                "pnl_day_ars": iol["pnl_day_ars"],
+                "positions": iol["positions"],
+            } if iol else None,
+        }
+        with open(HISTORY_DIR / f"{today}.json", "w") as f:
+            json.dump(snapshot, f, indent=2, default=str)
+    except Exception:
+        pass
+
+
+def get_history(days: int = 30) -> list:
+    """Load last N days of finance history."""
+    if not HISTORY_DIR.exists():
+        return []
+    files = sorted(HISTORY_DIR.glob("*.json"), reverse=True)[:days]
+    history = []
+    for f in files:
+        try:
+            with open(f) as fh:
+                history.append(json.load(fh))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return history
+
+
 def run(test: bool = False):
     """Run daily finance check."""
     binance = get_binance_pnl(test=test)
     iol = get_iol_portfolio(test=test)
+
+    # Persist snapshot
+    _save_daily_snapshot(binance, iol)
 
     msg = format_daily(binance, iol)
 
