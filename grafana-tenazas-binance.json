@@ -1,0 +1,226 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "tenazas-binance",
+    "title": "Tenazas Binance",
+    "tags": ["tenazas", "finance", "binance", "crypto"],
+    "timezone": "America/Argentina/Buenos_Aires",
+    "refresh": "5m",
+    "time": { "from": "now-7d", "to": "now" },
+    "schemaVersion": 39,
+    "version": 1,
+    "editable": true,
+    "graphTooltip": 1,
+    "panels": [
+      {
+        "id": 100, "title": "Resumen", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false
+      },
+      {
+        "id": 1, "title": "Portfolio Total",
+        "description": "Valor total del portfolio Binance en USD",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 5, "x": 0, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_total_usd{instance=\"openclaw\"}", "legendFormat": "Total USD" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background", "textMode": "value_and_name" }
+      },
+      {
+        "id": 2, "title": "PNL Hoy USD",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 5, "x": 5, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_usd{instance=\"openclaw\"}", "legendFormat": "PNL USD" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] }
+        }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value", "textMode": "value_and_name" }
+      },
+      {
+        "id": 3, "title": "PNL Hoy %",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 10, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_pct{instance=\"openclaw\"}", "legendFormat": "PNL %" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] }
+        }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "textMode": "value_and_name" }
+      },
+      {
+        "id": 4, "title": "Fear & Greed",
+        "description": "0=Extreme Fear, 100=Extreme Greed",
+        "type": "gauge",
+        "gridPos": { "h": 6, "w": 5, "x": 14, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_fear_greed_index{instance=\"openclaw\"}", "legendFormat": "F&G" }],
+        "fieldConfig": { "defaults": { "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "orange", "value": 25 },
+            { "color": "#808080", "value": 45 },
+            { "color": "light-green", "value": 55 },
+            { "color": "green", "value": 75 }
+          ]}
+        }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": true }
+      },
+      {
+        "id": 5, "title": "BTC Dominance",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 5, "x": 19, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_btc_dominance_pct{instance=\"openclaw\"}", "legendFormat": "BTC Dom" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }
+        }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value" }
+      },
+      {
+        "id": 200, "title": "BTC", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 }, "collapsed": false
+      },
+      {
+        "id": 6, "title": "BTC Price",
+        "description": "Precio BTC/USD con soporte/resistencia 24h",
+        "type": "timeseries",
+        "gridPos": { "h": 10, "w": 18, "x": 0, "y": 8 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_binance_btc_price_usd{instance=\"openclaw\"}", "legendFormat": "BTC/USD" },
+          { "expr": "min_over_time(tenazas_binance_btc_price_usd{instance=\"openclaw\"}[24h])", "legendFormat": "Soporte 24h" },
+          { "expr": "max_over_time(tenazas_binance_btc_price_usd{instance=\"openclaw\"}[24h])", "legendFormat": "Resistencia 24h" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 5, "spanNulls": true } },
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "BTC/USD" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }, { "id": "custom.lineWidth", "value": 2 }] },
+            { "matcher": { "id": "byName", "options": "Soporte 24h" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }, { "id": "custom.lineStyle", "value": { "fill": "dash" } }, { "id": "custom.fillOpacity", "value": 0 }] },
+            { "matcher": { "id": "byName", "options": "Resistencia 24h" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }, { "id": "custom.lineStyle", "value": { "fill": "dash" } }, { "id": "custom.fillOpacity", "value": 0 }] }
+          ]
+        },
+        "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max"] } }
+      },
+      {
+        "id": 7, "title": "BTC Actual",
+        "type": "stat",
+        "gridPos": { "h": 5, "w": 6, "x": 18, "y": 8 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_btc_price_usd{instance=\"openclaw\"}", "legendFormat": "BTC" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }
+        }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value", "textMode": "value_and_name" }
+      },
+      {
+        "id": 8, "title": "BTC 24h Change",
+        "type": "stat",
+        "gridPos": { "h": 5, "w": 6, "x": 18, "y": 13 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_asset_change_24h_pct{instance=\"openclaw\",asset=\"BTC\"}", "legendFormat": "24h %" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] }
+        }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "textMode": "value_and_name" }
+      },
+      {
+        "id": 300, "title": "Assets", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }, "collapsed": false
+      },
+      {
+        "id": 9, "title": "Top Assets por Valor",
+        "description": "Assets ordenados por valor USD",
+        "type": "bargauge",
+        "gridPos": { "h": 8, "w": 10, "x": 0, "y": 19 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "topk(10, tenazas_binance_asset_balance_usd{instance=\"openclaw\"} > 0)", "legendFormat": "{{asset}}" }],
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true },
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 100 }] }
+        }}
+      },
+      {
+        "id": 10, "title": "Detalle Assets",
+        "description": "Asset | Cantidad | Precio | Valor | Cambio 24h",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 14, "x": 10, "y": 19 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_binance_asset_balance_usd{instance=\"openclaw\"} > 0", "legendFormat": "", "format": "table", "instant": true, "refId": "A" }
+        ],
+        "transformations": [
+          { "id": "organize", "options": {
+            "excludeByName": { "Time": true, "Value": false, "__name__": true, "instance": true, "job": true },
+            "renameByName": { "asset": "Asset", "Value": "Valor USD" }
+          }}
+        ],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "align": "left", "filterable": true } },
+          "overrides": [{ "matcher": { "id": "byName", "options": "Asset" }, "properties": [{ "id": "custom.width", "value": 100 }] }]
+        },
+        "options": { "showHeader": true, "sortBy": [{ "displayName": "Valor USD", "desc": true }] }
+      },
+      {
+        "id": 400, "title": "PNL + Paper Trading", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }, "collapsed": false
+      },
+      {
+        "id": 11, "title": "PNL Historico",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 14, "x": 0, "y": 28 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_binance_pnl_day_usd{instance=\"openclaw\"}", "legendFormat": "PNL USD" },
+          { "expr": "tenazas_binance_total_usd{instance=\"openclaw\"}", "legendFormat": "Portfolio USD" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "drawStyle": "line", "fillOpacity": 10, "spanNulls": true } },
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "PNL USD" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }, { "id": "custom.axisPlacement", "value": "right" }] },
+            { "matcher": { "id": "byName", "options": "Portfolio USD" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
+        "id": 12, "title": "Paper Portfolio",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 5, "x": 14, "y": 28 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_paper_portfolio_usd{instance=\"openclaw\"}", "legendFormat": "Paper USD" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "value_and_name" }
+      },
+      {
+        "id": 13, "title": "Win Rate",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 5, "x": 19, "y": 28 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_paper_win_rate_pct{instance=\"openclaw\"}", "legendFormat": "Win %" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 40 }, { "color": "green", "value": 55 }] }
+        }}
+      },
+      {
+        "id": 14, "title": "Paper Trades",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 5, "x": 14, "y": 32 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_paper_total_trades{instance=\"openclaw\"}", "legendFormat": "Trades" }],
+        "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" }
+      },
+      {
+        "id": 15, "title": "Fear & Greed Historico",
+        "type": "timeseries",
+        "gridPos": { "h": 4, "w": 5, "x": 19, "y": 32 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_fear_greed_index{instance=\"openclaw\"}", "legendFormat": "F&G" }],
+        "fieldConfig": { "defaults": { "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 20, "spanNulls": true },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 25 }, { "color": "green", "value": 55 }] },
+          "color": { "mode": "thresholds" }
+        }}
+      }
+    ]
+  },
+  "overwrite": true
+}
