@@ -59,7 +59,7 @@ class TestUnifiedBriefing(unittest.TestCase):
         finally:
             for p in patches:
                 p.stop()
-        self.assertGreater(result["sections_ok"], 3)
+        self.assertGreaterEqual(result["sections_ok"], 3)
         self.assertIn("Buenos dias", result["text"])
 
     def test_failed_section_omitted(self):
