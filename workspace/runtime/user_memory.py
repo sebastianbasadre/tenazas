@@ -11,6 +11,7 @@ Injection is selective: only when it improves the response.
 import json
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 RUNTIME_DIR = Path(__file__).parent
@@ -38,7 +39,19 @@ _DEFAULT_PROFILE = {
     "roles_target": ["Product Manager", "TAM", "DevOps"],
     "broker": "IOL (InvertirOnline)",
     "smoking": True,
+    "tools": ["Docker", "WSL2", "Ollama", "Synology NAS", "NVIDIA Workbench"],
+    "notes": [
+        "Prefiere respuestas concretas y cortas",
+        "Usa Tenazas por Telegram",
+    ],
 }
+
+# Topics worth saving to short-term memory
+_IMPORTANT_TOPICS = [
+    "sprint", "tenazas", "openclaw", "homelab", "dataset", "workbench",
+    "docker", "nas", "entrenamiento", "training", "modelo", "router",
+    "pipeline", "deploy", "grafana", "prometheus", "eval",
+]
 
 
 def get_profile() -> dict:
@@ -78,6 +91,24 @@ def get_recent_context() -> list[dict]:
     return active
 
 
+def is_worth_remembering(query: str, skill: str | None) -> bool:
+    """Decide if this interaction is worth saving to short-term memory.
+
+    Only save important/continuable topics, not trivial queries.
+    """
+    q = query.lower()
+    # Chat libre about important topics
+    if skill is None and any(t in q for t in _IMPORTANT_TOPICS):
+        return True
+    # Skills that indicate ongoing work (not weather/calendar/email)
+    if skill and skill not in (
+        "skill:weather", "skill:email", "skill:calendar",
+        "skill:calendar-agenda", "skill:smoking",
+    ):
+        return True
+    return False
+
+
 def add_context(query: str, skill: str | None, summary: str) -> None:
     """Add a summarized interaction to short-term memory."""
     entries = get_recent_context()
@@ -90,6 +121,7 @@ def add_context(query: str, skill: str | None, summary: str) -> None:
     # Keep only last N
     entries = entries[-CONTEXT_MAX_ENTRIES:]
     CONTEXT_PATH.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
+    _log_memory_event("memory_write", query)
 
 
 def clear_context() -> None:
@@ -139,29 +171,60 @@ def build_memory_context(query: str) -> str:
     """Build a memory context string to inject before the query.
 
     Only called when should_inject_memory() returns True.
-    Returns a concise block, never more than 5 lines.
+    Returns a concise block, max 8-10 lines.
     """
     parts = []
 
-    # Profile summary (always include when injecting)
+    # Profile summary
     profile = get_profile()
     name = profile.get("name", "usuario")
-    projects = ", ".join(profile.get("projects", []))
-    interests = ", ".join(profile.get("interests", []))
-    parts.append(
-        f"Usuario: {name}. Proyectos: {projects}. "
-        f"Intereses: {interests}."
-    )
+    projects = ", ".join(profile.get("projects", [])[:4])
+    parts.append(f"- Nombre: {name}")
+    if profile.get("timezone"):
+        parts.append(f"- Zona horaria: {profile['timezone']}")
+    if projects:
+        parts.append(f"- Proyectos activos: {projects}")
+    if profile.get("tone_preference"):
+        parts.append(f"- Tono preferido: {profile['tone_preference']}")
+    if profile.get("notes"):
+        for note in profile["notes"][:2]:
+            parts.append(f"- {note}")
     if profile.get("job_search"):
         roles = ", ".join(profile.get("roles_target", []))
-        parts.append(f"Buscando trabajo: {roles}.")
+        parts.append(f"- Buscando trabajo: {roles}")
 
     # Recent context (if any)
     recent = get_recent_context()
     if recent:
-        parts.append("Conversación reciente:")
+        parts.append("- Contexto reciente:")
         for entry in recent[-3:]:  # last 3 max
-            skill_tag = f" [{entry['skill']}]" if entry.get("skill") else ""
-            parts.append(f"  - {entry['summary']}{skill_tag}")
+            parts.append(f"  - {entry['summary']}")
 
-    return "\n".join(parts)
+    _log_memory_event("memory_read", query, used_recent=len(recent))
+
+    if not parts:
+        return ""
+
+    return "Contexto útil del usuario:\n" + "\n".join(parts)
+
+
+# ── Memory Event Logging ────────────────────────────────────────
+
+MEMORY_EVENTS_LOG = RUNTIME_DIR / "logs" / "memory_events.jsonl"
+
+
+def _log_memory_event(event: str, query: str = "",
+                      used_recent: int = 0) -> None:
+    """Log memory read/write/prune events."""
+    try:
+        MEMORY_EVENTS_LOG.parent.mkdir(parents=True, exist_ok=True)
+        entry = json.dumps({
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "event": event,
+            "query": query[:200],
+            "used_recent_items": used_recent,
+        }, ensure_ascii=False)
+        with open(MEMORY_EVENTS_LOG, "a", encoding="utf-8") as f:
+            f.write(entry + "\n")
+    except Exception:
+        pass

@@ -1073,11 +1073,11 @@ def _process_update(token: str, update: dict, allowed: set):
         except Exception:
             pass
 
-        # Save to short-term memory
+        # Save to short-term memory (only important topics)
         try:
-            from user_memory import add_context
-            # Summarize: first 80 chars of response is good enough
-            add_context(text, category, response[:80])
+            from user_memory import add_context, is_worth_remembering
+            if is_worth_remembering(text, category):
+                add_context(text, category, response[:80])
         except Exception:
             pass
 
@@ -1107,10 +1107,11 @@ def _process_update(token: str, update: dict, allowed: set):
         except Exception:
             pass
 
-        # Save to short-term memory
+        # Save to short-term memory (only important topics)
         try:
-            from user_memory import add_context
-            add_context(text, None, response[:80])
+            from user_memory import add_context, is_worth_remembering
+            if is_worth_remembering(text, None):
+                add_context(text, None, response[:80])
         except Exception:
             pass
 

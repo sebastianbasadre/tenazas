@@ -25,5 +25,17 @@
     "DevOps"
   ],
   "broker": "IOL (InvertirOnline)",
-  "smoking": true
+  "smoking": true,
+  "tone_preference": "directo",
+  "tools": [
+    "Docker",
+    "WSL2",
+    "Ollama",
+    "Synology NAS",
+    "NVIDIA Workbench"
+  ],
+  "notes": [
+    "Prefiere respuestas concretas y cortas",
+    "Usa Tenazas por Telegram"
+  ]
 }
