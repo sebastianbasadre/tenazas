@@ -2036,6 +2036,7 @@ infra_monitor detecta problema
 | Tenazas Device Discovery | `tenazas-device-discovery` | Inventario, categorias, vendors, WiFi/Ethernet |
 | Tenazas Runtime | `tenazas-runtime` | Infra general, NAS, Ollama, Telegram |
 | Tenazas Agent | `tenazas-agent` | Router V2, roles, guardrails |
+| Portfolio IOL — Vista Analista | `iol-portfolio-analista` | Valor total, P&L, posiciones (tabla+gain%+PnL+evolución+detalle), evolución histórica, salud API |
 
 ### Tests B+A
 
