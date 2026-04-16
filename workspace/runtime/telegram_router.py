@@ -139,7 +139,7 @@ def _build_ollama_messages(chat_id: str, system: str) -> list[dict]:
     """Build messages array for Ollama /api/chat from history.
 
     Drops entries older than HISTORY_MAX_AGE and caps assistant content
-    to 500 chars to keep the context window reasonable.
+    to 200 chars to prevent raw skill data from polluting chat context.
     """
     now = time.time()
     msgs = [{"role": "system", "content": system}]
@@ -147,9 +147,10 @@ def _build_ollama_messages(chat_id: str, system: str) -> list[dict]:
         if now - entry["ts"] > HISTORY_MAX_AGE:
             continue
         content = entry["content"]
-        # Cap assistant messages to avoid blowing context with long skill output
-        if entry["role"] == "assistant" and len(content) > 500:
-            content = content[:497] + "..."
+        # Cap assistant messages aggressively — raw skill output (tables,
+        # JSON, long lists) confuses the model into mixing topics.
+        if entry["role"] == "assistant" and len(content) > 200:
+            content = content[:197] + "..."
         msgs.append({"role": entry["role"], "content": content})
     return msgs
 
@@ -328,10 +329,11 @@ def _execute_iol(text: str) -> str:
         return f"Error IOL: {e}"
 
 
-def execute_intercepted_skill(text: str, category: str = None) -> str:
-    """Execute a skill via orchestrator and return formatted response.
+def execute_intercepted_skill(text: str, category: str = None) -> tuple[str, str]:
+    """Execute a skill via orchestrator and return (formatted_output, raw_output).
 
     If category is provided, skips re-classification (avoids double-classify bug).
+    Returns tuple: (display_text, raw_data) so callers can choose composer vs humanize.
     """
     if category is None:
         category = classify_intent(text)
@@ -339,7 +341,8 @@ def execute_intercepted_skill(text: str, category: str = None) -> str:
     # IOL broker has its own handler (not in orchestrator SKILL_MAP)
     if category == "iol_broker":
         _log({"action": "iol_execute", "text": text[:80]})
-        return _execute_iol(text)
+        result = _execute_iol(text)
+        return result, result
 
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
     from orchestrator import execute_skill
@@ -348,23 +351,21 @@ def execute_intercepted_skill(text: str, category: str = None) -> str:
         skill_result = execute_skill(category, text)
     except Exception as e:
         _log({"action": "execute_error", "error": str(e), "text": text[:80]})
-        return f"Error ejecutando skill: {e}"
+        msg = f"Error ejecutando skill: {e}"
+        return msg, ""
 
-    executed = True
-    result = {"classification": category}
-
-    if executed and skill_result:
+    if skill_result:
+        raw = skill_result.get("raw", "")
         if skill_result["success"]:
             output = skill_result["output"] or ""
-            # Clean up output for Telegram
-            return _format_skill_output(output, result.get("classification", ""))
+            return _format_skill_output(output, category), raw
         else:
             error = skill_result.get("error", "unknown")
             output = skill_result.get("output", "")
-            return f"No pude ejecutar: {output or error}"
+            msg = f"No pude ejecutar: {output or error}"
+            return msg, raw
 
-    # Shouldn't happen if classification matched, but handle gracefully
-    return f"Skill no ejecutado (clasificación: {result.get('classification', '?')})"
+    return f"Skill no ejecutado (clasificación: {category})", ""
 
 
 def _format_skill_output(output: str, classification: str) -> str:
@@ -454,12 +455,14 @@ _HUMANIZE_PROMPT = (
     "Respondés como un amigo por WhatsApp.\n\n"
     "Sebas preguntó: \"{query}\"\n"
     "Datos del sistema:\n{data}\n\n"
-    "Reformulá natural y conciso. "
-    "Si son eventos, mencioná hora y nombre. "
-    "Si es clima, decí si necesita abrigo o paraguas. "
-    "Si es infra, decí si está todo bien o algo roto. "
-    "Si son emails, resumí los importantes. "
-    "Máximo 3-4 líneas."
+    "REGLAS:\n"
+    "- Solo respondé lo que Sebas preguntó. NADA más.\n"
+    "- NO agregues información de otros temas (clima, emails, infra) "
+    "si no los pidió.\n"
+    "- Si los datos del sistema están vacíos o no tienen lo que pidió, "
+    "decí que no tenés esa info.\n"
+    "- NUNCA inventes datos que no están en 'Datos del sistema'.\n"
+    "- Máximo 3-4 líneas."
 )
 
 
@@ -501,6 +504,31 @@ def _load_soul() -> str:
         return SOUL_FILE.read_text(encoding="utf-8")
     except FileNotFoundError:
         return "Sos Tenazas, asistente personal de Sebas. Español rioplatense, directo."
+
+
+# System prompt for free chat (non-skill queries).
+# SOUL.md is designed for the gateway (tool execution). For Telegram chat,
+# the LLM can NOT execute commands — it only generates text. This prompt
+# prevents hallucination and off-topic responses.
+_CHAT_SYSTEM_PROMPT = (
+    "Sos Tenazas, asistente personal de Sebas. Hablás en español rioplatense, "
+    "directo y cálido. Esto es un chat de Telegram.\n\n"
+    "REGLAS ESTRICTAS:\n"
+    "1. NUNCA inventes datos que no tenés (precios, nombres, valores, fechas). "
+    "Si no sabés algo, decí 'No tengo esa info' o 'No puedo verificar eso'.\n"
+    "2. Solo respondé lo que te preguntaron. NO metas clima, emails, infra ni "
+    "ningún otro tema si no te lo pidieron explícitamente.\n"
+    "3. No repitas información de mensajes anteriores salvo que te la pidan.\n"
+    "4. Si el usuario pregunta algo fuera de tus capacidades (precios de nafta, "
+    "noticias, datos en tiempo real que no tenés), decilo claramente.\n"
+    "5. Máximo 3-4 líneas. Sin emojis excesivos. Sin frases como "
+    "'como asistente' o 'según los datos'.\n"
+    "6. Tus capacidades reales son: clima (Open-Meteo), emails (Gmail), "
+    "calendario (Google Calendar), luces (Hue), infra (Docker/NAS), "
+    "red (nmap), modelos (Ollama), finanzas (IOL/Binance), cigarrillos. "
+    "Cualquier otra cosa, NO la tenés.\n"
+    "7. NUNCA generes datos de ejemplo ni respuestas inventadas para parecer útil."
+)
 
 
 def _call_ollama(url: str, prompt: str, system: str, model: str | None = None) -> str | None:
@@ -638,9 +666,45 @@ def _gather_analysis_context(text: str) -> str:
 GUARDRAIL_STATE_FILE = RUNTIME_DIR / "guardrail_state.json"
 
 
+# ── Live Data Guardrail ──────────────────────────────────────────
+# Intercepts queries about real-time data we can't provide (fuel prices,
+# exchange rates, news, sports). Returns a fixed response without hitting
+# the LLM — prevents hallucination and saves tokens.
+
+_LIVE_DATA_UNSUPPORTED_PATTERNS = [
+    r"\bprecio\b.*\bnafta\b",
+    r"\bnafta\b.*\bprecio\b",
+    r"\bcu[aá]nto\s+(est[aá]|sale|cuesta)\b.*\b(d[oó]lar|nafta|btc|bitcoin|eth|ethereum)\b",
+    r"\bcotiza(ci[oó]n)?\b",
+    r"\bnoticias\b.*\b(hoy|del d[ií]a|actuales)\b",
+    r"\bresultado\b.*\bpartido\b",
+    r"\bqui[eé]n\s+gan[oó]\b",
+    r"\bc[uú]anto\s+vale\b.*\b(d[oó]lar|nafta|btc|bitcoin|eth|ethereum)\b",
+    r"\bprecio\b.*\b(d[oó]lar|gasolina|combustible|super|premium)\b",
+]
+
+
+def _is_unsupported_live_data(text: str) -> bool:
+    t = text.strip().lower()
+    return any(re.search(p, t) for p in _LIVE_DATA_UNSUPPORTED_PATTERNS)
+
+
+def _unsupported_live_data_reply() -> str:
+    return (
+        "No tengo una fuente confiable en tiempo real para eso, "
+        "así que prefiero no inventártelo."
+    )
+
+
 def handle_non_skill(text: str, chat_id: str = CHAT_ID) -> str:
     """Forward non-skill message to Ollama LLM with conversation history."""
-    system = _load_soul()
+
+    # Guardrail: intercept live data queries we can't answer
+    if _is_unsupported_live_data(text):
+        log.info("guardrail_hit kind=unsupported_live_data text=%r", text[:200])
+        return _unsupported_live_data_reply()
+
+    system = _CHAT_SYSTEM_PROMPT
     model, primary_url = _select_model_for_query(text)
 
     # Enrich analytical queries with real data
@@ -922,16 +986,37 @@ def _process_update(token: str, update: dict, allowed: set):
         except Exception:
             pass
 
-        raw_response = execute_intercepted_skill(text, category=category)
+        formatted_response, raw_data = execute_intercepted_skill(text, category=category)
 
-        # Humanize skill output through LLM
-        response = _humanize_response(text, raw_response, category)
+        # Try structured composer first (no LLM needed)
+        composed = None
+        _source_map = {
+            "skill:weather": "weather",
+            "skill:email": "gmail",
+            "skill:calendar": "calendar",
+            "skill:calendar-agenda": "calendar",
+        }
+        composer_source = _source_map.get(category)
+        if composer_source and raw_data:
+            try:
+                from response_composer import compose_skill_response
+                composed = compose_skill_response(composer_source, raw_data, text)
+            except Exception as e:
+                log.warning("composer failed source=%s: %s", composer_source, e)
+
+        if composed:
+            response = composed
+            route_method = "composer"
+        else:
+            # Fallback: humanize through LLM
+            response = _humanize_response(text, formatted_response, category)
+            route_method = "humanize" if response != formatted_response else "raw"
 
         # Track last skill for conversational continuity
         _record_last_skill(chat_id, category)
 
         _log({"action": "skill_response", "category": category,
-              "response_len": len(response), "humanized": response != raw_response,
+              "response_len": len(response), "route": route_method,
               "success": True})
 
         # Send with feedback buttons for skills

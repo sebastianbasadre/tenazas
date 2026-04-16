@@ -34,14 +34,16 @@ from urllib.request import Request, urlopen
 
 RUNTIME = Path(__file__).parent
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
+TENAZAS_CONFIG_PATH = Path("/home/tenazas/.openclaw/tenazas.json")
 EVALS_DIR = Path("/home/tenazas/.openclaw/workspace/evals")
 ROUTER_PATH = RUNTIME / "finetuned_router.py"
 SEEDS_PATH = EVALS_DIR / "auto_seeds.jsonl"
 LOG_FILE = RUNTIME / "logs" / "auto_training.log"
+TRAINING_HISTORY = RUNTIME / "logs" / "training_history.json"
 
 # HomeLab
 HOMELAB_HOST = "sbasadre@192.168.2.6"
-HOMELAB_KEY = "/var/services/homes/sbasadre/.ssh/id_homelab"
+HOMELAB_KEY = "/home/tenazas/.ssh/id_homelab"
 WORKBENCH_CTR = "project-tenazas-router-workbench-clean"
 OLLAMA_URL = "http://192.168.2.6:11434"
 CHAT_ID = "1565794551"
@@ -51,19 +53,23 @@ log = logging.getLogger("auto_training")
 
 # ── Config ───────────────────────────────────────────────────────
 
-def _load_config() -> dict:
+def _load_tenazas_config() -> dict:
+    """Load tenazas-specific config from tenazas.json (split from openclaw.json)."""
     try:
-        cfg = json.loads(CONFIG_PATH.read_text())
-        return cfg.get("tenazas", {}).get("auto_training", {})
+        return json.loads(TENAZAS_CONFIG_PATH.read_text())
     except Exception:
         return {}
 
 
+def _load_config() -> dict:
+    return _load_tenazas_config().get("auto_training", {})
+
+
 def _save_config_key(key: str, value):
     try:
-        cfg = json.loads(CONFIG_PATH.read_text())
-        cfg.setdefault("tenazas", {}).setdefault("auto_training", {})[key] = value
-        CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False))
+        cfg = _load_tenazas_config()
+        cfg.setdefault("auto_training", {})[key] = value
+        TENAZAS_CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False))
     except Exception as e:
         log.warning("Could not save config key %s: %s", key, e)
 
@@ -362,8 +368,10 @@ def step_train(train_path: str, val_path: str, version: str) -> bool:
 def step_deploy(version: str) -> bool:
     """Copy merged from Workbench, convert GGUF, create Ollama model."""
     model_name = f"tenazas-qwen25-7b-{version}"
-    merged_dir = f"C:\\Users\\sbasadre\\tenazas_finetune\\{version}_merged"
-    gguf_path = f"C:\\Users\\sbasadre\\tenazas_finetune\\{model_name}-Q8_0.gguf"
+    # Windows paths: backslash for cmd.exe commands (mkdir, docker cp, cd)
+    win_base = "C:\\Users\\sbasadre\\tenazas_finetune"
+    merged_dir = f"{win_base}\\{version}_merged"
+    gguf_path = f"{win_base}\\{model_name}-Q8_0.gguf"
 
     # Copy merged from container
     _ssh(f"mkdir {merged_dir} 2>nul", timeout=10)
@@ -384,7 +392,7 @@ def step_deploy(version: str) -> bool:
         return False
 
     # Create Modelfile + ollama create
-    modelfile_path = f"C:\\Users\\sbasadre\\tenazas_finetune\\Modelfile_{version}"
+    modelfile_path = f"{win_base}\\Modelfile_{version}"
     modelfile_content = (
         f"FROM {gguf_path}\n"
         "PARAMETER temperature 0.1\n"
@@ -495,6 +503,7 @@ def run_pipeline():
     log.info("Current F1: %.1f%%", current_f1 * 100)
 
     if current_f1 >= threshold:
+        _save_training_result(current_version, current_f1, current_f1, False)
         _notify(f"Router OK — F1 {current_f1:.1%} >= {threshold:.1%}. Sin retraining.")
         return
 
@@ -530,22 +539,65 @@ def run_pipeline():
         return
 
     # Step 7-9: Canary swap
+    # Eval new model to get F1 after
+    new_eval = step_eval(full)
+    new_f1 = new_eval.get("avg_f1", 0.0)
+
     swapped = step_canary_swap(new_version, current_f1, min_improvement, full)
+
+    # Persist result for Grafana
+    _save_training_result(new_version, current_f1, new_f1, swapped,
+                          new_eval.get("per_tool"))
 
     if swapped:
         _save_config_key("model_version", new_version)
         _notify(
             f"Router actualizado: {new_version}\n"
-            f"F1: {current_f1:.1%} → mejorado\n"
+            f"F1: {current_f1:.1%} → {new_f1:.1%}\n"
             f"Tools: {weak_str}"
         )
     else:
         _notify(
             f"{new_version} no supera minimo de mejora.\n"
-            f"Modelo actual mantenido. Revision manual."
+            f"F1: {current_f1:.1%} → {new_f1:.1%}\n"
+            f"Modelo actual mantenido."
         )
 
     log.info("=== Pipeline complete ===")
+
+
+def _save_training_result(version: str, f1_before: float, f1_after: float,
+                          swapped: bool, per_tool: dict = None):
+    """Persist training run result for Prometheus/Grafana."""
+    try:
+        history = json.loads(TRAINING_HISTORY.read_text()) if TRAINING_HISTORY.exists() else []
+    except Exception:
+        history = []
+    entry = {
+        "ts": datetime.now().isoformat(),
+        "version": version,
+        "f1_before": round(f1_before, 4),
+        "f1_after": round(f1_after, 4),
+        "improvement": round(f1_after - f1_before, 4),
+        "swapped": swapped,
+    }
+    if per_tool:
+        entry["per_tool"] = per_tool
+    history.append(entry)
+    # Keep last 100 runs
+    history = history[-100:]
+    TRAINING_HISTORY.write_text(json.dumps(history, indent=2))
+    # Write latest to metrics_state for Prometheus
+    latest = RUNTIME / "logs" / "training_metrics.json"
+    latest.write_text(json.dumps({
+        "f1_before": entry["f1_before"],
+        "f1_after": entry["f1_after"],
+        "swapped": 1 if swapped else 0,
+        "last_run_ts": entry["ts"],
+        "total_runs": len(history),
+        "version": version,
+    }))
+    log.info("Saved training result: %s", entry)
 
 
 def _next_version(current: str) -> str:

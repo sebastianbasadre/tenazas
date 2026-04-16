@@ -118,6 +118,12 @@ if PROM_AVAILABLE:
     G_GR_LATENCY = Gauge("guardrail_latency_total", "Heavy degraded by high latency")
     G_GR_VRAM_STORM = Gauge("guardrail_vram_storm_total", "Heavy degraded by VRAM swap storm")
 
+    # ── Auto Training ──────────────────────────────────────────
+    G_TRAINING_F1_BEFORE = Gauge("tenazas_training_f1_before", "F1 before last training run")
+    G_TRAINING_F1_AFTER = Gauge("tenazas_training_f1_after", "F1 after last training run")
+    G_TRAINING_SWAPPED = Gauge("tenazas_training_swapped", "1 if last run swapped model")
+    G_TRAINING_RUNS = Gauge("tenazas_training_runs_total", "Total training pipeline runs")
+
     # ── NAS Host ────────────────────────────────────────────────
     G_NAS_RAM_USED = Gauge("nas_ram_used_bytes", "NAS RAM used (total - available)")
     G_NAS_RAM_TOTAL = Gauge("nas_ram_total_bytes", "NAS total RAM")
@@ -132,6 +138,9 @@ if PROM_AVAILABLE:
     G_OLLAMA_GPU_MODELS = Gauge("ollama_gpu_models_count", "Number of models on GPU Ollama")
 
     G_OLLAMA_MODELS_TOTAL = Gauge("ollama_models_total", "Total models available on Ollama GPU")
+    G_OLLAMA_GPU_VRAM_USED = Gauge("ollama_gpu_vram_used_bytes", "GPU VRAM currently used by loaded models")
+    G_OLLAMA_GPU_VRAM_TOTAL = Gauge("ollama_gpu_vram_total_bytes", "GPU VRAM total (RTX 3090 = 24GB)")
+    G_OLLAMA_GPU_LOADED_MODELS = Gauge("ollama_gpu_loaded_models", "Number of models currently loaded in GPU")
 
     # ── Telegram ────────────────────────────────────────────────
     G_TELEGRAM_TOTAL = Gauge("telegram_messages_total", "Total Telegram handler log entries")
@@ -236,6 +245,18 @@ def update_from_file():
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 
+    # Auto Training (from separate state file)
+    try:
+        training_file = BASE_DIR / "logs" / "training_metrics.json"
+        with open(training_file) as f:
+            tr = json.load(f)
+        G_TRAINING_F1_BEFORE.set(tr.get("f1_before", 0))
+        G_TRAINING_F1_AFTER.set(tr.get("f1_after", 0))
+        G_TRAINING_SWAPPED.set(tr.get("swapped", 0))
+        G_TRAINING_RUNS.set(tr.get("total_runs", 0))
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
 
 # ── NAS Host Metrics ────────────────────────────────────────────
 
@@ -292,7 +313,8 @@ def collect_nas_metrics():
 
 
 def collect_ollama_gpu():
-    """Check Ollama GPU health and model count."""
+    """Check Ollama GPU health, model count, and VRAM usage."""
+    RTX_3090_VRAM = 24 * 1024 * 1024 * 1024  # 24 GB
     try:
         start = time.monotonic()
         req = Request(f"{OLLAMA_GPU_URL}/api/tags")
@@ -307,6 +329,24 @@ def collect_ollama_gpu():
         G_OLLAMA_GPU_UP.set(0)
         G_OLLAMA_GPU_LATENCY.set(0)
         G_OLLAMA_GPU_MODELS.set(0)
+        G_OLLAMA_GPU_VRAM_USED.set(0)
+        G_OLLAMA_GPU_VRAM_TOTAL.set(RTX_3090_VRAM)
+        G_OLLAMA_GPU_LOADED_MODELS.set(0)
+        return
+    # Query loaded models for VRAM usage
+    try:
+        req_ps = Request(f"{OLLAMA_GPU_URL}/api/ps")
+        resp_ps = urlopen(req_ps, timeout=OLLAMA_GPU_TIMEOUT)
+        ps_data = json.loads(resp_ps.read())
+        loaded = ps_data.get("models", [])
+        vram_used = sum(m.get("size_vram", 0) for m in loaded)
+        G_OLLAMA_GPU_VRAM_USED.set(vram_used)
+        G_OLLAMA_GPU_VRAM_TOTAL.set(RTX_3090_VRAM)
+        G_OLLAMA_GPU_LOADED_MODELS.set(len(loaded))
+    except Exception:
+        G_OLLAMA_GPU_VRAM_USED.set(0)
+        G_OLLAMA_GPU_VRAM_TOTAL.set(RTX_3090_VRAM)
+        G_OLLAMA_GPU_LOADED_MODELS.set(0)
 
 
 # ── Telegram Activity ──────────────────────────────────────────
