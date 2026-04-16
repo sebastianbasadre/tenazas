@@ -160,6 +160,293 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 104,
+      "title": "Posiciones",
+      "type": "row"
+    },
+    {
+      "id": 40,
+      "title": "Posiciones IOL — Valor (ARS)",
+      "description": "Valor actual en ARS de cada posición del portfolio IOL.",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Valor ARS", "desc": true }],
+        "footer": { "show": true, "reducer": ["sum"], "fields": ["Value"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "filterable": false }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "symbol" },
+            "properties": [
+              { "id": "displayName", "value": "Símbolo" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "type" },
+            "properties": [
+              { "id": "displayName", "value": "Tipo" },
+              { "id": "custom.width", "value": 180 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "displayName", "value": "Valor ARS" },
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "targets": [{
+        "expr": "tenazas_iol_position_value_ars{type!=\"\"}",
+        "legendFormat": "{{symbol}}",
+        "refId": "A",
+        "instant": true,
+        "format": "table"
+      }],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true },
+            "renameByName": {}
+          }
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 41,
+      "title": "Ganancia Total por Posición (%)",
+      "description": "Ganancia/pérdida total de cada posición vs precio de compra. Rojo = pérdida, verde = ganancia.",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 7 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "min": -10,
+          "max": 10,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#E24B4A", "value": null },
+              { "color": "#888780", "value": -0.5 },
+              { "color": "#639922", "value": 0.5 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [{
+        "expr": "tenazas_iol_position_gain_pct{type!=\"\"}",
+        "legendFormat": "{{symbol}}",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 42,
+      "title": "P&L Diario por Posición (ARS)",
+      "description": "Resultado del día de cada posición. Permite ver quién aporta y quién resta.",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 7 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#E24B4A", "value": null },
+              { "color": "#888780", "value": -100 },
+              { "color": "#639922", "value": 100 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [{
+        "expr": "tenazas_iol_position_pnl_day_ars{type!=\"\"}",
+        "legendFormat": "{{symbol}}",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 43,
+      "title": "Evolución por Posición (ARS)",
+      "description": "Valor de cada posición en el tiempo. Permite ver cuál crece y cuál cae.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 15 },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last", "min", "max"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "auto",
+            "spanNulls": true,
+            "lineInterpolation": "smooth",
+            "axisPlacement": "auto",
+            "stacking": { "mode": "none" }
+          }
+        }
+      },
+      "targets": [{
+        "expr": "tenazas_iol_position_value_ars{type!=\"\"}",
+        "legendFormat": "{{symbol}}",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 44,
+      "title": "Detalle Posiciones",
+      "description": "Tabla completa: cantidad, precio actual, PPC, variación diaria, ganancia total.",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Valor ARS", "desc": true }]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Símbolo" },
+            "properties": [{ "id": "custom.width", "value": 80 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Cantidad" },
+            "properties": [{ "id": "decimals", "value": 0 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Precio" },
+            "properties": [{ "id": "unit", "value": "locale" }, { "id": "decimals", "value": 2 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "PPC" },
+            "properties": [{ "id": "unit", "value": "locale" }, { "id": "decimals", "value": 2 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Var Día %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "decimals", "value": 2 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "#E24B4A", "value": null }, { "color": "#639922", "value": 0 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Gain %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "decimals", "value": 2 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "#E24B4A", "value": null }, { "color": "#639922", "value": 0 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "tenazas_iol_position_qty{type!=\"\"}",
+          "legendFormat": "{{symbol}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "tenazas_iol_position_price{type!=\"\"}",
+          "legendFormat": "{{symbol}}",
+          "refId": "B",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "tenazas_iol_position_ppc{type!=\"\"}",
+          "legendFormat": "{{symbol}}",
+          "refId": "C",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "tenazas_iol_position_change_day_pct{type!=\"\"}",
+          "legendFormat": "{{symbol}}",
+          "refId": "D",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "tenazas_iol_position_gain_pct{type!=\"\"}",
+          "legendFormat": "{{symbol}}",
+          "refId": "E",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "symbol", "mode": "outer" }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true, "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true,
+              "__name__": true, "__name__ 1": true, "__name__ 2": true, "__name__ 3": true, "__name__ 4": true, "__name__ 5": true,
+              "instance": true, "instance 1": true, "instance 2": true, "instance 3": true, "instance 4": true, "instance 5": true,
+              "job": true, "job 1": true, "job 2": true, "job 3": true, "job 4": true, "job 5": true,
+              "type": true, "type 1": true, "type 2": true, "type 3": true, "type 4": true, "type 5": true
+            },
+            "renameByName": {
+              "symbol": "Símbolo",
+              "Value #A": "Cantidad",
+              "Value #B": "Precio",
+              "Value #C": "PPC",
+              "Value #D": "Var Día %",
+              "Value #E": "Gain %"
+            }
+          }
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
       "id": 101,
       "title": "Evolución del Portfolio",
       "type": "row"
@@ -169,7 +456,7 @@
       "title": "Valor del Portfolio (ARS)",
       "description": "Evolución del valor total en el tiempo. Línea azul = valor API, línea gris = valor CLI.",
       "type": "timeseries",
-      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 7 },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 24 },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last", "min", "max"] }
@@ -224,7 +511,7 @@
       "title": "P&L Diario (ARS)",
       "description": "Resultado del día en el tiempo. Verde = ganancia, rojo = pérdida. Barras para ver claramente cada día.",
       "type": "timeseries",
-      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 7 },
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 24 },
       "options": {
         "tooltip": { "mode": "single" },
         "legend": { "displayMode": "hidden" }
@@ -261,7 +548,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
       "id": 102,
       "title": "P&L y Evolución",
       "type": "row"
@@ -271,7 +558,7 @@
       "title": "P&L Actual (ARS)",
       "description": "Resultado no realizado actual del portfolio. Positivo = ganancia vs costo, negativo = pérdida.",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "auto",
@@ -306,7 +593,7 @@
       "title": "Evolución Portfolio (histórico)",
       "description": "Valor total del portfolio en el tiempo. Timeseries para ver tendencia y máximos/mínimos.",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
       "options": {
         "tooltip": { "mode": "single" },
         "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last", "min", "max"] }
@@ -334,7 +621,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
       "id": 103,
       "title": "Salud del Servicio IOL",
       "type": "row"
@@ -344,7 +631,7 @@
       "title": "Status IOL",
       "description": "OK = datos frescos (<10 min). STALE = sin datos hace >10 min. Revisar token si está stale.",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 27 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 44 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "auto",
@@ -381,7 +668,7 @@
       "title": "Errores / hora",
       "description": "Rate de errores de colección IOL por hora. Si > 5/h, probablemente el token expiró.",
       "type": "timeseries",
-      "gridPos": { "h": 6, "w": 8, "x": 6, "y": 27 },
+      "gridPos": { "h": 6, "w": 8, "x": 6, "y": 44 },
       "options": {
         "tooltip": { "mode": "single" },
         "legend": { "displayMode": "hidden" }
@@ -419,7 +706,7 @@
       "title": "API Quota",
       "description": "Cuota mensual de IOL API. Límite 25,000 calls.",
       "type": "gauge",
-      "gridPos": { "h": 6, "w": 5, "x": 14, "y": 27 },
+      "gridPos": { "h": 6, "w": 5, "x": 14, "y": 44 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "auto",
@@ -453,7 +740,7 @@
       "title": "Calls Restantes",
       "description": "Llamadas API restantes este mes (de 25,000).",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 27 },
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 44 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "auto",
@@ -488,7 +775,7 @@
       "title": "Alertas IOL",
       "description": "Alertas accionables basadas en las métricas actuales.",
       "type": "text",
-      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 31 },
+      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 48 },
       "options": {
         "mode": "markdown",
         "content": "### Reglas de alerta\n\n| Condición | Umbral | Acción |\n|---|---|---|\n| Token expirado | freshness > 10m | `docker exec openclaw python3 /home/tenazas/tools/iol_init_token.py` |\n| Errores altos | > 5/hora | Revisar logs: `docker exec openclaw cat /tmp/metrics_server.log \\| tail -20` |\n| Cuota alta | > 90% usado | Reducir frecuencia de polling IOL |\n| P&L negativo fuerte | < -$50,000/día | Revisar posiciones manualmente en IOL |"
