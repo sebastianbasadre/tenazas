@@ -1,0 +1,29 @@
+{
+  "name": "Sebas",
+  "full_name": "Sebastián Basadre",
+  "country": "Argentina",
+  "city": "Buenos Aires",
+  "timezone": "America/Argentina/Buenos_Aires",
+  "language": "es-AR",
+  "tone": "directo, rioplatense, cálido",
+  "projects": [
+    "Tenazas",
+    "OpenClaw",
+    "Homelab"
+  ],
+  "interests": [
+    "IA",
+    "producto",
+    "inversión",
+    "música",
+    "homelab"
+  ],
+  "job_search": true,
+  "roles_target": [
+    "Product Manager",
+    "TAM",
+    "DevOps"
+  ],
+  "broker": "IOL (InvertirOnline)",
+  "smoking": true
+}

@@ -715,6 +715,15 @@ def handle_non_skill(text: str, chat_id: str = CHAT_ID) -> str:
     system = _CHAT_SYSTEM_PROMPT
     model, primary_url = _select_model_for_query(text)
 
+    # Inject memory context for vague/personal queries
+    try:
+        from user_memory import should_inject_memory, build_memory_context
+        if should_inject_memory(text):
+            mem_ctx = build_memory_context(text)
+            system = system + "\n\nContexto del usuario:\n" + mem_ctx
+    except Exception:
+        pass
+
     # Enrich analytical queries with real data
     context = _gather_analysis_context(text)
     if context:
@@ -1064,6 +1073,14 @@ def _process_update(token: str, update: dict, allowed: set):
         except Exception:
             pass
 
+        # Save to short-term memory
+        try:
+            from user_memory import add_context
+            # Summarize: first 80 chars of response is good enough
+            add_context(text, category, response[:80])
+        except Exception:
+            pass
+
         # Send with feedback buttons for skills
         try:
             from skill_feedback import send_with_feedback
@@ -1087,6 +1104,13 @@ def _process_update(token: str, update: dict, allowed: set):
                 query=text, route="chat_free", path="llm_chat",
                 skill=None, guardrail_hit=False, used_llm=True,
                 latency_ms=_latency, success=bool(response), chat_id=chat_id)
+        except Exception:
+            pass
+
+        # Save to short-term memory
+        try:
+            from user_memory import add_context
+            add_context(text, None, response[:80])
         except Exception:
             pass
 
