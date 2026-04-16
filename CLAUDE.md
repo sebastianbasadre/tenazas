@@ -330,12 +330,35 @@ Bot de polling Telegram que intercepta skills deterministicamente antes del LLM.
 - Clasificacion via `orchestrator.classify_query()`
 - IOL broker: ejecuta `iol_handler_cli.py` directamente
 - Model routing V2 para queries no-skill (selecciona modelo por rol)
-- **Conversation history:** sliding window por chat (10 turnos, 10 min TTL), usa Ollama `/api/chat` para multi-turn con fallback a single-turn `/api/generate`
+- **Conversation history:** sliding window por chat (10 turnos, 10 min TTL, cap 200 chars), usa Ollama `/api/chat` para multi-turn con fallback a single-turn `/api/generate`
 - Context injection para queries analiticas (inyecta logs reales, filtra security blocks)
 - Callback query handling para exec_approvals (botones inline)
-- Formateo de email: parsea tabla himalaya a formato legible
 - Fallback Markdown → texto plano si Telegram rechaza
 - Error handling robusto en classify_intent (fallback a "chat" si orchestrator falla)
+- **Chat system prompt:** `_CHAT_SYSTEM_PROMPT` separado de SOUL.md — anti-hallucination, admite ignorancia, no mezcla temas
+- **Live data guardrail:** `_is_unsupported_live_data()` intercepta nafta/dolar/noticias/partidos con early return (sin LLM)
+- **Structured composers:** weather/gmail/calendar pasan por `response_composer.py` (determinístico) antes de humanize LLM
+
+### Response Composer (`response_composer.py`)
+
+Compone respuestas naturales desde datos estructurados de skills. Separa DATA de PRESENTACION. Sin LLM, determinístico, rápido y consistente.
+
+**Skills migradas:**
+
+| Skill | Parser | Composer | Query types |
+|---|---|---|---|
+| weather | `parse_weather_structured()` | `compose_weather()` | temp, condition, rain/cold advice |
+| gmail | `parse_gmail_structured()` | `compose_gmail()` | search_contact, count, latest, recent_important |
+| calendar | `parse_calendar_structured()` | `compose_calendar()` | today, tomorrow, next_event, count, time_lookup |
+
+**Flujo:** skill raw output → parser → structured dict → composer → texto final. Si composer falla → fallback a humanize LLM → fallback a raw.
+
+**API:**
+```python
+from response_composer import compose_skill_response
+text = compose_skill_response("weather", raw_json, "como esta el clima")
+# Returns composed text or None if source not supported
+```
 
 ### Multitool Inference — Ejecucion multi-tool (`multitool_parser.py` + `orchestrator.py`)
 
