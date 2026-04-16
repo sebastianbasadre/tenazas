@@ -702,6 +702,14 @@ def handle_non_skill(text: str, chat_id: str = CHAT_ID) -> str:
     # Guardrail: intercept live data queries we can't answer
     if _is_unsupported_live_data(text):
         log.info("guardrail_hit kind=unsupported_live_data text=%r", text[:200])
+        try:
+            from obs import log_router_decision
+            log_router_decision(
+                query=text, route="guardrail", path="early_return",
+                skill=None, guardrail_hit=True, used_llm=False,
+                latency_ms=0, success=True, chat_id=chat_id)
+        except Exception:
+            pass
         return _unsupported_live_data_reply()
 
     system = _CHAT_SYSTEM_PROMPT
@@ -975,6 +983,9 @@ def _process_update(token: str, update: dict, allowed: set):
         # Classify
         intercept, category = should_intercept(text)
 
+    import time as _time
+    _t0 = _time.perf_counter()
+
     if intercept:
         _log({"action": "intercepted", "category": category, "text": text[:80]})
         send_typing(token, chat_id)
@@ -997,12 +1008,20 @@ def _process_update(token: str, update: dict, allowed: set):
             "skill:calendar-agenda": "calendar",
         }
         composer_source = _source_map.get(category)
+        result_count = None
         if composer_source and raw_data:
             try:
                 from response_composer import compose_skill_response
                 composed = compose_skill_response(composer_source, raw_data, text)
             except Exception as e:
                 log.warning("composer failed source=%s: %s", composer_source, e)
+                try:
+                    from obs import log_failure
+                    log_failure(query=text, route=category, path="composer",
+                                reason=f"composer_exception: {e}",
+                                severity="medium")
+                except Exception:
+                    pass
 
         if composed:
             response = composed
@@ -1011,6 +1030,18 @@ def _process_update(token: str, update: dict, allowed: set):
             # Fallback: humanize through LLM
             response = _humanize_response(text, formatted_response, category)
             route_method = "humanize" if response != formatted_response else "raw"
+            # Log failure if we expected composer but fell back
+            if composer_source:
+                try:
+                    from obs import log_failure
+                    sev = "high" if route_method == "raw" else "medium"
+                    log_failure(query=text, route=category, path=route_method,
+                                reason="composer_fallback",
+                                response_preview=response, severity=sev)
+                except Exception:
+                    pass
+
+        _latency = int((_time.perf_counter() - _t0) * 1000)
 
         # Track last skill for conversational continuity
         _record_last_skill(chat_id, category)
@@ -1018,6 +1049,20 @@ def _process_update(token: str, update: dict, allowed: set):
         _log({"action": "skill_response", "category": category,
               "response_len": len(response), "route": route_method,
               "success": True})
+
+        # Observability: structured logs
+        try:
+            from obs import log_router_decision, log_skill_run
+            log_router_decision(
+                query=text, route=category, path=route_method,
+                skill=category, guardrail_hit=False,
+                used_llm=(route_method == "humanize"),
+                latency_ms=_latency, success=True, chat_id=chat_id)
+            log_skill_run(
+                skill=category, query=text, ok=True,
+                route=route_method, latency_ms=_latency)
+        except Exception:
+            pass
 
         # Send with feedback buttons for skills
         try:
@@ -1030,9 +1075,21 @@ def _process_update(token: str, update: dict, allowed: set):
         send_typing(token, chat_id)
 
         response = handle_non_skill(text, chat_id=chat_id)
+        _latency = int((_time.perf_counter() - _t0) * 1000)
 
         _log({"action": "llm_response", "category": category,
               "response_len": len(response)})
+
+        # Observability: structured log
+        try:
+            from obs import log_router_decision
+            log_router_decision(
+                query=text, route="chat_free", path="llm_chat",
+                skill=None, guardrail_hit=False, used_llm=True,
+                latency_ms=_latency, success=bool(response), chat_id=chat_id)
+        except Exception:
+            pass
+
         send_message(token, chat_id, response)
 
     # Record assistant response in history
