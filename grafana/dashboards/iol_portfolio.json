@@ -2,7 +2,7 @@
   "__inputs": [],
   "__requires": [],
   "annotations": { "list": [] },
-  "description": "Portfolio IOL InvertirOnline — Vista Analista. Valor total, P&L, freshness, evolución histórica, API quota.",
+  "description": "Portfolio IOL InvertirOnline - Vista Analista. Valor total, P&L, freshness, posiciones, evolucion historica.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -13,7 +13,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 100,
-      "title": "Métricas principales",
+      "title": "Metricas principales",
       "type": "row"
     },
     {
@@ -53,8 +53,8 @@
     },
     {
       "id": 2,
-      "title": "P&L del Día",
-      "description": "Resultado del día en ARS. Verde = ganancia, rojo = pérdida.",
+      "title": "P&L del Dia",
+      "description": "Resultado del dia en ARS. Verde = ganancia, rojo = perdida.",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
       "options": {
@@ -89,7 +89,7 @@
     {
       "id": 3,
       "title": "Freshness",
-      "description": "Tiempo desde la última colección exitosa de IOL. Verde < 5m, amarillo < 10m, rojo > 10m.",
+      "description": "Tiempo desde la ultima coleccion exitosa de IOL. Verde < 5m, amarillo < 10m, rojo > 10m.",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
       "options": {
@@ -125,7 +125,7 @@
     {
       "id": 4,
       "title": "Errores Totales",
-      "description": "Errores acumulados de colección IOL. Si crece rápido, revisar token/API.",
+      "description": "Errores acumulados de coleccion IOL. Si crece rapido, revisar token/API.",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
       "options": {
@@ -166,8 +166,8 @@
     },
     {
       "id": 40,
-      "title": "Posiciones IOL — Valor (ARS)",
-      "description": "Valor actual en ARS de cada posición del portfolio IOL.",
+      "title": "Posiciones IOL - Valor (ARS)",
+      "description": "Valor actual en ARS de cada posicion del portfolio IOL.",
       "type": "table",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
       "options": {
@@ -183,7 +183,7 @@
           {
             "matcher": { "id": "byName", "options": "symbol" },
             "properties": [
-              { "id": "displayName", "value": "Símbolo" },
+              { "id": "displayName", "value": "Simbolo" },
               { "id": "custom.width", "value": 100 }
             ]
           },
@@ -224,8 +224,8 @@
     },
     {
       "id": 41,
-      "title": "Ganancia Total por Posición (%)",
-      "description": "Ganancia/pérdida total de cada posición vs precio de compra. Rojo = pérdida, verde = ganancia.",
+      "title": "Ganancia Total por Posicion (%)",
+      "description": "Ganancia/perdida total de cada posicion vs precio de compra. Rojo = perdida, verde = ganancia.",
       "type": "bargauge",
       "gridPos": { "h": 8, "w": 6, "x": 12, "y": 7 },
       "options": {
@@ -262,8 +262,8 @@
     },
     {
       "id": 42,
-      "title": "P&L Diario por Posición (ARS)",
-      "description": "Resultado del día de cada posición. Permite ver quién aporta y quién resta.",
+      "title": "P&L Diario por Posicion (ARS)",
+      "description": "Resultado del dia de cada posicion. Permite ver quien aporta y quien resta.",
       "type": "bargauge",
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 7 },
       "options": {
@@ -298,8 +298,8 @@
     },
     {
       "id": 43,
-      "title": "Evolución por Posición (ARS)",
-      "description": "Valor de cada posición en el tiempo. Permite ver cuál crece y cuál cae.",
+      "title": "Evolucion por Posicion (ARS)",
+      "description": "Valor de cada posicion en el tiempo. Permite ver cual crece y cual cae.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 16, "x": 0, "y": 15 },
       "options": {
@@ -331,7 +331,7 @@
     {
       "id": 44,
       "title": "Detalle Posiciones",
-      "description": "Tabla completa: cantidad, precio actual, PPC, variación diaria, ganancia total.",
+      "description": "Tabla completa: cantidad, precio actual, PPC, variacion diaria, ganancia total.",
       "type": "table",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
       "options": {
@@ -344,7 +344,7 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Símbolo" },
+            "matcher": { "id": "byName", "options": "Simbolo" },
             "properties": [{ "id": "custom.width", "value": 80 }]
           },
           {
@@ -360,7 +360,7 @@
             "properties": [{ "id": "unit", "value": "locale" }, { "id": "decimals", "value": 2 }]
           },
           {
-            "matcher": { "id": "byName", "options": "Var Día %" },
+            "matcher": { "id": "byName", "options": "Var Dia %" },
             "properties": [
               { "id": "unit", "value": "percent" },
               { "id": "decimals", "value": 2 },
@@ -432,11 +432,11 @@
               "type": true, "type 1": true, "type 2": true, "type 3": true, "type 4": true, "type 5": true
             },
             "renameByName": {
-              "symbol": "Símbolo",
+              "symbol": "Simbolo",
               "Value #A": "Cantidad",
               "Value #B": "Precio",
               "Value #C": "PPC",
-              "Value #D": "Var Día %",
+              "Value #D": "Var Dia %",
               "Value #E": "Gain %"
             }
           }
@@ -448,13 +448,13 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
       "id": 101,
-      "title": "Evolución del Portfolio",
+      "title": "Evolucion del Portfolio",
       "type": "row"
     },
     {
       "id": 10,
       "title": "Valor del Portfolio (ARS)",
-      "description": "Evolución del valor total en el tiempo. Línea azul = valor API, línea gris = valor CLI.",
+      "description": "Evolucion del valor total en el tiempo. Linea azul = valor API, linea gris = valor CLI.",
       "type": "timeseries",
       "gridPos": { "h": 10, "w": 16, "x": 0, "y": 24 },
       "options": {
@@ -509,7 +509,7 @@
     {
       "id": 11,
       "title": "P&L Diario (ARS)",
-      "description": "Resultado del día en el tiempo. Verde = ganancia, rojo = pérdida. Barras para ver claramente cada día.",
+      "description": "Resultado del dia en el tiempo. Verde = ganancia, rojo = perdida. Barras para ver claramente cada dia.",
       "type": "timeseries",
       "gridPos": { "h": 10, "w": 8, "x": 16, "y": 24 },
       "options": {
@@ -550,13 +550,13 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
       "id": 102,
-      "title": "P&L y Evolución",
+      "title": "P&L y Evolucion",
       "type": "row"
     },
     {
       "id": 20,
       "title": "P&L Actual (ARS)",
-      "description": "Resultado no realizado actual del portfolio. Positivo = ganancia vs costo, negativo = pérdida.",
+      "description": "Resultado no realizado actual del portfolio. Positivo = ganancia vs costo, negativo = perdida.",
       "type": "stat",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
       "options": {
@@ -590,8 +590,8 @@
     },
     {
       "id": 21,
-      "title": "Evolución Portfolio (histórico)",
-      "description": "Valor total del portfolio en el tiempo. Timeseries para ver tendencia y máximos/mínimos.",
+      "title": "Evolucion Portfolio (historico)",
+      "description": "Valor total del portfolio en el tiempo. Timeseries para ver tendencia y maximos/minimos.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
       "options": {
@@ -629,9 +629,9 @@
     {
       "id": 30,
       "title": "Status IOL",
-      "description": "OK = datos frescos (<10 min). STALE = sin datos hace >10 min. Revisar token si está stale.",
+      "description": "OK = datos frescos (<10 min). STALE = sin datos hace >10 min. Revisar token si esta stale.",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 44 },
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 44 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "auto",
@@ -662,125 +662,6 @@
         "instant": true
       }],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 31,
-      "title": "Errores / hora",
-      "description": "Rate de errores de colección IOL por hora. Si > 5/h, probablemente el token expiró.",
-      "type": "timeseries",
-      "gridPos": { "h": 6, "w": 8, "x": 6, "y": 44 },
-      "options": {
-        "tooltip": { "mode": "single" },
-        "legend": { "displayMode": "hidden" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 1,
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 20,
-            "showPoints": "auto",
-            "spanNulls": true
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "#639922", "value": null },
-              { "color": "#EF9F27", "value": 2 },
-              { "color": "#E24B4A", "value": 5 }
-            ]
-          },
-          "color": { "mode": "thresholds" }
-        }
-      },
-      "targets": [{
-        "expr": "rate(iol_portfolio_errors_total[1h]) * 3600",
-        "legendFormat": "Errores/h",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 32,
-      "title": "API Quota",
-      "description": "Cuota mensual de IOL API. Límite 25,000 calls.",
-      "type": "gauge",
-      "gridPos": { "h": 6, "w": 5, "x": 14, "y": 44 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
-          "decimals": 2,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "#639922", "value": null },
-              { "color": "#EF9F27", "value": 0.70 },
-              { "color": "#E24B4A", "value": 0.90 }
-            ]
-          }
-        }
-      },
-      "targets": [{
-        "expr": "tenazas_iol_quota_used",
-        "legendFormat": "Uso quota",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 33,
-      "title": "Calls Restantes",
-      "description": "Llamadas API restantes este mes (de 25,000).",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 44 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "auto",
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value_and_name"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "#E24B4A", "value": null },
-              { "color": "#EF9F27", "value": 2500 },
-              { "color": "#639922", "value": 10000 }
-            ]
-          }
-        }
-      },
-      "targets": [{
-        "expr": "tenazas_iol_quota_remaining",
-        "legendFormat": "Restantes",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 34,
-      "title": "Alertas IOL",
-      "description": "Alertas accionables basadas en las métricas actuales.",
-      "type": "text",
-      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 48 },
-      "options": {
-        "mode": "markdown",
-        "content": "### Reglas de alerta\n\n| Condición | Umbral | Acción |\n|---|---|---|\n| Token expirado | freshness > 10m | `docker exec openclaw python3 /home/tenazas/tools/iol_init_token.py` |\n| Errores altos | > 5/hora | Revisar logs: `docker exec openclaw cat /tmp/metrics_server.log \\| tail -20` |\n| Cuota alta | > 90% usado | Reducir frecuencia de polling IOL |\n| P&L negativo fuerte | < -$50,000/día | Revisar posiciones manualmente en IOL |"
-      },
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
     }
   ],
   "refresh": "1m",
@@ -793,7 +674,7 @@
         "type": "interval",
         "query": "1d,1w,1M,3M",
         "current": { "value": "1M", "text": "1 mes" },
-        "label": "Período",
+        "label": "Periodo",
         "hide": 0
       }
     ]
@@ -801,7 +682,7 @@
   "time": { "from": "now-30d", "to": "now" },
   "timepicker": {},
   "timezone": "America/Argentina/Buenos_Aires",
-  "title": "Portfolio IOL — Vista Analista",
+  "title": "Portfolio IOL - Vista Analista",
   "uid": "iol-portfolio-analista",
   "version": 1
 }
