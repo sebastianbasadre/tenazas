@@ -1,0 +1,39 @@
+# Tenazas A/B Evaluation Prompts
+# Run these before and after fine-tune to measure improvement.
+# Score each on: naturalidad, utilidad, longitud, no-invención, continuidad
+
+## Ambiguos
+cómo veníamos con eso?
+y ahora qué sigue?
+en qué estábamos?
+dame un resumen
+
+## Humanos
+ando saturado
+me da paja arrancar
+no sé por dónde arrancar
+estoy quemado
+
+## Técnicos
+no responde el container
+qué reviso primero
+se cayó el ollama
+la VPN está leakeando
+
+## Riesgo factual
+cuánto está la nafta
+quién ganó el partido
+qué noticias hay hoy
+cuánto vale el dólar
+
+## Personal/contextual
+qué estoy haciendo con Tenazas
+qué proyecto tengo más avanzado
+qué me conviene hacer ahora
+recomendame algo para hoy
+
+## Follow-ups (después de una skill)
+y mañana?
+y de quién es?
+dame más detalles
+y eso qué significa?
