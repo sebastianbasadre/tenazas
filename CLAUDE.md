@@ -601,6 +601,35 @@ Procesa propuestas aprobadas de self-evolve. Genera seeds via Ollama para tools 
 
 **CLI:** `python3 /home/tenazas/runtime/apply_improvements.py`
 
+### ROI Tracker (`roi_tracker.py` + `roi_report.py`)
+
+Mide el valor real que Tenazas aporta: tareas automatizadas, horas ahorradas, errores evitados, uso por skill.
+
+**Source:** `telegram_router.log` (JSONL) — filtra `skill_response` y `llm_response`.
+
+**Metricas:**
+- Skill executions vs LLM chats (automation rate)
+- Horas ahorradas estimadas por skill (config en `MINUTES_SAVED`)
+- Errores evitados (container restarts, VPN fixes, Ollama recoveries)
+- Success rate por skill, breakdown diario
+
+**CLI:**
+```bash
+python3 /home/tenazas/runtime/roi_tracker.py              # snapshot + summary
+python3 /home/tenazas/runtime/roi_tracker.py --json        # raw JSON
+python3 /home/tenazas/runtime/roi_tracker.py --days 30     # custom period
+python3 /home/tenazas/runtime/roi_report.py                # Telegram-formatted report
+python3 /home/tenazas/runtime/roi_report.py --send         # enviar a Telegram
+```
+
+**Output:** `logs/roi_state.json` — leido por `metrics_server.py` cada 30s.
+
+**Prometheus (13 metricas):** `tenazas_roi_*` — skill_executions, llm_chats, automation_rate, hours_saved, errors_avoided, skill_usage{skill}, skill_success_rate{skill}, skill_hours_saved{skill}
+
+**Grafana:** dashboard `tenazas-roi` — 11 paneles (horas ahorradas, automation rate, uso por skill, success rate, errores evitados, pie chart skills vs LLM)
+
+**Cron:** cada 6h (snapshot) + domingos 20:00 (reporte Telegram)
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
@@ -977,7 +1006,23 @@ workspace/runtime/
 ├── intent_normalizer.py       — Converts router intents to NormalizedCall with skill mapping + slot defaults
 ├── smoking.py                 — Smoking tracker: log cigarettes, stats, Prometheus metrics
 ├── smoking/                   — Smoking data: log.json + metrics.json (gitignored)
+│
+│ ── IoT Devices ──
+├── devices/__init__.py        — Device registry, dispatcher, composite actions
+├── devices/hue_lights.py      — Philips Hue lights (8 fixtures, 5 scenes)
+├── devices/marantz_avr.py     — Marantz CINEMA 60 AVR (HTTP, no auth)
+├── devices/hue_sync_box.py    — Hue Sync Box (HTTPS + Bearer token)
+├── devices/samsung_tv.py      — Samsung M8 + Q70 (WebSocket)
+├── devices/google_cast.py     — Nest Mini + Home Mini (pychromecast)
+├── devices/xiaomi_vacuum.py   — Xiaomi S20+ (python-miio)
+├── devices/shield_tv.py       — NVIDIA SHIELD (androidtvremote2)
+├── devices/ezviz_cameras.py   — EZVIZ cameras (ping only)
+├── devices/nest_doorbell.py   — Nest Doorbell (ping only)
 ├── apply_improvements.py      — Auto-apply approved self-evolve proposals (seeds via Ollama)
+│
+│ ── ROI Dashboard ──
+├── roi_tracker.py             — ROI metrics: skill usage, hours saved, errors avoided
+├── roi_report.py              — Weekly ROI report formatted for Telegram
 │
 │ ── Testing & Evolution ──
 ├── simulation_lab.py          — Simulacion de escenarios de infra
@@ -1121,7 +1166,7 @@ Motor de ejecucion directa de skills desde el orchestrator.
 | `skill:weather` | command + parser | Open-Meteo → texto legible (WMO codes) |
 | `skill:email` | command | himalaya envelope list |
 | `skill:calendar` | command | gcal.py (proximos eventos) |
-| `skill:smart-home` | handler | Hue lights: on/off/cinema/relax/work + status |
+| `skill:smart-home` | handler | IoT devices via `devices/` dispatcher (9 device types) |
 | `skill:tts` | handler | Piper TTS → Telegram audio |
 | `skill:network-scanner` | command | nmap -sn LAN |
 | `skill:arr-monitor` | command | docker ps arr-stack |
@@ -2037,6 +2082,7 @@ infra_monitor detecta problema
 | Tenazas Runtime | `tenazas-runtime` | Infra general, NAS, Ollama, Telegram |
 | Tenazas Agent | `tenazas-agent` | Router V2, roles, guardrails |
 | Portfolio IOL — Vista Analista | `iol-portfolio-analista` | Valor total, P&L, posiciones (tabla+gain%+PnL+evolución+detalle), evolución histórica, salud API |
+| Tenazas ROI Dashboard | `tenazas-roi` | Horas ahorradas, automation rate, uso por skill, success rate, errores evitados, skills vs LLM chat |
 
 ### Tests B+A
 
@@ -2101,6 +2147,30 @@ docker exec openclaw python3 /home/tenazas/tests/test_sprint10.py               
 | action_success_rate | >= 80% | longrun_1h, multi_incident |
 | rollback_rate | <= 10% | longrun_1h, container_flapping |
 | confidence_calibration_error | <= 0.15 | ollama_gpu, degradation |
+
+### IoT Device Control (`runtime/devices/`)
+
+Arquitectura modular con dispatcher central. `_handle_smart_home` en orchestrator delega a `devices.dispatch()`.
+
+| Modulo | Dispositivo | IP | Protocolo | Acciones |
+|---|---|---|---|---|
+| `hue_lights.py` | Philips Hue (8 luces) | 192.168.2.11 | REST API | on/off/cinema/relax/work/status |
+| `marantz_avr.py` | Marantz CINEMA 60 | 192.168.2.80 | HTTP GET (self-signed) | power/volume/input/surround/mute/status |
+| `hue_sync_box.py` | Hue Sync Box | 192.168.2.36 | HTTPS + Bearer token | sync on-off/mode/intensity/hdmi/status |
+| `samsung_tv.py` | Samsung M8 + Q70 | .46 / .29 | WebSocket :8001 | power(WOL)/volume/input/apps/status |
+| `google_cast.py` | Nest Mini + Home Mini | .62 / .83 | pychromecast | play/pause/volume/mute/status |
+| `xiaomi_vacuum.py` | Xiaomi S20+ | 192.168.2.99 | python-miio | start/stop/dock/fan speed/find/status |
+| `shield_tv.py` | NVIDIA SHIELD | 192.168.2.35 | androidtvremote2 | power(WOL)/apps/media/navigate/status |
+| `ezviz_cameras.py` | EZVIZ + Dahua + Hikvision (10) | varios | ping only | status (online/offline) |
+| `nest_doorbell.py` | Nest Doorbell | 192.168.2.22 | ping only | status (online/offline) |
+
+**Composite cinema mode:** "modo cine" → Hue dim + Marantz ON + Sync Box video/high (3 dispositivos en secuencia)
+
+**Device detection:** `devices.detect_device(query)` — regex por dispositivo, orden especifico (sync box antes de hue lights para evitar conflicto "hue sync" vs "hue")
+
+**Config:** `openclaw.json` → `hue_sync_box.token` (ya pareado), `devices.xiaomi_vacuum.token` (pendiente), `devices.shield_tv.cert_path` (pendiente pairing)
+
+**Deps Dockerfile:** `websocket-client` (Samsung TV WebSocket)
 
 ### Network Discovery
 

@@ -58,7 +58,16 @@ OLLAMA_TIMEOUT = 15
 KEYWORD_RULES = [
     (["cinema", "pelicula", "movie", "cine"], "smart-home-cinema"),
     (["apag", "turn off", "luces off"], "smart-home-off"),
-    (["luz", "luces", "light", "encend", "prender"], "smart-home-on"),
+    (["luz", "luces", "light"], "smart-home-on"),
+    # IoT devices — all route to smart-home variants
+    (["marantz", "receiver", "amplificador", "avr"], "smart-home-avr"),
+    (["aspiradora", "vacuum", "barrer", "limpiar piso"], "smart-home-vacuum"),
+    (["parlante", "speaker", "nest mini", "google home", "chromecast"], "smart-home-cast"),
+    (["sync box", "hue sync"], "smart-home-sync"),
+    (["shield", "nvidia shield"], "smart-home-shield"),
+    (["camara", "camaras", "ezviz", "vigilancia"], "smart-home-cameras"),
+    (["timbre", "doorbell"], "smart-home-doorbell"),
+    # Other skills
     (["clima", "lluvia", "temperatura", "weather"], "weather"),
     (["container", "docker", "infra", "caido"], "infra-monitor"),
     (["busca", "buscar", "serie", "episodio"], "arr-monitor"),
@@ -68,8 +77,17 @@ KEYWORD_RULES = [
     (["mail", "correo", "email", "inbox"], "email"),
 ]
 
+# Devices that have NO integration at all — reject these to avoid confusion
+_UNSUPPORTED_DEVICE_RE = re.compile(
+    r"\b(aire|ac|split"
+    r"|heladera|lavarrop|microondas|horno|impresora|printer)\b"
+)
+
 KNOWN_TOOLS = {
     "smart-home-on", "smart-home-off", "smart-home-cinema",
+    "smart-home-avr", "smart-home-vacuum", "smart-home-cast",
+    "smart-home-sync", "smart-home-shield", "smart-home-cameras",
+    "smart-home-doorbell", "smart-home-tv",
     "weather", "email", "calendar", "arr-monitor", "infra-monitor",
     "self-evolve", "tts", "reminders", "smoking-tracker", "chat",
 }
@@ -77,8 +95,12 @@ KNOWN_TOOLS = {
 # Map tool → intent for normalizer compatibility
 _TOOL_TO_INTENT = {
     "smart-home-on": "lights_on", "smart-home-off": "lights_off",
-    "smart-home-cinema": "cinema_mode", "arr-monitor": "infra_check",
-    "infra-monitor": "infra_check",
+    "smart-home-cinema": "cinema_mode",
+    "smart-home-avr": "marantz_control", "smart-home-vacuum": "vacuum_control",
+    "smart-home-cast": "cast_control", "smart-home-sync": "sync_box_control",
+    "smart-home-shield": "shield_control", "smart-home-cameras": "cameras_status",
+    "smart-home-doorbell": "doorbell_status", "smart-home-tv": "tv_control",
+    "arr-monitor": "infra_check", "infra-monitor": "infra_check",
 }
 
 # Telemetry log
@@ -161,6 +183,9 @@ def _classify_finetuned(message: str) -> dict | None:
 
 def _classify_keyword(message: str) -> dict | None:
     text = message.lower()
+    # Guard: reject devices that have zero integration (AC, heladera, etc.)
+    if _UNSUPPORTED_DEVICE_RE.search(text):
+        return None
     for keywords, tool in KEYWORD_RULES:
         for k in keywords:
             if k in text:

@@ -245,11 +245,12 @@ CLASSIFICATION_RULES = [
         {"calendario", "agenda", "eventos", "evento", "reunión", "reunion",
          "reuniones", "horario", "cita"},
     ),
-    # Smart home — lights (action-oriented only, not informational)
-    # Cinema patterns evaluated first in handler (_handle_smart_home)
+    # Smart home — all IoT devices (lights, TV, AVR, vacuum, speakers, etc.)
+    # The devices/ dispatcher detects which device from the query text.
     (
         "skill:smart-home",
-        [r"(prend|encend|apag|cambi)\w*\s*(las?\s+)?(lu[cz]|l[aá]mpara|alumbrad)",
+        [# Lights
+         r"(prend|encend|apag|cambi)\w*\s*(las?\s+)?(lu[cz]|l[aá]mpara|alumbrad)",
          r"modo\s+(cine|cinema|pel[ií]cula|relax|trabajo|work)",
          r"(pon[eé]|activ[aá])\s*(modo|escena|cine|cinema)",
          r"(subi|baj)\w*\s*(el\s+)?brillo",
@@ -261,10 +262,51 @@ CLASSIFICATION_RULES = [
          r"(netflix|hbo|disney)\s*(plus)?",
          r"(dejar|dej[aá])\s+(la\s+)?luz\s+(prendida|encendida|apagada)",
          r"lu[cz](es)?\s+(on|off)",
-         r"(quier|vamos?\s+a)\s+(ver\s+)?(una?\s+)?(peli|pel[ií]cula|movie|serie)"],
-        {"apagar", "encender", "prender", "cinema", "relax", "escena",
+         r"(quier|vamos?\s+a)\s+(ver\s+)?(una?\s+)?(peli|pel[ií]cula|movie|serie)",
+         # TV / Samsung
+         r"(prend|encend|apag)\w*\s*(el|la|los|las)?\s*(tv|tele(visor|visi[oó]n)?|pantalla|samsung|monitor)",
+         r"(estado|status)\s+(de\s+)?(el|la)?\s*(tv|tele(visor|visi[oó]n)?|samsung)",
+         # Marantz / AVR
+         r"(prend|encend|apag)\w*\s*(el\s+)?(marantz|receiver|amplificador|avr)",
+         r"(subi|baj)\w*\s*(el\s+)?vol",
+         r"(estado|status)\s+(del?\s+)?(marantz|receiver|amplificador)",
+         r"vol(umen)?\s*(a|en|al?)?\s*\d+",
+         r"(pon[eé]|cambi[aá]|pas[aá])\w*\s*(a\s+)?hdmi\s*\d",
+         r"\bmute\b|\bsilenci",
+         # Sync Box
+         r"sync\s*box",
+         r"hue\s+sync",
+         r"sincroniz\w+\s+lu[cz]",
+         # SHIELD
+         r"(prend|encend|apag)\w*\s*(el\s+)?(shield|nvidia)",
+         r"(estado|status)\s+(del?\s+)?shield",
+         r"(abr[ií]|lanz[aá])\s*(netflix|youtube|disney|prime|hbo|plex|spotify|kodi)",
+         # Vacuum
+         r"(prend|encend|activ)\w*\s*(la\s+)?aspiradora",
+         r"(pasar|poner)\s*(la\s+)?aspiradora",
+         r"aspir|barrer|limpiar\s*(el\s+)?piso",
+         r"(estado|status)\s+(de\s+)?(la\s+)?aspiradora",
+         r"(volver|dock|base)\s*(la\s+)?aspiradora",
+         # Google Cast
+         r"(volumen|play|pausa|pause|stop)\s*(del?\s+)?(parlante|speaker|nest|google\s*home)",
+         r"(prend|encend|apag)\w*\s*(el\s+)?(parlante|speaker|nest|google)",
+         # Cameras
+         r"(estado|status)\s+(de\s+)?(las\s+)?c[aá]maras?",
+         r"c[aá]maras?\s+(de\s+)?(seguridad|vigilancia)",
+         # Doorbell
+         r"timbre|doorbell"],
+        # Keywords: device names + light-specific + entertainment.
+        # Generic verbs like "encender" now safe because patterns are device-specific.
+        {"cinema", "relax", "escena",
          "cine", "película", "netflix", "hbo", "disney", "serie",
-         "luces", "luz", "brillo", "lámpara", "alumbrado"},
+         "luces", "luz", "brillo", "lámpara", "alumbrado",
+         "marantz", "receiver", "amplificador", "volumen",
+         "tv", "televisor", "samsung", "pantalla",
+         "shield", "nvidia",
+         "aspiradora", "vacuum", "barrer",
+         "parlante", "speaker", "chromecast",
+         "cámara", "camaras", "doorbell", "timbre",
+         "sync"},
     ),
     # TTS
     (
@@ -457,12 +499,12 @@ def classify_query(query: str, context: dict | None = None) -> str:
     # If active and router gives >= medium confidence, use that result.
     # If it fails or gives low confidence, fall through to deterministic scoring.
     try:
-        _cfg_path = Path("/home/tenazas/.openclaw/openclaw.json")
-        if _cfg_path.exists():
-            _cfg = json.loads(_cfg_path.read_text())
+        _tcfg_path = Path("/home/tenazas/.openclaw/tenazas.json")
+        if _tcfg_path.exists():
+            _tcfg = json.loads(_tcfg_path.read_text())
         else:
-            _cfg = {}
-        if _cfg.get("tenazas", {}).get("use_finetuned_router"):
+            _tcfg = {}
+        if _tcfg.get("use_finetuned_router"):
             from finetuned_router import route as _ft_route
             from intent_normalizer import normalize_or_chat as _ft_normalize
             _router_out = _ft_route(query)
@@ -1278,122 +1320,40 @@ def _parse_proposals(raw: str) -> str:
 
 
 def _handle_smart_home(skill_cat: str, query: str, skill: dict) -> dict:
-    """Handle smart home commands by extracting action from query."""
-    query_lower = query.lower()
+    """Handle smart home commands — delegates to devices/ dispatcher.
 
-    # Determine action
-    hue_key = os.environ.get("HUE_API_KEY", "")
-    if not hue_key:
-        # Try reading from known config location
-        try:
-            config_path = "/home/tenazas/.openclaw/openclaw.json"
-            with open(config_path) as f:
-                config = json.load(f)
-            hue_key = config.get("hue", {}).get("apiKey", "")
-        except Exception:
-            pass
+    Supports: Hue lights, Marantz AVR, Hue Sync Box, Samsung TVs,
+    Google Cast, Xiaomi Vacuum, NVIDIA SHIELD, EZVIZ cameras,
+    Nest Doorbell.
+    """
+    try:
+        from devices import dispatch, dispatch_composite
 
-    if not hue_key:
+        # Check for composite "cinema mode" that spans multiple devices
+        query_lower = query.lower()
+        _cinema_re = (
+            r"cine|cinema|pel[ií]cula|movie"
+            r"|modo\s*cine|modo\s*pel[ií]cula"
+        )
+        # Cinema composite: only when no specific device is mentioned
+        # "modo cine" → composite, but "marantz modo cine" → marantz only
+        _device_specific = (
+            r"marantz|sync\s*box|samsung|shield|tv|parlante|aspiradora"
+        )
+        if (re.search(_cinema_re, query_lower)
+                and not re.search(_device_specific, query_lower)
+                and not re.search(r"lu[cz]|light|brillo", query_lower)):
+            return dispatch_composite("cinema", query, skill_cat)
+
+        return dispatch(query, skill_cat)
+
+    except ImportError:
+        # Fallback: devices package not available (shouldn't happen)
         return {
             "skill": skill_cat, "success": False,
-            "output": "No se encontró la API key del Hue Bridge",
-            "raw": "", "destructive": True, "error": "no_hue_key",
+            "output": "Error: modulo devices no disponible.",
+            "raw": "", "destructive": False, "error": "import_error",
         }
-
-    base_url = f"http://192.168.2.11/api/{hue_key}"
-
-    # Detect action from query — cinema has priority over on/off
-    # to resolve overlap (e.g. "prendé modo cine" → cinema, not on)
-    _cinema_re = (
-        r"cine|cinema|pel[ií]cula|movie|netflix|hbo|disney|serie"
-        r"|modo\s*cine|modo\s*pel[ií]cula"
-    )
-    _lights_only_re = r"lu[cz]|brillo|l[aá]mpara"
-
-    if re.search(_cinema_re, query_lower):
-        # Cinema wins unless query is ONLY about lights with no cinema intent
-        # e.g. "prendé las luces" with "cine" somewhere → cinema
-        action = "cinema"
-    elif re.search(r"apag[aá]|off|todo.off|all.off", query_lower):
-        action = "all-off"
-    elif re.search(r"prend[eé]|encend|on|todo.on|all.on", query_lower):
-        action = "all-on"
-    elif re.search(r"relax", query_lower):
-        action = "relax"
-    elif re.search(r"trabaj|work", query_lower):
-        action = "work"
-    else:
-        # Default: show light status
-        try:
-            result = subprocess.run(
-                ["curl", "-sf", f"{base_url}/lights"],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode == 0:
-                lights = json.loads(result.stdout)
-                lines = []
-                for lid, ldata in sorted(lights.items()):
-                    name = ldata.get("name", f"Light {lid}")
-                    on = ldata.get("state", {}).get("on", False)
-                    lines.append(f"  {name}: {'encendida' if on else 'apagada'}")
-                return {
-                    "skill": skill_cat, "success": True,
-                    "output": "Estado de luces:\n" + "\n".join(lines),
-                    "raw": result.stdout, "destructive": False, "error": None,
-                }
-        except Exception as e:
-            return {
-                "skill": skill_cat, "success": False,
-                "output": f"Error consultando luces: {e}",
-                "raw": str(e), "destructive": False, "error": "hue_error",
-            }
-        return {
-            "skill": skill_cat, "success": False,
-            "output": "No entendí qué hacer con las luces. "
-                      "Podés decir: apagar, encender, cinema, relax, work.",
-            "raw": "", "destructive": False, "error": "unknown_action",
-        }
-
-    # Execute scene
-    scenes = {
-        "all-off": {"on": False},
-        "all-on": {"on": True, "bri": 254},
-        "cinema": {"on": True, "bri": 50, "ct": 400},
-        "relax": {"on": True, "bri": 140, "ct": 370},
-        "work": {"on": True, "bri": 254, "ct": 250},
-    }
-    state = scenes[action]
-    light_ids = ["1", "3", "4", "6", "11", "12", "13", "15"]
-    errors = []
-    for lid in light_ids:
-        try:
-            subprocess.run(
-                ["curl", "-sf", "-X", "PUT",
-                 "-d", json.dumps(state),
-                 f"{base_url}/lights/{lid}/state"],
-                capture_output=True, text=True, timeout=5,
-            )
-        except Exception as e:
-            errors.append(f"Light {lid}: {e}")
-
-    if errors:
-        return {
-            "skill": skill_cat, "success": True,
-            "output": f"Luces: {action} (con {len(errors)} errores)",
-            "raw": "\n".join(errors), "destructive": True, "error": None,
-        }
-    _ACTION_MSGS = {
-        "all-on": "Luces encendidas!",
-        "all-off": "Luces apagadas!",
-        "cinema": "Modo cine activado!",
-        "relax": "Modo relax activado!",
-        "work": "Modo trabajo activado!",
-    }
-    return {
-        "skill": skill_cat, "success": True,
-        "output": _ACTION_MSGS.get(action, f"Luces: {action}"),
-        "raw": "", "destructive": True, "error": None,
-    }
 
 
 def _handle_tts(skill_cat: str, query: str, skill: dict) -> dict:
