@@ -108,19 +108,20 @@ def _wake_on_lan(mac: str) -> bool:
         return False
 
 
-def _is_online(ip: str) -> bool:
+def _is_online(ip: str, port: int = 8002) -> bool:
     """Check if TV is reachable."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
-        result = sock.connect_ex((ip, 8001))
+        result = sock.connect_ex((ip, port))
         sock.close()
         return result == 0
     except Exception:
         return False
 
 
-def _send_key(ip: str, key: str, token: str | None = None) -> dict:
+def _send_key(ip: str, key: str, token: str | None = None,
+              port: int = 8002, use_ssl: bool = True) -> dict:
     """Send a key command via WebSocket."""
     try:
         import websocket
@@ -129,12 +130,15 @@ def _send_key(ip: str, key: str, token: str | None = None) -> dict:
                        "Agregar a Dockerfile: pip install websocket-client")
 
     name_b64 = base64.b64encode(APP_NAME.encode()).decode()
-    url = f"ws://{ip}:8001/api/v2/channels/samsung.remote.control?name={name_b64}"
+    proto = "wss" if use_ssl else "ws"
+    url = f"{proto}://{ip}:{port}/api/v2/channels/samsung.remote.control?name={name_b64}"
     if token:
         url += f"&token={token}"
 
+    ssl_opts = {"cert_reqs": __import__("ssl").CERT_NONE} if use_ssl else {}
+
     try:
-        ws = websocket.create_connection(url, timeout=TIMEOUT)
+        ws = websocket.create_connection(url, timeout=TIMEOUT, sslopt=ssl_opts)
         # Read connection response (may contain token)
         resp = json.loads(ws.recv())
 
@@ -164,7 +168,8 @@ def _send_key(ip: str, key: str, token: str | None = None) -> dict:
         return {"success": False, "error": str(e)}
 
 
-def _launch_app(ip: str, app_id: str, token: str | None = None) -> dict:
+def _launch_app(ip: str, app_id: str, token: str | None = None,
+                port: int = 8002, use_ssl: bool = True) -> dict:
     """Launch an app on Samsung TV."""
     try:
         import websocket
@@ -172,12 +177,15 @@ def _launch_app(ip: str, app_id: str, token: str | None = None) -> dict:
         return _error("websocket-client no instalado.")
 
     name_b64 = base64.b64encode(APP_NAME.encode()).decode()
-    url = f"ws://{ip}:8001/api/v2/channels/samsung.remote.control?name={name_b64}"
+    proto = "wss" if use_ssl else "ws"
+    url = f"{proto}://{ip}:{port}/api/v2/channels/samsung.remote.control?name={name_b64}"
     if token:
         url += f"&token={token}"
 
+    ssl_opts = {"cert_reqs": __import__("ssl").CERT_NONE} if use_ssl else {}
+
     try:
-        ws = websocket.create_connection(url, timeout=TIMEOUT)
+        ws = websocket.create_connection(url, timeout=TIMEOUT, sslopt=ssl_opts)
         ws.recv()  # connection response
 
         cmd = {
@@ -213,6 +221,8 @@ def execute(query: str, config: dict) -> dict:
     ip = target["ip"]
     dev_cfg = _get_device_config(config, target)
     token = dev_cfg.get("token")
+    port = dev_cfg.get("port", 8002)
+    use_ssl = dev_cfg.get("ssl", True)
 
     # Power on (WOL)
     if re.search(r"prend[eé]|encend|power\s*on|wake", q):
@@ -229,23 +239,23 @@ def execute(query: str, config: dict) -> dict:
 
     # Power off
     if re.search(r"apag[aá]|off|standby", q):
-        r = _send_key(ip, _KEYS["power"], token)
+        r = _send_key(ip, _KEYS["power"], token, port, use_ssl)
         return _ok("Samsung apagado.") if r.get("success") else \
             _error(f"Error apagando Samsung: {r.get('error')}")
 
     # Volume
     vol_match = re.search(r"(sub[ií]|m[aá]s)\s*(el\s+)?vol", q)
     if vol_match or re.search(r"vol\w*\s*(up|arriba|\+)", q):
-        r = _send_key(ip, _KEYS["vol_up"], token)
+        r = _send_key(ip, _KEYS["vol_up"], token, port, use_ssl)
         return _ok("Volumen +") if r.get("success") else _error("Error con volumen")
 
     if re.search(r"(baj[aá]|menos)\s*(el\s+)?vol", q) or re.search(r"vol\w*\s*(down|abajo|-)", q):
-        r = _send_key(ip, _KEYS["vol_down"], token)
+        r = _send_key(ip, _KEYS["vol_down"], token, port, use_ssl)
         return _ok("Volumen -") if r.get("success") else _error("Error con volumen")
 
     # Mute
     if re.search(r"mute|silenci|mutear", q):
-        r = _send_key(ip, _KEYS["mute"], token)
+        r = _send_key(ip, _KEYS["mute"], token, port, use_ssl)
         return _ok("Mute toggle.") if r.get("success") else _error("Error con mute")
 
     # HDMI input
@@ -254,11 +264,11 @@ def execute(query: str, config: dict) -> dict:
         n = int(hdmi_match.group(1))
         key = _KEYS.get(f"hdmi{n}")
         if key:
-            r = _send_key(ip, key, token)
+            r = _send_key(ip, key, token, port, use_ssl)
             return _ok(f"HDMI {n}") if r.get("success") else _error(f"Error cambiando a HDMI {n}")
 
     if re.search(r"source|fuente|input|entrada", q):
-        r = _send_key(ip, _KEYS["source"], token)
+        r = _send_key(ip, _KEYS["source"], token, port, use_ssl)
         return _ok("Menu de fuentes abierto.") if r.get("success") else _error("Error")
 
     # App launch
@@ -269,14 +279,14 @@ def execute(query: str, config: dict) -> dict:
         app_name = app_match.group(1).lower().replace("+", "+")
         app_id = _APP_IDS.get(app_name)
         if app_id:
-            r = _launch_app(ip, app_id, token)
+            r = _launch_app(ip, app_id, token, port, use_ssl)
             return _ok(f"{app_name.title()} lanzado.") if r.get("success") else \
                 _error(f"Error lanzando {app_name}")
         return _error(f"App '{app_name}' no encontrada.")
 
     # Navigation keys
     if re.search(r"\bhome\b|inicio", q):
-        r = _send_key(ip, _KEYS["home"], token)
+        r = _send_key(ip, _KEYS["home"], token, port, use_ssl)
         return _ok("Home") if r.get("success") else _error("Error")
 
     # Estado (default)
