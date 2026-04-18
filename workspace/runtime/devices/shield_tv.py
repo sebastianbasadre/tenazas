@@ -75,7 +75,8 @@ def _wake_on_lan(mac: str) -> bool:
 
 def _get_config(config: dict) -> tuple[str, str, str, str]:
     """Returns (ip, mac, cert_path, key_path)."""
-    dev = config.get("devices", {}).get("shield_tv", {})
+    from devices import load_tenazas_config
+    dev = load_tenazas_config().get("devices", {}).get("shield_tv", {})
     ip = dev.get("ip", DEFAULT_IP)
     mac = dev.get("mac", DEFAULT_MAC)
     cert_path = dev.get("cert_path", "")

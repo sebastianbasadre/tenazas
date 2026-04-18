@@ -55,7 +55,8 @@ _MODE_MAP = {
 
 
 def _get_config(config: dict) -> tuple[str, str]:
-    dev = config.get("devices", {}).get("xiaomi_vacuum", {})
+    from devices import load_tenazas_config
+    dev = load_tenazas_config().get("devices", {}).get("xiaomi_vacuum", {})
     ip = dev.get("ip", DEFAULT_IP)
     token = dev.get("token", "")
     return ip, token

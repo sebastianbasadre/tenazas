@@ -31,7 +31,8 @@ def _is_online(ip: str) -> bool:
 
 
 def status(config: dict) -> dict:
-    ip = config.get("devices", {}).get("nest_doorbell", {}).get("ip", DEFAULT_IP)
+    from devices import load_tenazas_config
+    ip = load_tenazas_config().get("devices", {}).get("nest_doorbell", {}).get("ip", DEFAULT_IP)
     online = _is_online(ip)
     return {
         "skill": "skill:smart-home", "success": True,

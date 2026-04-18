@@ -24,7 +24,7 @@ from urllib.parse import urlencode, urlparse, parse_qs
 from urllib.request import Request, urlopen, build_opener, HTTPCookieProcessor
 from http.cookiejar import CookieJar
 
-CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
+CONFIG_PATH = Path("/home/tenazas/.openclaw/tenazas_config.json")
 DEFAULT_IP = "192.168.2.99"
 
 

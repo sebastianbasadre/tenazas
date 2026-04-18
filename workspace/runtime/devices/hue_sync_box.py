@@ -50,8 +50,10 @@ def _ssl_ctx() -> ssl.SSLContext:
 
 
 def _get_config(config: dict) -> tuple[str, str]:
-    """Returns (ip, token) from config."""
-    sb = config.get("hue_sync_box", {})
+    """Returns (ip, token) from tenazas_config.json."""
+    from devices import load_tenazas_config
+    tcfg = load_tenazas_config()
+    sb = tcfg.get("hue_sync_box", {})
     ip = sb.get("ip", DEFAULT_IP)
     token = sb.get("token", "")
     return ip, token

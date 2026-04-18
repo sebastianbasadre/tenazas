@@ -23,6 +23,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
+TENAZAS_CONFIG_PATH = Path("/home/tenazas/.openclaw/tenazas_config.json")
 
 # ── Device detection patterns ───────────────────────────────────────
 # Order matters: more specific patterns first.
@@ -62,6 +63,26 @@ def _load_config() -> dict:
         return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def load_tenazas_config() -> dict:
+    """Load tenazas_config.json — device configs separate from gateway config.
+
+    This file is NOT read/validated by the OpenClaw gateway, so custom keys
+    (hue_sync_box, devices, etc.) won't cause crash loops.
+    """
+    try:
+        return json.loads(TENAZAS_CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_tenazas_config(data: dict) -> None:
+    """Save tenazas_config.json atomically."""
+    tmp = TENAZAS_CONFIG_PATH.with_suffix(".json.tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    tmp.replace(TENAZAS_CONFIG_PATH)
 
 
 def detect_device(query: str) -> str | None:
@@ -114,7 +135,9 @@ def dispatch(query: str, skill_cat: str = "skill:smart-home") -> dict:
                       f"'{device_id}' solo soporta consulta de estado (ping).")
 
     # Check if device module is enabled in config
-    dev_cfg = config.get("devices", {}).get(device_id, {})
+    # Device config lives in tenazas_config.json (separate from gateway config)
+    tenazas = load_tenazas_config()
+    dev_cfg = tenazas.get("devices", {}).get(device_id, {})
     if dev_cfg.get("enabled") is False:
         mod = _get_module(device_id)
         name = getattr(mod, "DEVICE_NAME", device_id) if mod else device_id

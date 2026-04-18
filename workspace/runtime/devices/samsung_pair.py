@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 APP_NAME = "Tenazas"
-CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
+CONFIG_PATH = Path("/home/tenazas/.openclaw/tenazas_config.json")
 MAX_WAIT = 30  # seconds to wait for user to press Allow
 
 

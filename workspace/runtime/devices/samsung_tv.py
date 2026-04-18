@@ -88,8 +88,9 @@ def _detect_target(query: str) -> dict:
 
 
 def _get_device_config(config: dict, device: dict) -> dict:
-    """Get device config from openclaw.json."""
-    devs = config.get("devices", {})
+    """Get device config from tenazas_config.json."""
+    from devices import load_tenazas_config
+    devs = load_tenazas_config().get("devices", {})
     return devs.get(device["config_key"], {})
 
 

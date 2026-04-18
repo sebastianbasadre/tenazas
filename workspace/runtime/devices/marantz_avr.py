@@ -78,7 +78,8 @@ _INPUT_MAP = {
 
 
 def _get_ip(config: dict) -> str:
-    return config.get("devices", {}).get("marantz_avr", {}).get("ip", DEFAULT_IP)
+    from devices import load_tenazas_config
+    return load_tenazas_config().get("devices", {}).get("marantz_avr", {}).get("ip", DEFAULT_IP)
 
 
 def _send_command(ip: str, cmd: str) -> bool:
