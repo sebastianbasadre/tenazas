@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 DEVICE_ID = "shield_tv"
 DEVICE_NAME = "NVIDIA SHIELD"
-DEFAULT_IP = "192.168.2.35"
+DEFAULT_IP = "192.168.2.96"
 DEFAULT_MAC = "9C:00:D3:94:47:49"
 
 ACTIONS = {
@@ -73,18 +73,19 @@ def _wake_on_lan(mac: str) -> bool:
         return False
 
 
-def _get_config(config: dict) -> tuple[str, str, str]:
-    """Returns (ip, mac, cert_path)."""
+def _get_config(config: dict) -> tuple[str, str, str, str]:
+    """Returns (ip, mac, cert_path, key_path)."""
     dev = config.get("devices", {}).get("shield_tv", {})
     ip = dev.get("ip", DEFAULT_IP)
     mac = dev.get("mac", DEFAULT_MAC)
     cert_path = dev.get("cert_path", "")
-    return ip, mac, cert_path
+    key_path = dev.get("key_path", "")
+    return ip, mac, cert_path, key_path
 
 
 def status(config: dict) -> dict:
     """Check SHIELD status."""
-    ip, _, _ = _get_config(config)
+    ip, _, _, _ = _get_config(config)
     online = _is_online(ip)
     return _ok(
         f"NVIDIA SHIELD ({ip}): {'online' if online else 'offline'}",
@@ -93,7 +94,7 @@ def status(config: dict) -> dict:
 
 def execute(query: str, config: dict) -> dict:
     """Execute a SHIELD action based on query text."""
-    ip, mac, cert_path = _get_config(config)
+    ip, mac, cert_path, key_path = _get_config(config)
     q = query.lower()
 
     # Power on (WOL)
@@ -107,15 +108,15 @@ def execute(query: str, config: dict) -> dict:
         return _error(f"SHIELD ({ip}) no esta accesible. "
                        "Probablemente esta apagado.")
 
-    if not cert_path:
+    if not cert_path or not key_path:
         return _error(
             "SHIELD no esta pareado. Necesita pairing one-time "
             "(genera certificado + PIN en pantalla). "
-            "Configurar cert_path en openclaw.json > devices.shield_tv")
+            "Configurar cert_path y key_path en openclaw.json > devices.shield_tv")
 
     # Try androidtvremote2 for all other commands
     try:
-        return _execute_remote(ip, cert_path, q)
+        return _execute_remote(ip, cert_path, key_path, q)
     except ImportError:
         return _error("androidtvremote2 no instalado. "
                        "Agregar a Dockerfile: pip install androidtvremote2 aiohttp")
@@ -123,12 +124,12 @@ def execute(query: str, config: dict) -> dict:
         return _error(f"Error controlando SHIELD: {e}")
 
 
-def _execute_remote(ip: str, cert_path: str, q: str) -> dict:
+def _execute_remote(ip: str, cert_path: str, key_path: str, q: str) -> dict:
     """Execute via androidtvremote2 (async wrapped)."""
     from androidtvremote2 import AndroidTVRemote, InvalidAuth
 
     async def _run():
-        remote = AndroidTVRemote(cert_path, ip)
+        remote = AndroidTVRemote("Tenazas", cert_path, key_path, ip)
         try:
             await remote.async_connect()
         except InvalidAuth:
@@ -137,7 +138,7 @@ def _execute_remote(ip: str, cert_path: str, q: str) -> dict:
         try:
             # Power off
             if re.search(r"apag[aá]|off|standby", q):
-                await remote.async_send_key_command("KEYCODE_POWER")
+                remote.send_key_command("KEYCODE_POWER")
                 return _ok("SHIELD apagado.")
 
             # App launch
@@ -149,33 +150,33 @@ def _execute_remote(ip: str, cert_path: str, q: str) -> dict:
                 app_name = app_match.group(1).lower()
                 package = _APPS.get(app_name)
                 if package:
-                    await remote.async_send_launch_app(package)
+                    remote.send_launch_app(package)
                     return _ok(f"{app_name.title()} lanzado en SHIELD.")
                 return _error(f"App '{app_name}' no encontrada.")
 
             # Media controls
             if re.search(r"\bplay\b|reanudar|continuar", q):
-                await remote.async_send_key_command("KEYCODE_MEDIA_PLAY")
+                remote.send_key_command("KEYCODE_MEDIA_PLAY")
                 return _ok("SHIELD: play")
             if re.search(r"pausa|pause", q):
-                await remote.async_send_key_command("KEYCODE_MEDIA_PAUSE")
+                remote.send_key_command("KEYCODE_MEDIA_PAUSE")
                 return _ok("SHIELD: pausa")
             if re.search(r"\bstop\b|detener", q):
-                await remote.async_send_key_command("KEYCODE_MEDIA_STOP")
+                remote.send_key_command("KEYCODE_MEDIA_STOP")
                 return _ok("SHIELD: stop")
 
             # Navigation
             if re.search(r"\bhome\b|inicio", q):
-                await remote.async_send_key_command("KEYCODE_HOME")
+                remote.send_key_command("KEYCODE_HOME")
                 return _ok("SHIELD: home")
             if re.search(r"back|atras|atrás|volver", q):
-                await remote.async_send_key_command("KEYCODE_BACK")
+                remote.send_key_command("KEYCODE_BACK")
                 return _ok("SHIELD: back")
 
             return status({"devices": {"shield_tv": {"ip": ip}}})
 
         finally:
-            await remote.async_disconnect()
+            remote.disconnect()
 
     return asyncio.run(_run())
 
