@@ -1,4 +1,5 @@
 # Secrets & credentials
+.env
 openclaw.json
 gcal-creds.json
 gcal-token.json

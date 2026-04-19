@@ -5,14 +5,17 @@ services:
     container_name: openclaw
     restart: unless-stopped
     network_mode: host
+    env_file:
+      - .env
     environment:
-      - TZ=America/Buenos_Aires
-      - NODE_OPTIONS=--dns-result-order=ipv4first
-      - OLLAMA_API_KEY=ollama-local
-      - GOG_KEYRING_PASSWORD=tenazas2026
-      - GOG_ACCOUNT=sebastian.basadre@gmail.com
-      - GOOGLE_API_KEY=AIzaSyCvTd7GkJDfntrcYRww9LaijPWvHD4B0pg
-      - OPENROUTER_API_KEY=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
+      - TZ=${TZ:-America/Buenos_Aires}
+      - NODE_OPTIONS=${NODE_OPTIONS:---dns-result-order=ipv4first}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
+      - OLLAMA_API_BASE=${OLLAMA_API_BASE}
+      - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD}
+      - GOG_ACCOUNT=${GOG_ACCOUNT}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     volumes:
       - ./state:/home/tenazas/.openclaw
       - /var/run/docker.sock:/var/run/docker.sock
@@ -24,6 +27,7 @@ services:
       - ./workspace/runtime:/home/tenazas/runtime
       - ./himalaya-config:/home/tenazas/.config/himalaya
       - ./tools:/home/tenazas/tools
+      - ./ssh-keys:/home/tenazas/.ssh:ro
       - ./gcal-token.json:/home/tenazas/.openclaw/gcal-token.json:ro
     command: ["bash", "/home/tenazas/startup.sh"]
     stop_grace_period: 10s
@@ -62,7 +66,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=tenazas
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-tenazas}
       - GF_USERS_ALLOW_SIGN_UP=false
 
   searxng:
