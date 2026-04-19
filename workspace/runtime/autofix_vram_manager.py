@@ -89,20 +89,56 @@ def get_loaded_models(ollama_url: str | None = None) -> list[dict]:
         return []
 
 
+def _is_expired(expires_at: str) -> bool:
+    """Check if a model's keep_alive has expired (evictable by Ollama)."""
+    if not expires_at:
+        return False
+    try:
+        from datetime import datetime, timezone
+        # Parse ISO format with timezone
+        exp = expires_at.replace("Z", "+00:00")
+        # Remove sub-second precision beyond 6 digits for Python compat
+        if "." in exp:
+            base, rest = exp.split(".", 1)
+            frac = ""
+            tz = ""
+            for i, c in enumerate(rest):
+                if c in "+-Z":
+                    tz = rest[i:]
+                    frac = rest[:i]
+                    break
+            else:
+                frac = rest
+            exp = f"{base}.{frac[:6]}{tz}"
+        exp_dt = datetime.fromisoformat(exp)
+        now = datetime.now(timezone.utc)
+        return exp_dt <= now
+    except Exception:
+        return False
+
+
 def get_vram_free_gb(ollama_url: str | None = None) -> float:
     """Estimate free VRAM based on loaded models.
 
     RTX 3090 = 24GB total, ~2GB reserved by Windows/driver.
+    Models with expired keep_alive are counted as free (Ollama will
+    evict them when another model needs the VRAM).
     """
     total_gb = 24.0
     reserved_gb = 2.0
     loaded = get_loaded_models(ollama_url)
-    used = sum(m["size_vram_gb"] for m in loaded)
+    used = sum(m["size_vram_gb"] for m in loaded
+               if not _is_expired(m.get("expires_at", "")))
     return max(0, total_gb - reserved_gb - used)
 
 
 def unload_model(name: str, ollama_url: str | None = None) -> bool:
-    """Unload a model from VRAM via keep_alive=0."""
+    """Mark a model for immediate eviction via keep_alive=0.
+
+    Ollama won't physically remove the model from VRAM until another
+    model needs the space, but it sets expires_at to now so it will
+    be evicted immediately when Aider loads qwen2.5-coder:14b.
+    """
     url = ollama_url or _get_ollama_url()
     try:
         payload = json.dumps({
