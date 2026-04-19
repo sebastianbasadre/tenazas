@@ -27,12 +27,14 @@ Synology DS923+ (192.168.2.2) — Host principal
 └── Router (192.168.2.1)
 
 HomeLab (192.168.2.6) — GPU remota
-└── Ollama (:11434) — RTX 3090, modelos principales
-    ├── qwen2.5:7b        — Tareas de sistema y razonamiento
-    ├── deepseek-r1:14b   — Razonamiento complejo
-    ├── qwen3:8b          — Alternativa
-    ├── phi4-mini          — Fallback liviano
-    └── nomic-embed-text  — Embeddings para RAG
+├── Ollama (:11434) — RTX 3090, modelos principales
+│   ├── qwen2.5:7b        — Tareas de sistema y razonamiento
+│   ├── deepseek-r1:14b   — Razonamiento complejo
+│   ├── qwen3:8b          — Alternativa
+│   ├── phi4-mini          — Fallback liviano
+│   └── nomic-embed-text  — Embeddings para RAG
+├── windows_exporter (:9182) — CPU, RAM, disk, network, OS
+└── nvidia_gpu_exporter (:9835) — GPU temp, VRAM, utilization, power
 
 Smart Home (LAN)
 ├── Philips Hue Bridge (192.168.2.11) — 8 luces
@@ -630,6 +632,81 @@ python3 /home/tenazas/runtime/roi_report.py --send         # enviar a Telegram
 
 **Cron:** cada 6h (snapshot) + domingos 20:00 (reporte Telegram)
 
+### Health Sweep (`health_sweep.py`)
+
+Full-stack health sweep: NAS, HomeLab, APIs externas, servicios internos, dashboard cache. 25 probes paralelos con ThreadPoolExecutor.
+
+**Secciones (5):**
+
+| Sección | Probes | Qué chequea |
+|---|---|---|
+| NAS | docker_socket, containers, chromadb, prometheus, grafana, piper, vpn, ollama_nas | Containers up, VPN leak (ES), servicios locales |
+| HomeLab | ollama_gpu, ollama_vram, homelab_tcp, gpu_exporter | Ollama models, VRAM, GPU exporter :9835 |
+| APIs | binance_ping, binance_ticker, iol_api, gemini, telegram_bot, openmeteo | Reachability + latencia |
+| Interno | freeze_detector, rag, memory_stores, orchestrator, metrics_exporter | Heartbeat, RAG alive, bloat |
+| Dashboards | grafana_cache, chromadb_frozen | Cache stale detection |
+
+**Output:** Telegram (scored 0-100 con delta) + SQLite (`state/health_sweeps.sqlite`) + Prometheus gauges `tenazas_health_score{section}`
+
+**CLI:**
+```bash
+python3 health_sweep.py                # one-shot + Telegram
+python3 health_sweep.py --no-telegram  # solo SQLite
+python3 health_sweep.py --watch        # loop 5 min
+python3 health_sweep.py --json         # JSON output
+python3 health_sweep.py --section nas  # sección específica
+```
+
+**Cron:** cada 5 min via DSM Task Scheduler. 31 tests.
+
+### Autofix Agent (`autofix_agent.py` + 6 módulos)
+
+Agente autónomo de auto-reparación con 3 tiers de confianza. Lee failures de `health_sweep.py`.
+
+**Arquitectura modular:**
+
+| Módulo | Función |
+|---|---|
+| `autofix_agent.py` | Orchestrator + CLI + kill switch |
+| `autofix_tiers.py` | Regression detection + tier classification |
+| `autofix_sandbox.py` | Git ops (branch, diff validation, merge, rollback) |
+| `autofix_aider.py` | Aider CLI wrapper con system prompt constrained |
+| `autofix_ssh.py` | SSH whitelisted a HOMELAB (solo ollama pull) |
+| `autofix_telegram.py` | Notify + approval flow |
+| `autofix_llm_check.py` | Ollama/Gemini availability check |
+
+**Tiers:**
+
+| Tier | Tipo | Auto? | Ejemplos |
+|---|---|---|---|
+| 1 | OPS | Sí (si habilitado) | Restart containers, ollama pull, load model |
+| 2 | CODE | Sí (si habilitado) | Aider + Ollama qwen2.5-coder:32b → git branch → test → merge |
+| 3 | PROPOSAL | Siempre | Telegram notification, human approval |
+
+**Safety:**
+- Kill switch: `state/AUTOFIX_DISABLED` (creado por default al deploy)
+- Tiers: T1=off, T2=off, T3=on por default. Habilitar gradualmente.
+- Protected files: orchestrator.py, safety_guard.py, docker_wrapper.py, runtime.py, etc.
+- Rate limits: 3 restarts/container/hora, 5 merges/día, auto-pause tras 3 fallos consecutivos
+- Post-deploy: re-sweep 60s después, auto-rollback si score baja >10 puntos
+- Regression detection: new, regression, chronic (→T3), flapping (→skip), gradual (→T3)
+- Expected degradations: ollama_nas skip cuando HomeLab alive
+
+**CLI:**
+```bash
+python3 autofix_agent.py                    # one-shot
+python3 autofix_agent.py --dry-run          # clasifica sin actuar
+python3 autofix_agent.py --status           # estado actual
+python3 autofix_agent.py --force-tier 3     # todo → approval
+python3 autofix_agent.py --rollback <sha>   # revert commit
+python3 autofix_agent.py --kill             # kill switch ON
+python3 autofix_agent.py --enable           # kill switch OFF
+```
+
+**Config:** `state/autofix_config.json` — tiers, rate limits, protected files, pullable models, timeouts
+**State:** `state/autofix_state.json` + `state/autofix_log.jsonl` (audit append-only)
+**Tests:** 54 tests passing.
+
 ### Finance — Finanzas personales (`finance.py`)
 
 Modulo standalone, desacoplado del runtime. Persistencia en `runtime/finance/transactions.json`.
@@ -1023,6 +1100,16 @@ workspace/runtime/
 │ ── ROI Dashboard ──
 ├── roi_tracker.py             — ROI metrics: skill usage, hours saved, errors avoided
 ├── roi_report.py              — Weekly ROI report formatted for Telegram
+│
+│ ── Health & Autofix ──
+├── health_sweep.py            — Full-stack health sweep (25 probes, SQLite, Telegram, Prometheus)
+├── autofix_agent.py           — 3-tier auto-repair orchestrator (kill switch, rate limits)
+├── autofix_tiers.py           — Regression detection + tier classification
+├── autofix_sandbox.py         — Git ops (branch, diff validation, merge, rollback)
+├── autofix_aider.py           — Aider CLI wrapper (constrained system prompt)
+├── autofix_ssh.py             — SSH whitelisted to HOMELAB (ollama pull only)
+├── autofix_telegram.py        — Autofix notifications + approval flow
+├── autofix_llm_check.py       — Ollama/Gemini backend availability
 │
 │ ── Testing & Evolution ──
 ├── simulation_lab.py          — Simulacion de escenarios de infra
@@ -1558,6 +1645,8 @@ docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 test
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
 docker exec openclaw python3 /home/tenazas/tests/test_finetuned_router.py # 29 tests
 docker exec openclaw python3 /home/tenazas/tests/test_intent_normalizer.py # 42 tests
+docker exec openclaw python3 /home/tenazas/tests/test_health_sweep.py     # 31 tests
+docker exec openclaw python3 /home/tenazas/tests/test_autofix.py          # 54 tests
 docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
 ```
@@ -2083,6 +2172,7 @@ infra_monitor detecta problema
 | Tenazas Agent | `tenazas-agent` | Router V2, roles, guardrails |
 | Portfolio IOL — Vista Analista | `iol-portfolio-analista` | Valor total, P&L, posiciones (tabla+gain%+PnL+evolución+detalle), evolución histórica, salud API |
 | Tenazas ROI Dashboard | `tenazas-roi` | Horas ahorradas, automation rate, uso por skill, success rate, errores evitados, skills vs LLM chat |
+| Tenazas Infra — NAS + HomeLab | `tenazas-infra` | CPU/RAM/disk NAS+HomeLab, GPU RTX 3090 (temp/VRAM/util/power/fan/clocks/throttle), Ollama status |
 
 ### Tests B+A
 
