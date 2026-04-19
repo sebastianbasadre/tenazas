@@ -3,6 +3,7 @@
 autofix_llm_check.py — LLM backend availability for autofix.
 
 Checks Ollama HOMELAB, Gemini quota, in priority order.
+Reads model config from autofix_config.json if available.
 """
 
 import json
@@ -10,16 +11,36 @@ import os
 from pathlib import Path
 from urllib.request import urlopen
 
-HOMELAB_OLLAMA = "http://192.168.2.6:11434"
-
 _IN_CONTAINER = Path("/home/tenazas").exists()
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else Path(__file__).parent.parent / "state"
+CONFIG_PATH = STATE_DIR / "autofix_config.json"
+
+# Defaults (overridden by config)
+_DEFAULT_OLLAMA_URL = "http://192.168.2.6:11434"
+_DEFAULT_MODEL = "qwen2.5-coder:14b"
+_DEFAULT_FALLBACK = "gemini/gemini-2.5-flash"
 
 
-def check_ollama(model: str = "qwen2.5-coder:32b") -> dict:
-    """Check if Ollama HOMELAB has the requested model."""
+def _load_llm_config() -> dict:
+    """Load llm_backends section from autofix_config.json."""
     try:
-        resp = urlopen(f"{HOMELAB_OLLAMA}/api/tags", timeout=5)
+        if CONFIG_PATH.exists():
+            cfg = json.loads(CONFIG_PATH.read_text())
+            return cfg.get("llm_backends", {})
+    except Exception:
+        pass
+    return {}
+
+
+def check_ollama(model: str | None = None) -> dict:
+    """Check if Ollama HOMELAB has the requested model."""
+    llm_cfg = _load_llm_config()
+    ollama_url = llm_cfg.get("ollama_base_url", _DEFAULT_OLLAMA_URL)
+    if model is None:
+        model = llm_cfg.get("aider_model", _DEFAULT_MODEL)
+
+    try:
+        resp = urlopen(f"{ollama_url}/api/tags", timeout=5)
         if resp.status == 200:
             data = json.loads(resp.read())
             models = {m.get("name", "") for m in data.get("models", [])}
@@ -27,7 +48,7 @@ def check_ollama(model: str = "qwen2.5-coder:32b") -> dict:
                 return {"available": True, "model": model, "backend": "ollama"}
             # Try fallbacks
             for fb in ["qwen2.5-coder:14b", "qwen2.5:7b"]:
-                if fb in models:
+                if fb != model and fb in models:
                     return {"available": True, "model": fb, "backend": "ollama",
                             "fallback": True}
     except Exception:
@@ -37,6 +58,9 @@ def check_ollama(model: str = "qwen2.5-coder:32b") -> dict:
 
 def check_gemini() -> dict:
     """Check Gemini quota from cached state."""
+    llm_cfg = _load_llm_config()
+    fallback_model = llm_cfg.get("aider_fallback_model", _DEFAULT_FALLBACK)
+
     quota_file = STATE_DIR / "gemini_quota.json"
     try:
         if quota_file.exists():
@@ -44,12 +68,12 @@ def check_gemini() -> dict:
             if quota.get("exhausted", False):
                 return {"available": False, "backend": "gemini",
                         "reason": f"quota exhausted, resets {quota.get('reset_at', '?')}"}
-            return {"available": True, "backend": "gemini", "model": "gemini/gemini-2.5-flash"}
+            return {"available": True, "backend": "gemini", "model": fallback_model}
     except Exception:
         pass
     # No quota file — check env
     if os.environ.get("GOOGLE_API_KEY"):
-        return {"available": True, "backend": "gemini", "model": "gemini/gemini-2.5-flash"}
+        return {"available": True, "backend": "gemini", "model": fallback_model}
     return {"available": False, "backend": "gemini", "reason": "no API key"}
 
 

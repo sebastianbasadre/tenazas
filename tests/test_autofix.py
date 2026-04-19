@@ -395,7 +395,7 @@ class TestLLMCheck(unittest.TestCase):
         resp = MagicMock()
         resp.status = 200
         resp.read.return_value = json.dumps({
-            "models": [{"name": "qwen2.5-coder:32b"}]
+            "models": [{"name": "qwen2.5-coder:14b"}]
         }).encode()
         mock_url.return_value = resp
         r = llm_check.check_availability()

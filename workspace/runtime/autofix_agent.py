@@ -95,8 +95,14 @@ DEFAULT_CONFIG = {
         "state/openclaw.json",
         "credentials/",
     ],
+    "llm_backends": {
+        "aider_model": "qwen2.5-coder:14b",
+        "aider_fallback_model": "gemini/gemini-2.5-flash",
+        "ollama_base_url": "http://192.168.2.6:11434",
+        "aider_path": "/home/tenazas/.openclaw/aider-venv/bin/aider",
+    },
     "pullable_ollama_models": [
-        "qwen2.5:3b", "qwen2.5:7b", "qwen2.5-coder:32b",
+        "qwen2.5:3b", "qwen2.5:7b", "qwen2.5-coder:14b",
         "qwen3:8b", "phi4-mini", "nomic-embed-text",
     ],
     "diff_limits": {"max_lines": 50, "max_files": 3},

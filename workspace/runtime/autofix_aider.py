@@ -3,19 +3,25 @@
 autofix_aider.py — Aider CLI wrapper for autofix Tier 2.
 
 Invokes Aider as subprocess with constrained system prompt.
+Reads model and path config from autofix_config.json.
 Detects UNFIXABLE responses.
 """
 
+import json
 import os
 import re
 import subprocess
 from pathlib import Path
 
-HOMELAB_OLLAMA = "http://192.168.2.6:11434"
-
 _IN_CONTAINER = Path("/home/tenazas").exists()
 REPO_DIR = Path("/home/tenazas") if _IN_CONTAINER else Path(__file__).parent.parent
 BASE_DIR = Path(__file__).parent
+STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else BASE_DIR.parent / "state"
+CONFIG_PATH = STATE_DIR / "autofix_config.json"
+
+# Defaults (overridden by config llm_backends section)
+_DEFAULT_OLLAMA_URL = "http://192.168.2.6:11434"
+_DEFAULT_AIDER_PATH = "/home/tenazas/.openclaw/aider-venv/bin/aider"
 
 SYSTEM_PROMPT = """\
 Sos el auto-fix agent de Tenazas. Reglas ABSOLUTAS:
@@ -37,14 +43,42 @@ Sos el auto-fix agent de Tenazas. Reglas ABSOLUTAS:
 """
 
 
+def _load_llm_config() -> dict:
+    """Load llm_backends section from config."""
+    try:
+        if CONFIG_PATH.exists():
+            cfg = json.loads(CONFIG_PATH.read_text())
+            return cfg.get("llm_backends", {})
+    except Exception:
+        pass
+    return {}
+
+
+def _get_aider_path() -> str:
+    """Get aider binary path from config or default."""
+    cfg = _load_llm_config()
+    path = cfg.get("aider_path", _DEFAULT_AIDER_PATH)
+    # Fall back to bare "aider" if configured path doesn't exist
+    if not Path(path).exists():
+        return "aider"
+    return path
+
+
 def is_installed() -> bool:
     """Check if aider-chat is installed."""
+    aider = _get_aider_path()
     try:
-        r = subprocess.run(["pip", "show", "aider-chat"],
+        r = subprocess.run([aider, "--version"],
                            capture_output=True, text=True, timeout=10)
         return r.returncode == 0
     except Exception:
-        return False
+        # Try pip check as fallback
+        try:
+            r = subprocess.run(["pip", "show", "aider-chat"],
+                               capture_output=True, text=True, timeout=10)
+            return r.returncode == 0
+        except Exception:
+            return False
 
 
 def collect_context(probe: str, detail: dict) -> dict:
@@ -124,23 +158,27 @@ def run_aider(prompt: str, files: list[str], model: str,
     Args:
         prompt: full prompt text
         files: list of file paths to edit
-        model: model identifier (e.g. "ollama/qwen2.5-coder:32b")
+        model: model identifier (e.g. "qwen2.5-coder:14b")
         backend: "ollama" or "gemini"
         timeout: seconds
 
     Returns:
         {success, output, unfixable, unfixable_reason, error}
     """
+    llm_cfg = _load_llm_config()
+    ollama_url = llm_cfg.get("ollama_base_url", _DEFAULT_OLLAMA_URL)
+    aider = _get_aider_path()
+
     # Build model flag
     if backend == "ollama":
         model_flag = f"ollama_chat/{model}" if "/" not in model else model
-        env = {**os.environ, "OLLAMA_API_BASE": HOMELAB_OLLAMA}
+        env = {**os.environ, "OLLAMA_API_BASE": ollama_url}
     else:
         model_flag = model  # e.g. "gemini/gemini-2.5-flash"
         env = dict(os.environ)
 
     cmd = [
-        "aider",
+        aider,
         "--model", model_flag,
         "--no-auto-commits",
         "--yes",
