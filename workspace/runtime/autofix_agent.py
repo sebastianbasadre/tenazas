@@ -1,1025 +1,693 @@
 #!/usr/bin/env python3
 """
-autofix_agent.py — Auto-repair agent for Tenazas.
+autofix_agent.py — Autonomous auto-repair agent for Tenazas.
 
-3-tier fix system:
-  Tier 1: OPS — keyword/regex, no LLM (restart, pull, clear cache)
-  Tier 2: CODE — Aider + Ollama local (qwen2.5-coder:32b) or Gemini fallback
-  Tier 3: PROPOSAL — Telegram notification with context, awaits human decision
+3-tier system with controlled autonomy:
+  Tier 1: OPS — restart containers, pull models, clear cache (no LLM)
+  Tier 2: CODE — Aider + Ollama/Gemini, git safety net, auto-rollback
+  Tier 3: PROPOSAL — Telegram notification, human approval required
 
-Reads from health_sweep SQLite for regression detection.
-Respects expected_degradations and never_existed from config.
+Reads health_sweep SQLite. Respects expected_degradations, never_existed,
+protected_files. Kill switch: state/AUTOFIX_DISABLED.
+
+Deploy with kill switch ON. Enable tiers gradually via config.
 
 Usage:
-  python3 autofix_agent.py                    # process latest sweep failures
-  python3 autofix_agent.py --dry-run          # show what would happen
-  python3 autofix_agent.py --tier1-only       # ops fixes only
-  python3 autofix_agent.py --kill-switch      # disable all auto-fixes
-  python3 autofix_agent.py --status           # show agent state
+  python3 autofix_agent.py                    # one-shot
+  python3 autofix_agent.py --dry-run          # classify only
+  python3 autofix_agent.py --watch            # loop 5 min
+  python3 autofix_agent.py --force-tier 3     # all → Tier 3
+  python3 autofix_agent.py --rollback <sha>   # revert a commit
+  python3 autofix_agent.py --status           # show state
+  python3 autofix_agent.py --enable           # remove kill switch
+  python3 autofix_agent.py --kill             # create kill switch
 """
 
 import argparse
 import json
 import logging
 import os
-import re
-import shutil
-import sqlite3
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
-from urllib.error import URLError
 from urllib.request import Request, urlopen
+
+# ── Local imports ───────────────────────────────────────────────
+
+sys.path.insert(0, str(Path(__file__).parent))
+from autofix_tiers import (classify_regression, classify_tier, should_skip,
+                           get_probe_history, get_latest_failures,
+                           get_sweep_count, get_latest_score)
+from autofix_llm_check import check_availability as check_llm
+from autofix_sandbox import (git_is_clean, create_branch, validate_diff,
+                             commit_fix, merge_to_main, rollback,
+                             cleanup_branch, get_diff_summary)
+from autofix_aider import (is_installed as aider_installed, collect_context,
+                           build_prompt, run_aider)
+from autofix_ssh import ssh_available, ollama_pull
+from autofix_telegram import (notify, notify_tier1, notify_tier2,
+                              notify_tier2_rollback, notify_tier3_proposal,
+                              notify_degraded, format_status)
 
 # ── Paths ───────────────────────────────────────────────────────
 
 _IN_CONTAINER = Path("/home/tenazas").exists()
-BASE_DIR = Path(__file__).parent
-CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if _IN_CONTAINER else BASE_DIR.parent / "state" / "openclaw.json"
-STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else BASE_DIR.parent / "state"
-AUTOFIX_CONFIG = STATE_DIR / "autofix_config.json"
-AUTOFIX_STATE = STATE_DIR / "autofix_state.json"
-SWEEP_DB = STATE_DIR / "health_sweeps.sqlite"
-REPO_DIR = Path("/home/tenazas") if _IN_CONTAINER else BASE_DIR.parent
-CHAT_ID = "1565794551"
-
-HOMELAB_IP = "192.168.2.6"
-HOMELAB_OLLAMA = f"http://{HOMELAB_IP}:11434"
-HOMELAB_SSH_KEY = STATE_DIR / ".ssh" / "homelab_key"
-
-# ── Logging ─────────────────────────────────────────────────────
+STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else Path(__file__).parent.parent / "state"
+CONFIG_PATH = STATE_DIR / "autofix_config.json"
+STATE_PATH = STATE_DIR / "autofix_state.json"
+LOG_PATH = STATE_DIR / "autofix_log.jsonl"
+KILL_SWITCH = STATE_DIR / "AUTOFIX_DISABLED"
+REJECTED_DIR = STATE_DIR / "rejected_fixes"
 
 log = logging.getLogger("autofix_agent")
 
-# ── Rate limits ─────────────────────────────────────────────────
+# ── Default config ──────────────────────────────────────────────
 
-MAX_TIER1_PER_HOUR = 10
-MAX_TIER2_PER_HOUR = 3
-MAX_TIER3_PER_HOUR = 5
-TIER2_TIMEOUT = 180       # 3 min for Aider
-TIER1_TIMEOUT = 30        # 30s for ops commands
-OLLAMA_PULL_TIMEOUT = 900 # 15 min for model downloads
-
-# Models allowed to be pulled automatically
-PULLABLE_MODELS = {
-    "qwen2.5:3b", "qwen2.5:7b", "qwen2.5-coder:32b",
-    "qwen3:8b", "phi4-mini", "nomic-embed-text",
+DEFAULT_CONFIG = {
+    "tier_enabled": {
+        "tier_1": False,
+        "tier_2": False,
+        "tier_3": True,
+    },
+    "rate_limits": {
+        "tier_1_restarts_per_container_per_hour": 3,
+        "tier_2_merges_per_day": 5,
+        "tier_2_changes_per_file_per_day": 1,
+        "tier_2_consecutive_failures_before_pause": 3,
+    },
+    "expected_degradations": [
+        {
+            "probe": "ollama_nas",
+            "condition": "homelab_ollama_alive",
+            "reason": "NAS Ollama es fallback, offline esperado si HOMELAB up",
+        },
+    ],
+    "never_existed": ["gpu_exporter"],
+    "protected_files": [
+        "workspace/runtime/orchestrator.py",
+        "workspace/runtime/safety_guard.py",
+        "workspace/runtime/docker_wrapper.py",
+        "workspace/runtime/runtime.py",
+        "workspace/runtime/executors.py",
+        "workspace/runtime/infra_diagnostics.py",
+        "state/openclaw.json",
+        "credentials/",
+    ],
+    "pullable_ollama_models": [
+        "qwen2.5:3b", "qwen2.5:7b", "qwen2.5-coder:32b",
+        "qwen3:8b", "phi4-mini", "nomic-embed-text",
+    ],
+    "diff_limits": {"max_lines": 50, "max_files": 3},
+    "timeouts": {
+        "aider_seconds": 180,
+        "tests_seconds": 300,
+        "ollama_pull_seconds": 900,
+        "tier3_approval_hours": 24,
+    },
 }
 
-# Files Aider is allowed to edit
-EDITABLE_WHITELIST = {
-    "runtime/", "tests/", "startup.sh", "ollama-check.sh",
-}
 
-# Files Aider must NEVER touch
-EDIT_BLACKLIST = {
-    "openclaw.json", "gcal-token.json", "gcal-creds.json",
-    "credentials/", "himalaya-config/", ".ssh/",
-    "docker-compose.yml", "Dockerfile",
-}
+# ── Config / State ──────────────────────────────────────────────
 
-# ── Helpers ─────────────────────────────────────────────────────
-
-def _load_config() -> dict:
+def load_config() -> dict:
     try:
-        return json.loads(CONFIG_PATH.read_text())
-    except Exception:
-        return {}
-
-
-def _load_autofix_config() -> dict:
-    """Load autofix-specific config with expected degradations."""
-    defaults = {
-        "expected_degradations": [
-            {
-                "probe": "ollama_nas",
-                "condition": "homelab_ollama_alive",
-                "reason": "NAS Ollama es fallback, offline esperado si HOMELAB up",
-            },
-        ],
-        "never_existed": ["gpu_exporter"],
-        "kill_switch": False,
-        "tier2_enabled": True,
-    }
-    try:
-        if AUTOFIX_CONFIG.exists():
-            cfg = json.loads(AUTOFIX_CONFIG.read_text())
-            # Merge with defaults
-            for k, v in defaults.items():
+        if CONFIG_PATH.exists():
+            cfg = json.loads(CONFIG_PATH.read_text())
+            # Merge defaults for missing keys
+            for k, v in DEFAULT_CONFIG.items():
                 if k not in cfg:
                     cfg[k] = v
             return cfg
-        else:
-            # Write defaults
-            AUTOFIX_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-            AUTOFIX_CONFIG.write_text(json.dumps(defaults, indent=2))
-            return defaults
-    except Exception:
-        return defaults
-
-
-def _load_state() -> dict:
-    try:
-        if AUTOFIX_STATE.exists():
-            return json.loads(AUTOFIX_STATE.read_text())
     except Exception:
         pass
-    return {
-        "tier1_actions": [],  # [{ts, probe, action, result}]
-        "tier2_actions": [],
-        "tier3_proposals": [],
-        "last_run": None,
-        "total_fixes": 0,
-        "total_proposals": 0,
-    }
+    # Write defaults
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, indent=2))
+    return dict(DEFAULT_CONFIG)
 
 
-def _save_state(state: dict):
+def load_state() -> dict:
     try:
-        AUTOFIX_STATE.parent.mkdir(parents=True, exist_ok=True)
-        AUTOFIX_STATE.write_text(json.dumps(state, indent=2, default=str))
-    except Exception as e:
-        log.error("save state failed: %s", e)
+        if STATE_PATH.exists():
+            return json.loads(STATE_PATH.read_text())
+    except Exception:
+        pass
+    return {"tier1": [], "tier2": [], "tier3": [],
+            "last_run": None, "total_fixes": 0, "total_proposals": 0,
+            "tier2_consecutive_failures": 0, "tier2_paused_until": None}
 
 
-def _notify(msg: str):
+def save_state(state: dict):
     try:
-        cfg = _load_config()
-        token = cfg["channels"]["telegram"]["botToken"]
-        payload = json.dumps({"chat_id": CHAT_ID, "text": msg[:4090]}).encode()
-        urlopen(Request(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data=payload, headers={"Content-Type": "application/json"},
-        ), timeout=10)
+        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        STATE_PATH.write_text(json.dumps(state, indent=2, default=str))
     except Exception as e:
-        log.error("notify failed: %s", e)
+        log.error("save state: %s", e)
 
 
-def _rate_check(actions: list, max_per_hour: int) -> bool:
-    """Return True if under rate limit."""
-    cutoff = time.time() - 3600
-    recent = [a for a in actions if a.get("ts", 0) > cutoff]
-    return len(recent) < max_per_hour
+def append_log(entry: dict):
+    """Append to audit log (JSONL)."""
+    try:
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        entry["ts"] = datetime.now().isoformat()
+        with open(LOG_PATH, "a") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except Exception:
+        pass
 
 
-def _record_action(state: dict, tier: str, probe: str, action: str, result: str):
-    key = f"tier{tier}_actions" if tier in ("1", "2") else "tier3_proposals"
+def record(state: dict, tier: int, probe: str, action: str, success: bool,
+           detail: str = ""):
+    key = f"tier{tier}"
     state.setdefault(key, []).append({
-        "ts": time.time(),
-        "probe": probe,
-        "action": action,
-        "result": result,
-        "dt": datetime.now().isoformat(),
+        "ts": time.time(), "dt": datetime.now().isoformat(),
+        "probe": probe, "action": action, "success": success, "detail": detail,
     })
-    # Keep last 100 per tier
-    state[key] = state[key][-100:]
+    state[key] = state[key][-100:]  # cap
+    append_log({"tier": tier, "probe": probe, "action": action,
+                "success": success, "detail": detail})
+
+
+# ── Rate limiting ───────────────────────────────────────────────
+
+def _count_recent(actions: list, hours: float = 1.0, **filters) -> int:
+    cutoff = time.time() - (hours * 3600)
+    count = 0
+    for a in actions:
+        if a.get("ts", 0) < cutoff:
+            continue
+        if all(a.get(k) == v for k, v in filters.items()):
+            count += 1
+    return count
+
+
+def rate_ok_tier1(state: dict, config: dict, probe: str) -> bool:
+    limit = config["rate_limits"]["tier_1_restarts_per_container_per_hour"]
+    return _count_recent(state.get("tier1", []), 1.0, probe=probe) < limit
+
+
+def rate_ok_tier2(state: dict, config: dict) -> bool:
+    limit = config["rate_limits"]["tier_2_merges_per_day"]
+    today = date.today().isoformat()
+    today_merges = sum(1 for a in state.get("tier2", [])
+                       if a.get("dt", "").startswith(today) and a.get("success"))
+    if today_merges >= limit:
+        return False
+    # Check pause
+    paused = state.get("tier2_paused_until")
+    if paused and datetime.now().isoformat() < paused:
+        return False
+    return True
+
+
+def rate_ok_tier2_file(state: dict, config: dict, filepath: str) -> bool:
+    limit = config["rate_limits"]["tier_2_changes_per_file_per_day"]
+    today = date.today().isoformat()
+    count = sum(1 for a in state.get("tier2", [])
+                if a.get("dt", "").startswith(today) and filepath in a.get("detail", ""))
+    return count < limit
+
+
+# ── Pre-flight ──────────────────────────────────────────────────
+
+def preflight(config: dict) -> dict:
+    """Run pre-flight checks. Returns {ok, errors}."""
+    errors = []
+
+    # Kill switch
+    if KILL_SWITCH.exists():
+        return {"ok": False, "errors": ["AUTOFIX_DISABLED exists (kill switch)"]}
+
+    # Config
+    if not CONFIG_PATH.exists():
+        errors.append("config missing (will create defaults)")
+
+    # Sweep baseline
+    sweep_count = get_sweep_count()
+    if sweep_count < 20:
+        errors.append(f"insufficient baseline: {sweep_count}/20 sweeps")
+
+    # LLM (only warn, don't fail)
+    llm = check_llm()
+    if not llm["recommended"]:
+        errors.append(f"no LLM: {llm['reason']}")
+
+    return {"ok": len(errors) == 0 or
+            all("insufficient" not in e and "DISABLED" not in e for e in errors),
+            "errors": errors,
+            "sweep_count": sweep_count,
+            "llm": llm}
 
 
 # ════════════════════════════════════════════════════════════════
-#  REGRESSION DETECTION (from health_sweep SQLite)
+#  TIER 1 — OPS
 # ════════════════════════════════════════════════════════════════
 
-def _get_probe_history(probe: str, n: int = 20) -> list[dict]:
-    """Get last N sweep results for a probe."""
-    try:
-        conn = sqlite3.connect(str(SWEEP_DB))
-        rows = conn.execute(
-            "SELECT ts, status, latency_ms, detail_json FROM sweeps "
-            "WHERE probe = ? ORDER BY id DESC LIMIT ?",
-            (probe, n)).fetchall()
-        conn.close()
-        return [{"ts": r[0], "status": r[1], "latency_ms": r[2],
-                 "detail": json.loads(r[3]) if r[3] else {}} for r in rows]
-    except Exception:
-        return []
-
-
-def classify_regression(probe: str) -> str:
-    """Classify probe failure type.
-
-    Returns:
-      'new'       — first time failing
-      'regression' — was ok, now failing
-      'chronic'   — failing > 5 consecutive sweeps
-      'flapping'  — alternating ok/fail
-      'unknown'   — not enough data
-    """
-    history = _get_probe_history(probe, 20)
-    if not history:
-        return "unknown"
-
-    statuses = [h["status"] for h in history]
-
-    # Current must be failing
-    if statuses[0] == "ok":
-        return "unknown"
-
-    # Count consecutive failures from most recent
-    consecutive_fails = 0
-    for s in statuses:
-        if s != "ok":
-            consecutive_fails += 1
-        else:
-            break
-
-    if consecutive_fails >= 5:
-        return "chronic"
-
-    # Check if it was ever ok
-    has_ok = "ok" in statuses
-    if not has_ok:
-        return "new"  # never been ok in our history
-
-    # Was ok recently, now failing
-    if consecutive_fails == 1:
-        # Check for flapping (ok-fail-ok-fail pattern)
-        flap_count = 0
-        for i in range(1, len(statuses)):
-            if statuses[i] != statuses[i - 1]:
-                flap_count += 1
-        if flap_count > len(statuses) * 0.5:
-            return "flapping"
-        return "regression"
-
-    return "regression"
-
-
-# ════════════════════════════════════════════════════════════════
-#  EXPECTED DEGRADATION FILTER
-# ════════════════════════════════════════════════════════════════
-
-def _check_condition(condition: str) -> bool:
-    """Evaluate a condition string against current system state."""
-    if condition == "homelab_ollama_alive":
-        try:
-            resp = urlopen(f"{HOMELAB_OLLAMA}/api/tags", timeout=3)
-            return resp.status == 200
-        except Exception:
-            return False
-    return False
-
-
-def should_skip_probe(probe: str, status: str, config: dict) -> tuple[bool, str]:
-    """Check if a failing probe should be skipped.
-
-    Returns (skip, reason).
-    """
-    if status == "ok":
-        return True, "probe is ok"
-
-    # Expected degradations
-    for deg in config.get("expected_degradations", []):
-        if deg["probe"] == probe:
-            cond = deg.get("condition", "")
-            if not cond or _check_condition(cond):
-                return True, f"expected: {deg.get('reason', 'configured')}"
-
-    # Never existed
-    if probe in config.get("never_existed", []):
-        return True, f"never_existed: needs install decision"
-
-    return False, ""
-
-
-# ════════════════════════════════════════════════════════════════
-#  LLM AVAILABILITY (pre-flight for Tier 2)
-# ════════════════════════════════════════════════════════════════
-
-def check_llm_availability() -> dict:
-    """Check which LLM backends are available for Tier 2.
-
-    Returns dict with availability info and recommended backend.
-    """
-    result = {
-        "ollama_local": False,
-        "ollama_model": None,
-        "gemini": False,
-        "recommended": None,
-        "reason": "",
-    }
-
-    # 1. Check Ollama HOMELAB has qwen2.5-coder:32b
-    try:
-        resp = urlopen(f"{HOMELAB_OLLAMA}/api/tags", timeout=5)
-        if resp.status == 200:
-            data = json.loads(resp.read())
-            models = {m.get("name", "") for m in data.get("models", [])}
-            if "qwen2.5-coder:32b" in models:
-                result["ollama_local"] = True
-                result["ollama_model"] = "qwen2.5-coder:32b"
-                result["recommended"] = "ollama"
-                result["reason"] = "local, free, private"
-                return result
-            # Try smaller coder model
-            for fallback in ["qwen2.5-coder:14b", "qwen2.5:7b"]:
-                if fallback in models:
-                    result["ollama_local"] = True
-                    result["ollama_model"] = fallback
-                    result["recommended"] = "ollama"
-                    result["reason"] = f"local fallback ({fallback})"
-                    return result
-    except Exception:
-        pass
-
-    # 2. Check Gemini quota
-    gemini_quota_file = STATE_DIR / "gemini_quota.json"
-    try:
-        if gemini_quota_file.exists():
-            quota = json.loads(gemini_quota_file.read_text())
-            if quota.get("exhausted", False):
-                reset_at = quota.get("reset_at", "unknown")
-                result["reason"] = f"Gemini quota exhausted, resets {reset_at}"
-            else:
-                result["gemini"] = True
-                result["recommended"] = "gemini"
-                result["reason"] = "cloud fallback (free tier)"
-                return result
-        else:
-            # Try a dummy call
-            api_key = os.environ.get("GOOGLE_API_KEY", "")
-            if api_key:
-                result["gemini"] = True
-                result["recommended"] = "gemini"
-                result["reason"] = "cloud fallback"
-                return result
-    except Exception:
-        pass
-
-    # 3. No LLM available
-    result["reason"] = result.get("reason", "") or "no LLM backend available"
-    return result
-
-
-# ════════════════════════════════════════════════════════════════
-#  TIER 1 — OPS (no LLM, keyword/regex, safe commands)
-# ════════════════════════════════════════════════════════════════
-
-# Closed catalog of Tier 1 actions
-TIER1_CATALOG = {
-    # Container restarts
-    "chromadb": {
-        "action": "restart_container",
-        "command": ["docker", "restart", "chromadb"],
-        "description": "Restart ChromaDB container",
-    },
-    "prometheus": {
-        "action": "restart_container",
-        "command": ["docker", "restart", "prometheus"],
-        "description": "Restart Prometheus container",
-    },
-    "grafana": {
-        "action": "restart_container",
-        "command": ["docker", "restart", "grafana"],
-        "description": "Restart Grafana container",
-    },
-    "piper": {
-        "action": "restart_container",
-        "command": ["docker", "restart", "piper"],
-        "description": "Restart Piper TTS container",
-    },
-    "vpn": {
-        "action": "restart_container",
-        "command": ["docker", "restart", "gluetun"],
-        "description": "Restart gluetun VPN gateway",
-    },
-    # Metrics exporter is inside openclaw — restart won't help,
-    # but we can check if the process is running
-    "metrics_exporter": {
-        "action": "check_process",
-        "command": ["pgrep", "-f", "metrics_server.py"],
-        "fallback": ["python3", "/home/tenazas/runtime/metrics_server.py"],
-        "description": "Check/restart metrics_server process",
-    },
-}
-
-# Containers that Tier 1 can restart (safety whitelist)
-RESTARTABLE_CONTAINERS = {
+# Containers Tier 1 can restart (safety whitelist)
+RESTARTABLE = {
     "chromadb", "prometheus", "grafana", "piper", "gluetun",
     "qbittorrent", "sonarr", "radarr", "lidarr", "prowlarr",
     "sabnzbd", "seerr", "requestrr", "tautulli",
 }
-
-# NEVER restart these
 PROTECTED_CONTAINERS = {"openclaw", "watchtower", "portainer"}
 
-
-def _tier1_restart_container(name: str, dry_run: bool = False) -> dict:
-    """Restart a container (Tier 1 action)."""
-    if name in PROTECTED_CONTAINERS:
-        return {"success": False, "action": "blocked",
-                "reason": f"{name} is protected"}
-    if name not in RESTARTABLE_CONTAINERS:
-        return {"success": False, "action": "blocked",
-                "reason": f"{name} not in restart whitelist"}
-    if dry_run:
-        return {"success": True, "action": "dry_run",
-                "command": f"docker restart {name}"}
-    try:
-        r = subprocess.run(["docker", "restart", name],
-                           capture_output=True, text=True, timeout=TIER1_TIMEOUT)
-        return {"success": r.returncode == 0, "action": "restart",
-                "output": r.stdout.strip()[:200]}
-    except Exception as e:
-        return {"success": False, "action": "restart", "error": str(e)}
+# Probe → container mapping for restarts
+PROBE_CONTAINER = {
+    "chromadb": "chromadb",
+    "chromadb_frozen": "chromadb",
+    "prometheus": "prometheus",
+    "grafana": "grafana",
+    "grafana_cache": "grafana",
+    "piper": "piper",
+    "vpn": "gluetun",
+}
 
 
-def _tier1_pull_model(model: str, dry_run: bool = False) -> dict:
-    """Pull a missing Ollama model on HOMELAB (Tier 1 action)."""
-    if model not in PULLABLE_MODELS:
-        return {"success": False, "action": "blocked",
-                "reason": f"{model} not in pullable whitelist"}
-    if not HOMELAB_SSH_KEY.exists():
-        return {"success": False, "action": "needs_setup",
-                "reason": "SSH key not configured",
-                "setup": f"ssh-keygen -f {HOMELAB_SSH_KEY} && ssh-copy-id -i {HOMELAB_SSH_KEY} user@{HOMELAB_IP}"}
+def exec_tier1(probe: str, detail: dict, config: dict, state: dict,
+               dry_run: bool = False) -> dict:
+    """Execute Tier 1 ops action."""
+    # Container restart
+    container = PROBE_CONTAINER.get(probe)
+    if container:
+        if container in PROTECTED_CONTAINERS:
+            return {"success": False, "action": "blocked",
+                    "reason": f"{container} is protected"}
+        if container not in RESTARTABLE:
+            return {"success": False, "action": "blocked",
+                    "reason": f"{container} not restartable"}
+        if not rate_ok_tier1(state, config, probe):
+            return {"success": False, "action": "rate_limited",
+                    "reason": "rate limit exceeded"}
+        if dry_run:
+            return {"success": True, "action": "dry_run",
+                    "command": f"docker restart {container}"}
+        try:
+            r = subprocess.run(["docker", "restart", container],
+                               capture_output=True, text=True, timeout=30)
+            return {"success": r.returncode == 0, "action": "restart",
+                    "container": container,
+                    "output": r.stdout.strip()[:200]}
+        except Exception as e:
+            return {"success": False, "action": "restart", "error": str(e)}
 
-    if dry_run:
-        return {"success": True, "action": "dry_run",
-                "command": f"ssh HOMELAB 'ollama pull {model}'"}
-    try:
-        r = subprocess.run(
-            ["ssh", "-i", str(HOMELAB_SSH_KEY), "-o", "StrictHostKeyChecking=no",
-             f"user@{HOMELAB_IP}", f"ollama pull {model}"],
-            capture_output=True, text=True, timeout=OLLAMA_PULL_TIMEOUT)
-        return {"success": r.returncode == 0, "action": "pull_model",
-                "output": r.stdout.strip()[-200:]}
-    except subprocess.TimeoutExpired:
-        return {"success": False, "action": "pull_model",
-                "error": f"timeout after {OLLAMA_PULL_TIMEOUT}s"}
-    except Exception as e:
-        return {"success": False, "action": "pull_model", "error": str(e)}
-
-
-def _tier1_load_model(model: str, dry_run: bool = False) -> dict:
-    """Force-load a model into VRAM via dummy generate."""
-    if dry_run:
-        return {"success": True, "action": "dry_run",
-                "command": f"POST {HOMELAB_OLLAMA}/api/generate (model={model})"}
-    try:
-        payload = json.dumps({
-            "model": model, "prompt": "ok", "stream": False,
-            "options": {"num_predict": 1},
-        }).encode()
-        resp = urlopen(Request(
-            f"{HOMELAB_OLLAMA}/api/generate",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        ), timeout=30)
-        return {"success": resp.status == 200, "action": "load_model"}
-    except Exception as e:
-        return {"success": False, "action": "load_model", "error": str(e)}
-
-
-def _tier1_check_process(probe: str, dry_run: bool = False) -> dict:
-    """Check if a process is running, restart if not."""
-    entry = TIER1_CATALOG.get(probe, {})
-    cmd = entry.get("command", [])
-    fallback = entry.get("fallback", [])
-
-    if dry_run:
-        return {"success": True, "action": "dry_run",
-                "command": f"pgrep + fallback start"}
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        if r.returncode == 0:
-            return {"success": True, "action": "already_running",
-                    "pid": r.stdout.strip()}
-        # Process not running, start it
-        if fallback:
-            subprocess.Popen(fallback, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
-            return {"success": True, "action": "started"}
-        return {"success": False, "action": "not_running", "reason": "no fallback"}
-    except Exception as e:
-        return {"success": False, "action": "check_process", "error": str(e)}
-
-
-def route_tier1(probe: str, detail: dict, dry_run: bool = False) -> dict | None:
-    """Route a probe failure to a Tier 1 action. Returns None if no action."""
-    # Container restarts
-    if probe in TIER1_CATALOG:
-        entry = TIER1_CATALOG[probe]
-        if entry["action"] == "restart_container":
-            container = entry["command"][-1]
-            return _tier1_restart_container(container, dry_run)
-        elif entry["action"] == "check_process":
-            return _tier1_check_process(probe, dry_run)
-
-    # Missing container (from containers probe)
+    # Missing containers
     if probe == "containers":
         missing = detail.get("missing", [])
         results = []
-        for name in missing[:3]:  # max 3 restarts per sweep
-            r = _tier1_restart_container(name, dry_run)
-            results.append({"container": name, **r})
+        for name in missing[:3]:
+            if name in PROTECTED_CONTAINERS or name not in RESTARTABLE:
+                results.append({"container": name, "success": False, "action": "blocked"})
+                continue
+            if dry_run:
+                results.append({"container": name, "success": True, "action": "dry_run"})
+                continue
+            try:
+                r = subprocess.run(["docker", "restart", name],
+                                   capture_output=True, text=True, timeout=30)
+                results.append({"container": name, "success": r.returncode == 0,
+                                "action": "restart"})
+            except Exception as e:
+                results.append({"container": name, "success": False, "error": str(e)})
         return {"success": all(r.get("success") for r in results),
                 "action": "restart_missing", "results": results}
 
     # Ollama missing model
     if probe == "ollama_gpu":
-        missing = detail.get("missing_models", [])
-        for model in missing:
-            if model in PULLABLE_MODELS:
-                return _tier1_pull_model(model, dry_run)
-        return None
+        missing_models = detail.get("missing_models", [])
+        pullable = set(config.get("pullable_ollama_models", []))
+        for model in missing_models:
+            if model in pullable:
+                if dry_run:
+                    return {"success": True, "action": "dry_run",
+                            "command": f"ollama pull {model}"}
+                return ollama_pull(model, pullable,
+                                  config["timeouts"]["ollama_pull_seconds"])
+        return None  # no pullable models missing
 
-    # Ollama not loaded
+    # Ollama not loaded → force load
     if probe == "ollama_vram":
-        loaded = detail.get("loaded", [])
-        if not loaded:
-            return _tier1_load_model("qwen2.5:7b", dry_run)
-        return None
-
-    return None
-
-
-# ════════════════════════════════════════════════════════════════
-#  TIER 2 — CODE (Aider + Ollama/Gemini)
-# ════════════════════════════════════════════════════════════════
-
-def _collect_context(probe: str, detail: dict) -> dict:
-    """Collect error context for Tier 2 fix."""
-    context = {
-        "probe": probe,
-        "detail": detail,
-        "stacktrace": "",
-        "log_tail": "",
-        "files": [],
-    }
-
-    # Try to find relevant log
-    log_dir = BASE_DIR / "logs"
-    log_candidates = [
-        log_dir / f"{probe}.log",
-        log_dir / "runtime.log",
-        log_dir / "orchestrator.log",
-    ]
-    for lf in log_candidates:
-        if lf.exists():
-            try:
-                lines = lf.read_text().strip().split("\n")
-                # Get last 30 lines with errors
-                error_lines = [l for l in lines[-100:] if
-                               any(k in l.lower() for k in
-                                   ["error", "exception", "traceback", "fail"])]
-                context["log_tail"] = "\n".join(error_lines[-30:])
-                break
-            except Exception:
-                pass
-
-    # Extract stacktrace if present
-    msg = detail.get("message", "")
-    if "Traceback" in msg or "Error" in msg:
-        context["stacktrace"] = msg[:2000]
-
-    # Identify files from stacktrace
-    file_pattern = re.compile(r'File "([^"]+\.py)"')
-    for match in file_pattern.finditer(context.get("stacktrace", "") + context.get("log_tail", "")):
-        fpath = match.group(1)
-        # Only include files in our repo
-        if "/tenazas/" in fpath or "runtime/" in fpath:
-            rel = fpath.split("/tenazas/")[-1] if "/tenazas/" in fpath else fpath
-            if rel not in context["files"]:
-                context["files"].append(rel)
-
-    return context
-
-
-def _validate_diff(dry_run: bool = False) -> dict:
-    """Validate Aider's changes are safe."""
-    try:
-        r = subprocess.run(["git", "diff", "--stat"], capture_output=True,
-                           text=True, timeout=10, cwd=str(REPO_DIR))
-        diff_stat = r.stdout.strip()
-
-        if not diff_stat:
-            return {"valid": False, "reason": "no changes made"}
-
-        # Parse files and line counts
-        lines = diff_stat.split("\n")
-        summary = lines[-1] if lines else ""
-
-        # Extract changed files
-        changed_files = []
-        for line in lines[:-1]:
-            parts = line.strip().split("|")
-            if parts:
-                fname = parts[0].strip()
-                changed_files.append(fname)
-
-        # Check file count
-        if len(changed_files) > 3:
-            return {"valid": False, "reason": f"too many files: {len(changed_files)}",
-                    "files": changed_files}
-
-        # Check total lines
-        insertions = 0
-        deletions = 0
-        m = re.search(r"(\d+) insertion", summary)
-        if m:
-            insertions = int(m.group(1))
-        m = re.search(r"(\d+) deletion", summary)
-        if m:
-            deletions = int(m.group(1))
-        total_changes = insertions + deletions
-
-        if total_changes > 50:
-            return {"valid": False, "reason": f"too many changes: {total_changes} lines",
-                    "files": changed_files}
-
-        # Check whitelist/blacklist
-        for f in changed_files:
-            # Blacklist check
-            for bl in EDIT_BLACKLIST:
-                if bl in f:
-                    return {"valid": False, "reason": f"blacklisted file: {f}",
-                            "files": changed_files}
-            # Whitelist check
-            in_whitelist = any(f.startswith(w) or w in f for w in EDITABLE_WHITELIST)
-            if not in_whitelist:
-                return {"valid": False, "reason": f"file not in whitelist: {f}",
-                        "files": changed_files}
-
-        # py_compile check on Python files
-        for f in changed_files:
-            if f.endswith(".py"):
-                full_path = REPO_DIR / f
-                if full_path.exists():
-                    r2 = subprocess.run(
-                        ["python3", "-m", "py_compile", str(full_path)],
-                        capture_output=True, text=True, timeout=10)
-                    if r2.returncode != 0:
-                        return {"valid": False,
-                                "reason": f"syntax error in {f}: {r2.stderr[:200]}",
-                                "files": changed_files}
-
-        return {"valid": True, "files": changed_files,
-                "insertions": insertions, "deletions": deletions}
-    except Exception as e:
-        return {"valid": False, "reason": str(e)}
-
-
-def _run_tests(files: list[str]) -> dict:
-    """Run relevant tests for changed files."""
-    test_dir = REPO_DIR / "tests"
-    tests_to_run = []
-
-    for f in files:
-        # Try to find matching test file
-        basename = Path(f).stem
-        candidates = [
-            test_dir / f"test_{basename}.py",
-            test_dir / f"test_health_sweep.py",  # always run if runtime changed
-        ]
-        for t in candidates:
-            if t.exists() and str(t) not in tests_to_run:
-                tests_to_run.append(str(t))
-
-    if not tests_to_run:
-        return {"success": True, "skipped": True, "reason": "no matching tests"}
-
-    results = []
-    for test in tests_to_run[:3]:  # max 3 test files
+        if dry_run:
+            return {"success": True, "action": "dry_run",
+                    "command": "POST /api/generate (load model)"}
         try:
-            r = subprocess.run(["python3", test], capture_output=True,
-                               text=True, timeout=60, cwd=str(REPO_DIR))
-            results.append({
-                "test": Path(test).name,
-                "success": r.returncode == 0,
-                "output": r.stderr[-500:] if r.returncode != 0 else "",
-            })
+            payload = json.dumps({
+                "model": "qwen2.5:7b", "prompt": "ok", "stream": False,
+                "options": {"num_predict": 1},
+            }).encode()
+            resp = urlopen(Request(
+                "http://192.168.2.6:11434/api/generate",
+                data=payload, headers={"Content-Type": "application/json"},
+            ), timeout=30)
+            return {"success": resp.status == 200, "action": "load_model"}
         except Exception as e:
-            results.append({"test": Path(test).name, "success": False, "error": str(e)})
+            return {"success": False, "action": "load_model", "error": str(e)}
 
-    return {
-        "success": all(r["success"] for r in results),
-        "tests": results,
-    }
+    # Metrics exporter check/restart
+    if probe == "metrics_exporter":
+        if dry_run:
+            return {"success": True, "action": "dry_run", "command": "pgrep metrics_server"}
+        try:
+            r = subprocess.run(["pgrep", "-f", "metrics_server.py"],
+                               capture_output=True, text=True, timeout=5)
+            if r.returncode == 0:
+                return {"success": True, "action": "already_running"}
+            subprocess.Popen(
+                ["python3", "/home/tenazas/runtime/metrics_server.py"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"success": True, "action": "started"}
+        except Exception as e:
+            return {"success": False, "action": "check_process", "error": str(e)}
+
+    return None  # no Tier 1 action for this probe
 
 
-def run_tier2(probe: str, detail: dict, llm: dict,
-              dry_run: bool = False) -> dict:
-    """Run Tier 2 code fix via Aider."""
-    context = _collect_context(probe, detail)
+# ════════════════════════════════════════════════════════════════
+#  TIER 2 — CODE
+# ════════════════════════════════════════════════════════════════
 
-    if not context["files"] and not context["log_tail"]:
-        return {"success": False, "tier": 2,
-                "reason": "no stacktrace or files to fix"}
+def exec_tier2(probe: str, detail: dict, config: dict, state: dict,
+               llm: dict, dry_run: bool = False) -> dict:
+    """Execute Tier 2 code fix."""
+    if not llm.get("recommended"):
+        return {"success": False, "reason": "no LLM available", "escalate": 3}
 
-    # Build Aider prompt
-    error_summary = detail.get("message", probe)
-    prompt = (
-        f"Bug detectado en Tenazas: {error_summary}\n"
-        f"Stacktrace: {context['stacktrace'][:1500]}\n"
-        f"Log relevante: {context['log_tail'][:1000]}\n\n"
-        "Tu trabajo: arreglar SOLO este bug con el mínimo cambio posible.\n"
-        "NO refactorices. NO agregues features. NO toques archivos fuera "
-        "del stacktrace. Si no podés arreglarlo con <10 líneas o tocando "
-        'más de 2 archivos, respondé EXACTAMENTE "UNFIXABLE: <razón>".'
-    )
+    ctx = collect_context(probe, detail)
+    if not ctx["files"] and not ctx["log_tail"]:
+        return {"success": False, "reason": "no stacktrace or files", "escalate": 3}
 
-    # Determine backend
-    if llm["recommended"] == "ollama":
-        model_flag = f"ollama_chat/{llm['ollama_model']}"
-        env = {**os.environ, "OLLAMA_API_BASE": HOMELAB_OLLAMA}
-    elif llm["recommended"] == "gemini":
-        model_flag = "gemini/gemini-2.5-flash"
-        env = dict(os.environ)
-    else:
-        return {"success": False, "tier": 2, "reason": "no LLM available"}
-
-    # Branch name
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    slug = re.sub(r'[^a-z0-9]', '-', probe.lower())[:20]
-    branch = f"autofix/{ts}-{slug}"
+    prompt = build_prompt(probe, detail, ctx)
 
     if dry_run:
-        return {"success": True, "tier": 2, "action": "dry_run",
-                "branch": branch, "model": model_flag,
-                "files": context["files"], "prompt_preview": prompt[:300]}
+        return {"success": True, "action": "dry_run",
+                "model": llm["model"], "files": ctx["files"],
+                "prompt_len": len(prompt)}
 
-    # Create branch
-    subprocess.run(["git", "checkout", "-b", branch],
-                   capture_output=True, cwd=str(REPO_DIR))
+    if not rate_ok_tier2(state, config):
+        return {"success": False, "reason": "rate limit", "escalate": 3}
+
+    # Git setup
+    branch = create_branch(probe)
 
     try:
-        # Build Aider command
-        aider_cmd = [
-            "aider",
-            "--model", model_flag,
-            "--no-auto-commits",
-            "--yes",
-            "--map-tokens", "0",
-            "--no-stream",
-            "--message", prompt,
-        ] + context["files"]
+        # Run Aider
+        aider_result = run_aider(
+            prompt, ctx["files"], llm["model"], llm["backend"],
+            timeout=config["timeouts"]["aider_seconds"])
 
-        r = subprocess.run(aider_cmd, capture_output=True, text=True,
-                           timeout=TIER2_TIMEOUT, cwd=str(REPO_DIR), env=env)
+        if aider_result.get("error"):
+            cleanup_branch(branch)
+            return {"success": False, "reason": aider_result["error"],
+                    "escalate": 3}
 
-        aider_output = r.stdout + r.stderr
-
-        # Check for UNFIXABLE
-        if "UNFIXABLE" in aider_output:
-            reason = ""
-            for line in aider_output.split("\n"):
-                if "UNFIXABLE" in line:
-                    reason = line.split("UNFIXABLE:")[-1].strip()
-                    break
-            _git_cleanup(branch)
-            return {"success": False, "tier": 2, "reason": f"unfixable: {reason}",
-                    "escalate_to": 3}
+        if aider_result.get("unfixable"):
+            cleanup_branch(branch)
+            return {"success": False,
+                    "reason": f"UNFIXABLE: {aider_result['unfixable_reason']}",
+                    "escalate": 3}
 
         # Validate diff
-        validation = _validate_diff()
+        validation = validate_diff(
+            config["protected_files"],
+            config["diff_limits"]["max_lines"],
+            config["diff_limits"]["max_files"])
+
         if not validation["valid"]:
-            _git_cleanup(branch)
-            return {"success": False, "tier": 2,
+            cleanup_branch(branch)
+            return {"success": False,
                     "reason": f"diff rejected: {validation['reason']}",
-                    "escalate_to": 3}
+                    "escalate": 3, "diff": get_diff_summary()}
 
         # Run tests
-        test_result = _run_tests(validation.get("files", []))
+        test_result = _run_tests(validation.get("files", []), config)
         if not test_result["success"] and not test_result.get("skipped"):
-            _git_cleanup(branch)
-            return {"success": False, "tier": 2,
-                    "reason": f"tests failed",
-                    "test_details": test_result,
-                    "escalate_to": 3}
+            cleanup_branch(branch)
+            return {"success": False, "reason": "tests failed",
+                    "tests": test_result, "escalate": 3,
+                    "diff": get_diff_summary()}
 
-        # Commit the fix
-        subprocess.run(["git", "add", "-A"], capture_output=True, cwd=str(REPO_DIR))
-        subprocess.run(
-            ["git", "commit", "-m",
-             f"fix(autofix): {error_summary[:60]}\n\n"
-             f"Auto-generated by autofix_agent Tier 2\n"
-             f"Probe: {probe}\nModel: {model_flag}\n"
-             f"Branch: {branch}"],
-            capture_output=True, cwd=str(REPO_DIR))
+        # Commit + merge
+        if not commit_fix(probe, llm["model"]):
+            cleanup_branch(branch)
+            return {"success": False, "reason": "commit failed", "escalate": 3}
 
-        # Merge to main
-        subprocess.run(["git", "checkout", "main"], capture_output=True, cwd=str(REPO_DIR))
-        merge_r = subprocess.run(["git", "merge", branch],
-                                 capture_output=True, text=True, cwd=str(REPO_DIR))
+        merge = merge_to_main(branch)
+        if not merge["success"]:
+            cleanup_branch(branch)
+            return {"success": False, "reason": merge["reason"], "escalate": 3}
 
-        if merge_r.returncode != 0:
-            _git_cleanup(branch)
-            return {"success": False, "tier": 2,
-                    "reason": "merge conflict", "escalate_to": 3}
+        # Track consecutive failures reset
+        state["tier2_consecutive_failures"] = 0
 
-        # Cleanup branch
-        subprocess.run(["git", "branch", "-d", branch],
-                       capture_output=True, cwd=str(REPO_DIR))
+        changes = f"+{validation.get('insertions', 0)}/-{validation.get('deletions', 0)}"
+        return {"success": True, "action": "merged", "sha": merge["sha"],
+                "branch": branch, "model": llm["model"],
+                "files": validation.get("files", []), "changes": changes}
 
-        return {"success": True, "tier": 2, "branch": branch,
-                "model": model_flag, "files": validation.get("files", []),
-                "changes": f"+{validation.get('insertions', 0)}/{validation.get('deletions', 0)}"}
-
-    except subprocess.TimeoutExpired:
-        _git_cleanup(branch)
-        return {"success": False, "tier": 2,
-                "reason": f"aider timeout ({TIER2_TIMEOUT}s)", "escalate_to": 3}
     except Exception as e:
-        _git_cleanup(branch)
-        return {"success": False, "tier": 2, "reason": str(e), "escalate_to": 3}
+        cleanup_branch(branch)
+        return {"success": False, "reason": str(e), "escalate": 3}
 
 
-def _git_cleanup(branch: str):
-    """Cleanup failed Tier 2 branch."""
-    try:
-        subprocess.run(["git", "checkout", "main"], capture_output=True, cwd=str(REPO_DIR))
-        subprocess.run(["git", "branch", "-D", branch], capture_output=True, cwd=str(REPO_DIR))
-        subprocess.run(["git", "checkout", "--", "."], capture_output=True, cwd=str(REPO_DIR))
-    except Exception:
-        pass
+def _run_tests(files: list[str], config: dict) -> dict:
+    """Run tests for changed files."""
+    test_dir = Path("/home/tenazas/tests") if _IN_CONTAINER else Path(__file__).parent.parent / "tests"
+    tests = []
+    for f in files:
+        base = Path(f).stem
+        t = test_dir / f"test_{base}.py"
+        if t.exists() and str(t) not in tests:
+            tests.append(str(t))
+
+    if not tests:
+        return {"success": True, "skipped": True}
+
+    results = []
+    for t in tests[:3]:
+        try:
+            r = subprocess.run(["python3", t], capture_output=True, text=True,
+                               timeout=config["timeouts"]["tests_seconds"])
+            results.append({"test": Path(t).name, "success": r.returncode == 0,
+                            "output": r.stderr[-500:] if r.returncode != 0 else ""})
+        except Exception as e:
+            results.append({"test": Path(t).name, "success": False, "error": str(e)})
+
+    return {"success": all(r["success"] for r in results), "tests": results}
 
 
 # ════════════════════════════════════════════════════════════════
-#  TIER 3 — PROPOSAL (Telegram notification, human decision)
+#  TIER 3 — PROPOSAL
 # ════════════════════════════════════════════════════════════════
 
-def run_tier3(probe: str, detail: dict, reason: str = "",
-              dry_run: bool = False) -> dict:
-    """Create a proposal for human review via Telegram."""
+def exec_tier3(probe: str, detail: dict, reason: str = "",
+               diff: str = "", dry_run: bool = False) -> dict:
+    """Create Tier 3 proposal."""
     regression = classify_regression(probe)
-    msg = detail.get("message", "")
-    suggestion = detail.get("suggestion", "")
-
-    text = (
-        f"🔧 *Autofix Proposal — Tier 3*\n\n"
-        f"Probe: `{probe}`\n"
-        f"Status: {regression}\n"
-        f"Detail: {msg[:200]}\n"
-    )
-
-    if reason:
-        text += f"Tier 2 result: {reason[:200]}\n"
-    if suggestion:
-        text += f"Sugerencia: `{suggestion}`\n"
-
-    text += (
-        f"\nHistory: últimos 5 sweeps → "
-        f"{', '.join(h['status'] for h in _get_probe_history(probe, 5))}\n"
-    )
+    history = get_probe_history(probe, 5)
 
     if dry_run:
-        return {"success": True, "tier": 3, "action": "dry_run",
-                "message_preview": text[:500]}
+        return {"success": True, "action": "dry_run", "tier": 3,
+                "probe": probe, "regression": regression,
+                "reason": reason or detail.get("message", "")}
 
-    _notify(text)
-    return {"success": True, "tier": 3, "action": "notified",
+    notify_tier3_proposal(probe, regression, detail, reason, diff, history)
+    return {"success": True, "action": "notified", "tier": 3,
             "probe": probe, "regression": regression}
+
+
+# ════════════════════════════════════════════════════════════════
+#  POST-DEPLOY MONITORING
+# ════════════════════════════════════════════════════════════════
+
+def post_deploy_check(sha: str, score_before: int, dry_run: bool = False) -> dict:
+    """Wait and re-check health score after a Tier 2 merge."""
+    if dry_run:
+        return {"action": "dry_run", "sha": sha}
+
+    # Wait 60s (not 5 min in practice, but enough for a sweep cycle)
+    time.sleep(60)
+
+    score_after = get_latest_score()
+    if score_after is None:
+        return {"action": "no_score", "sha": sha}
+
+    drop = (score_before or 100) - (score_after or 100)
+    if drop > 10:
+        # Auto-rollback
+        rb = rollback(sha)
+        if rb["success"]:
+            notify_tier2_rollback(sha, f"health drop: {score_before}→{score_after}",
+                                  score_before, score_after)
+        return {"action": "rollback", "sha": sha, "score_before": score_before,
+                "score_after": score_after, "rollback": rb}
+
+    return {"action": "ok", "score_before": score_before,
+            "score_after": score_after}
 
 
 # ════════════════════════════════════════════════════════════════
 #  MAIN ORCHESTRATOR
 # ════════════════════════════════════════════════════════════════
 
-def get_latest_failures() -> list[dict]:
-    """Get failing probes from most recent sweep."""
-    try:
-        conn = sqlite3.connect(str(SWEEP_DB))
-        # Get latest sweep timestamp
-        row = conn.execute(
-            "SELECT ts FROM sweeps ORDER BY id DESC LIMIT 1").fetchone()
-        if not row:
-            return []
-        latest_ts = row[0]
+def process(dry_run: bool = False, force_tier: int | None = None) -> dict:
+    """Main processing loop: get failures, classify, execute."""
+    config = load_config()
+    state = load_state()
+    tiers = config.get("tier_enabled", {})
 
-        # Get all failing probes from that sweep
-        rows = conn.execute(
-            "SELECT probe, status, latency_ms, detail_json FROM sweeps "
-            "WHERE ts = ? AND status != 'ok'", (latest_ts,)).fetchall()
-        conn.close()
+    failures = get_latest_failures()
+    if not failures:
+        return {"results": [], "total": 0, "message": "no failures"}
 
-        return [{"probe": r[0], "status": r[1], "latency_ms": r[2],
-                 "detail": json.loads(r[3]) if r[3] else {}} for r in rows]
-    except Exception as e:
-        log.error("get_latest_failures: %s", e)
-        return []
-
-
-def process_failures(failures: list[dict], dry_run: bool = False,
-                     tier1_only: bool = False) -> dict:
-    """Process a list of probe failures through the tier system."""
-    config = _load_autofix_config()
-    state = _load_state()
-
-    if config.get("kill_switch"):
-        return {"action": "killed", "reason": "kill switch is ON"}
-
+    score_before = get_latest_score()
+    llm_info = None  # lazy
     results = []
-    llm_info = None  # lazy-loaded
 
     for failure in failures:
         probe = failure["probe"]
         detail = failure.get("detail", {})
         status = failure.get("status", "fail")
 
-        # Check expected degradations
-        skip, skip_reason = should_skip_probe(probe, status, config)
+        # Expected degradation filter
+        skip, skip_reason = should_skip(probe, status, config)
         if skip:
-            results.append({"probe": probe, "action": "skipped",
-                            "reason": skip_reason})
+            results.append({"probe": probe, "action": "skipped", "reason": skip_reason})
             continue
 
-        # Never-existed → Tier 3 directly
+        # Never existed → Tier 3 install decision
         if probe in config.get("never_existed", []):
-            r = run_tier3(probe, detail, "never installed", dry_run)
-            _record_action(state, "3", probe, "never_existed_proposal", r.get("action", ""))
-            results.append({"probe": probe, **r})
+            if tiers.get("tier_3", True):
+                r = exec_tier3(probe, detail, "never installed — needs setup decision",
+                               dry_run=dry_run)
+                record(state, 3, probe, "never_existed", r["success"])
+                results.append({"probe": probe, **r})
+            else:
+                results.append({"probe": probe, "action": "skipped",
+                                "reason": "never_existed, tier3 disabled"})
             continue
 
-        # Classify regression
-        regression = classify_regression(probe)
+        # Classify
+        classification = classify_tier(probe, detail, config)
+        tier = force_tier or classification["tier"]
+        regression = classification["regression"]
 
-        # Tier 1 — try ops fix first
-        if _rate_check(state.get("tier1_actions", []), MAX_TIER1_PER_HOUR):
-            t1 = route_tier1(probe, detail, dry_run)
-            if t1 is not None:
-                _record_action(state, "1", probe, t1.get("action", ""),
-                               "ok" if t1.get("success") else "fail")
-                results.append({"probe": probe, "tier": 1, **t1})
-                if t1.get("success"):
-                    state["total_fixes"] = state.get("total_fixes", 0) + 1
-                    continue
-                # Tier 1 failed, fall through to Tier 2
-
-        if tier1_only:
+        # Tier 0 = skip (flapping)
+        if tier == 0:
             results.append({"probe": probe, "action": "skipped",
-                            "reason": "tier1_only mode"})
+                            "reason": classification["reason"]})
             continue
 
-        # Tier 2 — code fix (only for regressions/new failures with code context)
-        if config.get("tier2_enabled", True) and regression in ("regression", "new"):
-            if _rate_check(state.get("tier2_actions", []), MAX_TIER2_PER_HOUR):
-                # Lazy-load LLM availability
-                if llm_info is None:
-                    llm_info = check_llm_availability()
-
-                if llm_info["recommended"]:
-                    t2 = run_tier2(probe, detail, llm_info, dry_run)
-                    _record_action(state, "2", probe, t2.get("action", ""),
-                                   "ok" if t2.get("success") else "fail")
-                    results.append({"probe": probe, **t2})
-                    if t2.get("success"):
+        # ── Tier 1 ──
+        if tier == 1 and tiers.get("tier_1", False):
+            if rate_ok_tier1(state, config, probe):
+                r = exec_tier1(probe, detail, config, state, dry_run)
+                if r is not None:
+                    record(state, 1, probe, r.get("action", ""), r.get("success", False),
+                           r.get("output", r.get("error", ""))[:200])
+                    if r.get("success") and not dry_run:
                         state["total_fixes"] = state.get("total_fixes", 0) + 1
+                        notify_tier1(probe, r["action"],
+                                     "OK" if r["success"] else "FAILED")
+                    results.append({"probe": probe, "tier": 1, **r})
+                    if r.get("success"):
                         continue
-                    # Tier 2 failed, escalate to Tier 3
-                    if t2.get("escalate_to") == 3:
-                        t3 = run_tier3(probe, detail, t2.get("reason", ""), dry_run)
-                        _record_action(state, "3", probe, "escalated_from_tier2",
-                                       t3.get("action", ""))
-                        results.append({"probe": probe, **t3})
-                        state["total_proposals"] = state.get("total_proposals", 0) + 1
-                        continue
-                else:
-                    # No LLM → degrade to Tier 3
-                    if not dry_run:
-                        _notify(
-                            f"⚠️ Tier 2 degradado a Tier 3: {llm_info['reason']}.\n"
-                            "Fixes solo reportados, no aplicados."
-                        )
+                    # Tier 1 failed → try Tier 2
+                    tier = 2
 
-        # Tier 3 — proposal
-        if _rate_check(state.get("tier3_proposals", []), MAX_TIER3_PER_HOUR):
-            t3 = run_tier3(probe, detail, dry_run=dry_run)
-            _record_action(state, "3", probe, "proposal", t3.get("action", ""))
-            results.append({"probe": probe, **t3})
+        # ── Tier 2 ──
+        if tier == 2 and tiers.get("tier_2", False):
+            # Check consecutive failures
+            consec = state.get("tier2_consecutive_failures", 0)
+            max_consec = config["rate_limits"]["tier_2_consecutive_failures_before_pause"]
+            if consec >= max_consec:
+                if not state.get("tier2_paused_until"):
+                    pause_until = datetime.now().isoformat()[:10] + "T23:59:59"
+                    state["tier2_paused_until"] = pause_until
+                    notify(f"⏸️ Tier 2 pausado ({consec} fallos consecutivos)")
+                tier = 3  # degrade
+
+            if tier == 2:
+                if llm_info is None:
+                    llm_info = check_llm()
+                if not llm_info["recommended"]:
+                    if not dry_run:
+                        notify_degraded(llm_info["reason"])
+                    tier = 3
+                else:
+                    r = exec_tier2(probe, detail, config, state, llm_info, dry_run)
+                    record(state, 2, probe, r.get("action", ""),
+                           r.get("success", False), str(r.get("files", "")))
+
+                    if r.get("success"):
+                        state["total_fixes"] = state.get("total_fixes", 0) + 1
+                        if not dry_run:
+                            notify_tier2(probe, llm_info["model"],
+                                         r.get("files", []), r.get("changes", ""),
+                                         r.get("sha", ""))
+                            # Post-deploy check
+                            post = post_deploy_check(r["sha"], score_before, dry_run)
+                            r["post_deploy"] = post
+                        results.append({"probe": probe, "tier": 2, **r})
+                        continue
+                    else:
+                        state["tier2_consecutive_failures"] = consec + 1
+                        if r.get("escalate") == 3:
+                            tier = 3
+                        else:
+                            results.append({"probe": probe, "tier": 2, **r})
+                            continue
+
+        # ── Tier 3 ──
+        if tier >= 3 and tiers.get("tier_3", True):
+            escalation_reason = ""
+            diff = ""
+            # Check if we got here from escalation
+            if len(results) > 0 and results[-1].get("probe") == probe:
+                escalation_reason = results[-1].get("reason", "")
+                diff = results[-1].get("diff", "")
+
+            r = exec_tier3(probe, detail, escalation_reason, diff, dry_run)
+            record(state, 3, probe, "proposal", r["success"])
             state["total_proposals"] = state.get("total_proposals", 0) + 1
+            results.append({"probe": probe, **r})
 
     state["last_run"] = datetime.now().isoformat()
-    _save_state(state)
+    save_state(state)
 
-    return {"results": results, "total": len(results),
-            "fixes": sum(1 for r in results if r.get("success") and r.get("tier") in (1, 2)),
-            "proposals": sum(1 for r in results if r.get("tier") == 3),
-            "skipped": sum(1 for r in results if r.get("action") == "skipped")}
+    return {
+        "results": results,
+        "total": len(results),
+        "fixes": sum(1 for r in results if r.get("success") and r.get("tier") in (1, 2)),
+        "proposals": sum(1 for r in results if r.get("tier") == 3),
+        "skipped": sum(1 for r in results if r.get("action") == "skipped"),
+    }
 
 
 def get_status() -> dict:
-    """Get current autofix agent status."""
-    config = _load_autofix_config()
-    state = _load_state()
-    llm = check_llm_availability()
-
+    """Get current agent status."""
+    config = load_config()
+    state = load_state()
+    llm = check_llm()
+    tiers = config.get("tier_enabled", {})
     cutoff = time.time() - 3600
+
     return {
-        "kill_switch": config.get("kill_switch", False),
-        "tier2_enabled": config.get("tier2_enabled", True),
-        "llm_backend": llm["recommended"] or "none",
-        "llm_reason": llm["reason"],
+        "kill_switch": KILL_SWITCH.exists(),
+        "tier1": tiers.get("tier_1", False),
+        "tier2": tiers.get("tier_2", False),
+        "tier3": tiers.get("tier_3", True),
+        "llm_backend": llm.get("recommended") or "none",
+        "llm_reason": llm.get("reason", ""),
         "last_run": state.get("last_run"),
         "total_fixes": state.get("total_fixes", 0),
         "total_proposals": state.get("total_proposals", 0),
-        "tier1_last_hour": len([a for a in state.get("tier1_actions", [])
-                                if a.get("ts", 0) > cutoff]),
-        "tier2_last_hour": len([a for a in state.get("tier2_actions", [])
-                                if a.get("ts", 0) > cutoff]),
-        "tier3_last_hour": len([a for a in state.get("tier3_proposals", [])
-                                if a.get("ts", 0) > cutoff]),
+        "t1_hour": _count_recent(state.get("tier1", []), 1.0),
+        "t2_hour": _count_recent(state.get("tier2", []), 1.0),
+        "t3_hour": _count_recent(state.get("tier3", []), 1.0),
+        "tier2_consec_failures": state.get("tier2_consecutive_failures", 0),
+        "tier2_paused_until": state.get("tier2_paused_until"),
+        "sweep_count": get_sweep_count(),
         "expected_degradations": len(config.get("expected_degradations", [])),
         "never_existed": config.get("never_existed", []),
     }
@@ -1029,67 +697,86 @@ def get_status() -> dict:
 #  CLI
 # ════════════════════════════════════════════════════════════════
 
-def run(dry_run: bool = False, tier1_only: bool = False):
-    """Main entry: process latest sweep failures."""
-    failures = get_latest_failures()
-    if not failures:
-        print("[autofix] no failures in latest sweep")
-        return {"results": [], "total": 0}
-
-    print(f"[autofix] processing {len(failures)} failure(s)...")
-    result = process_failures(failures, dry_run=dry_run, tier1_only=tier1_only)
-
-    # Summary
-    print(f"[autofix] done — {result['fixes']} fixed, "
-          f"{result['proposals']} proposals, {result['skipped']} skipped")
-
-    # Notify summary if fixes were made
-    if result["fixes"] > 0 and not dry_run:
-        fixed = [r for r in result["results"] if r.get("success") and r.get("tier") in (1, 2)]
-        msg = f"🔧 Autofix — {result['fixes']} fix(es) aplicados:\n"
-        for f in fixed:
-            msg += f"  • {f.get('probe', '?')} (Tier {f.get('tier', '?')})\n"
-        _notify(msg)
-
-    return result
-
-
-if __name__ == "__main__":
+def main():
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
+
     parser = argparse.ArgumentParser(description="Tenazas Autofix Agent")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Show what would happen without acting")
-    parser.add_argument("--tier1-only", action="store_true",
-                        help="Only run Tier 1 (ops) fixes")
-    parser.add_argument("--kill-switch", action="store_true",
-                        help="Toggle kill switch")
-    parser.add_argument("--status", action="store_true",
-                        help="Show agent status")
-    parser.add_argument("--json", action="store_true",
-                        help="Output JSON")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--watch", action="store_true")
+    parser.add_argument("--force-tier", type=int, choices=[1, 2, 3])
+    parser.add_argument("--rollback", type=str, metavar="SHA")
+    parser.add_argument("--status", action="store_true")
+    parser.add_argument("--enable", action="store_true", help="Remove kill switch")
+    parser.add_argument("--kill", action="store_true", help="Create kill switch")
+    parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    if args.kill_switch:
-        cfg = _load_autofix_config()
-        cfg["kill_switch"] = not cfg.get("kill_switch", False)
-        AUTOFIX_CONFIG.write_text(json.dumps(cfg, indent=2))
-        state = "ON (disabled)" if cfg["kill_switch"] else "OFF (enabled)"
-        print(f"[autofix] kill switch: {state}")
-    elif args.status:
+    # Kill/enable
+    if args.kill:
+        KILL_SWITCH.parent.mkdir(parents=True, exist_ok=True)
+        KILL_SWITCH.write_text(f"disabled at {datetime.now().isoformat()}")
+        print("[autofix] kill switch ON — agent disabled")
+        return
+
+    if args.enable:
+        if KILL_SWITCH.exists():
+            KILL_SWITCH.unlink()
+            print("[autofix] kill switch OFF — agent enabled")
+        else:
+            print("[autofix] already enabled")
+        return
+
+    # Status
+    if args.status:
         status = get_status()
         if args.json:
             print(json.dumps(status, indent=2))
         else:
-            print(f"Kill switch: {'ON' if status['kill_switch'] else 'OFF'}")
-            print(f"Tier 2: {'enabled' if status['tier2_enabled'] else 'disabled'}")
-            print(f"LLM: {status['llm_backend']} ({status['llm_reason']})")
-            print(f"Last run: {status['last_run'] or 'never'}")
-            print(f"Total fixes: {status['total_fixes']}")
-            print(f"Total proposals: {status['total_proposals']}")
-            print(f"Last hour: T1={status['tier1_last_hour']} "
-                  f"T2={status['tier2_last_hour']} T3={status['tier3_last_hour']}")
+            print(format_status(status))
+        return
+
+    # Rollback
+    if args.rollback:
+        r = rollback(args.rollback)
+        print(json.dumps(r, indent=2) if args.json else
+              f"Rollback {'OK' if r['success'] else 'FAILED'}: {r}")
+        if r["success"]:
+            notify(f"⏪ Manual rollback: `{args.rollback}`")
+        return
+
+    # Pre-flight
+    pf = preflight(load_config())
+    if not pf["ok"]:
+        for e in pf["errors"]:
+            print(f"[preflight] {e}")
+        if any("DISABLED" in e for e in pf["errors"]):
+            return  # silent exit for kill switch
+        sys.exit(1)
+
+    # Watch mode
+    if args.watch:
+        print("[autofix] watch mode — interval 300s")
+        while True:
+            try:
+                r = process(dry_run=args.dry_run, force_tier=args.force_tier)
+                fixes = r.get("fixes", 0)
+                proposals = r.get("proposals", 0)
+                skipped = r.get("skipped", 0)
+                print(f"[autofix] {fixes} fixes, {proposals} proposals, {skipped} skipped")
+            except Exception as e:
+                log.error("watch cycle error: %s", e)
+            time.sleep(300)
     else:
-        result = run(dry_run=args.dry_run, tier1_only=args.tier1_only)
+        # One-shot
+        result = process(dry_run=args.dry_run, force_tier=args.force_tier)
         if args.json:
             print(json.dumps(result, indent=2, default=str))
+        else:
+            print(f"[autofix] {result.get('fixes', 0)} fixes, "
+                  f"{result.get('proposals', 0)} proposals, "
+                  f"{result.get('skipped', 0)} skipped")
+
+
+if __name__ == "__main__":
+    main()
