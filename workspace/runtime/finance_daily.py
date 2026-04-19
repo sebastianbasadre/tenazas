@@ -103,8 +103,11 @@ def get_binance_pnl(test: bool = False) -> dict | None:
         if not assets:
             return {"assets": [], "total_usd": 0, "pnl_usd": 0}
 
-        # Get 24h tickers for price + change
-        req2 = Request("https://api.binance.com/api/v3/ticker/24hr")
+        # Get 24h tickers for price + change (cache-bust through gluetun proxy)
+        req2 = Request(
+            f"https://api.binance.com/api/v3/ticker/24hr?_t={int(time.time() * 1000)}",
+            headers={"Cache-Control": "no-cache, no-store"},
+        )
         resp2 = opener.open(req2, timeout=10)
         tickers = {t["symbol"]: t for t in json.loads(resp2.read())}
 
@@ -183,10 +186,13 @@ def get_iol_portfolio(test: bool = False) -> dict | None:
             cantidad = a.get("cantidad", 0)
             precio = a.get("ultimoPrecio", 0)
             variacion = a.get("variacionDiaria", 0)
+            puntos = a.get("puntosVariacion", 0)
             valor = a.get("valorizado", cantidad * precio)
 
             total += valor
-            day_pnl = valor * (variacion / 100) if variacion else 0
+            # puntosVariacion * cantidad = exact daily PNL
+            day_pnl = puntos * cantidad if puntos else (
+                valor * (variacion / 100) if variacion else 0)
             pnl_day += day_pnl
 
             positions.append({
