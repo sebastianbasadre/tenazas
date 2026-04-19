@@ -84,7 +84,7 @@ DEFAULT_CONFIG = {
             "reason": "NAS Ollama es fallback, offline esperado si HOMELAB up",
         },
     ],
-    "never_existed": ["gpu_exporter"],
+    "never_existed": [],
     "protected_files": [
         "workspace/runtime/orchestrator.py",
         "workspace/runtime/safety_guard.py",
