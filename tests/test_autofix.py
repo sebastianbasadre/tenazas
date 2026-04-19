@@ -442,6 +442,106 @@ class TestAider(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════
+#  VRAM MANAGEMENT
+# ════════════════════════════════════════════════════════════════
+
+import autofix_vram_manager as vram
+
+
+class TestVRAMManager(unittest.TestCase):
+
+    @patch("autofix_vram_manager.get_loaded_models")
+    def test_vram_sufficient_no_unload(self, mock_loaded):
+        """If VRAM is already free enough, do nothing."""
+        mock_loaded.return_value = [
+            {"name": "qwen2.5:7b", "size_vram_gb": 5.0, "expires_at": ""}
+        ]
+        # 24 - 2 (reserved) - 5 (loaded) = 17 free > 12 required
+        unloaded = vram.ensure_vram_available(required_gb=12)
+        self.assertEqual(unloaded, [])
+
+    @patch("autofix_vram_manager.unload_model", return_value=True)
+    @patch("autofix_vram_manager.get_vram_free_gb")
+    @patch("autofix_vram_manager.get_loaded_models")
+    def test_vram_insufficient_unloads_biggest(self, mock_loaded, mock_free, mock_unload):
+        """Unloads biggest model first when VRAM is low."""
+        mock_loaded.return_value = [
+            {"name": "qwen3:8b", "size_vram_gb": 10.0, "expires_at": ""},
+            {"name": "phi4-mini", "size_vram_gb": 2.0, "expires_at": ""},
+        ]
+        # Calls: initial check (10), after unload (20), final log (20)
+        mock_free.side_effect = [10.0, 20.0, 20.0]
+        unloaded = vram.ensure_vram_available(required_gb=12)
+        self.assertEqual(unloaded, ["qwen3:8b"])
+        mock_unload.assert_called_once_with("qwen3:8b", unittest.mock.ANY)
+
+    @patch("autofix_vram_manager.unload_model", return_value=True)
+    @patch("autofix_vram_manager.get_vram_free_gb", return_value=5.0)
+    @patch("autofix_vram_manager.get_loaded_models")
+    def test_protected_models_never_unloaded(self, mock_loaded, mock_free, mock_unload):
+        """Protected models are skipped during unload."""
+        mock_loaded.return_value = [
+            {"name": "critical-model", "size_vram_gb": 10.0, "expires_at": ""},
+        ]
+        unloaded = vram.ensure_vram_available(
+            required_gb=12, protected_models=["critical-model"])
+        self.assertEqual(unloaded, [])
+        mock_unload.assert_not_called()
+
+    @patch("autofix_vram_manager.urlopen", side_effect=Exception("unreachable"))
+    def test_homelab_unreachable_returns_empty(self, mock_url):
+        """If HOMELAB is down, return empty without blocking."""
+        loaded = vram.get_loaded_models()
+        self.assertEqual(loaded, [])
+
+    @patch("autofix_vram_manager.urlopen")
+    def test_restore_models(self, mock_url):
+        """Restore sends generate request with keep_alive."""
+        resp = MagicMock()
+        resp.status = 200
+        resp.read.return_value = b'{"response": "ok"}'
+        mock_url.return_value = resp
+        restored = vram.restore_models(["qwen3:8b"])
+        self.assertEqual(restored, ["qwen3:8b"])
+
+    @patch("autofix_vram_manager.urlopen", side_effect=Exception("fail"))
+    def test_restore_failure_doesnt_crash(self, mock_url):
+        """Failed restore logs warning but doesn't raise."""
+        restored = vram.restore_models(["qwen3:8b"])
+        self.assertEqual(restored, [])
+
+    @patch("autofix_vram_manager.unload_model", return_value=True)
+    @patch("autofix_vram_manager.get_vram_free_gb", return_value=5.0)
+    @patch("autofix_vram_manager.get_loaded_models")
+    def test_warning_models_logged(self, mock_loaded, mock_free, mock_unload):
+        """Warning models trigger log.warning when unloaded."""
+        mock_loaded.return_value = [
+            {"name": "qwen3:8b", "size_vram_gb": 10.0, "expires_at": ""},
+        ]
+        with patch("autofix_vram_manager.log") as mock_log:
+            vram.ensure_vram_available(
+                required_gb=12, warning_models=["qwen3:8b"])
+            # Check that warning was called with the right message
+            warning_calls = [c for c in mock_log.warning.call_args_list
+                             if "qwen3:8b" in str(c)]
+            self.assertTrue(len(warning_calls) > 0)
+
+    def test_vram_disabled_in_config(self):
+        """When vram_management.enabled=false, exec_tier2 skips VRAM management."""
+        config = dict(agent.DEFAULT_CONFIG)
+        config["vram_management"] = {"enabled": False}
+        llm = {"recommended": "ollama", "model": "qwen2.5-coder:14b",
+               "backend": "ollama"}
+        with patch("autofix_agent.collect_context",
+                   return_value={"files": ["test.py"], "log_tail": "err",
+                                 "stacktrace": "", "probe": "x", "detail": {}}):
+            with patch("autofix_agent.ensure_vram_available") as mock_vram:
+                r = agent.exec_tier2("x", {"message": "err"}, config,
+                                     agent.load_state(), llm, dry_run=True)
+                mock_vram.assert_not_called()
+
+
+# ════════════════════════════════════════════════════════════════
 #  PROCESS INTEGRATION
 # ════════════════════════════════════════════════════════════════
 

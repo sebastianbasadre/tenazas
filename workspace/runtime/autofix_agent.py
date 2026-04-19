@@ -44,6 +44,7 @@ from autofix_llm_check import check_availability as check_llm
 from autofix_sandbox import (git_is_clean, create_branch, validate_diff,
                              commit_fix, merge_to_main, rollback,
                              cleanup_branch, get_diff_summary)
+from autofix_vram_manager import ensure_vram_available, restore_models
 from autofix_aider import (is_installed as aider_installed, collect_context,
                            build_prompt, run_aider)
 from autofix_ssh import ssh_available, ollama_pull
@@ -105,6 +106,13 @@ DEFAULT_CONFIG = {
         "qwen2.5:3b", "qwen2.5:7b", "qwen2.5-coder:14b",
         "qwen3:8b", "phi4-mini", "nomic-embed-text",
     ],
+    "vram_management": {
+        "enabled": True,
+        "required_gb_for_aider": 12,
+        "protected_models": [],
+        "restore_after_fix": True,
+        "unload_warning_models": ["qwen3:8b", "qwen3:30b", "gemma3:12b"],
+    },
     "diff_limits": {"max_lines": 50, "max_files": 3},
     "timeouts": {
         "aider_seconds": 180,
@@ -375,7 +383,7 @@ def exec_tier1(probe: str, detail: dict, config: dict, state: dict,
 
 def exec_tier2(probe: str, detail: dict, config: dict, state: dict,
                llm: dict, dry_run: bool = False) -> dict:
-    """Execute Tier 2 code fix."""
+    """Execute Tier 2 code fix with VRAM management."""
     if not llm.get("recommended"):
         return {"success": False, "reason": "no LLM available", "escalate": 3}
 
@@ -392,6 +400,19 @@ def exec_tier2(probe: str, detail: dict, config: dict, state: dict,
 
     if not rate_ok_tier2(state, config):
         return {"success": False, "reason": "rate limit", "escalate": 3}
+
+    # VRAM management: free GPU before Aider
+    vram_cfg = config.get("vram_management", {})
+    unloaded_models = []
+    if vram_cfg.get("enabled", True) and llm.get("backend") == "ollama":
+        unloaded_models = ensure_vram_available(
+            required_gb=vram_cfg.get("required_gb_for_aider", 12),
+            protected_models=vram_cfg.get("protected_models", []),
+            warning_models=vram_cfg.get("unload_warning_models", []),
+            aider_model=llm.get("model", ""),
+        )
+        if unloaded_models:
+            notify(f"⚙️ VRAM: descargados temporalmente: {', '.join(unloaded_models)}")
 
     # Git setup
     branch = create_branch(probe)
@@ -454,6 +475,12 @@ def exec_tier2(probe: str, detail: dict, config: dict, state: dict,
     except Exception as e:
         cleanup_branch(branch)
         return {"success": False, "reason": str(e), "escalate": 3}
+    finally:
+        # Restore VRAM: reload models that were unloaded
+        if unloaded_models and vram_cfg.get("restore_after_fix", True):
+            restored = restore_models(unloaded_models)
+            if restored:
+                notify(f"♻️ VRAM: restaurados: {', '.join(restored)}")
 
 
 def _run_tests(files: list[str], config: dict) -> dict:
