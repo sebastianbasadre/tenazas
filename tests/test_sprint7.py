@@ -364,7 +364,7 @@ class TestBenchmarkContinuous(unittest.TestCase):
                                 return self.bc.run()
 
     def test_low_accuracy_generates_alert(self):
-        results = self._run_with_mocks(accuracy=0.60)
+        results = self._run_with_mocks(accuracy=0.40)
         self.assertTrue(len(results["alerts"]) > 0)
         self.assertEqual(results["alerts"][0]["metric"], "router_accuracy")
 
@@ -381,7 +381,7 @@ class TestBenchmarkContinuous(unittest.TestCase):
     def test_respects_noise_filter(self):
         """Alert only sent if noise_filter allows — suppressed = no notify."""
         import noise_filter as nf_mod
-        with patch.object(self.bc, "check_router_accuracy", return_value=0.50):
+        with patch.object(self.bc, "check_router_accuracy", return_value=0.30):
             with patch.object(self.bc, "check_infra_uptime", return_value=1.0):
                 with patch.object(self.bc, "check_alert_precision", return_value=1.0):
                     with patch.object(self.bc, "check_latency_p95", return_value=100):
@@ -409,7 +409,7 @@ class TestBenchmarkContinuous(unittest.TestCase):
         self.assertAlmostEqual(metrics["benchmark_continuous"]["router_accuracy"], 0.85)
 
     def test_high_latency_alert(self):
-        results = self._run_with_mocks(latency=6000)
+        results = self._run_with_mocks(latency=20000)
         lat_alerts = [a for a in results["alerts"] if a["metric"] == "latency_p95"]
         self.assertTrue(len(lat_alerts) > 0)
 

@@ -539,6 +539,39 @@ _CHAT_SYSTEM_PROMPT = (
 )
 
 
+OLLAMA_MAX_RETRIES = 2       # retry up to 2 times (3 attempts total)
+OLLAMA_RETRY_BACKOFF = 2.0   # seconds, doubles each retry
+
+
+def _ollama_request(url: str, path: str, payload: bytes, retries: int = OLLAMA_MAX_RETRIES) -> dict | None:
+    """Make an Ollama HTTP request with retry + exponential backoff.
+
+    Returns parsed JSON dict or None on failure.
+    """
+    req = Request(f"{url}{path}", data=payload,
+                  headers={"Content-Type": "application/json"})
+    last_error = None
+    for attempt in range(1 + retries):
+        try:
+            resp = urlopen(req, timeout=LLM_TIMEOUT)
+            return json.loads(resp.read())
+        except Exception as e:
+            last_error = e
+            is_retryable = any(w in str(e).lower() for w in [
+                "timed out", "timeout", "connection refused",
+                "urlopen error", "connection reset",
+            ])
+            if not is_retryable or attempt >= retries:
+                break
+            wait = OLLAMA_RETRY_BACKOFF * (2 ** attempt)
+            _log({"action": "ollama_retry", "url": url, "attempt": attempt + 1,
+                  "wait_s": wait, "error": str(e)})
+            time.sleep(wait)
+    _log({"action": "ollama_error", "url": url, "error": str(last_error),
+          "attempts": 1 + min(retries, OLLAMA_MAX_RETRIES)})
+    return None
+
+
 def _call_ollama(url: str, prompt: str, system: str, model: str | None = None) -> str | None:
     """Call Ollama generate API (single-turn). Returns response text or None."""
     payload = json.dumps({
@@ -548,15 +581,10 @@ def _call_ollama(url: str, prompt: str, system: str, model: str | None = None) -
         "stream": False,
         "options": {"temperature": 0.7, "num_predict": 1024},
     }).encode()
-    req = Request(f"{url}/api/generate", data=payload,
-                  headers={"Content-Type": "application/json"})
-    try:
-        resp = urlopen(req, timeout=LLM_TIMEOUT)
-        data = json.loads(resp.read())
+    data = _ollama_request(url, "/api/generate", payload)
+    if data:
         return data.get("response", "").strip()
-    except Exception as e:
-        _log({"action": "ollama_error", "url": url, "error": str(e)})
-        return None
+    return None
 
 
 def _call_ollama_chat(url: str, messages: list[dict], model: str | None = None) -> str | None:
@@ -567,15 +595,10 @@ def _call_ollama_chat(url: str, messages: list[dict], model: str | None = None) 
         "stream": False,
         "options": {"temperature": 0.7, "num_predict": 1024},
     }).encode()
-    req = Request(f"{url}/api/chat", data=payload,
-                  headers={"Content-Type": "application/json"})
-    try:
-        resp = urlopen(req, timeout=LLM_TIMEOUT)
-        data = json.loads(resp.read())
+    data = _ollama_request(url, "/api/chat", payload)
+    if data:
         return data.get("message", {}).get("content", "").strip()
-    except Exception as e:
-        _log({"action": "ollama_chat_error", "url": url, "error": str(e)})
-        return None
+    return None
 
 
 def _select_model_for_query(text: str) -> tuple[str, str]:

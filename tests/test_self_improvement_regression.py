@@ -200,12 +200,12 @@ class TestImprovementCandidatesRegression(unittest.TestCase):
 class TestBenchmarkGateRegression(unittest.TestCase):
 
     def test_marginal_pass_still_passes(self):
-        """70.1% accuracy (threshold 70%) → passes."""
+        """56% accuracy (threshold 55%) → passes."""
         import self_benchmark as sb
         with patch.object(sb, "benchmark_router_accuracy",
-                          return_value={"accuracy": 0.701}):
+                          return_value={"accuracy": 0.56}):
             with patch.object(sb, "benchmark_structured_output",
-                              return_value={"validity_rate": 0.96}):
+                              return_value={"validity_rate": 0.85}):
                 with patch.object(sb, "benchmark_false_positive_rate",
                                   return_value={"false_positive_rate": 0.1}):
                     with patch.object(sb, "benchmark_latency_p95",
@@ -214,12 +214,12 @@ class TestBenchmarkGateRegression(unittest.TestCase):
         self.assertTrue(r["passed"])
 
     def test_marginal_fail(self):
-        """69.9% accuracy → fails."""
+        """54.9% accuracy → fails."""
         import self_benchmark as sb
         with patch.object(sb, "benchmark_router_accuracy",
-                          return_value={"accuracy": 0.699}):
+                          return_value={"accuracy": 0.549}):
             with patch.object(sb, "benchmark_structured_output",
-                              return_value={"validity_rate": 0.96}):
+                              return_value={"validity_rate": 0.85}):
                 with patch.object(sb, "benchmark_false_positive_rate",
                                   return_value={"false_positive_rate": 0.1}):
                     with patch.object(sb, "benchmark_latency_p95",

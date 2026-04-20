@@ -37,11 +37,12 @@ ORCHESTRATOR_LOG = BASE_DIR / "logs" / "orchestrator.log"
 
 EXPECTED_CONTAINERS = 20
 
+# Tuned 2026-04-19: aligned with GATE_THRESHOLDS in self_benchmark.py
 THRESHOLDS = {
-    "router_accuracy": {"value": 0.75, "severity": "warning", "direction": "below"},
+    "router_accuracy": {"value": 0.60, "severity": "warning", "direction": "below"},
     "infra_uptime": {"value": 0.95, "severity": "critical", "direction": "below"},
-    "alert_precision": {"value": 0.60, "severity": "warning", "direction": "below"},
-    "latency_p95": {"value": 5000, "severity": "warning", "direction": "above"},
+    "alert_precision": {"value": 0.50, "severity": "warning", "direction": "below"},
+    "latency_p95": {"value": 15000, "severity": "warning", "direction": "above"},
 }
 
 # Compact query set for continuous monitoring

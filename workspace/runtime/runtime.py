@@ -147,6 +147,15 @@ def _runtime_log(msg: str):
         pass  # Never let logging crash the runtime
 
 
+def _log(entry: dict):
+    """Log structured JSON entry to runtime.log."""
+    try:
+        entry["ts"] = _now().isoformat()
+        _get_logger().info(json.dumps(entry, default=str, ensure_ascii=False))
+    except Exception:
+        pass
+
+
 # ── 1. State Engine ──────────────────────────────────────────────
 
 

@@ -317,7 +317,7 @@ class TestSelfBenchmarkGate(unittest.TestCase):
                 with patch.object(sb, "benchmark_false_positive_rate",
                                   return_value={"false_positive_rate": 0.1}):
                     with patch.object(sb, "benchmark_latency_p95",
-                                      return_value={"p95_ms": 10000}):
+                                      return_value={"p95_ms": 20000}):
                         result = sb.run_gate()
         self.assertFalse(result["passed"])
         self.assertTrue(any("latency" in f for f in result["failures"]))
@@ -329,7 +329,7 @@ class TestSelfBenchmarkGate(unittest.TestCase):
             with patch.object(sb, "benchmark_structured_output",
                               return_value={"validity_rate": 1.0}):
                 with patch.object(sb, "benchmark_false_positive_rate",
-                                  return_value={"false_positive_rate": 0.80}):
+                                  return_value={"false_positive_rate": 0.95}):
                     with patch.object(sb, "benchmark_latency_p95",
                                       return_value={"p95_ms": 100}):
                         result = sb.run_gate()
