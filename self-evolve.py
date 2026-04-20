@@ -26,6 +26,43 @@ def _sanitize(text: str) -> str:
     return _SECRET_PATTERNS.sub("[REDACTED]", text)
 
 
+def _resolve_openrouter_key() -> str:
+    """Resolve OPENROUTER_API_KEY from env, .env file, or docker-compose.yml.
+
+    self-evolve.py runs on the NAS host, but the key is only set inside
+    the openclaw container via docker-compose environment.
+    """
+    key = os.environ.get("OPENROUTER_API_KEY", "")
+    if key:
+        return key
+    base = "/volume1/docker/openclaw"
+    # Try .env file first (secrets moved here from compose)
+    try:
+        with open(f"{base}/.env") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("OPENROUTER_API_KEY="):
+                    key = stripped.split("=", 1)[1].strip()
+                    if key and not key.startswith("${"):
+                        print("Kimi: resolved API key from .env")
+                        return key
+    except Exception:
+        pass
+    # Fallback: read from docker-compose.yml (legacy, key hardcoded in compose)
+    try:
+        with open(f"{base}/docker-compose.yml") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("- OPENROUTER_API_KEY="):
+                    key = stripped.split("=", 1)[1].strip()
+                    if key and not key.startswith("${"):
+                        print("Kimi: resolved API key from docker-compose.yml")
+                        return key
+    except Exception as e:
+        print(f"Kimi: could not read compose file: {e}")
+    return ""
+
+
 # ── Kimi K2 via OpenRouter ─────────────────────────────────────
 
 def _estimate_tokens(text: str) -> int:
@@ -127,7 +164,7 @@ def analyze_with_kimi(context: str) -> list:
 
     Returns list of proposal dicts, or [] on failure.
     """
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    api_key = _resolve_openrouter_key()
     if not api_key:
         print("Kimi: OPENROUTER_API_KEY not set, skipping")
         return []
@@ -272,57 +309,251 @@ def format_kimi_telegram(proposals: list) -> str:
     lines.append("\n📝 Esperando aprobación de Sebas.")
     return "\n".join(lines)
 
-# 1. Errors
-errors = []
-for log in glob.glob("/volume1/docker/openclaw/state/logs/*.log") + glob.glob("/tmp/openclaw/*.log"):
+# ── Build rich Ollama context ─────────────────────────────────
+
+def _build_ollama_context() -> dict:
+    """Collect operational data for a high-quality weekly analysis."""
+    ctx = {}
+
+    # 1. Errors (last 7 days, from runtime logs)
+    errors = []
+    for log in glob.glob(f"{LOGS_DIR}/*.log") + glob.glob("/volume1/docker/openclaw/state/logs/*.log") + glob.glob("/tmp/openclaw/*.log"):
+        try:
+            with open(log) as f:
+                for line in f.readlines()[-50:]:
+                    if any(w in line.lower() for w in ["error", "fail", "timeout", "crash"]):
+                        if not any(w in line.lower() for w in ["bonjour", "probing", "hash:"]):
+                            errors.append(line.strip()[:150])
+        except Exception:
+            pass
+    ctx["errors"] = errors[-15:] if errors else []
+
+    # 2. Skills
+    skills_dir = f"{WORKSPACE}/skills"
+    skills = []
+    no_skill = []
     try:
-        with open(log) as f:
-            for line in f:
-                if any(w in line.lower() for w in ["error", "fail"]):
-                    if not any(w in line.lower() for w in ["bonjour", "probing"]):
-                        errors.append(line.strip()[:120])
-    except:
+        for name in sorted(os.listdir(skills_dir)):
+            path = os.path.join(skills_dir, name)
+            if not os.path.isdir(path):
+                continue
+            has_skill = os.path.exists(os.path.join(path, "SKILL.md"))
+            has_scripts = any(f.endswith(('.sh', '.py')) for f in os.listdir(path))
+            skills.append(name)
+            if not has_skill:
+                no_skill.append(name)
+    except Exception:
         pass
-errors = errors[-20:] if errors else ["Sin errores en los ultimos 7 dias."]
+    ctx["total_skills"] = len(skills)
+    ctx["skills_no_doc"] = no_skill
 
-# 2. Skills
-skills = []
-skills_dir = f"{WORKSPACE}/skills"
-for name in sorted(os.listdir(skills_dir)):
-    path = os.path.join(skills_dir, name)
-    if not os.path.isdir(path):
-        continue
-    has_skill = os.path.exists(os.path.join(path, "SKILL.md"))
-    has_scripts = any(f.endswith(('.sh','.py')) for f in os.listdir(path))
-    skills.append(f"- {name}: SKILL={'SI' if has_skill else 'NO'} Scripts={'SI' if has_scripts else 'NO'}")
+    # 3. Docker containers
+    try:
+        r = subprocess.run(["sudo", "docker", "ps", "--format", "{{.Names}}"],
+                           capture_output=True, text=True, timeout=10)
+        ctx["containers_up"] = len([l for l in r.stdout.strip().split('\n') if l.strip()])
+        r2 = subprocess.run(["sudo", "docker", "ps", "-a", "--format", "{{.Names}} {{.Status}}"],
+                            capture_output=True, text=True, timeout=10)
+        ctx["containers_down"] = [l for l in r2.stdout.strip().split('\n') if 'Up' not in l and l.strip()]
+    except Exception:
+        ctx["containers_up"] = "?"
+        ctx["containers_down"] = []
 
-no_skill = [s.split(':')[0].replace('- ','') for s in skills if 'SKILL=NO' in s]
+    # 4. Metrics state (runtime counters)
+    try:
+        with open(METRICS_STATE) as f:
+            m = json.load(f)
+        ctx["runtime_runs"] = m.get("runs", 0)
+        ctx["runtime_failures"] = m.get("failures", 0)
+        ctx["restarts"] = m.get("restarts", 0)
+        ctx["vpn_disconnects"] = m.get("vpn_disconnects", 0)
+        ctx["health_score"] = m.get("health_score", "?")
+        ctx["freezes"] = m.get("freezes", 0)
+        rv2 = m.get("router_v2", {})
+        ctx["router"] = {
+            "v2_calls": rv2.get("v2_calls", 0),
+            "v1_fallbacks": rv2.get("v1_fallback_from_v2", 0),
+            "cloud_fallbacks": rv2.get("cloud_fallbacks", 0),
+            "vram_swaps": rv2.get("vram_swaps", 0),
+            "role_distribution": {k: v for k, v in rv2.items() if k.startswith("role_")},
+        }
+        bench = m.get("benchmark_continuous", {})
+        ctx["router_accuracy"] = bench.get("router_accuracy", "?")
+    except Exception:
+        pass
 
-# 3. Docker
+    # 5. ROI state
+    try:
+        with open(f"{LOGS_DIR}/roi_state.json") as f:
+            roi = json.load(f)
+        ctx["roi"] = {
+            "skill_executions": roi.get("skill_executions", 0),
+            "llm_chats": roi.get("llm_chats", 0),
+            "automation_rate": roi.get("automation_rate", 0),
+            "hours_saved": roi.get("hours_saved", 0),
+            "errors_avoided": roi.get("errors_avoided", 0),
+        }
+    except Exception:
+        pass
+
+    # 6. Dreaming insights (lasting truths)
+    try:
+        dreams_path = f"{LEARNING_DIR}/dreams.md"
+        with open(dreams_path) as f:
+            lines = [l.strip() for l in f.readlines() if l.startswith("- [")]
+        ctx["dream_insights"] = lines[-8:]  # last 8 insights
+    except Exception:
+        ctx["dream_insights"] = []
+
+    # 7. Telegram usage (message count from handler log)
+    try:
+        tg_log = f"{LOGS_DIR}/telegram_router.log"
+        msg_count = 0
+        with open(tg_log) as f:
+            for line in f.readlines()[-200:]:
+                if "skill_response" in line or "llm_response" in line:
+                    msg_count += 1
+        ctx["telegram_messages_week"] = msg_count
+    except Exception:
+        pass
+
+    # 8. Existing proposals (to avoid repeats)
+    try:
+        with open(PROPOSALS_FILE) as f:
+            existing = json.load(f)
+        ctx["existing_proposals"] = [p.get("title", "") for p in existing]
+    except Exception:
+        ctx["existing_proposals"] = []
+
+    return ctx
+
+
+def _format_ollama_prompt(ctx: dict) -> str:
+    """Build a specific, data-rich prompt that forces actionable output."""
+    sections = []
+
+    # Header with clear role
+    sections.append(
+        "You are the self-improvement engine of Tenazas, a personal AI assistant "
+        "running in Docker (NAS Synology DS923+, GPU RTX 3090 on HomeLab).\n"
+        "Analyze the operational data from the last week and propose 1-3 "
+        "SPECIFIC and ACTIONABLE improvements. DO NOT repeat things that already exist.\n"
+        "IMPORTANT: Respond entirely in Spanish (Latin American). Do NOT mix languages.\n"
+    )
+
+    # Errors
+    if ctx.get("errors"):
+        sections.append(f"ERRORES ({len(ctx['errors'])}):\n" + "\n".join(ctx["errors"][:10]))
+    else:
+        sections.append("ERRORES: Ninguno en los últimos 7 días.")
+
+    # Runtime health
+    sections.append(
+        f"RUNTIME: {ctx.get('runtime_runs', '?')} ejecuciones, "
+        f"{ctx.get('runtime_failures', '?')} failures, "
+        f"{ctx.get('restarts', '?')} restarts, "
+        f"{ctx.get('vpn_disconnects', '?')} VPN disconnects, "
+        f"{ctx.get('freezes', '?')} freezes, "
+        f"health_score={ctx.get('health_score', '?')}"
+    )
+
+    # Router stats
+    r = ctx.get("router", {})
+    if r:
+        roles = r.get("role_distribution", {})
+        role_str = ", ".join(f"{k}={v}" for k, v in roles.items())
+        sections.append(
+            f"ROUTER: {r.get('v2_calls', 0)} calls V2, "
+            f"{r.get('v1_fallbacks', 0)} fallbacks a V1, "
+            f"{r.get('cloud_fallbacks', 0)} cloud fallbacks, "
+            f"{r.get('vram_swaps', 0)} VRAM swaps\n"
+            f"  Roles: {role_str}\n"
+            f"  Router accuracy: {ctx.get('router_accuracy', '?')}"
+        )
+
+    # ROI
+    roi = ctx.get("roi")
+    if roi:
+        sections.append(
+            f"ROI: {roi['skill_executions']} skills ejecutadas, "
+            f"{roi['llm_chats']} chats LLM, "
+            f"automation={roi['automation_rate']}%, "
+            f"horas ahorradas={roi['hours_saved']}, "
+            f"errores evitados={roi['errors_avoided']}"
+        )
+
+    # Docker
+    sections.append(
+        f"DOCKER: {ctx.get('containers_up', '?')} containers up, "
+        f"caídos: {', '.join(ctx.get('containers_down', [])) or 'Ninguno'}"
+    )
+
+    # Dreaming insights
+    dreams = ctx.get("dream_insights", [])
+    if dreams:
+        sections.append("PATRONES DETECTADOS (dreaming):\n" + "\n".join(dreams))
+
+    # Skills
+    sections.append(
+        f"SKILLS: {ctx.get('total_skills', '?')} totales"
+        + (f", sin doc: {', '.join(ctx['skills_no_doc'])}" if ctx.get("skills_no_doc") else "")
+    )
+
+    # Telegram
+    if ctx.get("telegram_messages_week"):
+        sections.append(f"TELEGRAM: ~{ctx['telegram_messages_week']} interacciones esta semana")
+
+    # Anti-repeat
+    existing = ctx.get("existing_proposals", [])
+    if existing:
+        sections.append("PROPUESTAS YA EXISTENTES (NO repetir):\n- " + "\n- ".join(existing))
+
+    # Architecture context (prevent hallucinated files)
+    sections.append(
+        "ARQUITECTURA REAL (solo estos archivos existen):\n"
+        "- runtime.py — loop principal cada 5 min (event-driven)\n"
+        "- model_router.py — routing V2 por roles (fast/reason/heavy/code/vision)\n"
+        "- orchestrator.py — clasificación de queries + skill execution\n"
+        "- telegram_router.py — bot Telegram (polling, skill interception)\n"
+        "- health_sweep.py — 25 probes cada 5 min\n"
+        "- autofix_agent.py — auto-reparación 3 tiers\n"
+        "- docker-compose.yml — 20 containers\n"
+        "- startup.sh — arranque del container openclaw\n"
+        "- VPN: gluetun container (NordVPN), NO openvpn.service\n"
+        "- dreaming.py, roi_tracker.py, finance.py, expenses.py, jobs.py"
+    )
+
+    # Rules
+    sections.append(
+        "\nREGLAS ESTRICTAS:\n"
+        "- Proponé mejoras que NO estén ya implementadas (el sistema ya tiene: "
+        "monitoreo cada 5 min, health_sweep, Prometheus+Grafana, HyperBackup diario, "
+        "autofix agent, guardrails de routing, dreaming, ROI tracking)\n"
+        "- Referenciá SOLO archivos que existen en la lista de arriba\n"
+        "- NO inventes archivos como 'start_containers.sh' o 'manage_vpn.sh'\n"
+        "- Each proposal: 1 title line + which file + what concrete change\n"
+        "- DO NOT include code blocks — only describe the change\n"
+        "- Maximum 200 words total\n"
+        "- Respond ENTIRELY in Spanish (Latin American). Never switch to Chinese or English mid-response."
+    )
+
+    return "\n\n".join(sections)
+
+
+# Build context and prompt
+_ollama_ctx = _build_ollama_context()
+_ollama_prompt = _format_ollama_prompt(_ollama_ctx)
+
+# Keep legacy vars for backward compat (Telegram message, logging)
+errors = _ollama_ctx.get("errors", ["Sin errores en los ultimos 7 dias."])
+if not errors:
+    errors = ["Sin errores en los ultimos 7 dias."]
+total = _ollama_ctx.get("containers_up", "?")
+
+# 5. Call Ollama (qwen2.5:7b for quality analysis)
+payload = json.dumps({"model": "qwen2.5:7b", "prompt": _ollama_prompt, "stream": False}).encode()
 try:
-    r = subprocess.run(["sudo", "docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True, timeout=10)
-    total = len(r.stdout.strip().split('\n'))
-    r2 = subprocess.run(["sudo", "docker", "ps", "-a", "--format", "{{.Names}} {{.Status}}"], capture_output=True, text=True, timeout=10)
-    downed = [l for l in r2.stdout.strip().split('\n') if 'Up' not in l and l.strip()]
-    downed_str = ', '.join(downed) if downed else "Ninguno"
-except:
-    total = "?"
-    downed_str = "Error"
-
-# 4. Prompt
-prompt = f"""Analiza este reporte semanal de Tenazas (asistente AI en Docker) y propone 1-3 mejoras concretas. Responde en espanol, maximo 200 palabras.
-
-Errores: {'; '.join(errors[:5])}
-Total skills: {len(skills)}
-Skills sin SKILL.md: {', '.join(no_skill) if no_skill else 'Ninguno'}
-Docker: {total} containers, Caidos: {downed_str}
-
-Reglas: Solo mejoras accionables. Nunca auto-desplegar. Foco en confiabilidad."""
-
-# 5. Call Ollama
-payload = json.dumps({"model": "qwen2.5:3b", "prompt": prompt, "stream": False}).encode()
-try:
-    req = Request("http://127.0.0.1:11434/api/generate",
+    req = Request("http://192.168.2.6:11434/api/generate",
                   data=payload,
                   headers={"Content-Type": "application/json"})
     resp = urlopen(req, timeout=180)
@@ -334,7 +565,7 @@ except Exception as e:
 # 6. Kimi K2 analysis (if OPENROUTER_API_KEY available)
 kimi_proposals = []
 kimi_msg = ""
-if os.environ.get("OPENROUTER_API_KEY"):
+if _resolve_openrouter_key():
     try:
         print("Building weekly context for Kimi K2...")
         context = build_weekly_context()
@@ -366,19 +597,43 @@ os.makedirs(os.path.dirname(MEMORY), exist_ok=True)
 with open(MEMORY, "a") as f:
     f.write(f"\n## {now}\n{analysis}\n")
 
-# 8. Send to Telegram
+# 8. Send to Telegram — summary + per-proposal approval buttons
 try:
     with open("/volume1/docker/openclaw/state/openclaw.json") as f:
         config = json.load(f)
     bot_token = config["channels"]["telegram"]["botToken"]
-    msg = f"🧬 Self Evolution — {now} ART\n━━━━━━━━━━━━━\n{analysis}\n━━━━━━━━━━━━━\n📝 Esperando aprobacion de Sebas."
-    if kimi_msg:
-        msg += f"\n\n{kimi_msg}"
+
+    # 8a. Send Ollama summary (plain text, no buttons)
+    msg = f"🧬 Self Evolution — {now} ART\n━━━━━━━━━━━━━\n{analysis}\n━━━━━━━━━━━━━"
     tg_payload = json.dumps({"chat_id": "1565794551", "text": msg}).encode()
     tg_req = Request(f"https://api.telegram.org/bot{bot_token}/sendMessage",
                      data=tg_payload,
                      headers={"Content-Type": "application/json"})
     urlopen(tg_req, timeout=10)
+
+    # 8b. Send each Kimi proposal with inline approval buttons
+    if kimi_proposals:
+        sys.path.insert(0, RUNTIME_DIR)
+        from exec_approvals import send_approval_request
+
+        for p in kimi_proposals:
+            prio = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(p.get("priority", ""), "⚪")
+            title = p.get("title", "Sin título")
+            desc = p.get("description", "")
+            risk = p.get("risk", "")
+            files = ", ".join(p.get("files_affected", []))
+            details = f"{desc}\n\nRisk: {risk}\nFiles: {files}" if risk else desc
+
+            try:
+                aid = send_approval_request(
+                    action_summary=f"{prio} {title}",
+                    action_details=details,
+                    skill_name="self-evolve",
+                    token=bot_token,
+                )
+                print(f"  Approval sent: {aid} — {title}")
+            except Exception as e:
+                print(f"  Approval button error for '{title}': {e}")
 except Exception as e:
     print(f"Telegram error: {e}")
 
@@ -417,7 +672,7 @@ try:
     if _should_train:
         print("[self_evolve] Launching weekly training pipeline...")
         subprocess.Popen([
-            "python3",
+            "sudo", "/usr/local/bin/docker", "exec", "openclaw", "python3",
             "/home/tenazas/.openclaw/workspace/skills/model-trainer/trainer_orchestrator.py",
             "--action", "full_pipeline",
         ])
