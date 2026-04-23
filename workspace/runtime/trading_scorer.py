@@ -16,13 +16,18 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
 TRADES_FILE = STATE_DIR / "trading" / "paper_trades.json"
 SCORER_FILE = STATE_DIR / "trading" / "scorer_report.json"
 LOG_FILE = BASE_DIR / "logs" / "trading_scorer.log"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state" / "openclaw.json"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 # Phase 6 readiness thresholds
 THRESHOLDS = {

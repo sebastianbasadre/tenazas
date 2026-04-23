@@ -21,10 +21,15 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "unified_briefing.log"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state" / "openclaw.json"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 SECTION_TIMEOUT = 5  # seconds per section
 MAX_LINES = 30
 

@@ -27,6 +27,11 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
 RESULTS_FILE = STATE_DIR / "benchmark_continuous.json"
@@ -246,7 +251,10 @@ def _notify_alert(alert: dict):
                f"Value: {alert['value']:.4f} (threshold: {alert['threshold']})\n"
                f"Severity: {alert['severity']}")
         from urllib.request import Request, urlopen
-        payload = json.dumps({"chat_id": "1565794551", "text": msg}).encode()
+        payload = json.dumps({
+            "chat_id": get_default_telegram_chat_id(),
+            "text": msg,
+        }).encode()
         urlopen(Request(f"https://api.telegram.org/bot{token}/sendMessage",
                         data=payload, headers={"Content-Type": "application/json"}), timeout=10)
     except Exception:

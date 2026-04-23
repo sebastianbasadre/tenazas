@@ -30,6 +30,21 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import (
+        get_allowed_chat_ids,
+        get_default_telegram_chat_id,
+        get_telegram_bot_token,
+        load_config,
+    )
+except ImportError:
+    from runtime_config import (
+        get_allowed_chat_ids,
+        get_default_telegram_chat_id,
+        get_telegram_bot_token,
+        load_config,
+    )
+
 # ── Paths ──────────────────────────────────────────────────────────
 
 RUNTIME_DIR = Path(__file__).parent
@@ -57,20 +72,18 @@ def _log(entry: dict):
 # ── Config ─────────────────────────────────────────────────────────
 
 def _load_config() -> dict:
-    with open(CONFIG_FILE) as f:
-        return json.load(f)
+    return load_config()
 
 
 def _get_bot_token() -> str:
-    return _load_config()["channels"]["telegram"]["botToken"]
+    return get_telegram_bot_token(_load_config())
 
 
 def _get_allowed_chat_ids() -> set:
-    cfg = _load_config()
-    return set(str(x) for x in cfg["channels"]["telegram"].get("allowFrom", []))
+    return get_allowed_chat_ids(_load_config())
 
 
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id(_load_config())
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 POLL_TIMEOUT = 30  # long-polling timeout in seconds
 

@@ -30,6 +30,11 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 # ── Paths ────────────────────────────────────────────────────────
 
 RUNTIME = Path(__file__).parent
@@ -46,7 +51,7 @@ HOMELAB_HOST = "sbasadre@192.168.2.6"
 HOMELAB_KEY = "/home/tenazas/.ssh/id_homelab"
 WORKBENCH_CTR = "project-tenazas-router-workbench-clean"
 OLLAMA_URL = "http://192.168.2.6:11434"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 log = logging.getLogger("auto_training")
 

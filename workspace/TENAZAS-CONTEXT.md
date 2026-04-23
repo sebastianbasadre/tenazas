@@ -29,7 +29,7 @@ Synology DS923+ (192.168.2.2) — Host principal, Ryzen CPU
 │   ├── chromadb          — Vector DB para RAG (:8100)
 │   ├── piper             — TTS local (voz es_MX-claude-high)
 │   ├── prometheus        — Métricas (:9090), retención 30d/1GB
-│   ├── grafana           — Dashboard (:3000), admin/tenazas
+│   ├── grafana           — Dashboard (:3000), credenciales via `.env`
 │   ├── ollama            — LLM NAS CPU (fallback, solo modelos chicos)
 │   ├── portainer         — Dashboard Docker
 │   └── watchtower        — Auto-update de imágenes

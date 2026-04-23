@@ -20,13 +20,18 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Allow running as script or module
+# Allow running as script or module.
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from runtime import executors
-from runtime import freeze_detector
-from runtime import metrics_exporter
+if __package__:
+    from . import executors
+    from . import freeze_detector
+    from . import metrics_exporter
+else:
+    from runtime import executors
+    from runtime import freeze_detector
+    from runtime import metrics_exporter
 
 # ── SIGALRM watchdog (Linux only, ignored on Windows) ────────────
 
@@ -187,7 +192,10 @@ def update_state() -> tuple:
             pass
         # Update device inventory (quick scan + ARP enrichment)
         try:
-            from . import device_discovery
+            if __package__:
+                from . import device_discovery
+            else:
+                from runtime import device_discovery
             result = device_discovery.discover(mode="quick")
             _log({"action": "device_inventory_updated",
                   "total": result.get("summary", {}).get("total", 0)})

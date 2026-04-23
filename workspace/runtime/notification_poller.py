@@ -22,6 +22,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+
 # ── Paths ────────────────────────────────────────────────────────
 
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
@@ -31,14 +36,11 @@ NOTIFIED_EMAILS = STATE_DIR / "notified_emails.json"
 GCAL_SCRIPT = "/home/tenazas/.openclaw/workspace/skills/calendar-agenda/gcal.py"
 GEMMA_URL = "http://192.168.2.6:11434/v1/chat/completions"
 GEMMA_MODEL = "gemma3:12b"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 
 def _load_token() -> str:
-    try:
-        return json.loads(CONFIG_PATH.read_text())["channels"]["telegram"]["botToken"]
-    except Exception:
-        return ""
+    return get_telegram_bot_token()
 
 
 def _notify(msg: str):
@@ -140,8 +142,20 @@ def check_calendar(test: bool = False):
                 print(f"[calendar] ALERT: {alert}")
 
     if new_alerts:
-        msg = "\n".join(new_alerts)
-        _notify(msg)
+        # Check temporal_guard before sending
+        send = True
+        try:
+            from temporal_guard import should_notify as _tg_check
+            send = _tg_check(severity="info", category="calendar")
+        except ImportError:
+            pass
+
+        if send or test:
+            msg = "\n".join(new_alerts)
+            if send:
+                _notify(msg)
+            if test:
+                print(f"[calendar] sent {len(new_alerts)} alerts")
         _save_json(NOTIFIED_EVENTS, notified)
     elif test:
         print("[calendar] no new alerts")
@@ -236,8 +250,17 @@ def check_email(test: bool = False):
             new_alerts.append(alert)
 
     if new_alerts:
-        msg = "\n".join(new_alerts)
-        _notify(msg)
+        # Check temporal_guard before sending
+        send = True
+        try:
+            from temporal_guard import should_notify as _tg_check
+            send = _tg_check(severity="warning", category="notification")
+        except ImportError:
+            pass
+
+        if send:
+            msg = "\n".join(new_alerts)
+            _notify(msg)
 
     _save_json(NOTIFIED_EMAILS, notified)
 

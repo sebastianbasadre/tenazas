@@ -16,9 +16,14 @@ from datetime import date
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 RUNTIME = Path(__file__).parent
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 
 def _load_token() -> str:

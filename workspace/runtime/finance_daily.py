@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -23,11 +24,16 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 IOL_CONFIG = Path("/home/tenazas/.openclaw/iol_config.json")
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else Path(__file__).parent.parent / "state"
 HISTORY_DIR = STATE_DIR / "finance_history"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 GLUETUN_PROXY = "http://192.168.2.2:8888"
 
 
@@ -62,14 +68,17 @@ def _binance_sign(params: dict, secret: str) -> str:
 
 def get_binance_pnl(test: bool = False) -> dict | None:
     """Get Binance account balance + 24h PNL."""
-    # Load tenazas-specific config (split from openclaw.json)
-    _tcfg_path = Path("/home/tenazas/.openclaw/tenazas.json")
-    try:
-        cfg = json.loads(_tcfg_path.read_text()) if _tcfg_path.exists() else {}
-    except Exception:
-        cfg = {}
-    api_key = cfg.get("binance_api_key", "")
-    secret = cfg.get("binance_secret", "")
+    # Try env vars first, then tenazas.json fallback
+    api_key = os.environ.get("BINANCE_API_KEY", "")
+    secret = os.environ.get("BINANCE_SECRET", "")
+    if not api_key or not secret:
+        _tcfg_path = Path("/home/tenazas/.openclaw/tenazas.json")
+        try:
+            cfg = json.loads(_tcfg_path.read_text()) if _tcfg_path.exists() else {}
+        except Exception:
+            cfg = {}
+        api_key = api_key or cfg.get("binance_api_key", "")
+        secret = secret or cfg.get("binance_secret", "")
 
     if not api_key or not secret:
         if test:
@@ -77,19 +86,30 @@ def get_binance_pnl(test: bool = False) -> dict | None:
         return None
 
     try:
+        import subprocess
+
+        def _curl_binance(url, headers=None):
+            """Call Binance API via gluetun proxy using curl."""
+            cmd = ["curl", "-s", "--max-time", "10",
+                   "--proxy", GLUETUN_PROXY, url]
+            for k, v in (headers or {}).items():
+                cmd += ["-H", f"{k}: {v}"]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            return json.loads(r.stdout)
+
+        # Use Binance server time to avoid clock skew
+        try:
+            server_ts = _curl_binance("https://api.binance.com/api/v3/time")["serverTime"]
+        except Exception:
+            server_ts = int(time.time() * 1000)
+
         # Get account balances
-        params = {"timestamp": int(time.time() * 1000)}
+        params = {"timestamp": server_ts, "recvWindow": 10000}
         signed = _binance_sign(params, secret)
-        req = Request(
+        account = _curl_binance(
             f"https://api.binance.com/api/v3/account?{signed}",
             headers={"X-MBX-APIKEY": api_key},
         )
-        # Route through gluetun for VPN
-        import urllib.request
-        proxy = urllib.request.ProxyHandler({"https": GLUETUN_PROXY})
-        opener = urllib.request.build_opener(proxy)
-        resp = opener.open(req, timeout=10)
-        account = json.loads(resp.read())
 
         # Filter assets with balance > 0
         assets = []
@@ -103,13 +123,17 @@ def get_binance_pnl(test: bool = False) -> dict | None:
         if not assets:
             return {"assets": [], "total_usd": 0, "pnl_usd": 0}
 
-        # Get 24h tickers for price + change (cache-bust through gluetun proxy)
-        req2 = Request(
-            f"https://api.binance.com/api/v3/ticker/24hr?_t={int(time.time() * 1000)}",
-            headers={"Cache-Control": "no-cache, no-store"},
-        )
-        resp2 = opener.open(req2, timeout=10)
-        tickers = {t["symbol"]: t for t in json.loads(resp2.read())}
+        # Get 24h tickers only for assets we hold (avoid huge /ticker/24hr response)
+        symbols_needed = [a["asset"] + "USDT" for a in assets
+                          if a["asset"] not in ("USDT", "USDC", "BUSD")]
+        tickers = {}
+        for sym in symbols_needed:
+            try:
+                t = _curl_binance(
+                    f"https://api.binance.com/api/v3/ticker/24hr?symbol={sym}")
+                tickers[sym] = t
+            except Exception:
+                pass
 
         total_usd = 0
         total_pnl = 0

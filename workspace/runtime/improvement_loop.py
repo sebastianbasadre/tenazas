@@ -21,6 +21,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
 CANDIDATES_FILE = STATE_DIR / "improvement_candidates.json"
@@ -68,7 +73,10 @@ def _notify(msg: str):
             return
         token = json.loads(config_path.read_text())["channels"]["telegram"]["botToken"]
         from urllib.request import Request, urlopen
-        payload = json.dumps({"chat_id": "1565794551", "text": msg[:4090]}).encode()
+        payload = json.dumps({
+            "chat_id": get_default_telegram_chat_id(),
+            "text": msg[:4090],
+        }).encode()
         urlopen(Request(f"https://api.telegram.org/bot{token}/sendMessage",
                         data=payload, headers={"Content-Type": "application/json"}), timeout=10)
     except Exception:

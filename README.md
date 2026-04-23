@@ -18,7 +18,7 @@ Synology DS923+ (192.168.2.2)
 │   ├── chromadb         — Vector DB para RAG (:8100)
 │   ├── piper            — TTS local (voz es_MX)
 │   ├── prometheus       — Metricas (:9090), retencion 30d/1GB
-│   ├── grafana          — Dashboard (:3000), admin/tenazas
+│   ├── grafana          — Dashboard (:3000), credenciales via `.env`
 │   ├── ollama           — LLM fallback CPU
 │   ├── portainer        — Dashboard Docker
 │   └── watchtower       — Auto-update de imagenes

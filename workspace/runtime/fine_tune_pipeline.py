@@ -28,6 +28,11 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 BASE_DIR = Path(__file__).parent
 _host_evals = BASE_DIR.parent.parent / "state" / "workspace" / "evals"
 _container_evals = Path("/home/tenazas/.openclaw/workspace/evals")
@@ -56,7 +61,7 @@ TRAIN_CONFIG = {
 }
 
 # Telegram config
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 
 def _now():

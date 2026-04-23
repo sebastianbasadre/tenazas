@@ -25,12 +25,17 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+try:
+    from .runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+
 RUNTIME = Path(__file__).parent
 QUEUE_PATH = Path("/home/tenazas/.openclaw/state") / "approval_queue.json"
 LOG_PATH = RUNTIME / "logs" / "approval_queue.log"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 EXPIRATION_SECONDS = 1800  # 30 min
 POSTPONE_SECONDS = 600     # 10 min extension
 MAX_QUEUE_SIZE = 50
@@ -57,8 +62,7 @@ def _save_queue(queue: list):
 
 
 def _load_bot_token() -> str:
-    config = json.loads(CONFIG_PATH.read_text())
-    return config["channels"]["telegram"]["botToken"]
+    return get_telegram_bot_token()
 
 
 def _tg_request(method: str, payload: dict, token: str) -> dict | None:

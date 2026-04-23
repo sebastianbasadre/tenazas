@@ -10,18 +10,19 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_telegram_bot_token
+except ImportError:
+    from runtime_config import get_telegram_bot_token
+
 FEEDBACK_LOG = Path(__file__).parent / "learning" / "feedback_log.jsonl"
 RECENT_SKILLS = {}  # chat_id → {query, category, ts}
 
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
-CHAT_ID = "1565794551"
 
 
 def _load_token() -> str:
-    try:
-        return json.loads(CONFIG_PATH.read_text())["channels"]["telegram"]["botToken"]
-    except Exception:
-        return ""
+    return get_telegram_bot_token()
 
 
 def _tg(token: str, method: str, data: dict):

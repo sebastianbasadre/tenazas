@@ -44,7 +44,7 @@
 | chromadb | chromadb/chroma | Vector DB para RAG (:8100) | Up |
 | piper | linuxserver/piper | TTS local (es_MX-claude-high) | Up |
 | prometheus | prom/prometheus | Métricas (:9090, network_mode: host) | Up |
-| grafana | grafana/grafana | Dashboards (:3000, admin/tenazas) | Up |
+| grafana | grafana/grafana | Dashboards (:3000, credenciales via `.env`) | Up |
 | portainer | portainer/portainer-ee | Docker dashboard web | Up |
 | WATCHTOWER | nickfedor/watchtower | Auto-update de imágenes | healthy |
 | hireswarm-agent-server | dev-agent-pipeline | HireSwarm AI agent server | healthy |
@@ -63,7 +63,7 @@ openclaw, watchtower
 
 | Puerto | Servicio | Notas |
 |---|---|---|
-| :3000 | Grafana | admin/tenazas |
+| :3000 | Grafana | usuario admin + password configurado en `.env` |
 | :8100 | ChromaDB | Vector store RAG |
 | :8888 | Gluetun proxy | VPN HTTP proxy |
 | :9090 | Prometheus | Scrape cada 30s, retención 30d |

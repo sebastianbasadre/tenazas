@@ -29,13 +29,18 @@ from hashlib import sha256
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 BASE_DIR = Path(__file__).parent
 LOGS_DIR = BASE_DIR / "logs"
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
 OUTPUT_DIR = STATE_DIR / "error_mining"
 LOG_FILE = LOGS_DIR / "error_mining.log"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state" / "openclaw.json"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 # Log files to scan
 ROUTER_LOG = LOGS_DIR / "model_router.log"

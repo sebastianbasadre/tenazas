@@ -9,7 +9,12 @@ import json
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-CHAT_ID = "1565794551"
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
+CHAT_ID = get_default_telegram_chat_id()
 
 _IN_CONTAINER = Path("/home/tenazas").exists()
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if _IN_CONTAINER else Path(__file__).parent.parent / "state" / "openclaw.json"

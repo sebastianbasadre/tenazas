@@ -15,12 +15,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 RUNTIME = Path(__file__).parent
 QUEUE_PATH = RUNTIME / "task_queue.json"
 LOG_PATH = RUNTIME / "logs" / "proactive_planner.log"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 OLLAMA_URL = "http://192.168.2.6:11434"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 
 def _log(entry: dict):
@@ -143,22 +148,58 @@ def _check_feedback() -> list:
 
 # ── Main ─────────────────────────────────────────────────────────
 
+def _check_goals() -> list:
+    """Check homelab goals and generate suggestions for failing ones."""
+    tasks = []
+    try:
+        from homelab_goals import get_failing_goals
+        failing = get_failing_goals()
+        for g in failing:
+            tasks.append({
+                "type": "goal",
+                "priority": "high" if g["status"] == "fail" else "medium",
+                "action": f"fix_{g['id']}",
+                "detail": f"Goal P{g['priority']} {g['desc']}: {g.get('evidence', '')}",
+                "goal_id": g["id"],
+            })
+    except Exception:
+        pass
+    return tasks
+
+
 def plan():
     """Run all inspectors, generate SUGGESTIONS (never auto-execute).
 
     Policy: Tenazas suggests, Sebas decides. No auto-enqueue to orchestrator.
     """
     suggestions = []
-    for checker in [_check_infra, _check_calendar, _check_gpu, _check_metrics, _check_feedback]:
+    for checker in [_check_infra, _check_calendar, _check_gpu, _check_metrics, _check_feedback, _check_goals]:
         try:
             suggestions.extend(checker())
         except Exception:
             continue
 
-    suggestions.sort(key=lambda t: {"high": 0, "medium": 1, "low": 2}.get(t.get("priority", "low"), 2))
+    # Prioritize by: goal failures first (by goal priority), then by suggestion priority
+    def _sort_key(t):
+        priority_rank = {"high": 0, "medium": 1, "low": 2}.get(t.get("priority", "low"), 2)
+        goal_rank = t.get("goal_id", "zzz")  # goals sort first if same priority
+        return (priority_rank, goal_rank)
+
+    suggestions.sort(key=_sort_key)
 
     # Save for reference only (not an execution queue)
     QUEUE_PATH.write_text(json.dumps(suggestions, indent=2, default=str))
+
+    # Filter suggestions through temporal_guard
+    try:
+        from temporal_guard import should_notify as _tg_should_notify
+        suggestions = [s for s in suggestions
+                       if _tg_should_notify(
+                           severity=s.get("priority", "low"),
+                           category=s.get("type", ""),
+                           skip_calendar_check=False)]
+    except ImportError:
+        pass  # temporal_guard not available, keep all
 
     # Only notify for critical issues that need human action
     # GPU/infra stuff is handled by gpu_scheduler and self_heal automatically

@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import docker_wrapper
+from .runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
 
 BASE_DIR = Path(__file__).parent
 EXECUTOR_LOG = BASE_DIR / "logs" / "executor.log"
@@ -30,7 +31,7 @@ OLLAMA_STATUS_FILE = Path("/tmp/ollama-notebook.status")
 # ── Telegram config ──────────────────────────────────────────────
 
 OPENCLAW_CONFIG = Path("/home/tenazas/.openclaw/openclaw.json")
-TELEGRAM_CHAT = "1565794551"
+TELEGRAM_CHAT = get_default_telegram_chat_id()
 
 
 def _now():
@@ -137,10 +138,8 @@ def write_ollama_status(ok: bool):
 
 def notify_telegram(message: str) -> bool:
     """Send a Telegram notification to Sebas. Returns True on success."""
-    try:
-        config = json.loads(OPENCLAW_CONFIG.read_text())
-        token = config["channels"]["telegram"]["botToken"]
-    except (OSError, KeyError, json.JSONDecodeError):
+    token = get_telegram_bot_token()
+    if not token or not TELEGRAM_CHAT:
         _log_exec({"ts": _now(), "action": "telegram", "ok": False, "error": "cannot read bot token"})
         return False
 

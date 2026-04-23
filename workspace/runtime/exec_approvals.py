@@ -24,6 +24,11 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+try:
+    from .runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+
 # ---------------------------------------------------------------------------
 # Paths & Config
 # ---------------------------------------------------------------------------
@@ -32,8 +37,8 @@ PENDING_FILE = BASE_DIR / "pending_approvals.json"
 LOG_FILE = BASE_DIR / "logs" / "exec_approvals.log"
 CONFIG_FILE = Path("/home/tenazas/.openclaw/openclaw.json")
 
-CHAT_ID = "1565794551"
-APPROVAL_TIMEOUT_SECONDS = 300  # 5 minutes
+CHAT_ID = get_default_telegram_chat_id()
+APPROVAL_TIMEOUT_SECONDS = 86400  # 24 hours (proposals aren't urgent)
 
 
 # ---------------------------------------------------------------------------
@@ -54,11 +59,10 @@ def _log(entry: dict):
 
 def _load_bot_token() -> str:
     """Read bot token from openclaw.json."""
-    config = json.loads(CONFIG_FILE.read_text())
-    return config["channels"]["telegram"]["botToken"]
+    return get_telegram_bot_token()
 
 
-def _tg_request(method: str, payload: dict, token: str) -> dict | None:
+def _tg_request(method: str, payload: dict, token: str):
     """Call Telegram Bot API. Returns parsed JSON or None on error."""
     url = f"https://api.telegram.org/bot{token}/{method}"
     body = json.dumps(payload).encode()
@@ -97,6 +101,29 @@ def _save_pending(pending: dict):
     PENDING_FILE.write_text(json.dumps(pending, indent=2, ensure_ascii=False))
 
 
+def _sync_proposal_status(summary: str, new_status: str):
+    """Sync approval decision back to learning/proposals.json.
+
+    Matches by title substring in the action_summary (which contains the emoji + title).
+    """
+    proposals_file = BASE_DIR / "learning" / "proposals.json"
+    try:
+        proposals = json.loads(proposals_file.read_text())
+    except Exception:
+        return
+    updated = False
+    for p in proposals:
+        title = p.get("title", "")
+        if title and title in summary:
+            p["status"] = new_status
+            p["reviewed_at"] = datetime.now().astimezone().isoformat()
+            updated = True
+            break
+    if updated:
+        proposals_file.write_text(json.dumps(proposals, indent=2, ensure_ascii=False))
+        _log({"action": "proposal_synced", "title": summary[:60], "status": new_status})
+
+
 def _cleanup_expired(pending: dict) -> dict:
     """Remove expired approval requests."""
     now = time.time()
@@ -113,7 +140,7 @@ def send_approval_request(
     action_details: str,
     skill_name: str,
     chat_id: str = CHAT_ID,
-    token: str | None = None,
+    token=None,
 ) -> str:
     """Send an approval request with inline keyboard to Telegram.
 
@@ -162,7 +189,7 @@ def send_approval_request(
         f"Accion pendiente de aprobacion -- {now_str}\n\n"
         f"Skill: {skill_name}\n"
         f"Accion: {action_summary}\n\n"
-        f"Expira en 5 minutos"
+        f"Expira en 24 horas"
     )
 
     result = _tg_request("sendMessage", {
@@ -182,7 +209,7 @@ def send_approval_request(
     return approval_id
 
 
-def handle_callback_query(callback_query: dict, token: str | None = None) -> dict:
+def handle_callback_query(callback_query: dict, token=None) -> dict:
     """Process a Telegram callback_query (button tap).
 
     Args:
@@ -243,6 +270,7 @@ def handle_callback_query(callback_query: dict, token: str | None = None) -> dic
         pending[approval_id]["status"] = "approved"
         pending[approval_id]["resolved_at"] = time.time()
         _save_pending(pending)
+        _sync_proposal_status(approval["action_summary"], "accepted")
 
         _tg_request("answerCallbackQuery", {
             "callback_query_id": callback_id,
@@ -251,7 +279,7 @@ def handle_callback_query(callback_query: dict, token: str | None = None) -> dic
         _tg_request("editMessageText", {
             "chat_id": chat_id,
             "message_id": message_id,
-            "text": f"Aprobado -- {approval['action_summary']}\n{approval['skill_name']}",
+            "text": f"\u2705 Aprobado — {approval['action_summary']}",
             "reply_markup": {"inline_keyboard": []},
         }, token)
         _log({"action": "callback_approved", "approval_id": approval_id,
@@ -262,6 +290,7 @@ def handle_callback_query(callback_query: dict, token: str | None = None) -> dic
         pending[approval_id]["status"] = "cancelled"
         pending[approval_id]["resolved_at"] = time.time()
         _save_pending(pending)
+        _sync_proposal_status(approval["action_summary"], "rejected")
 
         _tg_request("answerCallbackQuery", {
             "callback_query_id": callback_id,
@@ -270,7 +299,7 @@ def handle_callback_query(callback_query: dict, token: str | None = None) -> dic
         _tg_request("editMessageText", {
             "chat_id": chat_id,
             "message_id": message_id,
-            "text": f"Cancelado -- {approval['action_summary']}",
+            "text": f"\u274c Rechazado — {approval['action_summary']}",
             "reply_markup": {"inline_keyboard": []},
         }, token)
         _log({"action": "callback_cancelled", "approval_id": approval_id})

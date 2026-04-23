@@ -15,12 +15,17 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
 JOURNAL_DIR = STATE_DIR / "trading" / "journal"
 LOG_FILE = BASE_DIR / "logs" / "trading_journal.log"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state" / "openclaw.json"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 
 def _now(): return datetime.now().astimezone()

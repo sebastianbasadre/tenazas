@@ -130,8 +130,11 @@ def _check_action(action: str, target: str) -> dict:
         if target:
             target_path = Path(target).resolve()
             runtime_resolved = RUNTIME_DIR.resolve()
-            if str(target_path).startswith(str(runtime_resolved)):
+            try:
+                target_path.relative_to(runtime_resolved)
                 return {"allowed": True, "reason": "File write within runtime directory"}
+            except ValueError:
+                pass
             return {
                 "allowed": False,
                 "reason": f"File write outside runtime directory: {target}",
@@ -143,8 +146,11 @@ def _check_action(action: str, target: str) -> dict:
         if target:
             target_path = Path(target).resolve()
             runtime_resolved = RUNTIME_DIR.resolve()
-            if str(target_path).startswith(str(runtime_resolved)):
+            try:
+                target_path.relative_to(runtime_resolved)
                 return {"allowed": True, "reason": "File delete within runtime directory"}
+            except ValueError:
+                pass
         return {
             "allowed": False,
             "reason": "File deletion outside runtime directory is blocked",

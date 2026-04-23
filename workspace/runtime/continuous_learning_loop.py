@@ -20,6 +20,11 @@ from pathlib import Path
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 RUNTIME = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state")
 STAGING_PATH = STATE_DIR / "learned_rules_staging.json"
@@ -30,7 +35,7 @@ CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
 SEARXNG_URL = "http://192.168.2.2:8890"
 OLLAMA_URL = "http://192.168.2.6:11434"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 
 
 def _log(entry: dict):

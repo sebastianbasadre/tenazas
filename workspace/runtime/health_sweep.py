@@ -33,6 +33,11 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+try:
+    from .runtime_config import get_default_telegram_chat_id
+except ImportError:
+    from runtime_config import get_default_telegram_chat_id
+
 # ── Paths ───────────────────────────────────────────────────────
 
 _IN_CONTAINER = Path("/home/tenazas").exists()
@@ -40,7 +45,7 @@ BASE_DIR = Path(__file__).parent
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if _IN_CONTAINER else BASE_DIR.parent / "state" / "openclaw.json"
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else BASE_DIR.parent / "state"
 DB_PATH = STATE_DIR / "health_sweeps.sqlite"
-CHAT_ID = "1565794551"
+CHAT_ID = get_default_telegram_chat_id()
 GLUETUN_PROXY = "http://192.168.2.2:8888"
 GRAFANA_AUTH = "YWRtaW46dGVuYXphcw=="  # admin:tenazas base64
 
@@ -283,11 +288,46 @@ def _probe_ollama_nas() -> dict:
         return _warn("ollama_nas", "offline (expected if HomeLab up)")
 
 
+def _probe_arr_connectivity() -> dict:
+    """Check arr-stack services can talk to each other via gluetun network.
+
+    Prowlarr must reach Sonarr (:8989) and Radarr (:7878) on localhost
+    inside the shared gluetun network namespace. If this fails, the
+    containers appear 'Up' but indexers and requests don't work.
+    """
+    try:
+        t0 = time.monotonic()
+        # From Prowlarr, curl Sonarr and Radarr via localhost (shared gluetun net)
+        checks = {
+            "sonarr": ("prowlarr", "http://localhost:8989/ping"),
+            "radarr": ("prowlarr", "http://localhost:7878/ping"),
+        }
+        failed = []
+        for name, (container, url) in checks.items():
+            r = subprocess.run(
+                ["docker", "exec", container, "curl", "-sf", "-o", "/dev/null",
+                 "-w", "%{http_code}", "--max-time", "5", url],
+                capture_output=True, text=True, timeout=PROBE_TIMEOUT)
+            code = r.stdout.strip()
+            if code != "200":
+                failed.append(f"{name}({code})")
+
+        lat = (time.monotonic() - t0) * 1000
+        if failed:
+            return _fail("arr_connectivity",
+                         f"broken: {', '.join(failed)} — restart gluetun + arr-stack",
+                         lat, {"failed": failed,
+                               "suggestion": "docker restart gluetun && sleep 15 && docker restart sonarr radarr prowlarr seerr requestrr"})
+        return _ok("arr_connectivity", lat, {"checked": list(checks.keys())})
+    except Exception as e:
+        return _fail("arr_connectivity", str(e))
+
+
 def sweep_nas() -> dict:
     probes = [
         _probe_docker_socket, _probe_containers, _probe_chromadb,
         _probe_prometheus, _probe_grafana, _probe_piper,
-        _probe_vpn, _probe_ollama_nas,
+        _probe_vpn, _probe_ollama_nas, _probe_arr_connectivity,
     ]
     results = _run_probes(probes)
     return {"section": "nas", "results": results}
