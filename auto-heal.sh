@@ -12,7 +12,7 @@ set -uo pipefail
 OPENCLAW_CONFIG="/home/tenazas/.openclaw/openclaw.json"
 GLUETUN_PROXY="http://192.168.2.2:8888"
 OLLAMA_NOTEBOOK="http://192.168.2.6:11434"
-TELEGRAM_CHAT="1565794551"
+TELEGRAM_CHAT="${OPENCLAW_TELEGRAM_CHAT_ID:-$(python3 -c "import json; c=json.load(open('$OPENCLAW_CONFIG')); print(c['channels']['telegram'].get('allowFrom',[''])[0])" 2>/dev/null)}"
 LOCK_FILE="/tmp/auto-heal.lock"
 
 ARR_CONTAINERS=(gluetun qbittorrent sonarr radarr lidarr prowlarr seerr requestrr tautulli sabnzbd)

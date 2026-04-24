@@ -1346,24 +1346,6 @@ La caída a cloud **no es silenciosa**. Cadena: OpenRouter (Kimi K2) → Gemini 
 
 ---
 
-## Workspace runtime legacy (workspace/runtime.py + workspace/executors.py)
-
-**NOTA:** Estos son los modulos originales, anteriores al runtime layer nuevo. Coexisten pero el nuevo (`workspace/runtime/`) es el preferido.
-
-### workspace/runtime.py
-- Loop similar pero usa `shell=True` (riesgo de seguridad)
-- Incluye subsistema de reminders
-- Pattern engine con clasificacion de Hue por keywords
-- Enqueue de `hue.scene` basado en patrones temporales
-
-### workspace/executors.py
-- **Docker:** restart, start, stop (sin sanitizacion de nombres)
-- **Hue:** 5 escenas (off, on, work, cinema, relax) via curl a Hue API
-- **Network:** scan nmap
-- Usa `shell=True` en `_sh()` — NO pasar input de usuario
-
----
-
 ## Scripts de infraestructura (host/container)
 
 ### `auto-heal.sh` (DEPRECATED — reemplazado por runtime layer)

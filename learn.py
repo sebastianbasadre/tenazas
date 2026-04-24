@@ -13,13 +13,16 @@ now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
 GOOGLE_API_KEY = ""
 BOT_TOKEN = ""
+TELEGRAM_CHAT_ID = ""
 try:
     with open("/volume1/docker/openclaw/docker-compose.yml") as f:
         for line in f:
             m = re.search(r"GOOGLE_API_KEY=(.+)", line)
             if m: GOOGLE_API_KEY = m.group(1).strip()
     with open("/volume1/docker/openclaw/state/openclaw.json") as f:
-        BOT_TOKEN = json.load(f)["channels"]["telegram"]["botToken"]
+        _cfg = json.load(f)
+        BOT_TOKEN = _cfg["channels"]["telegram"]["botToken"]
+        TELEGRAM_CHAT_ID = str(_cfg["channels"]["telegram"].get("allowFrom", [""])[0])
 except: pass
 
 def discover_models():
@@ -53,7 +56,7 @@ def ask_gemini(prompt):
 def send_telegram(msg):
     if not BOT_TOKEN: return
     try:
-        tg = json.dumps({"chat_id": "1565794551", "text": msg[:4000]}).encode()
+        tg = json.dumps({"chat_id": TELEGRAM_CHAT_ID, "text": msg[:4000]}).encode()
         urlopen(Request("https://api.telegram.org/bot%s/sendMessage" % BOT_TOKEN,
                 data=tg, headers={"Content-Type": "application/json"}), timeout=10)
     except: pass

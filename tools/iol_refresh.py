@@ -77,8 +77,9 @@ def _notify_telegram(message: str):
     """Send error notification via Telegram."""
     try:
         config = json.loads(CONFIG_FILE.read_text())
-        token = config.get("channels", {}).get("telegram", {}).get("botToken", "")
-        chat_id = "1565794551"
+        tg = config.get("channels", {}).get("telegram", {})
+        token = tg.get("botToken", "")
+        chat_id = str(tg.get("allowFrom", [""])[0])
         if not token:
             return
         payload = json.dumps({

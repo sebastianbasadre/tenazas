@@ -605,7 +605,8 @@ try:
 
     # 8a. Send Ollama summary (plain text, no buttons)
     msg = f"🧬 Self Evolution — {now} ART\n━━━━━━━━━━━━━\n{analysis}\n━━━━━━━━━━━━━"
-    tg_payload = json.dumps({"chat_id": "1565794551", "text": msg}).encode()
+    chat_id = config["channels"]["telegram"].get("allowFrom", [""])[0]
+    tg_payload = json.dumps({"chat_id": chat_id, "text": msg}).encode()
     tg_req = Request(f"https://api.telegram.org/bot{bot_token}/sendMessage",
                      data=tg_payload,
                      headers={"Content-Type": "application/json"})
