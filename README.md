@@ -237,7 +237,6 @@ docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 | test_iol_broker.py | 62 | IOL portfolio, cotizaciones, ordenes |
 | test_multitool.py | 38 | Parser XML, registry, policy, orchestrator integration |
 | test_eval_harness.py | 32 | Eval metrics, split dataset, aggregate metrics |
-| test_auto_heal.sh | bash | VPN leak, containers, lock |
 | test_ollama_check.sh | bash | Routing, cache, JSON |
 
 ---
