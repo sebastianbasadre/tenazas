@@ -94,7 +94,6 @@ run_suite "multitool"         "python3 $SCRIPT_DIR/test_multitool.py"
 run_suite "eval_harness"      "python3 $SCRIPT_DIR/test_eval_harness.py"
 
 # Bash suites
-run_bash "auto_heal"          "bash $SCRIPT_DIR/test_auto_heal.sh"
 run_bash "ollama_check"       "bash $SCRIPT_DIR/test_ollama_check.sh"
 
 # Summary

@@ -91,7 +91,6 @@ tests/simulation/*
 # Allow root scripts
 !.gitignore
 !startup.sh
-!auto-heal.sh
 !ollama-check.sh
 
 # Always ignore state/logs/data

@@ -25,7 +25,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /volume1/docker/piper/data:/home/tenazas/piper
       - ./startup.sh:/home/tenazas/startup.sh
-      - ./auto-heal.sh:/home/tenazas/auto-heal.sh
       - ./ollama-check.sh:/home/tenazas/ollama-check.sh
       - ./tests:/home/tenazas/tests
       - ./workspace/runtime:/home/tenazas/runtime

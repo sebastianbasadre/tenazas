@@ -985,7 +985,7 @@ Flow: Guardian primero (siempre) → Reasoner+Executor en paralelo → Analyst �
 
 Sistema de monitoreo inteligente en `workspace/runtime/`.
 
-### Arquitectura (42+ modulos, reemplaza auto-heal.sh)
+### Arquitectura (42+ modulos)
 ```
 workspace/runtime/
 │
@@ -1348,13 +1348,6 @@ La caída a cloud **no es silenciosa**. Cadena: OpenRouter (Kimi K2) → Gemini 
 
 ## Scripts de infraestructura (host/container)
 
-### `auto-heal.sh` (DEPRECATED — reemplazado por runtime layer)
-Cron DSM deshabilitado (`#DISABLED_BY_RUNTIME#`). El runtime layer cubre todas sus responsabilidades:
-- VPN leak detection (country check)
-- Container restarts (arr-stack)
-- Ollama status file
-- Telegram notifications
-
 ### `ollama-check.sh`
 Routing helper con cache de 120s. Sigue activo.
 ```bash
@@ -1442,7 +1435,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /volume1/docker/piper/data:/home/tenazas/piper
       - ./startup.sh:/home/tenazas/startup.sh
-      - ./auto-heal.sh:/home/tenazas/auto-heal.sh
       - ./ollama-check.sh:/home/tenazas/ollama-check.sh
       - ./tests:/home/tenazas/tests
       - ./workspace/runtime:/home/tenazas/runtime
@@ -1476,7 +1468,6 @@ services:
 | Frecuencia | Comando | Estado |
 |---|---|---|
 | Cada 5 min | `docker exec openclaw python3 /home/tenazas/runtime/runtime.py` | **ACTIVO** |
-| Cada 15 min | `docker exec openclaw bash /home/tenazas/auto-heal.sh` | DESHABILITADO |
 | Domingos 21:00 | `self-evolve.py` | ACTIVO |
 | Semanal | `learn.py` | ACTIVO |
 
@@ -1590,7 +1581,6 @@ Refresh automatico del bearer token de IOL InvertirOnline.
 
 ### Paths dentro del container
 ```
-auto-heal.sh    → /home/tenazas/auto-heal.sh
 ollama-check.sh → /home/tenazas/ollama-check.sh
 tests/          → /home/tenazas/tests/
 runtime/        → /home/tenazas/runtime/
@@ -1629,7 +1619,6 @@ docker exec openclaw python3 /home/tenazas/tests/test_finetuned_router.py # 29 t
 docker exec openclaw python3 /home/tenazas/tests/test_intent_normalizer.py # 42 tests
 docker exec openclaw python3 /home/tenazas/tests/test_health_sweep.py     # 31 tests
 docker exec openclaw python3 /home/tenazas/tests/test_autofix.py          # 54 tests
-docker exec openclaw bash   /home/tenazas/tests/test_auto_heal.sh
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
 ```
 
@@ -1827,9 +1816,6 @@ ssh -p 4822 sbasadre@192.168.2.2 '/usr/local/bin/docker exec openclaw python3 /h
 - is_safe_container(): helper validation
 - Getters: return copies (mutation safety)
 - Logging: all validations logged to safety.log with timestamp, action, target, context
-
-**test_auto_heal.sh** (bash + mocks)
-- VPN leak, gluetun down, container caido, lock file, ollama status
 
 **test_ollama_check.sh** (bash + mock curl)
 - Routing por backend, cache 120s, --json valido
@@ -2289,7 +2275,7 @@ A structural refactoring of the Tenazas runtime layer — the 42+ Python module 
 ## Languages
 - Node.js 24 (Bookworm) - OpenClaw gateway and main runtime host
 - Python 3 (system) - 42+ runtime modules for orchestration, AI routing, infra monitoring
-- Bash - Startup scripts, system monitoring (`auto-heal.sh`, `ollama-check.sh`)
+- Bash - Startup scripts, system monitoring (`ollama-check.sh`)
 ## Runtime
 - Node.js 24 (node:24-bookworm base image)
 - Python 3 (system packages via apt-get)
@@ -2353,7 +2339,7 @@ A structural refactoring of the Tenazas runtime layer — the 42+ Python module 
 ## Naming Patterns
 - Lowercase with underscores: `model_router.py`, `orchestrator.py`, `docker_wrapper.py`
 - Test files use prefix: `test_*.py` (e.g., `test_orchestrator.py`, `test_runtime.py`)
-- Bash scripts use hyphens: `auto-heal.sh`, `ollama-check.sh`
+- Bash scripts use hyphens: `ollama-check.sh`
 - Lowercase with underscores for public functions: `classify_query()`, `select_model()`, `detect_backends()`
 - Private functions prefixed with underscore: `_now()`, `_log()`, `_ping_backend()`, `_check_action()`
 - Inline helper functions use underscore prefix: `_mock_backends()` in test files
