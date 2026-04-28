@@ -15,7 +15,10 @@ Logs to logs/shared_memory.log.
 import json
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import load_json, save_json
+try:
+    from .runtime_utils import load_json, save_json
+except ImportError:
+    from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 MEMORY_FILE = BASE_DIR / "shared_memory.json"

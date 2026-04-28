@@ -203,7 +203,7 @@ class TestCheckAndRun(_TempFilesMixin, unittest.TestCase):
                 "last_run": datetime.now(timezone.utc).isoformat(),
                 "ok": True,
             }
-        ba._save_json(ba.AGENTS_STATE_FILE, state)
+        ba.save_json(ba.AGENTS_STATE_FILE, state)
         self._write_state({"containers": [], "internet": {"ok": True}, "vpn": {"ok": True}, "ollama_notebook": {"ok": True}})
         results = ba.check_and_run()
         self.assertEqual(results, [])

@@ -12,7 +12,10 @@ Log: workspace/runtime/logs/self_dev.log
 import json
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import load_json, save_json
+try:
+    from .runtime_utils import load_json, save_json
+except ImportError:
+    from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 PROPOSALS_FILE = BASE_DIR / "dev_proposals.json"

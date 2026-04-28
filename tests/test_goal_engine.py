@@ -83,7 +83,7 @@ class TestLoadGoals(_TempFilesMixin, unittest.TestCase):
             self.assertEqual(g["status"], "active")
 
     def test_existing_goals_preserved(self):
-        ge._save_json(ge.GOALS_FILE, {"goals": [
+        ge.save_json(ge.GOALS_FILE, {"goals": [
             {"id": "maintain_infrastructure_stability", "status": "achieved",
              "description": "test", "priority": 1, "targets": {}, "last_evaluation": "", "metrics": {}},
         ]})

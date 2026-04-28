@@ -73,7 +73,7 @@ class TestErrorMiningRegression(unittest.TestCase):
         import error_mining as em
         tmpdir = tempfile.mkdtemp()
         with patch.object(em, "_load_jsonl", return_value=[]):
-            with patch.object(em, "_load_json", return_value={}):
+            with patch.object(em, "load_json", return_value={}):
                 with patch.object(em, "INCIDENTS_DIR", Path("/nonexistent")):
                     with patch.object(em, "OUTPUT_DIR", Path(tmpdir)):
                         report = em.mine_all()
@@ -84,7 +84,7 @@ class TestErrorMiningRegression(unittest.TestCase):
         import error_mining as em
         tmpdir = tempfile.mkdtemp()
         with patch.object(em, "_load_jsonl", return_value=[]):
-            with patch.object(em, "_load_json", return_value={}):
+            with patch.object(em, "load_json", return_value={}):
                 with patch.object(em, "INCIDENTS_DIR", Path("/nonexistent")):
                     with patch.object(em, "OUTPUT_DIR", Path(tmpdir)):
                         report = em.mine_all()

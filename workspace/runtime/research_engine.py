@@ -16,6 +16,10 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "research.log"
@@ -34,14 +38,6 @@ def _log(entry: dict):
     entry["ts"] = _now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
 
 
 # ── Knowledge Sources ───────────────────────────────────────────

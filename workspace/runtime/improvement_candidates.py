@@ -27,6 +27,10 @@ from collections import Counter
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -48,14 +52,6 @@ def _log(entry: dict):
             f.write(json.dumps(entry, default=str) + "\n")
     except OSError:
         pass
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
 
 
 def _save_candidates(candidates: list):
@@ -245,7 +241,7 @@ def generate(date: str = None) -> list:
 
     # Load errors
     error_file = ERROR_MINING_DIR / f"daily_{date}.json"
-    report = _load_json(error_file, {})
+    report = load_json(error_file, {})
     errors = report.get("errors", [])
 
     if not errors:
@@ -271,7 +267,7 @@ def generate(date: str = None) -> list:
             _log({"action": "generator_error", "generator": gen.__name__, "error": str(e)[:200]})
 
     # Load existing candidates
-    existing = _load_json(CANDIDATES_FILE, [])
+    existing = load_json(CANDIDATES_FILE, [])
     if not isinstance(existing, list):
         existing = []
     existing_ids = {c.get("id") for c in existing}
@@ -301,7 +297,7 @@ def generate(date: str = None) -> list:
 
 def list_candidates(status: str = None) -> list:
     """List candidates, optionally filtered by status."""
-    candidates = _load_json(CANDIDATES_FILE, [])
+    candidates = load_json(CANDIDATES_FILE, [])
     if not isinstance(candidates, list):
         return []
     if status:
@@ -316,7 +312,7 @@ def update_status(candidate_id: str, new_status: str, note: str = "") -> bool:
         "staged": ["approved", "rejected"],
     }
 
-    candidates = _load_json(CANDIDATES_FILE, [])
+    candidates = load_json(CANDIDATES_FILE, [])
     if not isinstance(candidates, list):
         return False
 
@@ -339,7 +335,7 @@ def update_status(candidate_id: str, new_status: str, note: str = "") -> bool:
 
 def stage_candidate(candidate_id: str) -> bool:
     """Move candidate to staging directory."""
-    candidates = _load_json(CANDIDATES_FILE, [])
+    candidates = load_json(CANDIDATES_FILE, [])
     if not isinstance(candidates, list):
         return False
 

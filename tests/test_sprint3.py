@@ -138,7 +138,7 @@ class TestErrorMiningRejectedProposals(unittest.TestCase):
         approvals = {
             "abc123": {"status": "rejected", "action_summary": "bad idea", "created_at": "2026-01-01"},
         }
-        with patch.object(em, "_load_json", return_value=approvals):
+        with patch.object(em, "load_json", return_value=approvals):
             errors = em.mine_rejected_proposals()
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0]["type"], "rejected_proposal")
@@ -148,7 +148,7 @@ class TestErrorMiningRejectedProposals(unittest.TestCase):
         approvals = {
             "abc123": {"status": "approved", "action_summary": "good idea"},
         }
-        with patch.object(em, "_load_json", return_value=approvals):
+        with patch.object(em, "load_json", return_value=approvals):
             errors = em.mine_rejected_proposals()
         self.assertEqual(len(errors), 0)
 
@@ -158,7 +158,7 @@ class TestErrorMiningMineAll(unittest.TestCase):
     def test_mine_all_returns_report(self):
         from runtime import error_mining as em
         with patch.object(em, "_load_jsonl", return_value=[]):
-            with patch.object(em, "_load_json", return_value={}):
+            with patch.object(em, "load_json", return_value={}):
                 with patch.object(em, "INCIDENTS_DIR", Path("/nonexistent")):
                     with patch.object(em, "OUTPUT_DIR", Path(tempfile.mkdtemp())):
                         report = em.mine_all()
@@ -176,7 +176,7 @@ class TestErrorMiningMineAll(unittest.TestCase):
             "error": "timeout",
         }
         with patch.object(em, "_load_jsonl", return_value=[entry]):
-            with patch.object(em, "_load_json", return_value={}):
+            with patch.object(em, "load_json", return_value={}):
                 with patch.object(em, "INCIDENTS_DIR", Path("/nonexistent")):
                     with patch.object(em, "OUTPUT_DIR", Path(tempfile.mkdtemp())):
                         report = em.mine_all()

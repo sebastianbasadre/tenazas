@@ -10,7 +10,7 @@ Covers:
 - ingest_episodic() from memory_log.json
 - ingest_procedural() from SKILL.md files
 - get_memory_stats()
-- JSON helpers (_load_json, _save_json)
+- JSON helpers (load_json, save_json via runtime_utils)
 
 Corre: python3 tests/test_shared_memory.py
 """
@@ -308,22 +308,22 @@ class TestGetMemoryStats(_TempMemoryMixin, unittest.TestCase):
 
 
 class TestJsonHelpers(_TempMemoryMixin, unittest.TestCase):
-    """_load_json and _save_json."""
+    """load_json and save_json (from runtime_utils)."""
 
     def test_load_missing_returns_default(self):
-        result = sm._load_json(self.tmpdir / "nope.json", [])
+        result = sm.load_json(self.tmpdir / "nope.json", [])
         self.assertEqual(result, [])
 
     def test_load_corrupt_returns_default(self):
         bad_file = self.tmpdir / "bad.json"
         bad_file.write_text("{broken")
-        result = sm._load_json(bad_file, {})
+        result = sm.load_json(bad_file, {})
         self.assertEqual(result, {})
 
     def test_save_and_load_roundtrip(self):
         path = self.tmpdir / "test.json"
-        sm._save_json(path, {"key": "value"})
-        result = sm._load_json(path)
+        sm.save_json(path, {"key": "value"})
+        result = sm.load_json(path)
         self.assertEqual(result["key"], "value")
 
 

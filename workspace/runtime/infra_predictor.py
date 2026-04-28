@@ -17,6 +17,10 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -88,14 +92,6 @@ def _linear_slope(values: list) -> float:
     return num / den
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
-
-
 # ── Predictors ──────────────────────────────────────────────────
 
 
@@ -108,7 +104,7 @@ def predict_container_failure_risk() -> dict | None:
         if dq_dir.exists():
             today = _now().strftime("%Y-%m-%d")
             dq_file = dq_dir / f"{today}.json"
-            data = _load_json(dq_file, [])
+            data = load_json(dq_file, [])
             restart_counts = {}
             for d in data:
                 if d.get("action") == "restart_container":
@@ -283,7 +279,7 @@ def predict_all() -> list:
 
 def get_predictions() -> list:
     """Load last predictions."""
-    return _load_json(PREDICTIONS_FILE, [])
+    return load_json(PREDICTIONS_FILE, [])
 
 
 def format_predictions(predictions: list) -> str:

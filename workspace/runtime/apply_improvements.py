@@ -16,7 +16,10 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import load_json, save_json
+try:
+    from .runtime_utils import load_json, save_json
+except ImportError:
+    from runtime_utils import load_json, save_json
 from urllib.request import Request, urlopen
 
 try:

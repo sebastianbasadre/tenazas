@@ -17,6 +17,10 @@ SAFETY: Read-only analysis. Never modifies infrastructure.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 # ── Config ───────────────────────────────────────────────────────
 
@@ -44,14 +48,6 @@ INFO = "info"
 
 def _now():
     return datetime.now().astimezone()
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
 
 
 def _log_diagnostic(entry: dict):
@@ -255,9 +251,9 @@ def run_diagnostics(state: dict | None = None) -> list:
     Returns: list of issue dicts sorted by severity.
     """
     if state is None:
-        state = _load_json(STATE_FILE, {})
+        state = load_json(STATE_FILE, {})
 
-    memory = _load_json(MEMORY_FILE, [])
+    memory = load_json(MEMORY_FILE, [])
     prev_state = {}  # Could be loaded from a previous snapshot if needed
 
     issues = []

@@ -16,7 +16,10 @@ Stores state in goals_state.json. Logs to logs/goals.log.
 import json
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import load_json, save_json
+try:
+    from .runtime_utils import load_json, save_json
+except ImportError:
+    from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 GOALS_FILE = BASE_DIR / "goals_state.json"

@@ -14,7 +14,10 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import load_json, save_json
+try:
+    from .runtime_utils import load_json, save_json
+except ImportError:
+    from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 DISTILLATION_FILE = BASE_DIR / "distillation_data.json"

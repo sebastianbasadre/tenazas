@@ -222,7 +222,7 @@ class TestGenerateProposals(_TempFilesMixin, unittest.TestCase):
         {"module": "X", "change_description": "new proposal", "risk": "low", "requires_approval": True, "source": "x"},
     ])
     def test_preserves_history(self, *mocks):
-        sde._save_json(sde.PROPOSALS_FILE, {"proposals": [
+        sde.save_json(sde.PROPOSALS_FILE, {"proposals": [
             {"module": "Y", "change_description": "old", "status": "approved"},
         ]})
         sde.generate_proposals()
@@ -249,7 +249,7 @@ class TestGetProposals(_TempFilesMixin, unittest.TestCase):
         self.assertEqual(sde.get_pending_proposals(), [])
 
     def test_pending_filters(self):
-        sde._save_json(sde.PROPOSALS_FILE, {"proposals": [
+        sde.save_json(sde.PROPOSALS_FILE, {"proposals": [
             {"status": "pending", "module": "a"},
             {"status": "approved", "module": "b"},
             {"status": "pending", "module": "c"},
@@ -257,7 +257,7 @@ class TestGetProposals(_TempFilesMixin, unittest.TestCase):
         self.assertEqual(len(sde.get_pending_proposals()), 2)
 
     def test_get_all(self):
-        sde._save_json(sde.PROPOSALS_FILE, {"proposals": [
+        sde.save_json(sde.PROPOSALS_FILE, {"proposals": [
             {"status": "pending"}, {"status": "approved"}, {"status": "rejected"},
         ]})
         self.assertEqual(len(sde.get_all_proposals()), 3)

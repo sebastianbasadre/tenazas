@@ -20,7 +20,10 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import load_json, save_json
+try:
+    from .runtime_utils import load_json, save_json
+except ImportError:
+    from runtime_utils import load_json, save_json
 
 try:
     from .runtime_config import get_default_telegram_chat_id

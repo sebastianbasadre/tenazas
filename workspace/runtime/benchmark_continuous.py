@@ -26,6 +26,10 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 try:
     from .runtime_config import get_default_telegram_chat_id
@@ -79,14 +83,6 @@ def _log(entry: dict):
         pass
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
-
-
 def _load_jsonl_recent(path: Path, hours: int = 1) -> list:
     entries = []
     cutoff = _now() - timedelta(hours=hours)
@@ -136,7 +132,7 @@ def check_router_accuracy() -> float:
 
 def check_infra_uptime() -> float:
     """Check expected containers vs running. Returns ratio 0-1."""
-    state = _load_json(STATE_FILE, {})
+    state = load_json(STATE_FILE, {})
     containers = state.get("containers", [])
     running = sum(1 for c in containers if c.get("up"))
     return running / EXPECTED_CONTAINERS if EXPECTED_CONTAINERS > 0 else 1.0
@@ -149,7 +145,7 @@ def check_alert_precision() -> float:
         return 1.0  # no data = assume good
 
     today = _now().strftime("%Y-%m-%d")
-    entries = _load_json(dq_dir / f"{today}.json", [])
+    entries = load_json(dq_dir / f"{today}.json", [])
     if not entries:
         return 1.0
 
@@ -264,7 +260,7 @@ def _notify_alert(alert: dict):
 def _update_prometheus_metrics(results: dict):
     """Write benchmark metrics to metrics_state.json for Prometheus."""
     try:
-        state = _load_json(METRICS_STATE, {})
+        state = load_json(METRICS_STATE, {})
         state["benchmark_continuous"] = {
             "router_accuracy": results["router_accuracy"],
             "infra_uptime": results["infra_uptime"],
@@ -281,7 +277,7 @@ def _update_prometheus_metrics(results: dict):
 
 def get_last_results() -> dict:
     """Load last benchmark results."""
-    return _load_json(RESULTS_FILE, {})
+    return load_json(RESULTS_FILE, {})
 
 
 if __name__ == "__main__":

@@ -15,6 +15,10 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -39,14 +43,6 @@ def _log(entry: dict):
             f.write(json.dumps(entry, default=str) + "\n")
     except OSError:
         pass
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
 
 
 def _load_jsonl(path: Path, max_age_hours: int = 168) -> list:
@@ -101,7 +97,7 @@ def collect_incidents(days: int = 7) -> list:
     # From error_mining daily reports
     if ERROR_MINING_DIR.exists():
         for f in sorted(ERROR_MINING_DIR.glob("daily_*.json")):
-            report = _load_json(f, {})
+            report = load_json(f, {})
             for error in report.get("errors", []):
                 incidents.append({
                     "type": error.get("type", "unknown"),
@@ -234,7 +230,7 @@ def _suggest_fix(key: str, members: list) -> str:
 
 def get_patterns() -> list:
     """Load cached patterns."""
-    return _load_json(PATTERNS_FILE, [])
+    return load_json(PATTERNS_FILE, [])
 
 
 def format_patterns(patterns: list) -> str:

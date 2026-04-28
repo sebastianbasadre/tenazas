@@ -27,6 +27,10 @@ Future: schedule via cron at 6AM (idle hours, before morning greeting at 8AM)
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -81,14 +85,6 @@ def _load_jsonl(path: Path, max_lines: int = 500) -> list:
     except FileNotFoundError:
         pass
     return lines[-max_lines:]
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
 
 
 # ── Phase 1: Scan Signals ──────────────────────────────────────
@@ -159,7 +155,7 @@ def _scan_routing_signals() -> list:
 def _scan_guardrail_signals() -> list:
     """Scan guardrail state for tuning opportunities."""
     signals = []
-    state = _load_json(GUARDRAIL_STATE)
+    state = load_json(GUARDRAIL_STATE)
     degs = state.get("degradations", {})
 
     total_degs = sum(degs.values())
@@ -192,7 +188,7 @@ def _scan_guardrail_signals() -> list:
 def _scan_finance_signals() -> list:
     """Scan finance data for workflow improvements."""
     signals = []
-    txns = _load_json(FINANCE_FILE, [])
+    txns = load_json(FINANCE_FILE, [])
     if not isinstance(txns, list):
         return signals
 
@@ -223,7 +219,7 @@ def _scan_finance_signals() -> list:
 def _scan_jobs_signals() -> list:
     """Scan jobs data for workflow improvements."""
     signals = []
-    opps = _load_json(JOBS_FILE, [])
+    opps = load_json(JOBS_FILE, [])
     if not isinstance(opps, list):
         return signals
 
@@ -332,7 +328,7 @@ def select_best_opportunity(signals: list) -> dict | None:
     ranked = prioritize_signals(signals)
 
     # Load recent daily proposals to avoid repeats
-    history = _load_json(DAILY_FILE, [])
+    history = load_json(DAILY_FILE, [])
     if not isinstance(history, list):
         history = []
     recent_signals = set()
@@ -472,7 +468,7 @@ Sé específico. No propuestas vagas. Responde SOLO el JSON."""
 
 
 def _load_daily_history() -> list:
-    data = _load_json(DAILY_FILE, [])
+    data = load_json(DAILY_FILE, [])
     return data if isinstance(data, list) else []
 
 

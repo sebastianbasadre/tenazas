@@ -25,6 +25,10 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -56,14 +60,6 @@ def _log(entry: dict):
             f.write(json.dumps(entry, default=str) + "\n")
     except OSError:
         pass
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
 
 
 def _load_jsonl(path: Path, max_age_hours: int = 24) -> list:
@@ -150,7 +146,7 @@ def detect_repeated_commands() -> list:
     """Find repeated manual commands in episodic memory."""
     gaps = []
 
-    memory = _load_json(SHARED_MEMORY, {})
+    memory = load_json(SHARED_MEMORY, {})
     episodic = memory.get("episodic", [])
 
     # Look for command-like entries
@@ -252,7 +248,7 @@ def detect_all() -> list:
 def generate_proposals(gaps: list = None) -> list:
     """Generate skill proposals from detected gaps and save to staging."""
     if gaps is None:
-        gaps = _load_json(GAPS_FILE, [])
+        gaps = load_json(GAPS_FILE, [])
     if not isinstance(gaps, list):
         gaps = []
 
@@ -338,7 +334,7 @@ if __name__ == "__main__":
         for g in gaps:
             print(f"  [{g['type']}] {g['pattern'][:60]} ({g['count']}x)")
     elif args.show:
-        gaps = _load_json(GAPS_FILE, [])
+        gaps = load_json(GAPS_FILE, [])
         if not gaps:
             print("No gaps detected. Run --detect first.")
         else:

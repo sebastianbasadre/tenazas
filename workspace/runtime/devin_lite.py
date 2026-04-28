@@ -15,6 +15,10 @@ import json
 import traceback
 from datetime import datetime
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 BASE_DIR = Path(__file__).parent
 CRASH_FILE = BASE_DIR / "logs" / "runtime_crash.json"
@@ -25,14 +29,6 @@ MAX_CRASHES = 50
 
 def _now():
     return datetime.now().astimezone()
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
 
 
 def capture_crash(
@@ -48,9 +44,9 @@ def capture_crash(
         extra: any additional context
     """
     if system_state is None:
-        system_state = _load_json(STATE_FILE, {})
+        system_state = load_json(STATE_FILE, {})
 
-    events_data = _load_json(EVENTS_FILE, {})
+    events_data = load_json(EVENTS_FILE, {})
     recent_events = events_data.get("events", []) if isinstance(events_data, dict) else []
 
     crash = {
@@ -77,7 +73,7 @@ def capture_crash(
 
     # Append to crash log (keep last MAX_CRASHES)
     CRASH_FILE.parent.mkdir(parents=True, exist_ok=True)
-    crashes = _load_json(CRASH_FILE, [])
+    crashes = load_json(CRASH_FILE, [])
     if not isinstance(crashes, list):
         crashes = []
     crashes.append(crash)
@@ -90,7 +86,7 @@ def capture_crash(
 
 def get_recent_crashes(limit: int = 10) -> list:
     """Get the most recent crash reports."""
-    crashes = _load_json(CRASH_FILE, [])
+    crashes = load_json(CRASH_FILE, [])
     if not isinstance(crashes, list):
         return []
     return crashes[-limit:]
@@ -98,7 +94,7 @@ def get_recent_crashes(limit: int = 10) -> list:
 
 def get_crash_summary() -> dict:
     """Summarize recent crashes."""
-    crashes = _load_json(CRASH_FILE, [])
+    crashes = load_json(CRASH_FILE, [])
     if not isinstance(crashes, list) or not crashes:
         return {"total": 0, "recent": []}
 
@@ -156,7 +152,7 @@ def analyze_and_suggest() -> list:
     Returns:
         List of suggestion dicts. Never auto-modifies anything.
     """
-    crashes = _load_json(CRASH_FILE, [])
+    crashes = load_json(CRASH_FILE, [])
     if not isinstance(crashes, list) or not crashes:
         return []
 

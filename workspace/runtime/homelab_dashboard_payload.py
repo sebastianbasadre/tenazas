@@ -15,6 +15,10 @@ Usage:
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -46,14 +50,6 @@ def _safe_import(module_name: str, func_name: str, *args, **kwargs):
         return None
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
-
-
 def build_payload() -> dict:
     """Build the complete dashboard payload."""
     payload = {"ts": _now().isoformat()}
@@ -77,7 +73,7 @@ def build_payload() -> dict:
     }
 
     # 4. Staging pending
-    candidates = _load_json(STATE_DIR / "improvement_candidates.json", [])
+    candidates = load_json(STATE_DIR / "improvement_candidates.json", [])
     if not isinstance(candidates, list):
         candidates = []
     pending = [c for c in candidates if c.get("status") in ("proposed", "staged")]
@@ -104,7 +100,7 @@ def build_payload() -> dict:
     }
 
     # 7. Skill gaps
-    gaps = _load_json(STATE_DIR / "skill_gaps.json", [])
+    gaps = load_json(STATE_DIR / "skill_gaps.json", [])
     if not isinstance(gaps, list):
         gaps = []
     payload["skill_gaps"] = len(gaps)
@@ -115,7 +111,7 @@ def build_payload() -> dict:
     if mining_dir.exists():
         files = sorted(mining_dir.glob("daily_*.json"), reverse=True)
         if files:
-            report = _load_json(files[0], {})
+            report = load_json(files[0], {})
             last_mining = {
                 "date": report.get("date", "?"),
                 "total": report.get("total_errors", 0),

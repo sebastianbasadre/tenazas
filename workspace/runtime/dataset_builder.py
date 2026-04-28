@@ -14,7 +14,10 @@ Log: workspace/runtime/logs/dataset.log
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from runtime_utils import load_json, save_json
+try:
+    from .runtime_utils import load_json, save_json
+except ImportError:
+    from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 DATASETS_DIR = BASE_DIR / "datasets"

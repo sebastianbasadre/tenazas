@@ -280,7 +280,7 @@ class TestGetSuggestions(_TempFilesMixin, unittest.TestCase):
         self.assertEqual(ile.get_suggestions(), [])
 
     def test_returns_saved(self):
-        ile._save_json(ile.LEARNINGS_FILE, {
+        ile.save_json(ile.LEARNINGS_FILE, {
             "suggestions": [{"type": "test", "priority": "low"}],
         })
         results = ile.get_suggestions()

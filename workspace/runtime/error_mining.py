@@ -27,6 +27,10 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+try:
+    from .runtime_utils import load_json
+except ImportError:
+    from runtime_utils import load_json
 from urllib.request import Request, urlopen
 
 try:
@@ -92,14 +96,6 @@ def _load_jsonl(path: Path, max_age_hours: int = 24) -> list:
     except FileNotFoundError:
         pass
     return entries
-
-
-def _load_json(path: Path):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
 
 
 def _error_id(error: dict) -> str:
@@ -375,7 +371,7 @@ def mine_rejected_proposals() -> list:
     """Detect proposals rejected via approval queue."""
     errors = []
 
-    approvals = _load_json(PENDING_APPROVALS)
+    approvals = load_json(PENDING_APPROVALS)
     if isinstance(approvals, dict):
         for aid, entry in approvals.items():
             status = entry.get("status", "")
@@ -444,7 +440,7 @@ def mine_all() -> dict:
 def get_today() -> dict:
     """Load today's mined errors."""
     path = OUTPUT_DIR / f"daily_{_today()}.json"
-    return _load_json(path)
+    return load_json(path)
 
 
 def format_summary(report: dict) -> str:
