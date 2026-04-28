@@ -20,6 +20,7 @@ import sys
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 from urllib.request import Request, urlopen
 
 try:
@@ -58,18 +59,6 @@ def _notify(msg: str):
         print(f"[notify] telegram error: {e}")
 
 
-def _load_json(path: Path) -> dict | list:
-    try:
-        return json.loads(path.read_text()) if path.exists() else {}
-    except Exception:
-        return {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, default=str))
-
-
 # ── Calendar ─────────────────────────────────────────────────────
 
 
@@ -94,7 +83,7 @@ def check_calendar(test: bool = False):
     # Parse events
     now = datetime.now().astimezone()
     cutoff = now + timedelta(hours=2)
-    notified = _load_json(NOTIFIED_EVENTS)
+    notified = load_json(NOTIFIED_EVENTS)
     if not isinstance(notified, dict):
         notified = {}
 
@@ -156,11 +145,11 @@ def check_calendar(test: bool = False):
                 _notify(msg)
             if test:
                 print(f"[calendar] sent {len(new_alerts)} alerts")
-        _save_json(NOTIFIED_EVENTS, notified)
+        save_json(NOTIFIED_EVENTS, notified)
     elif test:
         print("[calendar] no new alerts")
     else:
-        _save_json(NOTIFIED_EVENTS, notified)
+        save_json(NOTIFIED_EVENTS, notified)
 
 
 # ── Email ────────────────────────────────────────────────────────
@@ -211,7 +200,7 @@ def check_email(test: bool = False):
             print(f"[email] error: {e}")
         return
 
-    notified = _load_json(NOTIFIED_EMAILS)
+    notified = load_json(NOTIFIED_EMAILS)
     if not isinstance(notified, dict):
         notified = {}
 
@@ -262,7 +251,7 @@ def check_email(test: bool = False):
             msg = "\n".join(new_alerts)
             _notify(msg)
 
-    _save_json(NOTIFIED_EMAILS, notified)
+    save_json(NOTIFIED_EMAILS, notified)
 
     if test and not new_alerts:
         print("[email] no urgent emails")

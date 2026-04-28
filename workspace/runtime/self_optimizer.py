@@ -16,6 +16,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 OPTIMIZATION_FILE = BASE_DIR / "optimization_state.json"
@@ -38,20 +39,6 @@ def _log(entry: dict):
     entry["ts"] = _now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 def _load_metrics(days: int = ANALYSIS_WINDOW_DAYS) -> list:
@@ -161,7 +148,7 @@ def optimize() -> dict:
         "analysis_window_days": ANALYSIS_WINDOW_DAYS,
         "total_queries_analyzed": sum(s["count"] for s in by_type.values()),
     }
-    _save_json(OPTIMIZATION_FILE, full_state)
+    save_json(OPTIMIZATION_FILE, full_state)
 
     _log({
         "type": "optimization",
@@ -174,7 +161,7 @@ def optimize() -> dict:
 
 def get_preferences() -> dict:
     """Load current optimization preferences."""
-    data = _load_json(OPTIMIZATION_FILE, {"preferences": {}})
+    data = load_json(OPTIMIZATION_FILE, {"preferences": {}})
     return data.get("preferences", {})
 
 

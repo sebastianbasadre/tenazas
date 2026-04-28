@@ -17,6 +17,7 @@ Log: workspace/runtime/logs/background_agents.log
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 STATE_FILE = BASE_DIR / "state.json"
@@ -35,26 +36,12 @@ def _log(entry: dict):
         f.write(json.dumps(entry, default=str) + "\n")
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 # ── Agent Functions ─────────────────────────────────────────────
 
 
 def _infra_watcher() -> dict:
     """Read state.json and flag issues. Read-only."""
-    state = _load_json(STATE_FILE, {})
+    state = load_json(STATE_FILE, {})
     flags = []
 
     # Check containers
@@ -142,11 +129,11 @@ AGENTS = [
 
 def _load_agents_state() -> dict:
     """Load last_run timestamps for each agent."""
-    return _load_json(AGENTS_STATE_FILE, {})
+    return load_json(AGENTS_STATE_FILE, {})
 
 
 def _save_agents_state(state: dict):
-    _save_json(AGENTS_STATE_FILE, state)
+    save_json(AGENTS_STATE_FILE, state)
 
 
 def _should_run(agent_name: str, interval_seconds: int,

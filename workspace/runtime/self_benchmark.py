@@ -17,6 +17,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 METRICS_DIR = BASE_DIR / "metrics"
@@ -38,20 +39,6 @@ def _log(entry: dict):
     entry["ts"] = _now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 def _load_metrics(days: int = BENCHMARK_WINDOW_DAYS) -> list:
@@ -149,7 +136,7 @@ def _benchmark_diagnostic_accuracy(entries: list) -> dict:
     If diagnostics detected an issue and the next run shows it resolved,
     the diagnostic was accurate. If it persists after action, less accurate.
     """
-    memory = _load_json(MEMORY_FILE, [])
+    memory = load_json(MEMORY_FILE, [])
     if not isinstance(memory, list):
         memory = []
 
@@ -246,7 +233,7 @@ def run_benchmark() -> dict:
         "escalation_effectiveness": _benchmark_escalation_effectiveness(entries),
     }
 
-    _save_json(BENCHMARK_FILE, report)
+    save_json(BENCHMARK_FILE, report)
 
     _log({
         "type": "benchmark_run",
@@ -261,7 +248,7 @@ def run_benchmark() -> dict:
 
 def get_latest_results() -> dict:
     """Load the most recent benchmark results."""
-    return _load_json(BENCHMARK_FILE, {})
+    return load_json(BENCHMARK_FILE, {})
 
 
 # ── Sprint 3: Benchmark Gate + New Suites ──────────────────────

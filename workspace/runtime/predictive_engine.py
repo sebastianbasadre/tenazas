@@ -13,6 +13,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 MEMORY_FILE = BASE_DIR / "memory_log.json"
@@ -41,20 +42,6 @@ def _log(entry: dict):
         f.write(json.dumps(entry, default=str) + "\n")
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 def _analyze_history() -> dict:
     """
     Analyze memory_log.json to find recurring event patterns.
@@ -62,7 +49,7 @@ def _analyze_history() -> dict:
     Returns:
         dict mapping (event_type, target, hour) -> occurrence count
     """
-    memory = _load_json(MEMORY_FILE, [])
+    memory = load_json(MEMORY_FILE, [])
     if not isinstance(memory, list):
         return {}
 
@@ -93,7 +80,7 @@ def _analyze_patterns() -> list:
     Returns:
         List of pattern dicts
     """
-    data = _load_json(PATTERNS_FILE, {"patterns": []})
+    data = load_json(PATTERNS_FILE, {"patterns": []})
     return data.get("patterns", [])
 
 
@@ -170,7 +157,7 @@ def generate_predictions() -> list:
         "lookback_days": LOOKBACK_DAYS,
         "predictions": predictions,
     }
-    _save_json(PREDICTIONS_FILE, result)
+    save_json(PREDICTIONS_FILE, result)
 
     _log({
         "ts": _now().isoformat(),
@@ -191,7 +178,7 @@ def get_predictions_for_hour(hour: int) -> list:
     Returns:
         List of prediction dicts matching that hour
     """
-    data = _load_json(PREDICTIONS_FILE, {"predictions": []})
+    data = load_json(PREDICTIONS_FILE, {"predictions": []})
     return [p for p in data.get("predictions", []) if p.get("hour") == hour]
 
 
@@ -205,7 +192,7 @@ def get_high_risk_predictions(threshold: float = 0.5) -> list:
     Returns:
         List of prediction dicts above threshold
     """
-    data = _load_json(PREDICTIONS_FILE, {"predictions": []})
+    data = load_json(PREDICTIONS_FILE, {"predictions": []})
     return [p for p in data.get("predictions", []) if p.get("probability", 0) >= threshold]
 
 
@@ -222,5 +209,5 @@ def predict_next_hours(hours_ahead: int = 6) -> list:
     current_hour = _now().hour
     target_hours = [(current_hour + h) % 24 for h in range(1, hours_ahead + 1)]
 
-    data = _load_json(PREDICTIONS_FILE, {"predictions": []})
+    data = load_json(PREDICTIONS_FILE, {"predictions": []})
     return [p for p in data.get("predictions", []) if p.get("hour") in target_hours]

@@ -19,6 +19,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -43,20 +44,6 @@ def _log(entry: dict):
             f.write(json.dumps(entry, default=str) + "\n")
     except OSError:
         pass
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 # ── Context sources ─────────────────────────────────────────────
@@ -217,25 +204,25 @@ def can_interrupt(severity: str = "info") -> bool:
 
 def _accumulate_notification(severity: str):
     """Store notification for later delivery."""
-    accumulated = _load_json(ACCUMULATED_FILE, {"notifications": []})
+    accumulated = load_json(ACCUMULATED_FILE, {"notifications": []})
     accumulated["notifications"].append({
         "severity": severity,
         "ts": _now().isoformat(),
     })
     # Cap at 50
     accumulated["notifications"] = accumulated["notifications"][-50:]
-    _save_json(ACCUMULATED_FILE, accumulated)
+    save_json(ACCUMULATED_FILE, accumulated)
 
 
 def get_accumulated() -> list:
     """Get accumulated notifications (for when Sebas returns)."""
-    data = _load_json(ACCUMULATED_FILE, {"notifications": []})
+    data = load_json(ACCUMULATED_FILE, {"notifications": []})
     return data.get("notifications", [])
 
 
 def clear_accumulated():
     """Clear accumulated notifications after delivery."""
-    _save_json(ACCUMULATED_FILE, {"notifications": [], "cleared_at": _now().isoformat()})
+    save_json(ACCUMULATED_FILE, {"notifications": [], "cleared_at": _now().isoformat()})
 
 
 def format_status() -> str:

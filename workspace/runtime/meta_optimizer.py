@@ -18,6 +18,7 @@ import json
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -58,29 +59,15 @@ def _log(entry: dict):
         pass
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 def load_config() -> dict:
-    config = _load_json(CONFIG_FILE, {})
+    config = load_json(CONFIG_FILE, {})
     merged = dict(DEFAULT_CONFIG)
     merged.update(config)
     return merged
 
 
 def save_config(config: dict):
-    _save_json(CONFIG_FILE, config)
+    save_json(CONFIG_FILE, config)
 
 
 # ── Analyzers ───────────────────────────────────────────────────
@@ -95,7 +82,7 @@ def analyze_learning_frequency() -> dict:
     report_count = 0
     if ERROR_MINING_DIR.exists():
         for f in sorted(ERROR_MINING_DIR.glob("daily_*.json"))[-7:]:
-            report = _load_json(f, {})
+            report = load_json(f, {})
             total_errors += report.get("total_errors", 0)
             report_count += 1
 
@@ -123,7 +110,7 @@ def analyze_learning_frequency() -> dict:
 
 def analyze_signal_quality() -> dict:
     """Analyze which error types produce useful vs rejected candidates."""
-    candidates = _load_json(CANDIDATES_FILE, [])
+    candidates = load_json(CANDIDATES_FILE, [])
     if not isinstance(candidates, list):
         candidates = []
 
@@ -241,7 +228,7 @@ def analyze() -> dict:
             config["max_experiment_traffic_pct"] = exp["suggested_traffic_pct"]
 
     save_config(config)
-    _save_json(REPORT_FILE, report)
+    save_json(REPORT_FILE, report)
     _log({"action": "analyze_complete", "changes": {
         "frequency": freq["suggested_hours"],
         "deprecated": len(sig["deprecated"]),

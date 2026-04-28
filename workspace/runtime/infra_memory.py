@@ -17,6 +17,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 MEMORY_FILE = BASE_DIR / "infra_memory.json"
@@ -42,26 +43,12 @@ def _log(entry: dict):
         f.write(json.dumps(entry, default=str) + "\n")
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 # ── Pattern Detection ────────────────────────────────────────────
 
 
 def _analyze_memory_log() -> list:
     """Extract event patterns from runtime memory_log.json."""
-    memory = _load_json(MEMORY_LOG_FILE, [])
+    memory = load_json(MEMORY_LOG_FILE, [])
     if not isinstance(memory, list):
         return []
 
@@ -174,7 +161,7 @@ def detect_patterns() -> list:
 def update_memory():
     """Run pattern detection and save to infra_memory.json."""
     patterns = detect_patterns()
-    existing = _load_json(MEMORY_FILE, {"patterns": [], "last_analysis": ""})
+    existing = load_json(MEMORY_FILE, {"patterns": [], "last_analysis": ""})
 
     # Merge: keep patterns from existing that are still valid
     old_map = {p["pattern"]: p for p in existing.get("patterns", [])}
@@ -189,7 +176,7 @@ def update_memory():
         "last_analysis": _now().isoformat(),
         "lookback_days": LOOKBACK_DAYS,
     }
-    _save_json(MEMORY_FILE, data)
+    save_json(MEMORY_FILE, data)
 
     _log({
         "type": "pattern_detection",
@@ -202,7 +189,7 @@ def update_memory():
 
 def get_patterns() -> list:
     """Load saved patterns from memory file."""
-    data = _load_json(MEMORY_FILE, {"patterns": []})
+    data = load_json(MEMORY_FILE, {"patterns": []})
     return data.get("patterns", [])
 
 

@@ -16,6 +16,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import load_json, save_json
 from urllib.request import Request, urlopen
 
 try:
@@ -37,18 +38,6 @@ CHAT_ID = get_default_telegram_chat_id()
 
 def _log(msg):
     print(f"[apply] {msg}", flush=True)
-
-
-def _load_json(path, default=None):
-    try:
-        return json.loads(Path(path).read_text())
-    except Exception:
-        return default if default is not None else {}
-
-
-def _save_json(path, data):
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def _ollama_generate(prompt, model="qwen2.5:3b", timeout=30):
@@ -153,8 +142,8 @@ def generate_seeds_for_tool(tool_name: str, count: int = 10) -> list[str]:
 
 def process_approved():
     """Find approved proposals and apply safe improvements."""
-    pending = _load_json(PENDING_PATH, {})
-    queue = _load_json(QUEUE_PATH, [])
+    pending = load_json(PENDING_PATH, {})
+    queue = load_json(QUEUE_PATH, [])
 
     approved = [
         (k, v) for k, v in pending.items()
@@ -197,7 +186,7 @@ def process_approved():
         _sync_queue_status(summary, result.get("action", "unknown"))
 
     # Save updated pending
-    _save_json(PENDING_PATH, pending)
+    save_json(PENDING_PATH, pending)
 
     # Notify
     applied = [r for r in results if r.get("action") == "seeds_generated"]
@@ -214,7 +203,7 @@ def process_approved():
 
 def _sync_queue_status(approval_summary: str, action: str):
     """Sync improvement_queue.json status when an approval is processed."""
-    queue = _load_json(QUEUE_PATH, [])
+    queue = load_json(QUEUE_PATH, [])
     if not queue:
         return
 
@@ -240,7 +229,7 @@ def _sync_queue_status(approval_summary: str, action: str):
                 updated = True
 
     if updated:
-        _save_json(QUEUE_PATH, queue)
+        save_json(QUEUE_PATH, queue)
 
 
 def _apply_low_f1(summary: str, approval: dict) -> dict:

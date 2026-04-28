@@ -21,6 +21,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -45,20 +46,6 @@ def _log(entry: dict):
             f.write(json.dumps(entry, default=str) + "\n")
     except OSError:
         pass
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 def _load_telegram_activity(days: int = 14) -> list:
@@ -121,7 +108,7 @@ def detect_active_hours(entries: list = None) -> dict:
 
 def detect_decision_patterns(entries: list = None) -> dict:
     """Detect what types of proposals Sebas approves fast vs ignores."""
-    prefs = _load_json(PREFS_FILE, {})
+    prefs = load_json(PREFS_FILE, {})
     signals = prefs.get("signals", [])
 
     by_category = defaultdict(lambda: {"approved": 0, "rejected": 0, "total": 0})
@@ -239,7 +226,7 @@ def analyze() -> dict:
                 report["suggestions"].append(
                     f"Skill frecuente {period}: {top}")
 
-    _save_json(PATTERNS_FILE, report)
+    save_json(PATTERNS_FILE, report)
     _log({"action": "analyze_complete",
           "days": report["active_hours"]["total_days"],
           "suggestions": len(report["suggestions"])})
@@ -261,7 +248,7 @@ def has_sufficient_data() -> bool:
 
 def get_report() -> dict:
     """Load last analysis report."""
-    return _load_json(PATTERNS_FILE, {})
+    return load_json(PATTERNS_FILE, {})
 
 
 if __name__ == "__main__":

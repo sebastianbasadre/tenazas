@@ -17,6 +17,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import load_json, save_json
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
@@ -53,18 +54,6 @@ def _notify(msg: str):
                         data=payload, headers={"Content-Type": "application/json"}), timeout=10)
     except Exception:
         pass
-
-
-def _load_json(path: Path) -> list:
-    try:
-        return json.loads(path.read_text()) if path.exists() else []
-    except Exception:
-        return []
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
 
 # ── Step 1: Research ─────────────────────────────────────────────
@@ -190,7 +179,7 @@ def stage_rules(insights: list[dict]):
 
     Rules stay in staging until Sebas approves via Telegram.
     """
-    existing = _load_json(STAGING_PATH)
+    existing = load_json(STAGING_PATH, default=[])
 
     new_count = 0
     for insight in insights:
@@ -204,7 +193,7 @@ def stage_rules(insights: list[dict]):
 
     # Keep last 50
     existing = existing[-50:]
-    _save_json(STAGING_PATH, existing)
+    save_json(STAGING_PATH, existing)
 
     # Don't spam Telegram with learning rules — log only.
     # Sebas can check with: python3 continuous_learning_loop.py --status
@@ -214,8 +203,8 @@ def stage_rules(insights: list[dict]):
 
 def approve_all():
     """Move all staged rules to approved."""
-    staged = _load_json(STAGING_PATH)
-    approved = _load_json(APPROVED_PATH)
+    staged = load_json(STAGING_PATH, default=[])
+    approved = load_json(APPROVED_PATH, default=[])
 
     new_approved = [r for r in staged if r.get("status") == "staged"]
     for r in new_approved:
@@ -223,11 +212,11 @@ def approve_all():
         r["approved_at"] = datetime.now().astimezone().isoformat()
 
     approved.extend(new_approved)
-    _save_json(APPROVED_PATH, approved[-100:])
+    save_json(APPROVED_PATH, approved[-100:])
 
     # Clear staging
     remaining = [r for r in staged if r.get("status") != "staged"]
-    _save_json(STAGING_PATH, remaining)
+    save_json(STAGING_PATH, remaining)
 
     print(f"Approved {len(new_approved)} rules")
     _log({"step": "approve", "approved": len(new_approved)})
@@ -401,7 +390,7 @@ if __name__ == "__main__":
     if args.run:
         run_pipeline(topics=args.topics)
     elif args.status:
-        staged = _load_json(STAGING_PATH)
+        staged = load_json(STAGING_PATH, default=[])
         pending = [r for r in staged if r.get("status") == "staged"]
         print(f"Staged rules: {len(pending)}")
         for r in pending:

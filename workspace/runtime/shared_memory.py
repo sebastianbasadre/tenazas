@@ -15,6 +15,7 @@ Logs to logs/shared_memory.log.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 MEMORY_FILE = BASE_DIR / "shared_memory.json"
@@ -38,23 +39,9 @@ def _log(entry: dict):
         f.write(json.dumps(entry, default=str) + "\n")
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 def load_memory() -> dict:
     """Load all shared memory from disk."""
-    data = _load_json(MEMORY_FILE, {})
+    data = load_json(MEMORY_FILE, {})
     for mtype in MEMORY_TYPES:
         if mtype not in data:
             data[mtype] = []
@@ -67,7 +54,7 @@ def save_memory(data: dict):
         entries = data.get(mtype, [])
         if len(entries) > MAX_ENTRIES_PER_TYPE:
             data[mtype] = entries[-MAX_ENTRIES_PER_TYPE:]
-    _save_json(MEMORY_FILE, data)
+    save_json(MEMORY_FILE, data)
 
 
 def add_entry(memory_type: str, content: str, source: str = "", metadata: dict = None) -> bool:
@@ -149,7 +136,7 @@ def ingest_episodic():
     Import recent events from memory_log.json into episodic memory.
     Reads the runtime memory log and converts events into episodic entries.
     """
-    memory_log = _load_json(MEMORY_LOG_FILE, [])
+    memory_log = load_json(MEMORY_LOG_FILE, [])
     if not isinstance(memory_log, list):
         return
 

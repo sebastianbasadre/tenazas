@@ -13,6 +13,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 MEMORY_FILE = BASE_DIR / "memory_log.json"
@@ -37,20 +38,6 @@ def _log(entry: dict):
         f.write(json.dumps(entry, default=str) + "\n")
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 def _analyze_workflows() -> list:
     """
     Analyze memory_log.json to find recurring event+action combinations.
@@ -58,7 +45,7 @@ def _analyze_workflows() -> list:
     Returns:
         List of (workflow_key, count, details) tuples
     """
-    memory = _load_json(MEMORY_FILE, [])
+    memory = load_json(MEMORY_FILE, [])
     if not isinstance(memory, list):
         return []
 
@@ -183,13 +170,13 @@ def generate_proposals() -> list:
 
 def load_proposals() -> list:
     """Load all skill proposals from disk."""
-    data = _load_json(PROPOSALS_FILE, {"proposals": []})
+    data = load_json(PROPOSALS_FILE, {"proposals": []})
     return data.get("proposals", [])
 
 
 def _save_proposals(proposals: list):
     """Save proposals to disk."""
-    _save_json(PROPOSALS_FILE, {
+    save_json(PROPOSALS_FILE, {
         "proposals": proposals,
         "last_updated": _now().isoformat(),
     })

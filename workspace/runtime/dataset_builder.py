@@ -14,6 +14,7 @@ Log: workspace/runtime/logs/dataset.log
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 DATASETS_DIR = BASE_DIR / "datasets"
@@ -35,20 +36,6 @@ def _log(entry: dict):
     entry["ts"] = _now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 def _load_log_lines(log_path: Path, max_lines: int = 1000) -> list:
@@ -191,7 +178,7 @@ def build_diagnostic_dataset() -> dict:
     }
 
     # Save to datasets directory
-    _save_json(DATASETS_DIR / "diagnostic_dataset.json", result)
+    save_json(DATASETS_DIR / "diagnostic_dataset.json", result)
 
     _log({
         "type": "dataset_built",
@@ -254,7 +241,7 @@ def build_reasoning_dataset() -> dict:
         "built_at": _now().isoformat(),
     }
 
-    _save_json(DATASETS_DIR / "reasoning_dataset.json", result)
+    save_json(DATASETS_DIR / "reasoning_dataset.json", result)
 
     _log({
         "type": "dataset_built",
@@ -322,7 +309,7 @@ def build_metrics_dataset() -> dict:
         "built_at": _now().isoformat(),
     }
 
-    _save_json(DATASETS_DIR / "metrics_dataset.json", result)
+    save_json(DATASETS_DIR / "metrics_dataset.json", result)
 
     _log({
         "type": "dataset_built",
@@ -372,7 +359,7 @@ def list_datasets() -> list:
     datasets = []
     for path in sorted(DATASETS_DIR.glob("*_dataset.json")):
         try:
-            data = _load_json(path, {})
+            data = load_json(path, {})
             datasets.append({
                 "name": path.stem,
                 "type": data.get("dataset_type", "unknown"),

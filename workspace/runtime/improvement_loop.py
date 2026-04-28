@@ -20,6 +20,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 try:
     from .runtime_config import get_default_telegram_chat_id
@@ -52,20 +53,6 @@ def _log(entry: dict):
         pass
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 def _notify(msg: str):
     try:
         config_path = Path("/home/tenazas/.openclaw/openclaw.json")
@@ -88,10 +75,10 @@ def _notify(msg: str):
 
 def get_approved_candidates() -> list:
     """Get candidates with status approved that haven't been processed."""
-    candidates = _load_json(CANDIDATES_FILE, [])
+    candidates = load_json(CANDIDATES_FILE, [])
     if not isinstance(candidates, list):
         return []
-    loop_state = _load_json(LOOP_STATE_FILE, {"processed": []})
+    loop_state = load_json(LOOP_STATE_FILE, {"processed": []})
     processed_ids = set(loop_state.get("processed", []))
     return [c for c in candidates
             if c.get("status") == "approved" and c.get("id") not in processed_ids]
@@ -184,14 +171,14 @@ def process_candidate(candidate: dict) -> dict:
         try:
             import improvement_candidates as ic
             # Update with validated flag
-            candidates = _load_json(CANDIDATES_FILE, [])
+            candidates = load_json(CANDIDATES_FILE, [])
             for c in candidates:
                 if c.get("id") == cid:
                     c["status"] = "approved"  # keep approved, add validated flag
                     c["validated"] = True
                     c["validated_at"] = _now().isoformat()
                     c["experiment_results"] = evaluation
-            _save_json(CANDIDATES_FILE, candidates)
+            save_json(CANDIDATES_FILE, candidates)
         except Exception:
             pass
 
@@ -216,11 +203,11 @@ def process_candidate(candidate: dict) -> dict:
                 f"Razón: {evaluation.get('reason', '?')}")
 
     # Mark as processed
-    loop_state = _load_json(LOOP_STATE_FILE, {"processed": []})
+    loop_state = load_json(LOOP_STATE_FILE, {"processed": []})
     loop_state["processed"].append(cid)
     loop_state["processed"] = loop_state["processed"][-100:]  # cap
     loop_state["last_run"] = _now().isoformat()
-    _save_json(LOOP_STATE_FILE, loop_state)
+    save_json(LOOP_STATE_FILE, loop_state)
 
     _log({"action": "candidate_processed", **result})
     return result
@@ -244,7 +231,7 @@ def run() -> list:
 
 def get_status() -> dict:
     """Get loop status."""
-    loop_state = _load_json(LOOP_STATE_FILE, {"processed": []})
+    loop_state = load_json(LOOP_STATE_FILE, {"processed": []})
     pending = get_approved_candidates()
     return {
         "pending": len(pending),

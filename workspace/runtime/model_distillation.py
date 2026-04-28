@@ -14,6 +14,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 DISTILLATION_FILE = BASE_DIR / "distillation_data.json"
@@ -35,20 +36,6 @@ def _log(entry: dict):
     entry["ts"] = _now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 def _load_log_lines(log_path: Path, max_lines: int = 500) -> list:
@@ -123,7 +110,7 @@ def record_reasoning_chain(query: str, result: dict, confidence: float = 0.0):
     }
 
     # Load existing data
-    data = _load_json(DISTILLATION_FILE, {"templates": {}, "chains": []})
+    data = load_json(DISTILLATION_FILE, {"templates": {}, "chains": []})
     chains = data.get("chains", [])
     chains.append(chain)
 
@@ -136,7 +123,7 @@ def record_reasoning_chain(query: str, result: dict, confidence: float = 0.0):
     # Update templates (best chain per problem type)
     _update_templates(data)
 
-    _save_json(DISTILLATION_FILE, data)
+    save_json(DISTILLATION_FILE, data)
 
     _log({
         "type": "chain_recorded",
@@ -202,7 +189,7 @@ def get_reasoning_template(problem_type: str) -> dict | None:
     Returns:
         Template dict or None if no template exists.
     """
-    data = _load_json(DISTILLATION_FILE, {"templates": {}})
+    data = load_json(DISTILLATION_FILE, {"templates": {}})
     template = data.get("templates", {}).get(problem_type)
 
     if template:
@@ -217,7 +204,7 @@ def get_reasoning_template(problem_type: str) -> dict | None:
 
 def get_all_templates() -> dict:
     """Get all stored reasoning templates."""
-    data = _load_json(DISTILLATION_FILE, {"templates": {}})
+    data = load_json(DISTILLATION_FILE, {"templates": {}})
     return data.get("templates", {})
 
 

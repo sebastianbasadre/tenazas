@@ -13,6 +13,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 METRICS_DIR = BASE_DIR / "metrics"
@@ -35,20 +36,6 @@ def _log(entry: dict):
     entry["ts"] = _now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 def _load_metrics(days: int = ANALYSIS_WINDOW_DAYS) -> list:
@@ -271,7 +258,7 @@ def analyze_idle() -> dict:
         "analysis_window_days": ANALYSIS_WINDOW_DAYS,
     }
 
-    _save_json(LEARNINGS_FILE, result)
+    save_json(LEARNINGS_FILE, result)
 
     _log({
         "type": "idle_analysis",
@@ -294,5 +281,5 @@ def analyze_idle() -> dict:
 
 def get_suggestions() -> list:
     """Load saved suggestions from idle_learnings.json."""
-    data = _load_json(LEARNINGS_FILE, {"suggestions": []})
+    data = load_json(LEARNINGS_FILE, {"suggestions": []})
     return data.get("suggestions", [])

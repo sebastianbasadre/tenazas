@@ -12,6 +12,7 @@ Log: workspace/runtime/logs/self_dev.log
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 PROPOSALS_FILE = BASE_DIR / "dev_proposals.json"
@@ -30,20 +31,6 @@ def _log(entry: dict):
     entry["ts"] = _now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-
-
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
 
 
 # ── Analysis Strategies ─────────────────────────────────────────
@@ -234,7 +221,7 @@ def generate_proposals() -> list:
     unique = unique[:MAX_PROPOSALS]
 
     # Save proposals (merge with existing)
-    existing = _load_json(PROPOSALS_FILE, {"proposals": []})
+    existing = load_json(PROPOSALS_FILE, {"proposals": []})
     existing_proposals = existing.get("proposals", [])
 
     # Keep approved/rejected from history, add new pending
@@ -250,7 +237,7 @@ def generate_proposals() -> list:
         "last_analysis": _now().isoformat(),
         "pending_count": len(unique),
     }
-    _save_json(PROPOSALS_FILE, data)
+    save_json(PROPOSALS_FILE, data)
 
     _log({
         "type": "proposals_generated",
@@ -264,11 +251,11 @@ def generate_proposals() -> list:
 
 def get_pending_proposals() -> list:
     """Get all pending (unapproved) proposals."""
-    data = _load_json(PROPOSALS_FILE, {"proposals": []})
+    data = load_json(PROPOSALS_FILE, {"proposals": []})
     return [p for p in data.get("proposals", []) if p.get("status") == "pending"]
 
 
 def get_all_proposals() -> list:
     """Get all proposals regardless of status."""
-    data = _load_json(PROPOSALS_FILE, {"proposals": []})
+    data = load_json(PROPOSALS_FILE, {"proposals": []})
     return data.get("proposals", [])

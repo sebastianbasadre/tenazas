@@ -16,6 +16,7 @@ Stores state in goals_state.json. Logs to logs/goals.log.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
 GOALS_FILE = BASE_DIR / "goals_state.json"
@@ -68,23 +69,9 @@ def _log(entry: dict):
         f.write(json.dumps(entry, default=str) + "\n")
 
 
-def _load_json(path: Path, default=None):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default if default is not None else {}
-
-
-def _save_json(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
 def _count_today_events() -> int:
     """Count events from memory_log.json that happened today."""
-    memory = _load_json(MEMORY_FILE, [])
+    memory = load_json(MEMORY_FILE, [])
     if not isinstance(memory, list):
         return 0
 
@@ -99,7 +86,7 @@ def _count_today_events() -> int:
 
 def _count_today_restarts() -> int:
     """Count restart actions from memory_log.json that happened today."""
-    memory = _load_json(MEMORY_FILE, [])
+    memory = load_json(MEMORY_FILE, [])
     if not isinstance(memory, list):
         return 0
 
@@ -116,7 +103,7 @@ def _count_today_restarts() -> int:
 
 def load_goals() -> list:
     """Load goal states from disk, initializing if needed."""
-    data = _load_json(GOALS_FILE, {"goals": []})
+    data = load_json(GOALS_FILE, {"goals": []})
     goals = data.get("goals", [])
 
     # Ensure all permanent goals exist
@@ -138,7 +125,7 @@ def load_goals() -> list:
 
 def save_goals(goals: list):
     """Save goal states to disk."""
-    _save_json(GOALS_FILE, {"goals": goals, "last_updated": _now().isoformat()})
+    save_json(GOALS_FILE, {"goals": goals, "last_updated": _now().isoformat()})
 
 
 def evaluate_goals() -> list:
@@ -148,7 +135,7 @@ def evaluate_goals() -> list:
     Returns:
         List of goal dicts with updated status and metrics
     """
-    state = _load_json(STATE_FILE, {})
+    state = load_json(STATE_FILE, {})
     goals = load_goals()
 
     containers = state.get("containers", [])
