@@ -10,7 +10,7 @@ A bottom-up structural refactoring in 4 phases: extract shared utilities first (
 - Integer phases (1, 2, 3, 4): Planned milestone work
 - Decimal phases (e.g., 2.1): Urgent insertions if needed
 
-- [ ] **Phase 1: Foundation Utilities** - Extract duplicated helpers into runtime_utils.py with atomic write support
+- [x] **Phase 1: Foundation Utilities** - Extract duplicated helpers into runtime_utils.py with atomic write support *(completed 2026-04-28)*
 - [ ] **Phase 2: Config Centralization** - Replace 268 hardcoded IPs/ports with a single config module
 - [ ] **Phase 3: Orchestrator Decomposition** - Split the 2373-line god object into focused modules
 - [ ] **Phase 4: Dead Code Cleanup** - Remove deprecated scripts, legacy entries, and orphaned modules
@@ -83,7 +83,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation Utilities | 1/2 | In progress | - |
+| 1. Foundation Utilities | 3/3 | Complete | 2026-04-28 |
 | 2. Config Centralization | 0/? | Not started | - |
 | 3. Orchestrator Decomposition | 0/? | Not started | - |
 | 4. Dead Code Cleanup | 0/? | Not started | - |
