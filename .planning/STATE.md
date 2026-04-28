@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Same features, clean code -- Tenazas works exactly as before but organized, reliable, and maintainable.
-**Current focus:** Phase 4 - Dead Code Cleanup
+**Current focus:** Phase 4 - Dead Code Cleanup (COMPLETE)
 
 ## Current Position
 
 Phase: 4 of 4 (Dead Code Cleanup)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-04-28 -- Phase 3 complete (Orchestrator Decomposition verified)
+Plan: 1 of 1 in current phase
+Status: Phase 4 complete -- all phases done
+Last activity: 2026-04-28 -- Phase 4 complete (Dead Code Cleanup)
 
-Progress: [########..] 75%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 10 min
-- Total execution time: 1.39 hours
+- Total execution time: 1.52 hours
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: [########..] 75%
 | 01-foundation-utilities | 3 | 30 min | 10 min |
 | 02-config-centralization | 2 | 20 min | 10 min |
 | 03-orchestrator-decomposition | 3 | 32 min | 11 min |
+| 04-dead-code-cleanup | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (2 min), 02-02 (18 min), 03-01 (12 min), 03-02 (12 min), 03-03 (8 min)
-- Trend: Phase 3 complete -- orchestrator decomposed from 2377 to 399 lines
+- Last 5 plans: 02-02 (18 min), 03-01 (12 min), 03-02 (12 min), 03-03 (8 min), 04-01 (8 min)
+- Trend: All 4 phases complete -- 9 plans executed in 1.52 hours
 
 *Updated after each plan completion*
 
@@ -67,18 +68,20 @@ Recent decisions affecting current work:
 - [03-02]: route_and_execute kept in facade (circular import avoidance per research)
 - [03-03]: 399 lines is realistic floor for facade -- all remaining code is genuine orchestration logic
 - [03-03]: Fixed pre-existing bugs: raw_response and parse_result undefined in route_and_execute_multitool
+- [04-01]: MODEL_CATALOG audit: all 11 entries valid (7 HomeLab, 2 cloud, 2 legacy), no removals needed
+- [04-01]: Import graph: all 201 runtime modules reachable from entry points, no orphaned modules
+- [04-01]: Pre-existing test failures from Phase 1-3 import restructuring are out of scope for cleanup
 
 ### Pending Todos
 
-None yet.
+None -- all phases complete.
 
 ### Blockers/Concerns
 
-- Phase 3 (Orchestrator) is highest-risk -- research-phase recommended before planning
-- Btrfs atomicity of os.replace() should be smoke-tested early in Phase 1
+- Pre-existing test failures (31 suites) from Phase 1-3 import path changes need a future maintenance pass
 
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Completed 03-03-PLAN.md (facade cleanup + validation). Phase 3 complete.
+Stopped at: Completed 04-01-PLAN.md (dead code cleanup). All phases complete.
 Resume file: None

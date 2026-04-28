@@ -29,10 +29,10 @@ Requirements for this refactoring milestone. Each maps to roadmap phases.
 
 ### Cleanup
 
-- [ ] **CLEN-01**: `auto-heal.sh` removed from repository (confirmed not in DSM cron)
-- [ ] **CLEN-02**: Legacy model entries (models no longer used/available) removed from model catalog
-- [ ] **CLEN-03**: Orphaned/unused modules identified and removed (verified via import graph analysis)
-- [ ] **CLEN-04**: No references to removed code remain in tests, CLAUDE.md, or other modules
+- [x] **CLEN-01**: `auto-heal.sh` removed from repository (confirmed not in DSM cron)
+- [x] **CLEN-02**: Legacy model entries (models no longer used/available) removed from model catalog (audit: all 11 entries valid, none removed)
+- [x] **CLEN-03**: Orphaned/unused modules identified and removed (verified via import graph analysis: all 201 modules reachable)
+- [x] **CLEN-04**: No references to removed code remain in tests, CLAUDE.md, or other modules
 
 ## v2 Requirements
 
@@ -93,10 +93,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ORCH-02 | Phase 3 | Complete |
 | ORCH-03 | Phase 3 | Complete |
 | ORCH-04 | Phase 3 | Complete |
-| CLEN-01 | Phase 4 | Pending |
-| CLEN-02 | Phase 4 | Pending |
-| CLEN-03 | Phase 4 | Pending |
-| CLEN-04 | Phase 4 | Pending |
+| CLEN-01 | Phase 4 | Complete |
+| CLEN-02 | Phase 4 | Complete |
+| CLEN-03 | Phase 4 | Complete |
+| CLEN-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 15 total
@@ -105,4 +105,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-28*
-*Last updated: 2026-04-28 after roadmap creation*
+*Last updated: 2026-04-28 after Phase 4 completion*
