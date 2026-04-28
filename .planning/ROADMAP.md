@@ -52,11 +52,15 @@ Plans:
 **Depends on**: Phase 2
 **Requirements**: ORCH-01, ORCH-02, ORCH-03, ORCH-04
 **Success Criteria** (what must be TRUE):
-  1. `orchestrator.py` is under 200 lines (a facade that re-exports from focused submodules)
-  2. Each extracted module (classifier, skill_executor, escalation, routing_facade) can be imported and tested independently
+  1. `orchestrator.py` is under 300 lines (a facade that re-exports from focused submodules — research confirmed ~250 lines of genuine orchestration logic)
+  2. Each extracted module (classifier, skill_executor, escalation, routing_metrics) can be imported and tested independently
   3. All existing `from runtime.orchestrator import X` and `from orchestrator import X` statements work without modification
   4. All existing orchestrator tests (65 tests in test_orchestrator.py) pass without changes to assertions (only patch paths updated if needed)
-**Plans:** TBD (plan after Phase 2 completes)
+**Plans:** 3 plans
+Plans:
+- [ ] 03-01-PLAN.md — Extract routing_metrics.py and classifier.py from orchestrator
+- [ ] 03-02-PLAN.md — Extract skill_executor.py and escalation.py from orchestrator
+- [ ] 03-03-PLAN.md — Clean facade, verify line count, full test validation
 
 ### Phase 4: Dead Code Cleanup
 **Goal**: The repository contains only code that is actively used, with no deprecated artifacts or orphaned modules
@@ -79,5 +83,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation Utilities | 3/3 | Complete | 2026-04-28 |
 | 2. Config Centralization | 2/2 | Complete | 2026-04-28 |
-| 3. Orchestrator Decomposition | 0/? | Not started | - |
+| 3. Orchestrator Decomposition | 0/3 | Planned | - |
 | 4. Dead Code Cleanup | 0/? | Not started | - |
