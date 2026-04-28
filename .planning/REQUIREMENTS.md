@@ -22,8 +22,8 @@ Requirements for this refactoring milestone. Each maps to roadmap phases.
 
 ### Orchestrator
 
-- [ ] **ORCH-01**: `orchestrator.py` (2373 lines) is split into focused modules: classifier, skill executor, escalation engine, and routing facade
-- [ ] **ORCH-02**: Each extracted module is independently testable (can import and test without loading the full orchestrator)
+- [x] **ORCH-01**: `orchestrator.py` (2373 lines) is split into focused modules: classifier, skill executor, escalation engine, and routing facade
+- [x] **ORCH-02**: Each extracted module is independently testable (can import and test without loading the full orchestrator)
 - [ ] **ORCH-03**: Existing imports from `orchestrator` continue to work via backward-compatible facade (no breaking changes for callers)
 - [ ] **ORCH-04**: All existing orchestrator tests pass after decomposition (patch paths updated)
 
@@ -89,8 +89,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-02 | Phase 2 | Complete |
 | CONF-03 | Phase 2 | Complete |
 | CONF-04 | Phase 2 | Complete |
-| ORCH-01 | Phase 3 | Pending |
-| ORCH-02 | Phase 3 | Pending |
+| ORCH-01 | Phase 3 | Complete |
+| ORCH-02 | Phase 3 | Complete |
 | ORCH-03 | Phase 3 | Pending |
 | ORCH-04 | Phase 3 | Pending |
 | CLEN-01 | Phase 4 | Pending |

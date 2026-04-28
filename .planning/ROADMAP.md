@@ -59,7 +59,7 @@ Plans:
 **Plans:** 3 plans
 Plans:
 - [x] 03-01-PLAN.md — Extract routing_metrics.py and classifier.py from orchestrator
-- [ ] 03-02-PLAN.md — Extract skill_executor.py and escalation.py from orchestrator
+- [x] 03-02-PLAN.md — Extract skill_executor.py and escalation.py from orchestrator
 - [ ] 03-03-PLAN.md — Clean facade, verify line count, full test validation
 
 ### Phase 4: Dead Code Cleanup
@@ -83,5 +83,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation Utilities | 3/3 | Complete | 2026-04-28 |
 | 2. Config Centralization | 2/2 | Complete | 2026-04-28 |
-| 3. Orchestrator Decomposition | 1/3 | Executing | - |
+| 3. Orchestrator Decomposition | 2/3 | Executing | - |
 | 4. Dead Code Cleanup | 0/? | Not started | - |
