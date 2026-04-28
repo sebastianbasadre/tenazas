@@ -306,7 +306,7 @@ class TestDailySummary(_TempDirMixin, unittest.TestCase):
         self.assertEqual(s["count"], 0)
 
     def test_with_expenses(self):
-        now = exp._now().strftime("%Y-%m-%dT%H:%M:%S")
+        now = exp.now().strftime("%Y-%m-%dT%H:%M:%S")
         txns = [
             {"id": "a", "type": "expense", "amount": 4200, "category": "transporte",
              "description": "uber", "date": now},
@@ -321,7 +321,7 @@ class TestDailySummary(_TempDirMixin, unittest.TestCase):
         self.assertIn("transporte", s["by_category"])
 
     def test_format_daily(self):
-        now = exp._now().strftime("%Y-%m-%dT%H:%M:%S")
+        now = exp.now().strftime("%Y-%m-%dT%H:%M:%S")
         txns = [{"id": "a", "type": "expense", "amount": 5000,
                  "category": "ocio", "description": "cafe", "date": now}]
         exp.FINANCE_DIR.mkdir(parents=True, exist_ok=True)
@@ -341,7 +341,7 @@ class TestWeeklySummary(_TempDirMixin, unittest.TestCase):
         self.assertEqual(s["total"], 0)
 
     def test_with_filter(self):
-        now = exp._now().strftime("%Y-%m-%dT%H:%M:%S")
+        now = exp.now().strftime("%Y-%m-%dT%H:%M:%S")
         txns = [
             {"id": "a", "type": "expense", "amount": 4200, "category": "transporte",
              "description": "uber", "date": now},
@@ -369,7 +369,7 @@ class TestThresholdAlerts(_TempDirMixin, unittest.TestCase):
         self.assertEqual(exp.check_threshold_alerts(), [])
 
     def test_alert_triggered(self):
-        now = exp._now().strftime("%Y-%m-%dT%H:%M:%S")
+        now = exp.now().strftime("%Y-%m-%dT%H:%M:%S")
         txns = [{"id": f"t{i}", "type": "expense", "amount": 30000,
                  "category": "transporte", "description": "uber", "date": now}
                 for i in range(3)]  # 90000 > 40000 threshold
@@ -381,7 +381,7 @@ class TestThresholdAlerts(_TempDirMixin, unittest.TestCase):
         self.assertEqual(transport[0]["type"], "threshold_exceeded")
 
     def test_custom_thresholds(self):
-        now = exp._now().strftime("%Y-%m-%dT%H:%M:%S")
+        now = exp.now().strftime("%Y-%m-%dT%H:%M:%S")
         txns = [{"id": "a", "type": "expense", "amount": 5000,
                  "category": "ocio", "description": "bar", "date": now}]
         exp.FINANCE_DIR.mkdir(parents=True, exist_ok=True)
@@ -416,7 +416,7 @@ class TestSharedStorage(_TempDirMixin, unittest.TestCase):
         exp.FINANCE_DIR.mkdir(parents=True, exist_ok=True)
         existing = [{"id": "fin1", "type": "income", "amount": 100000,
                      "category": "trabajo", "description": "sueldo",
-                     "date": exp._now().isoformat()}]
+                     "date": exp.now().isoformat()}]
         exp._save_transactions(existing)
         exp.quick_add("uber 4200")
         all_txns = exp._load_transactions()

@@ -7,6 +7,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PYTHONPATH="/home/tenazas/runtime:${PYTHONPATH:-}"
 TOTAL_PASS=0
 TOTAL_FAIL=0
 TOTAL_SUITES=0

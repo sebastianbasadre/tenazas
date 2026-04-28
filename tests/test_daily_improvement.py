@@ -153,7 +153,7 @@ class TestJobsSignals(_TempDirMixin, unittest.TestCase):
         self.assertEqual(di._scan_jobs_signals(), [])
 
     def test_stale_opportunities(self):
-        old_date = (di._now() - __import__("datetime").timedelta(days=10)).isoformat()
+        old_date = (di.now() - __import__("datetime").timedelta(days=10)).isoformat()
         opps = [{"status": "applied", "updated_at": old_date}]
         self._write_json(di.JOBS_FILE, opps)
         signals = di._scan_jobs_signals()
@@ -231,7 +231,7 @@ class TestSelectBest(_TempDirMixin, unittest.TestCase):
     def test_avoids_recent_repeats(self):
         # Save a recent proposal
         di.LEARNING_DIR.mkdir(parents=True, exist_ok=True)
-        history = [{"date": di._now().strftime("%Y-%m-%d"),
+        history = [{"date": di.now().strftime("%Y-%m-%d"),
                      "signal": "already_done", "area": "routing"}]
         with open(di.DAILY_FILE, "w") as f:
             json.dump(history, f)
@@ -245,7 +245,7 @@ class TestSelectBest(_TempDirMixin, unittest.TestCase):
 
     def test_falls_back_to_repeat_if_all_recent(self):
         di.LEARNING_DIR.mkdir(parents=True, exist_ok=True)
-        history = [{"date": di._now().strftime("%Y-%m-%d"),
+        history = [{"date": di.now().strftime("%Y-%m-%d"),
                      "signal": "only_one", "area": "routing"}]
         with open(di.DAILY_FILE, "w") as f:
             json.dump(history, f)

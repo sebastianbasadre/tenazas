@@ -29,7 +29,7 @@ def _log(entry: dict):
     """Append a JSON line to the docker actions log."""
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_FILE, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+        f.write(json.dumps(entry, default=str) + "\n")
 
 
 def sanitize_name(name: str) -> str:

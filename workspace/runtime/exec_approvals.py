@@ -38,7 +38,7 @@ LOG_FILE = BASE_DIR / "logs" / "exec_approvals.log"
 CONFIG_FILE = Path("/home/tenazas/.openclaw/openclaw.json")
 
 CHAT_ID = get_default_telegram_chat_id()
-APPROVAL_TIMEOUT_SECONDS = 86400  # 24 hours (proposals aren't urgent)
+APPROVAL_TIMEOUT_SECONDS = 300  # 5 minutes
 
 
 # ---------------------------------------------------------------------------

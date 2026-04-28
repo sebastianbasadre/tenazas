@@ -183,7 +183,7 @@ def generate_brief() -> dict:
     Returns:
         dict with: date, sections (dict of gathered data), brief_text, action
     """
-    now = now()
+    _now = now()
     sections = {}
     errors = []
 
@@ -214,8 +214,8 @@ def generate_brief() -> dict:
     )
 
     brief = {
-        "date": now.strftime("%Y-%m-%d"),
-        "time": now.strftime("%H:%M"),
+        "date": _now.strftime("%Y-%m-%d"),
+        "time": _now.strftime("%H:%M"),
         "sections": sections,
         "alerts": all_alerts,
         "action": action,
@@ -237,8 +237,8 @@ def generate_brief() -> dict:
 
 def format_brief(brief: dict) -> str:
     """Format brief as concise Telegram-ready text."""
-    now = now()
-    lines = [f"Buenos dias Sebas — {now.strftime('%A %d/%m')}"]
+    _now = now()
+    lines = [f"Buenos dias Sebas — {_now.strftime('%A %d/%m')}"]
     lines.append("")
 
     sections = brief.get("sections", {})

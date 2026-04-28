@@ -149,7 +149,7 @@ def evaluate() -> list:
     except Exception:
         return []
 
-    now = now()
+    _now = now()
     for h in hypotheses:
         if h.get("status") != "active":
             continue
@@ -157,7 +157,7 @@ def evaluate() -> list:
         created = datetime.fromisoformat(h["created_at"])
         expiry = created + timedelta(days=h.get("timeframe_days", 7))
 
-        if now < expiry:
+        if _now < expiry:
             continue
 
         # Get current price

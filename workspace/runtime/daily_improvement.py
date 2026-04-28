@@ -503,10 +503,10 @@ def save_daily_proposal(proposal: dict) -> dict:
 def generate_daily_report(proposal: dict, signals: list):
     """Generate a human-readable daily improvement report."""
     LEARNING_DIR.mkdir(parents=True, exist_ok=True)
-    now = now()
+    _now = now()
 
     lines = [
-        f"# Mejora del dia — {now.strftime('%Y-%m-%d')}",
+        f"# Mejora del dia — {_now.strftime('%Y-%m-%d')}",
         "",
         f"## Propuesta: {proposal.get('proposal', 'N/A')}",
         "",
@@ -559,7 +559,7 @@ def generate_daily_report(proposal: dict, signals: list):
     lines.extend([
         "---",
         "",
-        f"Generado: {now.isoformat()}",
+        f"Generado: {_now.isoformat()}",
         f"Modelo: {PROPOSAL_MODEL}",
         f"Senales escaneadas: {len(signals)}",
         "",

@@ -592,11 +592,11 @@ def generate_report(issues: list, proposals: list, decisions: list | None = None
         decisions: original decisions (for stats)
     """
     LEARNING_DIR.mkdir(parents=True, exist_ok=True)
-    now = now()
+    _now = now()
     review = get_review_summary()
 
     lines = [
-        f"# Idle Learning Report — {now.strftime('%Y-%m-%d %H:%M')} ART",
+        f"# Idle Learning Report — {_now.strftime('%Y-%m-%d %H:%M')} ART",
         "",
         "## Resumen ejecutivo",
         "",
@@ -722,7 +722,7 @@ def generate_report(issues: list, proposals: list, decisions: list | None = None
     lines.extend([
         "---",
         "",
-        f"Generado: {now.isoformat()}",
+        f"Generado: {_now.isoformat()}",
         f"Critic: {CRITIC_MODEL}",
         f"Synthesizer: {SYNTHESIZER_MODEL}",
         "",

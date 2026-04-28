@@ -55,7 +55,7 @@ RUNBOOK_TEMPLATES = {
         "steps": [
             {"action": "Verificar estado de gluetun", "command": "docker logs gluetun --tail 30"},
             {"action": "Verificar IP publica via proxy", "command": f"curl -sf -x {GLUETUN_PROXY} https://ifconfig.me"},
-            {"action": "Verificar pais de la IP", "command": "curl -sf http://ip-api.com/json/$(curl -sf -x {GLUETUN_PROXY} https://ifconfig.me)?fields=countryCode"},
+            {"action": "Verificar pais de la IP", "command": f"curl -sf http://ip-api.com/json/$(curl -sf -x {GLUETUN_PROXY} https://ifconfig.me)?fields=countryCode"},
             {"action": "Reiniciar gluetun", "command": "docker restart gluetun", "requires_approval": True},
             {"action": "Esperar 30s y reverificar VPN", "command": f"sleep 30 && curl -sf -x {GLUETUN_PROXY} https://ifconfig.me"},
             {"action": "Si persiste, verificar config de NordVPN", "command": "docker exec gluetun cat /gluetun/servers.json | head -5"},

@@ -189,31 +189,31 @@ def parse_relative_date(text: str) -> tuple:
         (date_iso_string, text_without_date_part)
     """
     text = text.strip()
-    now = now()
+    _now = now()
 
     # "ayer" at start or end
     m = re.match(r"^ayer\s+(.+)", text, re.I)
     if m:
-        date = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        date = (_now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
         return date, m.group(1).strip()
     m = re.match(r"(.+?)\s+ayer$", text, re.I)
     if m:
-        date = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        date = (_now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
         return date, m.group(1).strip()
 
     # "anteayer"
     m = re.match(r"^anteayer\s+(.+)", text, re.I)
     if m:
-        date = (now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%S")
+        date = (_now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%S")
         return date, m.group(1).strip()
 
     # "hoy" (explicit, strip it)
     m = re.match(r"^hoy\s+(.+)", text, re.I)
     if m:
-        return now.strftime("%Y-%m-%dT%H:%M:%S"), m.group(1).strip()
+        return _now.strftime("%Y-%m-%dT%H:%M:%S"), m.group(1).strip()
 
     # Default: today
-    return now.strftime("%Y-%m-%dT%H:%M:%S"), text
+    return _now.strftime("%Y-%m-%dT%H:%M:%S"), text
 
 
 # ── Quick-Capture Parser ────────────────────────────────────────
@@ -438,10 +438,10 @@ def weekly_summary(category: str | None = None) -> dict:
     Returns:
         dict with: start, end, total, count, by_category, by_day
     """
-    now = now()
-    monday = now - timedelta(days=now.weekday())
+    _now = now()
+    monday = _now - timedelta(days=_now.weekday())
     start = monday.strftime("%Y-%m-%d")
-    end = now.strftime("%Y-%m-%d")
+    end = _now.strftime("%Y-%m-%d")
 
     txns = _load_transactions()
     week_txns = [t for t in txns

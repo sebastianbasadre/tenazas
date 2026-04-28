@@ -294,7 +294,7 @@ class TestSummary(_TempDirMixin, unittest.TestCase):
         self.assertEqual(s["transaction_count"], 0)
 
     def test_summary_with_data(self):
-        now = fin._now().isoformat()
+        now = fin.now().isoformat()
         fin.add_transaction("income", 100000, "sueldo", date=now)
         fin.add_transaction("expense", 20000, "super", date=now)
         fin.add_transaction("expense", 5000, "uber", date=now)
@@ -305,7 +305,7 @@ class TestSummary(_TempDirMixin, unittest.TestCase):
         self.assertEqual(s["transaction_count"], 3)
 
     def test_summary_by_category(self):
-        now = fin._now().isoformat()
+        now = fin.now().isoformat()
         fin.add_transaction("expense", 10000, "carrefour", "supermercado", date=now)
         fin.add_transaction("expense", 5000, "uber", "transporte", date=now)
         s = fin.summary("month")
@@ -313,7 +313,7 @@ class TestSummary(_TempDirMixin, unittest.TestCase):
         self.assertEqual(s["by_category"]["supermercado"]["expenses"], 10000)
 
     def test_format_summary_readable(self):
-        now = fin._now().isoformat()
+        now = fin.now().isoformat()
         fin.add_transaction("income", 100000, "sueldo", date=now)
         fin.add_transaction("expense", 20000, "super", "supermercado", date=now)
         s = fin.summary("month")
@@ -338,21 +338,21 @@ class TestAlerts(_TempDirMixin, unittest.TestCase):
         self.assertEqual(fin.check_alerts(), [])
 
     def test_high_expense_alert(self):
-        now = fin._now().isoformat()
+        now = fin.now().isoformat()
         fin.add_transaction("expense", 60000, "electrodomestico", date=now)
         alerts = fin.check_alerts()
         high = [a for a in alerts if a["type"] == "high_expense"]
         self.assertGreaterEqual(len(high), 1)
 
     def test_no_alert_under_threshold(self):
-        now = fin._now().isoformat()
+        now = fin.now().isoformat()
         fin.add_transaction("expense", 1000, "cafe", date=now)
         alerts = fin.check_alerts()
         high = [a for a in alerts if a["type"] == "high_expense"]
         self.assertEqual(len(high), 0)
 
     def test_daily_limit_alert(self):
-        now = fin._now().isoformat()
+        now = fin.now().isoformat()
         for _ in range(5):
             fin.add_transaction("expense", 25000, "varios", date=now)
         alerts = fin.check_alerts()

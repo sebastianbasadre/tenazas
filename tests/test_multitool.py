@@ -181,10 +181,10 @@ class TestMultitoolPolicy(unittest.TestCase):
 
 class TestRouteAndExecuteMultitool(unittest.TestCase):
 
-    @patch("runtime.orchestrator._call_multitool_model")
+    @patch("runtime.hybrid_router.route")
     def test_two_tools_execution(self, mock_model):
         """Two valid tools should both execute."""
-        mock_model.return_value = "<tools><tool>weather</tool><tool>calendar</tool></tools>"
+        mock_model.return_value = ["weather", "calendar"]
 
         with patch("runtime.orchestrator.execute_skill") as mock_exec:
             mock_exec.return_value = {
@@ -201,10 +201,10 @@ class TestRouteAndExecuteMultitool(unittest.TestCase):
         self.assertEqual(len(result["results"]), 2)
         self.assertFalse(result["fallback_used"])
 
-    @patch("runtime.orchestrator._call_multitool_model")
+    @patch("runtime.hybrid_router.route")
     def test_parse_failure_falls_back(self, mock_model):
         """Invalid XML should fallback to route_and_execute."""
-        mock_model.return_value = "Sorry I can't do that"
+        mock_model.side_effect = Exception("model offline")
 
         with patch("runtime.orchestrator.route_and_execute") as mock_route:
             mock_route.return_value = {"executed": False, "classification": "chat"}
@@ -215,10 +215,10 @@ class TestRouteAndExecuteMultitool(unittest.TestCase):
         mock_route.assert_called_once()
         self.assertFalse(result.get("multitool", False))
 
-    @patch("runtime.orchestrator._call_multitool_model")
+    @patch("runtime.hybrid_router.route")
     def test_model_offline_falls_back(self, mock_model):
         """Model returning None should fallback."""
-        mock_model.return_value = None
+        mock_model.return_value = []
 
         with patch("runtime.orchestrator.route_and_execute") as mock_route:
             mock_route.return_value = {"executed": False}
@@ -227,7 +227,8 @@ class TestRouteAndExecuteMultitool(unittest.TestCase):
 
         mock_route.assert_called_once()
 
-    def test_policy_skip_falls_back(self):
+    @patch("runtime.hybrid_router.route", return_value=[])
+    def test_policy_skip_falls_back(self, mock_model):
         """Single-skill query should skip multitool entirely."""
         with patch("runtime.orchestrator.route_and_execute") as mock_route:
             mock_route.return_value = {"executed": False}
@@ -235,10 +236,10 @@ class TestRouteAndExecuteMultitool(unittest.TestCase):
 
         mock_route.assert_called_once()
 
-    @patch("runtime.orchestrator._call_multitool_model")
+    @patch("runtime.hybrid_router.route")
     def test_partial_failure(self, mock_model):
         """If one tool fails, others still execute."""
-        mock_model.return_value = "<tools><tool>weather</tool><tool>email</tool></tools>"
+        mock_model.return_value = ["weather", "email"]
 
         call_count = [0]
         def fake_exec(skill_cat, query=""):
@@ -261,10 +262,10 @@ class TestRouteAndExecuteMultitool(unittest.TestCase):
         self.assertFalse(result["results"][1]["success"])
         self.assertIn("22°C", result["aggregated_text"])
 
-    @patch("runtime.orchestrator._call_multitool_model")
+    @patch("runtime.hybrid_router.route")
     def test_empty_tools_falls_back(self, mock_model):
         """Model returning empty tools should fallback."""
-        mock_model.return_value = "<tools></tools>"
+        mock_model.return_value = []
 
         with patch("runtime.orchestrator.route_and_execute") as mock_route:
             mock_route.return_value = {"executed": False}
@@ -272,10 +273,10 @@ class TestRouteAndExecuteMultitool(unittest.TestCase):
 
         mock_route.assert_called_once()
 
-    @patch("runtime.orchestrator._call_multitool_model")
+    @patch("runtime.hybrid_router.route")
     def test_smart_home_action_injection(self, mock_model):
         """Smart-home tools should inject the correct action query."""
-        mock_model.return_value = "<tools><tool>smart-home-cinema</tool><tool>weather</tool></tools>"
+        mock_model.return_value = ["smart-home-cinema", "weather"]
 
         exec_calls = []
         def fake_exec(skill_cat, query=""):
@@ -302,12 +303,20 @@ class TestDataset(unittest.TestCase):
     def test_dataset_stats(self):
         sys.path.insert(0, "/home/tenazas/runtime/tool_tuning")
         from build_multitool_dataset import (
-            SINGLE_TOOL, MULTI_TOOL, NO_TOOL, AMBIGUOUS_CONSERVATIVE,
+            WEATHER, EMAIL, CALENDAR, INFRA_MONITOR, NETWORK_SCANNER,
+            ARR_MONITOR, SELF_EVOLVE, REMINDERS, SMART_HOME_ON,
+            SMART_HOME_OFF, SMART_HOME_CINEMA, TTS,
+            MULTI_TOOL, NEGATIVES, HARD_NEGATIVES,
         )
-        self.assertGreaterEqual(len(SINGLE_TOOL), 80)
+        single_total = sum(len(lst) for lst in [
+            WEATHER, EMAIL, CALENDAR, INFRA_MONITOR, NETWORK_SCANNER,
+            ARR_MONITOR, SELF_EVOLVE, REMINDERS, SMART_HOME_ON,
+            SMART_HOME_OFF, SMART_HOME_CINEMA, TTS,
+        ])
+        self.assertGreaterEqual(single_total, 80)
         self.assertGreaterEqual(len(MULTI_TOOL), 60)
-        self.assertGreaterEqual(len(NO_TOOL), 20)
-        self.assertGreaterEqual(len(AMBIGUOUS_CONSERVATIVE), 20)
+        self.assertGreaterEqual(len(NEGATIVES), 20)
+        self.assertGreaterEqual(len(HARD_NEGATIVES), 20)
 
     def test_dataset_format(self):
         sys.path.insert(0, "/home/tenazas/runtime/tool_tuning")

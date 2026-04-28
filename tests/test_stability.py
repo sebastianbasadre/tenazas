@@ -81,35 +81,21 @@ class TestNmapCache(unittest.TestCase):
         rt.NMAP_CACHE_FILE = self._orig_cache
         rt.STATE_FILE = self._orig_state
 
+    @patch("runtime.runtime.device_discovery", create=True)
+    @patch("runtime.runtime.freeze_detector")
     @patch("runtime.executors.check_network_devices", return_value={"count": 15})
-    @patch("runtime.executors.check_ollama_nas", return_value={"ok": False})
-    @patch("runtime.executors.check_ollama_notebook", return_value={"ok": True})
-    @patch("runtime.executors.check_public_ip", return_value={"ip": "1.2.3.4"})
-    @patch("runtime.executors.check_vpn", return_value={"ok": True, "ip": "82.1.2.3"})
-    @patch("runtime.executors.check_vpn_country", return_value="ES")
-    @patch("runtime.executors.check_internet", return_value={"ok": True, "latency_ms": 10})
-    @patch("runtime.executors.check_containers", return_value=[])
-    @patch("runtime.executors.write_ollama_status")
-    def test_first_run_scans(self, *mocks):
-        """First run should actually call nmap."""
-        rt.update_state()
+    def test_first_run_scans(self, mock_nmap, mock_freeze, mock_disc):
+        """First run should actually call nmap (via _network_scan)."""
+        rt._network_scan({})
         from runtime import executors
         executors.check_network_devices.assert_called_once()
 
     @patch("runtime.executors.check_network_devices", return_value={"count": 15})
-    @patch("runtime.executors.check_ollama_nas", return_value={"ok": False})
-    @patch("runtime.executors.check_ollama_notebook", return_value={"ok": True})
-    @patch("runtime.executors.check_public_ip", return_value={"ip": "1.2.3.4"})
-    @patch("runtime.executors.check_vpn", return_value={"ok": True, "ip": "82.1.2.3"})
-    @patch("runtime.executors.check_vpn_country", return_value="ES")
-    @patch("runtime.executors.check_internet", return_value={"ok": True, "latency_ms": 10})
-    @patch("runtime.executors.check_containers", return_value=[])
-    @patch("runtime.executors.write_ollama_status")
-    def test_cached_run_skips_nmap(self, *mocks):
+    def test_cached_run_skips_nmap(self, mock_nmap):
         """Second run within 30 min should skip nmap."""
         # Seed cache as recent
         rt.save_json(rt.NMAP_CACHE_FILE, {"last_scan": time.time(), "hosts": 12})
-        rt.update_state()
+        rt._network_scan({})
         from runtime import executors
         executors.check_network_devices.assert_not_called()
 

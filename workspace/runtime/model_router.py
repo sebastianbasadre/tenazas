@@ -196,7 +196,7 @@ def _load_guardrail_state():
         return
 
     import time
-    now = time.monotonic()
+    mono_now = time.monotonic()
     wall_now = now().timestamp()
 
     st = _guardrail_state
@@ -204,7 +204,7 @@ def _load_guardrail_state():
     # Restore timestamps: convert wall-clock offsets to monotonic
     for key in ("heavy_timestamps", "vram_swaps_window"):
         wall_times = saved.get(key, [])
-        st[key] = [now - (wall_now - wt) for wt in wall_times
+        st[key] = [mono_now - (wall_now - wt) for wt in wall_times
                    if wall_now - wt < GUARDRAIL_WINDOW]
 
     # Restore scalars
@@ -214,7 +214,7 @@ def _load_guardrail_state():
     # Restore last_heavy_ts as monotonic offset
     last_wall = saved.get("last_heavy_wall_ts", 0)
     if last_wall > 0 and wall_now - last_wall < GUARDRAIL_COOLDOWN:
-        st["last_heavy_ts"] = now - (wall_now - last_wall)
+        st["last_heavy_ts"] = mono_now - (wall_now - last_wall)
     else:
         st["last_heavy_ts"] = 0.0
 
@@ -227,17 +227,17 @@ def _load_guardrail_state():
 def _save_guardrail_state():
     """Persist guardrail state to JSON file."""
     import time
-    now = time.monotonic()
+    mono_now = time.monotonic()
     wall_now = now().timestamp()
     st = _guardrail_state
 
     # Convert monotonic timestamps to wall-clock for persistence
     saved = {
-        "heavy_timestamps": [wall_now - (now - t) for t in st["heavy_timestamps"]],
-        "vram_swaps_window": [wall_now - (now - t) for t in st["vram_swaps_window"]],
+        "heavy_timestamps": [wall_now - (mono_now - t) for t in st["heavy_timestamps"]],
+        "vram_swaps_window": [wall_now - (mono_now - t) for t in st["vram_swaps_window"]],
         "last_heavy_model": st["last_heavy_model"],
         "last_heavy_latency": st["last_heavy_latency"],
-        "last_heavy_wall_ts": wall_now - (now - st["last_heavy_ts"]) if st["last_heavy_ts"] > 0 else 0,
+        "last_heavy_wall_ts": wall_now - (mono_now - st["last_heavy_ts"]) if st["last_heavy_ts"] > 0 else 0,
         "degradations": st["degradations"],
         "saved_at": now().isoformat(),
     }

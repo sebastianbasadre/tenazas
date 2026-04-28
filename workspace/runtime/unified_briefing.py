@@ -82,10 +82,10 @@ def _notify(msg: str):
 
 
 def _section_header() -> str:
-    now = now()
+    _now = now()
     dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"]
-    dia = dias[now.weekday()]
-    return f"Buenos dias Sebas — {dia} {now.strftime('%d/%m')}"
+    dia = dias[_now.weekday()]
+    return f"Buenos dias Sebas — {dia} {_now.strftime('%d/%m')}"
 
 
 def _section_calendar() -> str | None:

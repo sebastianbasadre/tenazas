@@ -468,9 +468,8 @@ class TestTelegramNotify(unittest.TestCase):
         mock_cmd.return_value = MagicMock(returncode=0)
         self.assertTrue(executors.notify_telegram("test message"))
 
-    @patch("runtime.executors.OPENCLAW_CONFIG")
-    def test_fails_on_missing_config(self, mock_config):
-        mock_config.read_text.side_effect = OSError("not found")
+    @patch("runtime.executors.get_telegram_bot_token", return_value="")
+    def test_fails_on_missing_config(self, mock_token):
         self.assertFalse(executors.notify_telegram("test"))
 
 

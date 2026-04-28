@@ -44,7 +44,7 @@ def _log_exec(entry: dict):
     """Append a JSON line to executor.log."""
     EXECUTOR_LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(EXECUTOR_LOG, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+        f.write(json.dumps(entry, default=str) + "\n")
 
 
 def _run_cmd(cmd: list, timeout: int = 15) -> subprocess.CompletedProcess:

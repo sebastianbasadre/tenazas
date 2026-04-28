@@ -13,7 +13,7 @@ from unittest.mock import patch, MagicMock
 from io import StringIO
 from datetime import datetime
 
-sys.path.insert(0, "/home/tenazas/.openclaw/workspace/skills/compact-context")
+sys.path.insert(0, "/home/tenazas/.openclaw/workspace/skills/_archived/compact-context")
 import compact as c
 
 

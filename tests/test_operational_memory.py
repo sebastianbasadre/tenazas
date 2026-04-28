@@ -159,7 +159,7 @@ class TestGetContext(_TempDirMixin, unittest.TestCase):
         mem["finance"] = [{
             "type": "preference", "content": "permanent",
             "expires_at": None,
-            "updated_at": om._now().isoformat(),
+            "updated_at": om.now().isoformat(),
         }]
         om._save_memory(mem)
         facts = om.get_context("finance")
@@ -263,7 +263,7 @@ class TestCleanup(_TempDirMixin, unittest.TestCase):
             {"type": "note", "content": "old", "expires_at": "2020-01-01T00:00:00",
              "updated_at": "2020-01-01"},
             {"type": "note", "content": "active", "expires_at": None,
-             "updated_at": om._now().isoformat()},
+             "updated_at": om.now().isoformat()},
         ]}
         om._save_memory(mem)
         removed = om.cleanup_expired()

@@ -58,18 +58,18 @@ def _check_calendar_busy() -> dict:
         if not events:
             return {"busy": False, "upcoming_minutes": None}
 
-        now = now()
+        _now = now()
         for event in events:
             start_str = event.get("start", event.get("time", ""))
             try:
                 # Parse time (HH:MM format expected from check_calendar)
                 if len(start_str) <= 5:
                     h, m = start_str.split(":")
-                    start = now.replace(hour=int(h), minute=int(m), second=0)
+                    start = _now.replace(hour=int(h), minute=int(m), second=0)
                 else:
                     start = datetime.fromisoformat(start_str)
 
-                diff = (start - now).total_seconds() / 60
+                diff = (start - _now).total_seconds() / 60
                 if -60 <= diff <= 0:
                     return {"busy": True, "event": event.get("title", "?"),
                             "upcoming_minutes": 0}
@@ -118,7 +118,7 @@ def _check_active_critical() -> bool:
 
 def get_context() -> dict:
     """Build current awareness context."""
-    now = now()
+    _now = now()
 
     # Calendar
     cal = _check_calendar_busy()
@@ -128,7 +128,7 @@ def get_context() -> dict:
         from temporal_guard import get_context as tg_context
         time_ctx = tg_context()
     except Exception:
-        time_ctx = {"window": "unknown", "hour": now.hour}
+        time_ctx = {"window": "unknown", "hour": _now.hour}
 
     # Last activity
     last_ts = _get_last_telegram_activity()
@@ -138,12 +138,12 @@ def get_context() -> dict:
     has_critical = _check_active_critical()
 
     context = {
-        "ts": now.isoformat(),
+        "ts": _now.isoformat(),
         "calendar_busy": cal.get("busy", False),
         "event_upcoming_min": cal.get("upcoming_minutes"),
         "event_name": cal.get("event"),
         "time_window": time_ctx.get("window", "unknown"),
-        "hour": now.hour,
+        "hour": _now.hour,
         "hours_since_activity": round(hours_since, 1),
         "is_absent": hours_since >= ABSENT_THRESHOLD_HOURS,
         "is_long_absent": hours_since >= LONG_ABSENT_THRESHOLD_HOURS,

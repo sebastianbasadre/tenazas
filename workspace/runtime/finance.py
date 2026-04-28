@@ -339,20 +339,20 @@ def list_transactions(
 
 def _date_range(period: str) -> tuple:
     """Get (start, end) ISO date strings for a period."""
-    now = now()
+    _now = now()
     if period == "day":
-        start = now.strftime("%Y-%m-%d")
+        start = _now.strftime("%Y-%m-%d")
         end = start
     elif period == "week":
-        monday = now - timedelta(days=now.weekday())
+        monday = _now - timedelta(days=_now.weekday())
         start = monday.strftime("%Y-%m-%d")
-        end = now.strftime("%Y-%m-%d")
+        end = _now.strftime("%Y-%m-%d")
     elif period == "month":
-        start = now.strftime("%Y-%m-01")
-        end = now.strftime("%Y-%m-%d")
+        start = _now.strftime("%Y-%m-01")
+        end = _now.strftime("%Y-%m-%d")
     else:
-        start = now.strftime("%Y-01-01")
-        end = now.strftime("%Y-%m-%d")
+        start = _now.strftime("%Y-01-01")
+        end = _now.strftime("%Y-%m-%d")
     return start, end
 
 
@@ -498,14 +498,14 @@ def check_alerts() -> list:
 
 def _calculate_monthly_averages(months: int = 3) -> dict:
     """Calculate average monthly spending per category over last N months."""
-    now = now()
+    _now = now()
     totals = {}
     months_counted = 0
 
     for i in range(1, months + 1):
         # Go back i months
-        year = now.year
-        month = now.month - i
+        year = _now.year
+        month = _now.month - i
         if month <= 0:
             month += 12
             year -= 1
