@@ -9,30 +9,30 @@ See: .planning/PROJECT.md (updated 2026-04-28)
 
 ## Current Position
 
-Phase: 2 of 4 (Config Centralization)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-04-28 -- Plan 02-01 complete (config endpoint constants)
+Phase: 2 of 4 (Config Centralization) -- COMPLETE
+Plan: 2 of 2 in current phase (all done)
+Status: Phase 2 complete, ready for Phase 3
+Last activity: 2026-04-28 -- Plan 02-02 complete (IP migration to runtime_config)
 
-Progress: [####......] 40%
+Progress: [#####.....] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 8.5 min
-- Total execution time: 0.56 hours
+- Total plans completed: 5
+- Average duration: 10 min
+- Total execution time: 0.86 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation-utilities | 3 | 30 min | 10 min |
-| 02-config-centralization | 1 | 2 min | 2 min |
+| 02-config-centralization | 2 | 20 min | 10 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (9 min), 01-03 (19 min), 02-01 (2 min)
-- Trend: fast plan (config constants only, no migration)
+- Last 5 plans: 01-01 (2 min), 01-02 (9 min), 01-03 (19 min), 02-01 (2 min), 02-02 (18 min)
+- Trend: migration plan (60 files, mechanical replacement)
 
 *Updated after each plan completion*
 
@@ -55,6 +55,9 @@ Recent decisions affecting current work:
 - [02-01]: Constants computed at import time (not lazily) for read-only infra values
 - [02-01]: Derived URLs compose from base constant (OLLAMA_GPU_TAGS_URL = f"{OLLAMA_GPU_URL}/api/tags")
 - [02-01]: MAC addresses not env-overridable (hardware-bound identifiers)
+- [02-02]: Device inventory IPs (cameras, phones, tablets) left as literals (data, not config)
+- [02-02]: Alias pattern (LOCAL_NAME = IMPORTED_CONSTANT) for backward-compatible local names
+- [02-02]: Docstring/comment IPs preserved as documentation
 
 ### Pending Todos
 
@@ -68,5 +71,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Completed 02-01-PLAN.md (config endpoint constants)
+Stopped at: Completed 02-02-PLAN.md (IP migration to runtime_config) -- Phase 2 complete
 Resume file: None
