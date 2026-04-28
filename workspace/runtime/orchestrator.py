@@ -21,7 +21,6 @@ import os
 import re
 import subprocess
 import time
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
@@ -40,19 +39,18 @@ ORCHESTRATOR_LOG = BASE_DIR / "logs" / "orchestrator.log"
 # Set to False to revert to V1 behavior without code changes
 USE_ROUTER_V2 = True
 
-# ── Routing metrics (in-memory, reset on process restart) ────────
+# ── Routing metrics (re-exported from routing_metrics.py) ────────
 
-_routing_metrics = defaultdict(int)
-
-
-def get_routing_metrics() -> dict:
-    """Return current routing metrics snapshot. Resets on process restart."""
-    return dict(_routing_metrics)
-
-
-def reset_routing_metrics():
-    """Reset all routing metrics (for testing)."""
-    _routing_metrics.clear()
+try:
+    from routing_metrics import (
+        _routing_metrics, get_routing_metrics, reset_routing_metrics,
+        report_inference, _record_metrics, _record_v1_fallback,
+    )
+except ImportError:
+    from workspace.runtime.routing_metrics import (
+        _routing_metrics, get_routing_metrics, reset_routing_metrics,
+        report_inference, _record_metrics, _record_v1_fallback,
+    )
 
 
 # ── V1 Model tiers (used as fallback when V2 is off or fails) ───
@@ -2299,55 +2297,6 @@ def _extract_signals(context: dict | None) -> list:
     return signals
 
 
-def report_inference(model_id: str, latency: float, route_result: dict | None = None):
-    """Report actual inference latency after LLM call completes.
-
-    Call this after the LLM responds to close the guardrail feedback loop.
-    The latency is used for future guardrail decisions and Prometheus metrics.
-
-    Args:
-        model_id: model ID from route result (e.g. "ollama/qwen2.5:7b")
-        latency: actual inference time in seconds
-        route_result: the full route_query() result (for extracting V2 info)
-    """
-    try:
-        from runtime.model_router import report_inference_complete
-        # Strip "ollama/" prefix if present
-        model = model_id.replace("ollama/", "")
-        vram_swap = False
-        if route_result and "router_v2" in route_result:
-            vram_swap = route_result["router_v2"].get("vram_swap", False)
-        report_inference_complete(model, latency, vram_swap)
-    except Exception:
-        pass
-
-    try:
-        from runtime.metrics_exporter import record_model_latency
-        model = model_id.replace("ollama/", "")
-        role = "fast"
-        if route_result and "router_v2" in route_result:
-            role = route_result["router_v2"].get("role", "fast")
-        record_model_latency(model, role, latency)
-    except Exception:
-        pass
-
-
-def _record_metrics(**kwargs):
-    """Record routing decision to Prometheus (best-effort, never raises)."""
-    try:
-        from runtime.metrics_exporter import record_routing_decision
-        record_routing_decision(**kwargs)
-    except Exception:
-        pass
-
-
-def _record_v1_fallback():
-    """Record V1 fallback event to Prometheus (best-effort)."""
-    try:
-        from runtime.metrics_exporter import record_v1_fallback_from_v2
-        record_v1_fallback_from_v2()
-    except Exception:
-        pass
 
 
 def _is_openrouter_available() -> bool:
