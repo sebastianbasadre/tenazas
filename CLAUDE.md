@@ -990,7 +990,13 @@ Sistema de monitoreo inteligente en `workspace/runtime/`.
 workspace/runtime/
 │
 │ ── Core ──
-├── orchestrator.py            — Central AI routing (classify + model select)
+├── orchestrator.py            — Facade: re-exports submodules, route_query, select_model
+├── classifier.py              — Query classification rules (keyword + regex, no LLM)
+├── skill_executor.py          — Skill execution engine (SKILL_MAP, handlers, parsers)
+├── escalation.py              — Escalation paths (knowledge→reasoning, chat→knowledge)
+├── routing_metrics.py         — In-memory routing counters + Prometheus integration
+├── runtime_utils.py           — Shared utilities: load_json, save_json, now, write_atomic
+├── runtime_config.py          — Centralized config: IPs, ports, credentials (env-var-first)
 ├── runtime.py                 — Loop principal event-driven (cada 5 min)
 ├── docker_wrapper.py          — Capa de seguridad Docker
 ├── executors.py               — Probes de monitoreo + dispatch
@@ -1219,34 +1225,31 @@ Incluye: lockfile protection, log rotation, heartbeat freeze detection.
 - **Cooldown de 20 min** por target (no re-reinicia si ya se reinicio recientemente)
 - Cooldown solo cuenta restarts exitosos (fallidos no cuentan)
 
-### orchestrator.py — Central AI routing (integrado con Router V2)
-- Clasifica queries en: chat, knowledge_query, infrastructure_issue, automation_command, diagnostic_request, complex_reasoning, openrouter_usage, skill:*
-- **Clasificacion lightweight:** keyword + regex rules (sin LLM)
-- **Skill classification:** 11 skill categories (skill:weather, skill:email, skill:calendar, skill:smart-home, skill:tts, skill:network-scanner, skill:arr-monitor, skill:infra-monitor, skill:morning-greeting, skill:self-evolve, skill:reminders). Requieren score >= 3 (pattern match) para evitar falsos positivos. Se normalizan a `automation_command` para model selection.
-- **Model selection (V2):** delega a `model_router.route_by_role()` para seleccion inteligente por rol
-  - Prompt-based: codigo detectado → coder, razonamiento → deepseek, imagen → vision
-  - Category-based: complex_reasoning → reason role, chat → fast role
-  - V2 flags desde context: `has_image`, `critical`, `embed`, `role`
-- **Feature flag:** `USE_ROUTER_V2 = True` — set False para revertir a V1 sin cambios de codigo
-- **Feature flag:** `tenazas.use_finetuned_router: true` en openclaw.json — activa Router V3 (finetuned_router + intent_normalizer). Si confianza >= medium, usa resultado del modelo. Si falla o low confidence, cae al scoring deterministico. Bajo namespace `tenazas` para no romper el schema del gateway.
-- **Fallback seguro:** si V2 falla (backends offline, import error) → V1 automatico
-- **Pipeline routing:** cada categoria tiene modulos asignados (rag, diagnostics, action_mapper)
-- **Context-aware:** recent_events, working_memory, ollama_available influyen en routing
-- **Escalation:** low confidence → escala a pipeline mas capaz (knowledge→reasoning, etc.)
-- **OpenRouter en fallback chains:** V1 fallback chains incluyen `openrouter_kimi` antes de `gemini_flash`. Si todos los backends locales offline, intenta OpenRouter antes de Gemini como last resort.
-- **Metricas:** `v2_calls`, `v1_calls`, `v1_fallback_from_v2`, `v2_vram_swaps`, `v2_fallbacks`, `v2_role_{role}`
-- **Telemetria:** `logs/orchestrator.log` (JSON por linea, incluye `router_v2_role` y `router_v2_model`)
-- `route_query(query, context)` → {classification, pipeline, model, parameters, router_v2}
-- `route_and_execute(query, context)` → route_query + ejecucion directa si es skill category
-- `execute_skill(skill_category, query)` → ejecuta skill y retorna {skill, success, output, raw, destructive, error}
-- `escalate(original_route, reason)` → ruta escalada
-- `get_routing_metrics()` → snapshot de metricas de routing
+### Orchestrator — Central AI routing (5 módulos)
 
-### Skill Execution Engine (orchestrator.py)
+Después del refactor v1.0, el monolítico `orchestrator.py` (2373 líneas) se descompuso en un facade + 4 submódulos. El facade re-exporta todo para backward compatibility.
 
-Motor de ejecucion directa de skills desde el orchestrator.
+**Módulos:**
 
-**SKILL_MAP:** 11 skills con command templates, parsers y handlers.
+| Módulo | Función | Exports clave |
+|---|---|---|
+| `orchestrator.py` | Facade: model selection, route_query, pipeline assembly | `route_query()`, `route_and_execute()`, `select_model()` |
+| `classifier.py` | Clasificación por keyword + regex (sin LLM) | `classify_query(query, context)`, `CLASSIFICATION_RULES` |
+| `skill_executor.py` | Ejecución directa de skills con SKILL_MAP | `execute_skill(skill, query)`, `SKILL_MAP`, `SKILL_TIMEOUT` |
+| `escalation.py` | Escalación: knowledge→reasoning, chat→knowledge | `escalate(category)` |
+| `routing_metrics.py` | Contadores in-memory + Prometheus | `get_routing_metrics()`, `report_inference()`, `reset_routing_metrics()` |
+
+**Clasificación (classifier.py):**
+- Categories: chat, knowledge_query, infrastructure_issue, automation_command, diagnostic_request, complex_reasoning, openrouter_usage, skill:*
+- 11 skill categories (skill:weather, skill:email, skill:calendar, skill:smart-home, skill:tts, skill:network-scanner, skill:arr-monitor, skill:infra-monitor, skill:morning-greeting, skill:self-evolve, skill:reminders). Requieren score >= 3 para evitar falsos positivos.
+
+**Model selection (orchestrator.py, V2):** delega a `model_router.route_by_role()` por rol
+- **Feature flag:** `USE_ROUTER_V2 = True` — set False para revertir a V1
+- **Feature flag:** `tenazas.use_finetuned_router: true` en openclaw.json — activa Router V3 (finetuned_router + intent_normalizer)
+- **Fallback seguro:** si V2 falla → V1 automatico
+- **OpenRouter en fallback chains:** `openrouter_kimi` antes de `gemini_flash` como last resort
+
+**Skill Execution Engine (skill_executor.py):**
 
 | Skill | Tipo | Descripcion |
 |---|---|---|
@@ -1262,13 +1265,9 @@ Motor de ejecucion directa de skills desde el orchestrator.
 | `skill:self-evolve` | command + parser | Lee proposals.json |
 | `skill:reminders` | handler | Lista o delega creacion al LLM |
 
-**Timeout:** 30s por skill.
+**Timeout:** 30s por skill. **Parsers:** `_parse_weather()`, `_parse_proposals()`. **Handlers:** skills parametrizadas.
 
-**Parsers:** `_parse_weather()` (WMO codes → español), `_parse_proposals()` (JSON → resumen).
-
-**Handlers:** skills parametrizadas o destructivas tienen handlers custom que extraen accion del query.
-
-**`route_and_execute(query)`** — entry point principal: clasifica, si es skill la ejecuta directamente y retorna output; si no, retorna route normal con `executed=False`.
+**Telemetria:** `logs/orchestrator.log` (JSON por linea, incluye `router_v2_role` y `router_v2_model`)
 
 ### MCP Servers (openclaw.json → mcp.servers)
 
@@ -1447,6 +1446,7 @@ services:
 - Base: `node:24-bookworm`
 - Deps: python3, pip, ffmpeg, curl, nmap, iputils-ping, dnsutils, docker.io
 - Python: requests, torch (CPU), whisper, google-auth
+- `ENV PYTHONPATH=/home/tenazas/runtime` — permite bare imports (`from runtime_utils import now`)
 - User: `tenazas` (uid 1026), grupo docker
 - Entrypoint: `openclaw gateway`
 
@@ -1574,6 +1574,8 @@ Refresh automatico del bearer token de IOL InvertirOnline.
 - Preferir `subprocess.run([...])` con lista (NO `shell=True`)
 - Container names siempre validados contra regex + blocklist
 - Logs en JSON (una linea por entry) para parseabilidad
+- **Imports compartidos:** usar `from runtime_utils import load_json, save_json, now` y `from runtime_config import ...` (NO duplicar helpers por módulo)
+- **json.dumps con datetime:** siempre usar `default=str` cuando el dict puede contener `now()` (datetime objects)
 
 ---
 
@@ -1595,11 +1597,11 @@ docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 ```bash
 docker exec openclaw python3 /home/tenazas/tests/test_runtime.py       # 54 tests
 docker exec openclaw python3 /home/tenazas/tests/test_query.py         # 34 tests
-docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 40 tests
-docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 65 tests
+docker exec openclaw python3 /home/tenazas/tests/test_confidence.py    # 54 tests
+docker exec openclaw python3 /home/tenazas/tests/test_orchestrator.py  # 83 tests
 docker exec openclaw python3 /home/tenazas/tests/test_advanced.py      # 41 tests
-docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 33 tests
-docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py   # 62 tests
+docker exec openclaw python3 /home/tenazas/tests/test_intelligence.py  # 47 tests
+docker exec openclaw python3 /home/tenazas/tests/test_safety_guard.py  # 62 tests
 docker exec openclaw python3 /home/tenazas/tests/test_supervisor.py    # 22 tests
 docker exec openclaw python3 /home/tenazas/tests/test_model_router.py  # 93 tests
 docker exec openclaw python3 /home/tenazas/tests/test_planner.py       # 35 tests
@@ -1610,17 +1612,28 @@ docker exec openclaw python3 /home/tenazas/tests/test_goal_engine.py   # 30 test
 docker exec openclaw python3 /home/tenazas/tests/test_self_debugger.py # 41 tests
 docker exec openclaw python3 /home/tenazas/tests/test_self_dev.py      # 28 tests
 docker exec openclaw python3 /home/tenazas/tests/test_idle_learning.py # 27 tests
+docker exec openclaw python3 /home/tenazas/tests/test_idle_learning_v2.py # 69 tests
 docker exec openclaw python3 /home/tenazas/tests/test_bg_agents.py     # 27 tests
 docker exec openclaw python3 /home/tenazas/tests/test_worker_super.py  # 22 tests
-docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 17 tests
-docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 25 tests
+docker exec openclaw python3 /home/tenazas/tests/test_stability.py     # 19 tests
+docker exec openclaw python3 /home/tenazas/tests/test_observability.py # 24 tests
+docker exec openclaw python3 /home/tenazas/tests/test_cognitive.py     # 36 tests
 docker exec openclaw python3 /home/tenazas/tests/test_compact.py       # 11 tests
-docker exec openclaw python3 /home/tenazas/tests/test_finetuned_router.py # 29 tests
-docker exec openclaw python3 /home/tenazas/tests/test_intent_normalizer.py # 42 tests
-docker exec openclaw python3 /home/tenazas/tests/test_health_sweep.py     # 31 tests
-docker exec openclaw python3 /home/tenazas/tests/test_autofix.py          # 54 tests
+docker exec openclaw python3 /home/tenazas/tests/test_finance.py       # 65 tests
+docker exec openclaw python3 /home/tenazas/tests/test_expenses.py      # 68 tests
+docker exec openclaw python3 /home/tenazas/tests/test_jobs.py          # 75 tests
+docker exec openclaw python3 /home/tenazas/tests/test_daily_improvement.py # 36 tests
+docker exec openclaw python3 /home/tenazas/tests/test_daily_brief.py   # 33 tests
+docker exec openclaw python3 /home/tenazas/tests/test_operational_memory.py # 40 tests
+docker exec openclaw python3 /home/tenazas/tests/test_personal_super.py # 31 tests
+docker exec openclaw python3 /home/tenazas/tests/test_vision_pipeline.py # 29 tests
+docker exec openclaw python3 /home/tenazas/tests/test_iol_broker.py    # 62 tests
+docker exec openclaw python3 /home/tenazas/tests/test_multitool.py     # 38 tests
+docker exec openclaw python3 /home/tenazas/tests/test_eval_harness.py  # 32 tests
 docker exec openclaw bash   /home/tenazas/tests/test_ollama_check.sh
 ```
+
+**Total: 35 suites, 1457 tests** (post v1.0 refactor, 2026-04-28)
 
 ### Desde Windows (via SSH al NAS)
 ```bash
@@ -2254,18 +2267,23 @@ docker exec openclaw python3 /home/tenazas/runtime/deco_client.py
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
-**Tenazas Runtime Refactor**
+**Tenazas** — asistente personal de Sebastian, corriendo en OpenClaw dentro de Docker en un NAS Synology DS923+.
 
-A structural refactoring of the Tenazas runtime layer — the 42+ Python module system running Sebas's personal AI assistant on a Synology NAS. The goal is to clean up organic growth, fix reliability issues, remove dead code, and make the codebase testable and maintainable without changing any user-facing behavior.
+### v1.0 Runtime Refactor (completado 2026-04-28)
 
-**Core Value:** After the refactor, Tenazas works exactly as before — same skills, same Telegram interactions, same cron jobs — but the code is organized, reliable under concurrent access, and easy to extend.
+Refactor estructural de 4 fases:
+1. **Foundation Utilities** — `runtime_utils.py` reemplaza 19+ copias de `_load_json`/`_save_json`/`_now`
+2. **Config Centralization** — `runtime_config.py` centraliza 268+ IPs/puertos/credenciales hardcodeadas
+3. **Orchestrator Decomposition** — monolito de 2373 líneas → facade + 4 submódulos (classifier, skill_executor, escalation, routing_metrics)
+4. **Dead Code Cleanup** — eliminación de código muerto y referencias stale
+
+35 test suites, 1457 tests, all green.
 
 ### Constraints
 
 - **Runtime:** Python 3 inside Docker container (node:24-bookworm base)
 - **No new dependencies:** Prefer stdlib solutions (fcntl, tempfile, pathlib) over adding packages
-- **Test compatibility:** All existing unittest-based tests must pass without modification (unless testing refactored interfaces)
-- **Container paths:** Scripts reference `/home/tenazas/runtime/` — module moves must preserve import paths or update all references
+- **Container paths:** Scripts reference `/home/tenazas/runtime/` — `PYTHONPATH=/home/tenazas/runtime` in Dockerfile
 - **Cron/startup:** `startup.sh`, `runtime.py`, `metrics_server.py` entry points must continue to work
 <!-- GSD:project-end -->
 
