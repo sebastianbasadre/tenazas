@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Same features, clean code -- Tenazas works exactly as before but organized, reliable, and maintainable.
-**Current focus:** Phase 3 - Orchestrator Decomposition
+**Current focus:** Phase 4 - Dead Code Cleanup
 
 ## Current Position
 
-Phase: 3 of 4 (Orchestrator Decomposition) -- COMPLETE
-Plan: 3 of 3 in current phase (phase complete)
-Status: Phase 3 complete, ready for Phase 4
-Last activity: 2026-04-28 -- Plan 03-03 complete (facade cleanup + validation)
+Phase: 4 of 4 (Dead Code Cleanup)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-04-28 -- Phase 3 complete (Orchestrator Decomposition verified)
 
-Progress: [#########.] 90%
+Progress: [########..] 75%
 
 ## Performance Metrics
 
