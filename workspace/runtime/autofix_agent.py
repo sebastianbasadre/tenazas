@@ -34,6 +34,11 @@ from datetime import datetime, date
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 # ── Local imports ───────────────────────────────────────────────
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -99,7 +104,7 @@ DEFAULT_CONFIG = {
     "llm_backends": {
         "aider_model": "qwen2.5-coder:14b",
         "aider_fallback_model": "gemini/gemini-2.5-flash",
-        "ollama_base_url": "http://192.168.2.6:11434",
+        "ollama_base_url": OLLAMA_GPU_URL,
         "aider_path": "/home/tenazas/.openclaw/aider-venv/bin/aider",
     },
     "pullable_ollama_models": [
@@ -351,7 +356,7 @@ def exec_tier1(probe: str, detail: dict, config: dict, state: dict,
                 "options": {"num_predict": 1},
             }).encode()
             resp = urlopen(Request(
-                "http://192.168.2.6:11434/api/generate",
+                f"{OLLAMA_GPU_URL}/api/generate",
                 data=payload, headers={"Content-Type": "application/json"},
             ), timeout=30)
             return {"success": resp.status == 200, "action": "load_model"}

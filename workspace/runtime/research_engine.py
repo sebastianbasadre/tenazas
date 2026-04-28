@@ -22,6 +22,11 @@ try:
 except ImportError:
     from runtime_utils import load_json
 
+try:
+    from runtime_config import SEARXNG_URL
+except ImportError:
+    from workspace.runtime.runtime_config import SEARXNG_URL
+
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "research.log"
 
@@ -230,7 +235,6 @@ def query_knowledge(problem: str) -> dict:
 
 # ── Web Search via SearXNG ───────────────────────────────────────
 
-SEARXNG_URL = "http://192.168.2.2:8890"
 
 
 def web_search(query: str, num_results: int = 3, language: str = "es") -> list[dict]:

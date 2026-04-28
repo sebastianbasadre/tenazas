@@ -25,9 +25,14 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 RUNTIME = Path(__file__).parent
 LOG_PATH = RUNTIME / "logs" / "action_validator.log"
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 
 # Thresholds
 CONTAINER_HEALTH_WAIT = 10    # seconds to wait before checking

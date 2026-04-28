@@ -38,7 +38,7 @@ log = logging.getLogger("homelab_snapshot")
 RUNTIME = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state")
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 CHAT_ID = get_default_telegram_chat_id()
 LOG_PATH = RUNTIME / "logs" / "homelab_snapshot.log"
 
@@ -115,7 +115,7 @@ def _collect_gpu() -> dict:
     try:
         r = subprocess.run(
             ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no",
-             "tenazas@192.168.2.6",
+             f"{HOMELAB_USER}@{HOMELAB_IP}",
              "nvidia-smi --query-gpu=temperature.gpu,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=10,
         )

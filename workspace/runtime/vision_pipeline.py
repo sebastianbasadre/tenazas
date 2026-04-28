@@ -36,12 +36,17 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 from runtime_utils import now
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 # ── Config ──────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "vision_pipeline.log"
 
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 VL_MODEL = "qwen2.5vl:7b"
 ANALYSIS_MODEL = "deepseek-r1:14b"
 

@@ -11,12 +11,17 @@ import os
 from pathlib import Path
 from urllib.request import urlopen
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 _IN_CONTAINER = Path("/home/tenazas").exists()
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else Path(__file__).parent.parent / "state"
 CONFIG_PATH = STATE_DIR / "autofix_config.json"
 
 # Defaults (overridden by config)
-_DEFAULT_OLLAMA_URL = "http://192.168.2.6:11434"
+_DEFAULT_OLLAMA_URL = OLLAMA_GPU_URL
 _DEFAULT_MODEL = "qwen2.5-coder:14b"
 _DEFAULT_FALLBACK = "gemini/gemini-2.5-flash"
 

@@ -8,7 +8,11 @@ Only allows: "ollama pull <model>" where model is in pullable list.
 import subprocess
 from pathlib import Path
 
-HOMELAB_IP = "192.168.2.6"
+try:
+    from runtime_config import HOMELAB_IP
+except ImportError:
+    from workspace.runtime.runtime_config import HOMELAB_IP
+
 HOMELAB_USER = "sbasadre"
 
 _IN_CONTAINER = Path("/home/tenazas").exists()

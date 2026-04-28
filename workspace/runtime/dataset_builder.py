@@ -19,6 +19,11 @@ try:
 except ImportError:
     from runtime_utils import load_json, save_json
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 BASE_DIR = Path(__file__).parent
 DATASETS_DIR = BASE_DIR / "datasets"
 LOGS_DIR = BASE_DIR / "logs"
@@ -386,7 +391,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 from runtime_utils import now
 
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 # Resolve evals dir: works both on host (../../state/workspace/evals)
 # and inside container (/home/tenazas/.openclaw/workspace/evals)
 _host_evals = Path(__file__).parent.parent.parent / "state" / "workspace" / "evals"

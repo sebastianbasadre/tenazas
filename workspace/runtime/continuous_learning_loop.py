@@ -25,9 +25,9 @@ from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import OLLAMA_GPU_URL, SEARXNG_URL, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import OLLAMA_GPU_URL, SEARXNG_URL, get_default_telegram_chat_id
 
 RUNTIME = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state")
@@ -37,8 +37,7 @@ MEMORY_DIR = Path("/home/tenazas/.openclaw/workspace/memory")
 LOG_PATH = RUNTIME / "logs" / "continuous_learning.log"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
-SEARXNG_URL = "http://192.168.2.2:8890"
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 CHAT_ID = get_default_telegram_chat_id()
 
 

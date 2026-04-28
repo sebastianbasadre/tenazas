@@ -19,6 +19,11 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 log = logging.getLogger("autofix_vram")
 
 _IN_CONTAINER = Path("/home/tenazas").exists()
@@ -26,7 +31,7 @@ STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else Path(__f
 CONFIG_PATH = STATE_DIR / "autofix_config.json"
 LOG_PATH = STATE_DIR / "autofix_log.jsonl"
 
-_DEFAULT_OLLAMA_URL = "http://192.168.2.6:11434"
+_DEFAULT_OLLAMA_URL = OLLAMA_GPU_URL
 _REQUEST_TIMEOUT = 10
 
 

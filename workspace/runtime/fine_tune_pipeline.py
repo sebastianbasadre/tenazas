@@ -41,9 +41,8 @@ LOG_FILE = BASE_DIR / "logs" / "fine_tune_pipeline.log"
 DEFAULT_DATASET = EVALS_DIR / "dataset_augmented.jsonl"
 
 # HomeLab config
-HOMELAB_HOST = "sbasadre@192.168.2.6"
+HOMELAB_HOST = f"{HOMELAB_USER}@{HOMELAB_IP}"
 HOMELAB_DIR = "~/tenazas_finetune"
-OLLAMA_GPU_URL = "http://192.168.2.6:11434"
 
 # Training defaults
 TRAIN_CONFIG = {

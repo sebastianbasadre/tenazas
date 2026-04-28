@@ -26,6 +26,11 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 # ---------------------------------------------------------------------------
 # Paths — all relative to runtime dir (workspace/runtime/)
 # ---------------------------------------------------------------------------
@@ -43,7 +48,6 @@ CONFIG_FILE = Path("/home/tenazas/.openclaw/openclaw.json")
 # ---------------------------------------------------------------------------
 MAX_EPISODIC_ENTRIES = 50
 MAX_TRUTHS_PER_REM = 5
-OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
 OLLAMA_NAS_URL = "http://127.0.0.1:11434"
 
 # ---------------------------------------------------------------------------
@@ -78,7 +82,7 @@ def _load_existing_hashes() -> set:
     return hashes
 
 
-def _load_recent_episodic(n: int) -> list[str]:
+def _load_recent_episodic(n: int) -> list:
     """Load the N most recent episodic entries from memory_log.json and shared_memory.json."""
     entries = []
 
@@ -129,7 +133,7 @@ def _load_config() -> dict:
         return {}
 
 
-def _call_llm(prompt: str, model: str, url: str, timeout: int = 60) -> str | None:
+def _call_llm(prompt: str, model: str, url: str, timeout: int = 60):
     """Call Ollama generate API. Returns response text or None."""
     payload = json.dumps({
         "model": model,
@@ -148,7 +152,7 @@ def _call_llm(prompt: str, model: str, url: str, timeout: int = 60) -> str | Non
         return None
 
 
-def _extract_truths(episodic_entries: list[str]) -> list[str]:
+def _extract_truths(episodic_entries: list) -> list:
     """Call LLM to extract lasting truths from episodic memories.
 
     Uses model_router to select the best model, with Ollama fallbacks.
@@ -214,7 +218,7 @@ Respondé SOLO con un JSON array de strings, sin markdown, sin explicaciones:
     return []
 
 
-def _write_to_dreams(truths: list[str], existing_hashes: set) -> list[str]:
+def _write_to_dreams(truths: list, existing_hashes: set) -> list:
     """Write new truths to dreams.md (staging). Returns the ones that were new."""
     new_truths = []
     DREAMS_FILE.parent.mkdir(parents=True, exist_ok=True)

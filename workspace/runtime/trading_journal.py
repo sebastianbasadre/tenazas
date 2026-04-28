@@ -122,7 +122,7 @@ def _generate_notes(entry: dict) -> str:
             "stream": False,
             "options": {"temperature": 0.3, "num_predict": 100},
         }).encode()
-        resp = urlopen(Request("http://192.168.2.6:11434/api/generate",
+        resp = urlopen(Request(f"{OLLAMA_GPU_URL}/api/generate",
                                data=payload, headers={"Content-Type": "application/json"}),
                        timeout=15)
         text = json.loads(resp.read()).get("response", "")

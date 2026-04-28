@@ -18,6 +18,11 @@ from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
 
+try:
+    from runtime_config import OLLAMA_GPU_TAGS_URL, OLLAMA_GPU_URL, OLLAMA_NAS_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_TAGS_URL, OLLAMA_GPU_URL, OLLAMA_NAS_URL
+
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "model_router.log"
 
@@ -25,8 +30,8 @@ LOG_FILE = BASE_DIR / "logs" / "model_router.log"
 
 BACKENDS = {
     "notebook_gpu": {
-        "url": "http://192.168.2.6:11434",
-        "tags_url": "http://192.168.2.6:11434/api/tags",
+        "url": OLLAMA_GPU_URL,
+        "tags_url": OLLAMA_GPU_TAGS_URL,
         "type": "gpu",
         "gpu": "RTX 3090",
         "vram_gb": 24,
@@ -34,8 +39,8 @@ BACKENDS = {
         "priority": 1,
     },
     "nas_cpu": {
-        "url": "http://127.0.0.1:11434",
-        "tags_url": "http://127.0.0.1:11434/api/tags",
+        "url": OLLAMA_NAS_URL,
+        "tags_url": f"{OLLAMA_NAS_URL}/api/tags",
         "type": "cpu",
         "gpu": None,
         "vram_gb": 0,

@@ -34,9 +34,15 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import (
+        CHROMADB_URL, GLUETUN_PROXY, GRAFANA_URL, HOMELAB_IP, PROMETHEUS_URL,
+        get_default_telegram_chat_id,
+    )
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import (
+        CHROMADB_URL, GLUETUN_PROXY, GRAFANA_URL, HOMELAB_IP, PROMETHEUS_URL,
+        get_default_telegram_chat_id,
+    )
 
 # ── Paths ───────────────────────────────────────────────────────
 
@@ -46,7 +52,6 @@ CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if _IN_CONTAINER els
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else BASE_DIR.parent / "state"
 DB_PATH = STATE_DIR / "health_sweeps.sqlite"
 CHAT_ID = get_default_telegram_chat_id()
-GLUETUN_PROXY = "http://192.168.2.2:8888"
 GRAFANA_AUTH = "YWRtaW46dGVuYXphcw=="  # admin:tenazas base64
 
 # ── Config ──────────────────────────────────────────────────────
@@ -60,7 +65,7 @@ WATCH_INTERVAL = 300    # 5 min
 EXPECTED_MODELS = {"qwen2.5:3b", "qwen2.5:7b", "qwen3:8b", "nomic-embed-text"}
 
 # HomeLab IPs
-HOMELAB_IPS = ["192.168.2.6"]
+HOMELAB_IPS = [HOMELAB_IP]
 HOMELAB_OLLAMA_PORT = 11434
 
 # ── Logging ─────────────────────────────────────────────────────
@@ -208,7 +213,7 @@ def _probe_containers() -> dict:
 
 def _probe_chromadb() -> dict:
     try:
-        status, body, lat = _http_get("http://192.168.2.2:8100/api/v2/heartbeat")
+        status, body, lat = _http_get(f"{CHROMADB_URL}/api/v2/heartbeat")
         return _ok("chromadb", lat) if status == 200 else _fail("chromadb", f"status {status}", lat)
     except Exception as e:
         return _fail("chromadb", str(e))
@@ -216,10 +221,10 @@ def _probe_chromadb() -> dict:
 
 def _probe_prometheus() -> dict:
     try:
-        status, body, lat = _http_get("http://192.168.2.2:9090/-/healthy")
+        status, body, lat = _http_get(f"{PROMETHEUS_URL}/-/healthy")
         if status != 200:
             return _fail("prometheus", f"healthy={status}", lat)
-        s2, _, l2 = _http_get("http://192.168.2.2:9090/-/ready")
+        s2, _, l2 = _http_get(f"{PROMETHEUS_URL}/-/ready")
         if s2 != 200:
             return _warn("prometheus", "healthy but not ready", lat)
         return _ok("prometheus", lat)
@@ -229,7 +234,7 @@ def _probe_prometheus() -> dict:
 
 def _probe_grafana() -> dict:
     try:
-        status, body, lat = _http_get("http://192.168.2.2:3000/api/health")
+        status, body, lat = _http_get(f"{GRAFANA_URL}/api/health")
         if status == 200:
             try:
                 data = json.loads(body)
@@ -598,7 +603,7 @@ def _probe_rag() -> dict:
     """Smoke-test ChromaDB is reachable for RAG."""
     try:
         # Heartbeat confirms ChromaDB is alive (collection mgmt is via Python client)
-        status, body, lat = _http_get("http://192.168.2.2:8100/api/v2/heartbeat")
+        status, body, lat = _http_get(f"{CHROMADB_URL}/api/v2/heartbeat")
         if status != 200:
             return _fail("rag", f"ChromaDB heartbeat status {status}", lat)
         return _ok("rag", lat)
@@ -678,7 +683,7 @@ def sweep_internal() -> dict:
 def _probe_grafana_cache() -> dict:
     """Detect stale Grafana cache by comparing cached vs fresh Prometheus queries."""
     try:
-        base = "http://192.168.2.2:3000/api/datasources/proxy/uid/afhjgavdgav40d/api/v1/query"
+        base = f"{GRAFANA_URL}/api/datasources/proxy/uid/afhjgavdgav40d/api/v1/query"
         query = "?query=up"
         auth = {"Authorization": f"Basic {GRAFANA_AUTH}"}
 
@@ -719,7 +724,7 @@ def _probe_grafana_cache() -> dict:
 def _probe_chromadb_frozen() -> dict:
     """Detect frozen ChromaDB by checking heartbeat nanosecond timestamp changes."""
     try:
-        status, body, lat = _http_get("http://192.168.2.2:8100/api/v2/heartbeat")
+        status, body, lat = _http_get(f"{CHROMADB_URL}/api/v2/heartbeat")
         if status != 200:
             return _warn("chromadb_frozen", f"heartbeat status {status}", lat)
 

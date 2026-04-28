@@ -21,11 +21,15 @@ EXECUTOR_LOG = BASE_DIR / "logs" / "executor.log"
 
 # ── Endpoints (from HEARTBEAT.md / infra-monitor) ────────────────
 
-OLLAMA_NOTEBOOK = "http://192.168.2.6:11434/api/tags"
-OLLAMA_NAS = "http://127.0.0.1:11434/api/tags"
-GLUETUN_PROXY = "http://192.168.2.2:8888"
+try:
+    from runtime_config import GLUETUN_PROXY, LAN_SUBNET, OLLAMA_GPU_TAGS_URL, OLLAMA_NAS_URL
+except ImportError:
+    from workspace.runtime.runtime_config import GLUETUN_PROXY, LAN_SUBNET, OLLAMA_GPU_TAGS_URL, OLLAMA_NAS_URL
+
+OLLAMA_NOTEBOOK = OLLAMA_GPU_TAGS_URL
+OLLAMA_NAS = f"{OLLAMA_NAS_URL}/api/tags"
 IFCONFIG_URL = "https://ifconfig.me"
-NETWORK_SUBNET = "192.168.2.0/24"
+NETWORK_SUBNET = LAN_SUBNET
 IP_API_URL = "http://ip-api.com/json/{ip}?fields=countryCode"
 OLLAMA_STATUS_FILE = Path("/tmp/ollama-notebook.status")
 

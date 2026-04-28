@@ -24,7 +24,7 @@ RUNTIME = Path(__file__).parent
 LOG_PATH = RUNTIME / "logs" / "self_heal.log"
 STATE_PATH = RUNTIME / "self_heal_state.json"
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 CHAT_ID = get_default_telegram_chat_id()
 
 # Safety

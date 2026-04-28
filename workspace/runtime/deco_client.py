@@ -26,6 +26,11 @@ from datetime import datetime
 from pathlib import Path
 from runtime_utils import now_iso
 
+try:
+    from runtime_config import DECO_IP
+except ImportError:
+    from workspace.runtime.runtime_config import DECO_IP
+
 log = logging.getLogger("deco_client")
 
 BASE_DIR = Path(__file__).parent
@@ -33,7 +38,6 @@ OUTPUT_FILE = BASE_DIR / "deco_clients.json"
 LOG_FILE = BASE_DIR / "logs" / "deco_client.log"
 
 # Deco config
-DECO_IP = os.environ.get("DECO_IP", "192.168.2.30")
 DECO_PASSWORD = os.environ.get("DECO_PASSWORD", "")
 
 # Try to load password from openclaw.json

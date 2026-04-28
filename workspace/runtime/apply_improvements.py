@@ -35,7 +35,7 @@ SEEDS_PATH = RUNTIME.parent.parent / "state" / "workspace" / "evals" / "auto_see
 if not SEEDS_PATH.parent.exists():
     SEEDS_PATH = Path("/home/tenazas/.openclaw/workspace/evals/auto_seeds.jsonl")
 
-OLLAMA_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
+OLLAMA_URL = OLLAMA_GPU_URL
 CHAT_ID = get_default_telegram_chat_id()
 
 

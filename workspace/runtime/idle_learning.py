@@ -33,6 +33,11 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 from runtime_utils import now
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 # ── Config ──────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
@@ -45,7 +50,7 @@ TELEMETRY_LOG = LOG_DIR / "idle_learning_v2.log"
 ROUTER_LOG = LOG_DIR / "model_router.log"
 GUARDRAIL_STATE = BASE_DIR / "guardrail_state.json"
 
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 CRITIC_MODEL = "deepseek-r1:14b"
 SYNTHESIZER_MODEL = "qwen2.5:32b"
 

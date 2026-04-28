@@ -33,9 +33,9 @@ from urllib.parse import urlencode
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import GLUETUN_PROXY, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import GLUETUN_PROXY, get_default_telegram_chat_id
 
 log = logging.getLogger("portfolio_reconciler")
 logging.basicConfig(level=logging.INFO,
@@ -53,7 +53,6 @@ TENAZAS_CONFIG = (Path("/home/tenazas/.openclaw/tenazas.json")
 RECONCILE_STATE = STATE_DIR / "reconcile_state.json"
 RECONCILE_LOG = BASE_DIR / "logs" / "reconciler.log"
 
-GLUETUN_PROXY = "http://192.168.2.2:8888"
 EXPORTER_URL = "http://localhost:9109/metrics"
 PROMETHEUS_URL = "http://localhost:9090/api/v1/query"
 

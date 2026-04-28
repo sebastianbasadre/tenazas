@@ -7,13 +7,18 @@ Does NOT modify existing network scan logic — just adds a cache layer.
 
 Usage:
     from runtime.network_cache import cached_nmap_scan
-    hosts = cached_nmap_scan("192.168.2.0/24")
+    hosts = cached_nmap_scan(LAN_SUBNET)
 """
 
 import json
 import subprocess
 import time
 from pathlib import Path
+
+try:
+    from runtime_config import LAN_SUBNET
+except ImportError:
+    from workspace.runtime.runtime_config import LAN_SUBNET
 
 BASE_DIR = Path(__file__).parent
 CACHE_FILE = BASE_DIR / "nmap_cache.json"
@@ -35,7 +40,7 @@ def _save_cache(data: dict):
         json.dump(data, f, indent=2)
 
 
-def is_cache_valid(subnet: str = "192.168.2.0/24") -> bool:
+def is_cache_valid(subnet: str = LAN_SUBNET) -> bool:
     """Check if cached scan result is still fresh."""
     cache = _load_cache()
     entry = cache.get(subnet, {})
@@ -43,7 +48,7 @@ def is_cache_valid(subnet: str = "192.168.2.0/24") -> bool:
     return (time.time() - ts) < CACHE_TTL
 
 
-def cached_nmap_scan(subnet: str = "192.168.2.0/24") -> dict:
+def cached_nmap_scan(subnet: str = LAN_SUBNET) -> dict:
     """Run nmap scan or return cached result.
 
     Returns:
@@ -84,14 +89,14 @@ def cached_nmap_scan(subnet: str = "192.168.2.0/24") -> dict:
     return {"hosts": 0, "ts": 0, "cached": False, "error": "scan failed"}
 
 
-def invalidate(subnet: str = "192.168.2.0/24"):
+def invalidate(subnet: str = LAN_SUBNET):
     """Force next call to run a fresh scan."""
     cache = _load_cache()
     cache.pop(subnet, None)
     _save_cache(cache)
 
 
-def get_cache_age(subnet: str = "192.168.2.0/24") -> float:
+def get_cache_age(subnet: str = LAN_SUBNET) -> float:
     """Return seconds since last scan, or -1 if no cache."""
     cache = _load_cache()
     entry = cache.get(subnet, {})

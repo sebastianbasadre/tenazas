@@ -22,11 +22,16 @@ from pathlib import Path
 import requests
 from runtime_utils import now
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "multi_agent.log"
 
 # Model endpoints
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 ANALYSIS_MODEL = "qwen3:8b"
 VERIFICATION_MODEL = "qwen2.5:3b"
 SYNTHESIS_MODEL = "qwen2.5:3b"

@@ -11,7 +11,12 @@ import time
 from pathlib import Path
 from urllib.request import urlopen
 
-HOMELAB_OLLAMA = "http://192.168.2.6:11434"
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
+HOMELAB_OLLAMA = OLLAMA_GPU_URL
 
 _IN_CONTAINER = Path("/home/tenazas").exists()
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else Path(__file__).parent.parent / "state"

@@ -33,6 +33,11 @@ try:
 except ImportError:
     from runtime_utils import load_json
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 # ── Config ──────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
@@ -50,7 +55,7 @@ FINANCE_FILE = BASE_DIR / "finance" / "transactions.json"
 JOBS_FILE = BASE_DIR / "jobs" / "opportunities.json"
 EXPENSES_LOG = LOG_DIR / "expenses.log"
 
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 PROPOSAL_MODEL = "qwen2.5:7b"
 
 # Areas

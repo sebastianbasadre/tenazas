@@ -30,9 +30,14 @@ from typing import Iterable, Set
 
 import requests
 
+try:
+    from runtime_config import OLLAMA_GPU_GENERATE_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_GENERATE_URL
+
 # ── Config ───────────────────────────────────────────────────────
 
-OLLAMA_URL = "http://192.168.2.6:11434/api/generate"
+OLLAMA_URL = OLLAMA_GPU_GENERATE_URL
 MODEL_NAME = "tenazas-multitool"
 SYSTEM_PROMPT = (
     "You are a deterministic multi-tool caller. "

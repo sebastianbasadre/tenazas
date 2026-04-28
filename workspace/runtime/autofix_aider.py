@@ -13,6 +13,11 @@ import re
 import subprocess
 from pathlib import Path
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 _IN_CONTAINER = Path("/home/tenazas").exists()
 REPO_DIR = Path("/home/tenazas") if _IN_CONTAINER else Path(__file__).parent.parent
 BASE_DIR = Path(__file__).parent
@@ -20,7 +25,7 @@ STATE_DIR = Path("/home/tenazas/.openclaw/state") if _IN_CONTAINER else BASE_DIR
 CONFIG_PATH = STATE_DIR / "autofix_config.json"
 
 # Defaults (overridden by config llm_backends section)
-_DEFAULT_OLLAMA_URL = "http://192.168.2.6:11434"
+_DEFAULT_OLLAMA_URL = OLLAMA_GPU_URL
 _DEFAULT_AIDER_PATH = "/home/tenazas/.openclaw/aider-venv/bin/aider"
 
 SYSTEM_PROMPT = """\

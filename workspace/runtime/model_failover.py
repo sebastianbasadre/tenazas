@@ -18,6 +18,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 CONFIG_FILE = Path("/home/tenazas/.openclaw/openclaw.json")
 OPENCLAW_LOG_DIR = Path("/tmp/openclaw")
 LOG_FILE = Path("/home/tenazas/runtime/logs/model_failover.log")
@@ -26,7 +31,7 @@ LOG_FILE = Path("/home/tenazas/runtime/logs/model_failover.log")
 PRIMARY_MODEL = "google/gemini-2.5-flash"
 FALLBACK_MODEL = "ollama/qwen2.5:7b"
 OLLAMA_PRELOAD_MODEL = "qwen2.5:7b"
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 
 # Timing
 CHECK_INTERVAL = 30          # Check logs every 30s

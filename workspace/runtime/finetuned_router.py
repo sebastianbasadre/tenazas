@@ -13,6 +13,11 @@ import time
 from pathlib import Path
 import requests
 
+try:
+    from runtime_config import OLLAMA_GPU_CHAT_URL, OLLAMA_GPU_GENERATE_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_CHAT_URL, OLLAMA_GPU_GENERATE_URL
+
 logger = logging.getLogger(__name__)
 
 # ── Config ───────────────────────────────────────────────────────
@@ -20,7 +25,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
 # Tier 1: Gemma 3 27B local via Ollama (HomeLab)
-GEMMA_URL = "http://192.168.2.6:11434/api/chat"
+GEMMA_URL = OLLAMA_GPU_CHAT_URL
 GEMMA_MODEL = "gemma3:12b"
 GEMMA_TIMEOUT = 15
 GEMMA_SYSTEM = (
@@ -51,7 +56,7 @@ GEMMA_SCHEMA = {
 
 # Tier 2: Finetuned model via Ollama
 FINETUNED_MODEL = "tenazas-qwen25-7b-v8"
-OLLAMA_URL = "http://192.168.2.6:11434/api/generate"
+OLLAMA_URL = OLLAMA_GPU_GENERATE_URL
 OLLAMA_TIMEOUT = 15
 
 # Tier 3: Keyword regex

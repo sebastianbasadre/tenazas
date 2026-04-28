@@ -25,16 +25,15 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import GLUETUN_PROXY, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import GLUETUN_PROXY, get_default_telegram_chat_id
 
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 IOL_CONFIG = Path("/home/tenazas/.openclaw/iol_config.json")
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else Path(__file__).parent.parent / "state"
 HISTORY_DIR = STATE_DIR / "finance_history"
 CHAT_ID = get_default_telegram_chat_id()
-GLUETUN_PROXY = "http://192.168.2.2:8888"
 
 
 def _load_config() -> dict:

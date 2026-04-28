@@ -32,6 +32,8 @@ from urllib.request import Request, urlopen
 
 try:
     from .runtime_config import (
+        OLLAMA_GPU_URL,
+        OLLAMA_NAS_URL as _OLLAMA_NAS_URL,
         get_allowed_chat_ids,
         get_default_telegram_chat_id,
         get_telegram_bot_token,
@@ -39,6 +41,8 @@ try:
     )
 except ImportError:
     from runtime_config import (
+        OLLAMA_GPU_URL,
+        OLLAMA_NAS_URL as _OLLAMA_NAS_URL,
         get_allowed_chat_ids,
         get_default_telegram_chat_id,
         get_telegram_bot_token,
@@ -168,6 +172,131 @@ def _build_ollama_messages(chat_id: str, system: str) -> list[dict]:
     return msgs
 
 
+# ── Voice transcription ───────────────────────────────────────────
+
+
+def _transcribe_voice(token: str, voice: dict, chat_id: str) -> str | None:
+    """Download a Telegram voice/audio message and transcribe with Whisper.
+
+    Returns the transcribed text, or None if transcription fails.
+    """
+    import subprocess
+    import tempfile
+
+    file_id = voice.get("file_id")
+    if not file_id:
+        return None
+
+    try:
+        # Get file path from Telegram
+        file_info = tg_request(token, "getFile", {"file_id": file_id})
+        if not file_info or not file_info.get("ok"):
+            _log({"action": "voice_error", "error": "getFile failed"})
+            return None
+        file_path = file_info["result"]["file_path"]
+
+        # Download the audio file
+        download_url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+            tmp_path = tmp.name
+            resp = urlopen(download_url, timeout=30)
+            tmp.write(resp.read())
+
+        # Transcribe with Whisper CLI (small model for better Spanish accuracy)
+        result = subprocess.run(
+            ["whisper", tmp_path, "--model", "small", "--language", "es",
+             "--output_format", "txt", "--output_dir", "/tmp"],
+            capture_output=True, text=True, timeout=120,
+        )
+
+        # Read transcription output
+        txt_path = tmp_path.rsplit(".", 1)[0] + ".txt"
+        try:
+            transcribed = Path(txt_path).read_text().strip()
+        except FileNotFoundError:
+            # Try the whisper output with original filename
+            transcribed = ""
+
+        # Cleanup temp files
+        for f in [tmp_path, txt_path]:
+            try:
+                Path(f).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        if not transcribed:
+            _log({"action": "voice_empty", "stderr": result.stderr[:200]})
+            send_message(token, chat_id, "No pude entender el audio. ¿Podés escribirlo?")
+            return None
+
+        _log({"action": "voice_transcribed", "text": transcribed[:120],
+              "duration": voice.get("duration", 0)})
+        # Confirm what we heard
+        send_message(token, chat_id, f'Escuché: "{transcribed}"')
+        return transcribed
+
+    except Exception as e:
+        _log({"action": "voice_error", "error": str(e)})
+        send_message(token, chat_id, "Error procesando el audio.")
+        return None
+
+
+# ── Voseo post-processing ─────────────────────────────────────────
+
+# Tuteo → rioplatense replacements (applied to every outgoing message)
+_VOSEO_RULES = [
+    # tú → vos
+    (re.compile(r"\btú\b", re.IGNORECASE), "vos"),
+    # Verb conjugations: 2nd person singular present indicative
+    # tienes/puedes/quieres/sabes/haces/dices/vienes/sales/pones/traes
+    (re.compile(r"\btienes\b", re.IGNORECASE), "tenés"),
+    (re.compile(r"\bpuedes\b", re.IGNORECASE), "podés"),
+    (re.compile(r"\bquieres\b", re.IGNORECASE), "querés"),
+    (re.compile(r"\bsabes\b", re.IGNORECASE), "sabés"),
+    (re.compile(r"\bhaces\b", re.IGNORECASE), "hacés"),
+    (re.compile(r"\bdices\b", re.IGNORECASE), "decís"),
+    (re.compile(r"\bvienes\b", re.IGNORECASE), "venís"),
+    (re.compile(r"\bsales\b", re.IGNORECASE), "salís"),
+    (re.compile(r"\bpones\b", re.IGNORECASE), "ponés"),
+    (re.compile(r"\btraes\b", re.IGNORECASE), "traés"),
+    (re.compile(r"\beres\b", re.IGNORECASE), "sos"),
+    (re.compile(r"\bpiensas\b", re.IGNORECASE), "pensás"),
+    (re.compile(r"\bnecesitas\b", re.IGNORECASE), "necesitás"),
+    (re.compile(r"\bdebes\b", re.IGNORECASE), "debés"),
+    (re.compile(r"\brecuerdas\b", re.IGNORECASE), "recordás"),
+    (re.compile(r"\bprefieres\b", re.IGNORECASE), "preferís"),
+    (re.compile(r"\bsientes\b", re.IGNORECASE), "sentís"),
+    (re.compile(r"\bencuentras\b", re.IGNORECASE), "encontrás"),
+    (re.compile(r"\bves\b", re.IGNORECASE), "ves"),  # same in rioplatense
+    (re.compile(r"\bcrees\b", re.IGNORECASE), "creés"),
+    (re.compile(r"\bconoces\b", re.IGNORECASE), "conocés"),
+    (re.compile(r"\bescoges\b", re.IGNORECASE), "elegís"),
+    (re.compile(r"\bempiezas\b", re.IGNORECASE), "empezás"),
+    (re.compile(r"\bmiras\b", re.IGNORECASE), "mirás"),
+    (re.compile(r"\bestas\b", re.IGNORECASE), "estás"),
+    (re.compile(r"\bvas\b", re.IGNORECASE), "vas"),  # same
+    # Imperatives: mira→mirá, piensa→pensá, espera→esperá, dime→decime
+    (re.compile(r"\bmira\b", re.IGNORECASE), "mirá"),
+    (re.compile(r"\bpiensa\b", re.IGNORECASE), "pensá"),
+    (re.compile(r"\bespera\b", re.IGNORECASE), "esperá"),
+    (re.compile(r"\bdime\b", re.IGNORECASE), "decime"),
+    (re.compile(r"\bponme\b", re.IGNORECASE), "poneme"),
+    (re.compile(r"\bhazme\b", re.IGNORECASE), "haceme"),
+    (re.compile(r"\bcuéntame\b", re.IGNORECASE), "contame"),
+    (re.compile(r"\bcuentame\b", re.IGNORECASE), "contame"),
+    # Possessive: tu → tu (same, but "contigo" → "con vos")
+    (re.compile(r"\bcontigo\b", re.IGNORECASE), "con vos"),
+    (re.compile(r"\bpara ti\b", re.IGNORECASE), "para vos"),
+]
+
+
+def _apply_voseo(text: str) -> str:
+    """Convert tuteo Spanish to rioplatense voseo."""
+    for pattern, replacement in _VOSEO_RULES:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 # ── Telegram API helpers ───────────────────────────────────────────
 
 def tg_request(token: str, method: str, data: dict | None = None, timeout: int = 35):
@@ -190,9 +319,11 @@ def tg_request(token: str, method: str, data: dict | None = None, timeout: int =
 def send_message(token: str, chat_id: str, text: str):
     """Send a Telegram message. Truncates to 4096 chars.
 
+    Applies voseo post-processing to ensure rioplatense Spanish.
     Tries Markdown first; falls back to plain text if Telegram rejects it
     (common with special chars in skill output like email tables).
     """
+    text = _apply_voseo(text)
     if len(text) > 4096:
         text = text[:4090] + "\n..."
     result = tg_request(token, "sendMessage", {
@@ -254,6 +385,31 @@ EMAIL_OVERRIDE_PATTERNS = [
 _email_override_re = [re.compile(p, re.IGNORECASE) for p in EMAIL_OVERRIDE_PATTERNS]
 
 
+# TTS false positive patterns: questions or casual mentions of "audio"
+# that should NOT trigger text-to-speech generation.
+_TTS_FALSE_POSITIVE_RE = re.compile(
+    r"(puedo\s+mandar|te\s+mando|mando\s+un|mandar\s+un|"
+    r"escuchar\s+(un\s+)?audio|recib[ií]\w*\s+audio|"
+    r"lleg[oó]\s+(un\s+)?audio|"
+    r"pod[eé]s\s+escuchar|lo\s+pod[eé]s\s+escuchar|"
+    r"escuchaste|o[ií]ste|recibiste|"
+    r"soport[aá]\w*\s+audio|acept[aá]\w*\s+audio|"
+    r"entend[eé]\w*\s+audio|"
+    r"un\s+audio\s*\?)",
+    re.IGNORECASE)
+
+
+def _is_tts_false_positive(text: str) -> bool:
+    """Detect if a message mentioning 'audio' is a question, not a TTS command."""
+    # Questions about audio capability
+    if _TTS_FALSE_POSITIVE_RE.search(text):
+        return True
+    # Any message ending in '?' that mentions audio is likely a question
+    if "?" in text and re.search(r"\baudio\b", text, re.IGNORECASE):
+        return True
+    return False
+
+
 def classify_intent(text: str) -> str:
     """Classify a message using Gemma router → orchestrator regex fallback.
 
@@ -261,6 +417,16 @@ def classify_intent(text: str) -> str:
     the message should be handled without the LLM.
     """
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
+
+    # Tier 0: IOL broker keywords (finetuned router doesn't know IOL)
+    _IOL_QUICK_RE = re.compile(
+        r"\b(portafolio|portfolio|iol\b|invertironline|cedears?|mis\s+acciones"
+        r"|cotizaci[oó]n|saldo|comprar\s+\d|vender\s+\d|invertido|inversiones"
+        r"|mi\s+cartera|broker)\b", re.IGNORECASE)
+    if _IOL_QUICK_RE.search(text):
+        _log({"action": "classified", "category": "iol_broker",
+              "text": text[:80], "tier": "iol_keywords"})
+        return "iol_broker"
 
     # Tier 1: Use finetuned_router (Gemma 12B → finetuned v8 → keyword)
     try:
@@ -293,8 +459,15 @@ def classify_intent(text: str) -> str:
                 "smoking-tracker": "skill:smoking-tracker",
             }
             category = _TOOL_TO_SKILL.get(tool, f"skill:{tool}")
-            _log({"action": "classified", "category": category,
-                  "text": text[:80], "tier": tier})
+            # Guard: TTS false positives — questions/mentions about audio
+            # are not TTS commands (e.g. "puedo mandarte un audio?")
+            if category == "skill:tts" and _is_tts_false_positive(text):
+                _log({"action": "tts_guard_override", "text": text[:80],
+                      "tier": tier})
+                category = "chat"
+            else:
+                _log({"action": "classified", "category": category,
+                      "text": text[:80], "tier": tier})
             return category
     except Exception as e:
         _log({"action": "router_classify_error", "error": str(e)})
@@ -470,7 +643,8 @@ _HUMANIZE_SKILLS = {
 
 _HUMANIZE_PROMPT = (
     "Sos Tenazas, asistente personal de Sebas. "
-    "Hablás en español rioplatense, directo y cálido. "
+    "Hablás en español rioplatense con voseo (vos, tenés, podés, querés — "
+    "NUNCA tú/tienes/puedes). Directo y cálido. "
     "NUNCA empezás con 'Che'. Variá los inicios. "
     "Nunca decís 'como asistente' ni 'según los datos'. "
     "Respondés como un amigo por WhatsApp.\n\n"
@@ -513,8 +687,7 @@ def _humanize_response(query: str, raw_output: str, category: str) -> str:
 # ── LLM Fallback (non-skill messages) ─────────────────────────────
 
 # Ollama endpoint for non-skill messages
-OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
-OLLAMA_NAS_URL = "http://127.0.0.1:11434"
+OLLAMA_NAS_URL = _OLLAMA_NAS_URL
 LLM_MODEL = "qwen3:8b"
 LLM_TIMEOUT = 60
 
@@ -532,8 +705,10 @@ def _load_soul() -> str:
 # the LLM can NOT execute commands — it only generates text. This prompt
 # prevents hallucination and off-topic responses.
 _CHAT_SYSTEM_PROMPT = (
-    "Sos Tenazas, asistente personal de Sebas. Hablás en español rioplatense, "
-    "directo y cálido. Esto es un chat de Telegram.\n\n"
+    "Sos Tenazas, asistente personal de Sebas. Hablás en español rioplatense "
+    "(voseo obligatorio: 'vos', 'tenés', 'podés', 'querés', 'andás', 'sabés'. "
+    "NUNCA uses 'tú', 'tienes', 'puedes'). "
+    "Directo y cálido. Esto es un chat de Telegram.\n\n"
     "REGLAS ESTRICTAS:\n"
     "1. NUNCA inventes datos que no tenés (precios, nombres, valores, fechas). "
     "Si no sabés algo, decí 'No tengo esa info' o 'No puedo verificar eso'.\n"
@@ -910,12 +1085,23 @@ def _process_update(token: str, update: dict, allowed: set):
         return
 
     chat_id = str(msg.get("chat", {}).get("id", ""))
-    text = msg.get("text", "").strip()
 
-    if not text or chat_id not in allowed:
+    if chat_id not in allowed:
         return
 
-    _log({"action": "incoming", "chat_id": chat_id, "text": text[:120]})
+    # Handle voice/audio messages via Whisper transcription
+    voice = msg.get("voice") or msg.get("audio")
+    if voice:
+        text = _transcribe_voice(token, voice, chat_id)
+        if not text:
+            return
+        _log({"action": "incoming", "chat_id": chat_id, "text": text[:120],
+              "source": "voice"})
+    else:
+        text = msg.get("text", "").strip()
+        if not text:
+            return
+        _log({"action": "incoming", "chat_id": chat_id, "text": text[:120]})
 
     # Record user message in history
     _append_history(chat_id, "user", text)

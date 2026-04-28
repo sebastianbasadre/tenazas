@@ -22,7 +22,12 @@ import json
 import time
 from urllib.request import Request, urlopen
 
-OLLAMA_URL = "http://192.168.2.6:11434"
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
+OLLAMA_URL = OLLAMA_GPU_URL
 TOTAL_VRAM = 24 * 1024**3  # 24GB in bytes
 MIN_FREE_VRAM = 2 * 1024**3  # 2GB minimum free
 

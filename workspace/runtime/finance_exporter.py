@@ -30,7 +30,7 @@ Sources:
   - Binance API (signed, via gluetun VPN proxy)
   - CoinGecko /api/v3/global (public)
   - alternative.me /fng/ (public)
-  - state/finance_history/*.json (IOL snapshots)
+  - IOL API live (via iol_client), snapshot fallback
   - state/trading/paper_trades.json
 
 Usage: python3 finance_exporter.py &
@@ -40,11 +40,19 @@ import hashlib
 import hmac
 import json
 import logging
+import math
+import sys
 import time
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.error import URLError
+
+try:
+    from runtime_config import GLUETUN_PROXY
+except ImportError:
+    from workspace.runtime.runtime_config import GLUETUN_PROXY
 
 log = logging.getLogger("finance_exporter")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -60,10 +68,16 @@ TENAZAS_CONFIG = (Path("/home/tenazas/.openclaw/tenazas.json")
                   if Path("/home/tenazas").exists()
                   else BASE_DIR.parent.parent / "state" / "tenazas.json")
 PAPER_TRADES = STATE_DIR / "trading" / "paper_trades.json"
+ATH_FILE = STATE_DIR / "finance_ath.json"
+PORTFOLIO_HISTORY_FILE = STATE_DIR / "finance_portfolio_history.json"
 
-GLUETUN_PROXY = "http://192.168.2.2:8888"
-POLL_INTERVAL = 300  # 5 minutes
+POLL_INTERVAL = 60  # 1 minute
 PORT = 9109
+OPENCLAW_CONFIG = (Path("/home/tenazas/.openclaw/openclaw.json")
+                   if Path("/home/tenazas").exists()
+                   else BASE_DIR.parent.parent / "state" / "openclaw.json")
+CHAT_ID = "1565794551"
+PNL_NOTIFY_INTERVAL = 3600  # 1 hour
 
 # ── Prometheus setup ──────────────────────────────────────────
 
@@ -74,20 +88,41 @@ except ImportError:
     PROM_AVAILABLE = False
 
 if PROM_AVAILABLE:
-    # IOL
+    # IOL totals
     G_IOL_TOTAL = Gauge("tenazas_iol_portfolio_ars", "IOL portfolio total ARS")
     G_IOL_PNL = Gauge("tenazas_iol_pnl_day_ars", "IOL PNL del dia ARS")
+
+    # IOL cash balances
+    G_IOL_CASH_ARS = Gauge("tenazas_iol_cash_ars", "IOL cash disponible ARS")
+    G_IOL_CASH_USD = Gauge("tenazas_iol_cash_usd", "IOL cash disponible USD")
+    G_IOL_CASH_USD_EEUU = Gauge("tenazas_iol_cash_usd_eeuu", "IOL cash USD cuenta EEUU")
+
+    # IOL per-position (labeled)
+    G_IOL_POS_VALUE = Gauge("tenazas_iol_position_value_ars",
+                            "Valor ARS de cada posicion IOL", ["symbol", "type"])
+    G_IOL_POS_QTY = Gauge("tenazas_iol_position_qty",
+                          "Cantidad de cada posicion IOL", ["symbol", "type"])
+    G_IOL_POS_PRICE = Gauge("tenazas_iol_position_price",
+                            "Precio actual de cada posicion IOL", ["symbol", "type"])
+    G_IOL_POS_PPC = Gauge("tenazas_iol_position_ppc",
+                          "Precio promedio de compra IOL", ["symbol", "type"])
+    G_IOL_POS_GAIN_PCT = Gauge("tenazas_iol_position_gain_pct",
+                               "Ganancia total % de cada posicion IOL", ["symbol", "type"])
+    G_IOL_POS_CHANGE_DAY = Gauge("tenazas_iol_position_change_day_pct",
+                                 "Variacion diaria % de cada posicion IOL", ["symbol", "type"])
+    G_IOL_POS_PNL_DAY = Gauge("tenazas_iol_position_pnl_day_ars",
+                              "PNL diario ARS de cada posicion IOL", ["symbol", "type"])
 
     # Binance portfolio
     G_BIN_TOTAL = Gauge("tenazas_binance_total_usd", "Binance portfolio total USD")
     G_BIN_PNL = Gauge("tenazas_binance_pnl_day_usd", "Binance PNL del dia USD")
     G_BIN_PNL_PCT = Gauge("tenazas_binance_pnl_day_pct", "Binance PNL del dia pct")
 
-    # Per-asset (labeled)
+    # Per-asset (labeled with wallet)
     G_ASSET_BAL = Gauge("tenazas_binance_asset_balance_usd",
-                        "Valor USD de cada asset", ["asset"])
+                        "Valor USD de cada asset", ["asset", "wallet"])
     G_ASSET_QTY = Gauge("tenazas_binance_asset_qty",
-                        "Cantidad de cada asset", ["asset"])
+                        "Cantidad de cada asset", ["asset", "wallet"])
     G_ASSET_PRICE = Gauge("tenazas_binance_asset_price_usd",
                           "Precio actual USD de cada asset", ["asset"])
     G_ASSET_CHG = Gauge("tenazas_binance_asset_change_24h_pct",
@@ -102,6 +137,30 @@ if PROM_AVAILABLE:
     G_PAPER_TOTAL = Gauge("tenazas_paper_portfolio_usd", "Paper trading portfolio USD")
     G_PAPER_WINRATE = Gauge("tenazas_paper_win_rate_pct", "Paper trading win rate pct")
     G_PAPER_TRADES = Gauge("tenazas_paper_total_trades", "Paper trading total trades")
+
+    # Phase 1: Portfolio-level metrics
+    G_PORTFOLIO_TOTAL_USD = Gauge("tenazas_portfolio_total_usd", "Combined portfolio value USD")
+    G_USD_ARS_RATE = Gauge("tenazas_usd_ars_rate", "USD/ARS blue rate")
+    G_BIN_DRAWDOWN = Gauge("tenazas_portfolio_drawdown_pct", "Binance drawdown from ATH pct")
+    G_IOL_DRAWDOWN = Gauge("tenazas_iol_drawdown_pct", "IOL drawdown from ATH pct")
+    G_BIN_ALLOC = Gauge("tenazas_binance_allocation_pct", "Binance allocation pct per asset", ["asset"])
+    G_FETCH_TS = Gauge("tenazas_fetch_last_success_ts", "Last successful fetch unix ts", ["source"])
+    G_FETCH_ERRORS = Gauge("tenazas_fetch_errors_total", "Fetch error counter", ["source"])
+
+    # Phase 2: Unified positions
+    G_POS_VALUE = Gauge("tenazas_position_value_usd", "Unified position value USD", ["symbol", "source"])
+    G_POS_CHANGE = Gauge("tenazas_position_change_pct", "Unified position daily change pct", ["symbol", "source"])
+
+    # Phase 3: Rules
+    G_RULES_TRIGGERED = Gauge("tenazas_rules_triggered_total", "Total rule triggers")
+    G_RULES_ACTIVE = Gauge("tenazas_rules_active", "Number of enabled rules")
+
+    # Phase 4: Indicators
+    G_PORT_MA7 = Gauge("tenazas_portfolio_ma7_usd", "Portfolio 7-day moving average USD")
+    G_PORT_MA30 = Gauge("tenazas_portfolio_ma30_usd", "Portfolio 30-day moving average USD")
+    G_PORT_TREND = Gauge("tenazas_portfolio_trend", "Portfolio trend 1=bull 0=side -1=bear")
+    G_PORT_VOL = Gauge("tenazas_portfolio_volatility_pct", "Portfolio volatility pct")
+    G_PORT_RETURN = Gauge("tenazas_portfolio_daily_return_pct", "Portfolio daily return pct")
 
 
 # ── Helpers ───────────────────────────────────────────────────
@@ -137,10 +196,227 @@ def _http_get(url: str, headers: dict | None = None,
         return None
 
 
+# ── Telegram helpers ──────────────────────────────────────────
+
+_last_pnl_notify_hour: int = -1
+
+
+def _get_bot_token() -> str | None:
+    try:
+        cfg = json.loads(OPENCLAW_CONFIG.read_text())
+        return cfg["channels"]["telegram"]["botToken"]
+    except Exception:
+        return None
+
+
+def _send_telegram(text: str):
+    token = _get_bot_token()
+    if not token:
+        log.warning("No Telegram bot token — skipping notification")
+        return
+    try:
+        payload = json.dumps({"chat_id": CHAT_ID, "text": text[:4090],
+                              "parse_mode": "Markdown"}).encode()
+        urllib.request.urlopen(
+            urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data=payload,
+                headers={"Content-Type": "application/json"}),
+            timeout=10)
+    except Exception as e:
+        log.warning("Telegram send failed: %s", e)
+
+
+def _format_hourly_pnl(binance: dict, btc_price: float, fear_greed: int | None) -> str:
+    """Format hourly Binance PNL message for Telegram."""
+    now = datetime.now().astimezone()
+    lines = [f"*Binance PNL* — {now.strftime('%H:%M')}"]
+
+    total = binance["total_usd"]
+    pnl = binance["pnl_usd"]
+    pnl_pct = binance["pnl_pct"]
+    emoji = "🟢" if pnl >= 0 else "🔴"
+
+    lines.append(f"Portfolio: *${total:,.2f}*")
+    lines.append(f"PNL 24h: {emoji} ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
+
+    if btc_price > 0:
+        lines.append(f"BTC: ${btc_price:,.0f}")
+    if fear_greed is not None:
+        lines.append(f"F&G: {fear_greed}")
+
+    # Top movers (top 3 by absolute change)
+    assets = [a for a in binance["assets"]
+              if a.get("change_24h_pct", 0) != 0 and a["value_usd"] >= 5]
+    if assets:
+        assets.sort(key=lambda a: abs(a["change_24h_pct"]), reverse=True)
+        movers = []
+        for a in assets[:3]:
+            e = "↑" if a["change_24h_pct"] > 0 else "↓"
+            movers.append(f"{a['asset']} {e}{a['change_24h_pct']:+.1f}%")
+        lines.append(" | ".join(movers))
+
+    return "\n".join(lines)
+
+
+def _maybe_send_hourly_pnl(binance: dict | None):
+    """Send hourly PNL notification if a new hour has started."""
+    global _last_pnl_notify_hour
+    if not binance:
+        return
+    now = datetime.now().astimezone()
+    current_hour = now.hour
+    if current_hour == _last_pnl_notify_hour:
+        return
+    _last_pnl_notify_hour = current_hour
+
+    btc_price = 0.0
+    for a in binance.get("assets", []):
+        if a["asset"] == "BTC":
+            btc_price = a["price"]
+            break
+    fg = fetch_fear_greed()
+    msg = _format_hourly_pnl(binance, btc_price, fg)
+    _send_telegram(msg)
+    log.info("Hourly PNL sent (hour=%d, total=$%.2f, pnl=$%.2f)",
+             current_hour, binance["total_usd"], binance["pnl_usd"])
+
+
+# ── Phase 1: ATH & drawdown ──────────────────────────────────
+
+def _load_ath_state() -> dict:
+    try:
+        return json.loads(ATH_FILE.read_text())
+    except Exception:
+        return {"binance_ath_usd": 0, "iol_ath_ars": 0}
+
+
+def _save_ath_state(state: dict):
+    try:
+        ATH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ATH_FILE.write_text(json.dumps(state, indent=2))
+    except Exception as e:
+        log.warning("Failed to save ATH state: %s", e)
+
+
+def _calc_drawdown(current: float, ath: float) -> float:
+    if ath <= 0 or current >= ath:
+        return 0.0
+    return round((ath - current) / ath * 100, 2)
+
+
+def fetch_usd_ars_rate() -> float | None:
+    """Fetch USD/ARS blue rate. Try dolarapi, fallback bluelytics."""
+    for url in ["https://dolarapi.com/v1/dolares/blue",
+                "https://api.bluelytics.com.ar/v2/latest"]:
+        raw = _http_get(url, headers={"User-Agent": "Tenazas/1.0"}, timeout=5)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+            if "venta" in data:
+                return float(data["venta"])
+            if "blue" in data:
+                return float(data["blue"].get("value_sell", 0))
+        except Exception:
+            continue
+    return None
+
+
+# ── Phase 4: Portfolio history & indicators ──────────────────
+
+_HISTORY_MAX = 720  # ~30 days at 1 sample/hour
+
+
+def _load_portfolio_history() -> list:
+    try:
+        return json.loads(PORTFOLIO_HISTORY_FILE.read_text())
+    except Exception:
+        return []
+
+
+def _save_portfolio_snapshot(total_usd: float, binance_usd: float, iol_usd: float):
+    """Save hourly portfolio snapshot (dedup by hour)."""
+    history = _load_portfolio_history()
+    now = datetime.now()
+    hour_key = now.strftime("%Y-%m-%d %H")
+    if history and history[-1].get("hour") == hour_key:
+        history[-1] = {"ts": now.isoformat(), "hour": hour_key,
+                       "total_usd": total_usd, "binance_usd": binance_usd, "iol_usd": iol_usd}
+    else:
+        history.append({"ts": now.isoformat(), "hour": hour_key,
+                        "total_usd": total_usd, "binance_usd": binance_usd, "iol_usd": iol_usd})
+    if len(history) > _HISTORY_MAX:
+        history = history[-_HISTORY_MAX:]
+    try:
+        PORTFOLIO_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PORTFOLIO_HISTORY_FILE.write_text(json.dumps(history))
+    except Exception as e:
+        log.warning("Failed to save portfolio history: %s", e)
+
+
+def calc_portfolio_ma(history: list, window_hours: int) -> float | None:
+    if len(history) < window_hours:
+        return None
+    values = [h["total_usd"] for h in history[-window_hours:]]
+    return round(sum(values) / len(values), 2)
+
+
+def calc_portfolio_volatility(history: list, window: int = 24) -> float | None:
+    if len(history) < 3:
+        return None
+    recent = history[-window:] if len(history) >= window else history
+    returns = []
+    for i in range(1, len(recent)):
+        prev = recent[i - 1]["total_usd"]
+        if prev > 0:
+            returns.append((recent[i]["total_usd"] - prev) / prev * 100)
+    if len(returns) < 2:
+        return None
+    mean = sum(returns) / len(returns)
+    variance = sum((r - mean) ** 2 for r in returns) / len(returns)
+    return round(math.sqrt(variance), 2)
+
+
+def classify_portfolio_trend(current: float, ma7: float | None, ma30: float | None) -> int:
+    if ma7 is None or ma30 is None:
+        return 0
+    if current > ma7 > ma30:
+        return 1   # bullish
+    if current < ma7 < ma30:
+        return -1  # bearish
+    return 0       # sideways
+
+
+# ── Module-level state ───────────────────────────────────────
+
+_fetch_errors: dict = {"binance": 0, "iol": 0, "market": 0}
+_last_positions: list = []
+_last_binance: dict | None = None
+_last_iol: dict | None = None
+_last_usd_ars: float = 0
+_last_drawdown_bin: float = 0
+_last_total_pnl_usd: float = 0
+
+
 # ── Data fetchers ─────────────────────────────────────────────
 
+def _binance_signed_get(endpoint: str, api_key: str, secret: str,
+                        extra_params: dict | None = None) -> dict | list | None:
+    """Helper for signed Binance API GET requests."""
+    params = {"timestamp": int(time.time() * 1000)}
+    if extra_params:
+        params.update(extra_params)
+    signed = _binance_sign(params, secret)
+    raw = _http_get(
+        f"https://api.binance.com{endpoint}?{signed}",
+        headers={"X-MBX-APIKEY": api_key},
+        use_proxy=True)
+    return json.loads(raw) if raw else None
+
+
 def fetch_binance() -> dict | None:
-    """Fetch Binance portfolio via signed API. Returns structured dict or None."""
+    """Fetch Binance portfolio via signed API (Spot + Earn + Funding)."""
     cfg = _load_tenazas_config()
     api_key = cfg.get("binance_api_key", "")
     secret = cfg.get("binance_secret", "")
@@ -148,23 +424,74 @@ def fetch_binance() -> dict | None:
         return None
 
     try:
-        # Account balances (signed)
-        params = {"timestamp": int(time.time() * 1000)}
-        signed = _binance_sign(params, secret)
-        raw = _http_get(
-            f"https://api.binance.com/api/v3/account?{signed}",
-            headers={"X-MBX-APIKEY": api_key},
-            use_proxy=True)
-        if not raw:
+        # 1) Spot balances
+        account = _binance_signed_get("/api/v3/account", api_key, secret)
+        if not account:
             return None
-        account = json.loads(raw)
 
-        # Filter assets with balance > 0
-        assets = []
+        # Merge all wallet sources: {asset: {spot, earn, funding, total}}
+        wallets = {}  # asset -> {"spot": qty, "earn": qty, "funding": qty}
         for b in account.get("balances", []):
             total = float(b.get("free", 0)) + float(b.get("locked", 0))
             if total > 0.0001:
-                assets.append({"asset": b["asset"], "total": total})
+                wallets.setdefault(b["asset"], {"spot": 0, "earn": 0, "funding": 0})
+                wallets[b["asset"]]["spot"] += total
+
+        # 2) Simple Earn (Flexible + Locked)
+        earn_ok = False
+        try:
+            earn = _binance_signed_get("/sapi/v1/simple-earn/flexible/position",
+                                       api_key, secret, {"size": 100})
+            rows = earn.get("rows", []) if isinstance(earn, dict) else []
+            for pos in rows:
+                asset = pos.get("asset", "")
+                amt = float(pos.get("totalAmount", 0))
+                if asset and amt > 0.0001:
+                    wallets.setdefault(asset, {"spot": 0, "earn": 0, "funding": 0})
+                    wallets[asset]["earn"] += amt
+                    earn_ok = True
+        except Exception as e:
+            log.warning("Simple Earn flexible fetch failed: %s", e)
+        try:
+            earn_locked = _binance_signed_get("/sapi/v1/simple-earn/locked/position",
+                                              api_key, secret, {"size": 100})
+            rows_l = earn_locked.get("rows", []) if isinstance(earn_locked, dict) else []
+            for pos in rows_l:
+                asset = pos.get("asset", "")
+                amt = float(pos.get("amount", 0))
+                if asset and amt > 0.0001:
+                    wallets.setdefault(asset, {"spot": 0, "earn": 0, "funding": 0})
+                    wallets[asset]["earn"] += amt
+                    earn_ok = True
+        except Exception as e:
+            log.warning("Simple Earn locked fetch failed: %s", e)
+
+        # 3) Funding wallet
+        try:
+            funding = _binance_signed_get("/sapi/v1/asset/get-funding-asset",
+                                          api_key, secret)
+            for f in (funding if isinstance(funding, list) else []):
+                asset = f.get("asset", "")
+                amt = float(f.get("free", 0)) + float(f.get("locked", 0)) + float(f.get("freeze", 0))
+                if asset and amt > 0.0001:
+                    wallets.setdefault(asset, {"spot": 0, "earn": 0, "funding": 0})
+                    wallets[asset]["funding"] += amt
+        except Exception:
+            pass
+
+        # Fallback: if earn fetch failed and we have a previous result with earn
+        # data, merge the last-known earn balances to avoid reporting half the portfolio
+        if not earn_ok and _last_binance:
+            prev_wallets = _last_binance.get("_wallets", {})
+            for sym, pw in prev_wallets.items():
+                prev_earn = pw.get("earn", 0)
+                if prev_earn > 0.0001:
+                    wallets.setdefault(sym, {"spot": 0, "earn": 0, "funding": 0})
+                    wallets[sym]["earn"] = prev_earn
+                    log.info("Earn fallback: using last-known %s earn=%.6f", sym, prev_earn)
+
+        assets = [{"asset": k, "total": v["spot"] + v["earn"] + v["funding"],
+                   "wallets": v} for k, v in wallets.items()]
 
         if not assets:
             return {"assets": [], "total_usd": 0, "pnl_usd": 0, "pnl_pct": 0}
@@ -183,11 +510,15 @@ def fetch_binance() -> dict | None:
 
         for a in assets:
             sym = a["asset"]
+            w = a.get("wallets", {"spot": a["total"], "earn": 0, "funding": 0})
+            wallet = "earn" if w["earn"] > w["spot"] else (
+                     "funding" if w["funding"] > w["spot"] else "spot")
             if sym in stables:
                 total_usd += a["total"]
                 details.append({
                     "asset": sym, "qty": a["total"], "price": 1.0,
                     "value_usd": round(a["total"], 2), "change_24h_pct": 0.0,
+                    "wallet": wallet,
                 })
                 continue
 
@@ -209,6 +540,7 @@ def fetch_binance() -> dict | None:
                 "asset": sym, "qty": a["total"], "price": price,
                 "value_usd": round(value, 2),
                 "change_24h_pct": round(change_pct, 2),
+                "wallet": wallet,
             })
 
         details.sort(key=lambda x: -x.get("value_usd", 0))
@@ -219,6 +551,7 @@ def fetch_binance() -> dict | None:
             "total_usd": round(total_usd, 2),
             "pnl_usd": round(total_pnl, 2),
             "pnl_pct": round(pnl_pct, 2),
+            "_wallets": {k: dict(v) for k, v in wallets.items()},
         }
 
     except Exception as e:
@@ -250,8 +583,73 @@ def fetch_btc_dominance() -> float | None:
         return None
 
 
-def fetch_iol_from_snapshot() -> dict | None:
-    """Load IOL data from most recent finance_history snapshot."""
+def fetch_iol_live() -> dict | None:
+    """Fetch IOL portfolio live via iol_client, fallback to snapshot."""
+    # Try live API first
+    try:
+        sys.path.insert(0, "/home/tenazas/.openclaw/workspace/skills/iol_broker")
+        from iol_client import IOLClient
+        client = IOLClient()
+        portfolio = client.get("/api/v2/portafolio/argentina")
+        if portfolio and portfolio.get("activos"):
+            total = 0
+            pnl_day = 0
+            positions = []
+            for a in portfolio["activos"]:
+                titulo = a.get("titulo", {})
+                cantidad = a.get("cantidad", 0)
+                precio = a.get("ultimoPrecio", 0)
+                variacion = a.get("variacionDiaria", 0)
+                puntos = a.get("puntosVariacion", 0)
+                valor = a.get("valorizado", cantidad * precio)
+                ppc = a.get("ppc", 0)
+                gain_pct = a.get("gananciaPorcentaje", 0)
+                asset_type = titulo.get("tipo", "")
+                total += valor
+                day_pnl = puntos * cantidad if puntos else (
+                    valor * (variacion / 100) if variacion else 0)
+                pnl_day += day_pnl
+                positions.append({
+                    "symbol": titulo.get("simbolo", "?"),
+                    "name": titulo.get("descripcion", "?")[:30],
+                    "type": asset_type,
+                    "quantity": cantidad,
+                    "price": precio,
+                    "ppc": ppc,
+                    "value": round(valor, 2),
+                    "gain_pct": round(gain_pct, 2),
+                    "change_pct": round(variacion, 2),
+                    "pnl_day": round(day_pnl, 2),
+                })
+            # Fetch cash balances from estado de cuenta
+            # Use 'saldo' (total balance) not 'disponible' (available after holds)
+            # because 'comprometido' funds (pending settlement) are still real money
+            cash = {"ars": 0, "usd": 0, "usd_eeuu": 0}
+            try:
+                estado = client.get("/api/v2/estadocuenta")
+                if estado and "cuentas" in estado:
+                    for c in estado["cuentas"]:
+                        tipo = c.get("tipo", "")
+                        saldo = c.get("saldo", 0)
+                        if tipo == "inversion_Argentina_Pesos":
+                            cash["ars"] = saldo
+                        elif tipo == "inversion_Argentina_Dolares":
+                            cash["usd"] = saldo
+                        elif tipo == "inversion_Estados_Unidos_Dolares":
+                            cash["usd_eeuu"] = saldo
+            except Exception as e:
+                log.warning("IOL estado de cuenta failed: %s", e)
+
+            return {
+                "total_ars": round(total, 2),
+                "pnl_day_ars": round(pnl_day, 2),
+                "positions": positions,
+                "cash": cash,
+            }
+    except Exception as e:
+        log.warning("IOL live fetch failed: %s, falling back to snapshot", e)
+
+    # Fallback: read from snapshot
     if not HISTORY_DIR.exists():
         return None
     files = sorted(HISTORY_DIR.glob("*.json"), reverse=True)
@@ -293,31 +691,63 @@ _prev_assets: set = set()
 
 def update_metrics():
     """Fetch all data and update Prometheus gauges."""
-    global _prev_assets
+    global _prev_assets, _last_positions, _last_binance, _last_iol
+    global _last_usd_ars, _last_drawdown_bin, _last_total_pnl_usd
     if not PROM_AVAILABLE:
         return
 
-    # ── IOL (from snapshot) ───────────────────────────────────
-    iol = fetch_iol_from_snapshot()
+    # ── IOL (live API, snapshot fallback) ────────────────────
+    iol = fetch_iol_live()
     if iol:
+        _last_iol = iol
         G_IOL_TOTAL.set(iol.get("total_ars", 0))
         G_IOL_PNL.set(iol.get("pnl_day_ars", 0))
+        G_FETCH_TS.labels(source="iol").set(time.time())
+        for p in iol.get("positions", []):
+            sym = p["symbol"]
+            atype = p.get("type", "")
+            G_IOL_POS_VALUE.labels(symbol=sym, type=atype).set(p["value"])
+            G_IOL_POS_QTY.labels(symbol=sym, type=atype).set(p.get("quantity", 0))
+            G_IOL_POS_PRICE.labels(symbol=sym, type=atype).set(p.get("price", 0))
+            G_IOL_POS_PPC.labels(symbol=sym, type=atype).set(p.get("ppc", 0))
+            G_IOL_POS_GAIN_PCT.labels(symbol=sym, type=atype).set(p.get("gain_pct", 0))
+            G_IOL_POS_CHANGE_DAY.labels(symbol=sym, type=atype).set(p.get("change_pct", 0))
+            G_IOL_POS_PNL_DAY.labels(symbol=sym, type=atype).set(p.get("pnl_day", 0))
+        # Cash balances
+        cash = iol.get("cash", {})
+        G_IOL_CASH_ARS.set(cash.get("ars", 0))
+        G_IOL_CASH_USD.set(cash.get("usd", 0))
+        G_IOL_CASH_USD_EEUU.set(cash.get("usd_eeuu", 0))
+
+        log.info("IOL updated: $%.0f ARS (%+.0f PNL, %d positions, cash ARS=%.0f USD=%.2f)",
+                 iol["total_ars"], iol["pnl_day_ars"], len(iol.get("positions", [])),
+                 cash.get("ars", 0), cash.get("usd", 0))
+    else:
+        _fetch_errors["iol"] += 1
+        G_FETCH_ERRORS.labels(source="iol").set(_fetch_errors["iol"])
 
     # ── Binance (live API) ────────────────────────────────────
     binance = fetch_binance()
     if binance:
+        _last_binance = binance
         G_BIN_TOTAL.set(binance["total_usd"])
         G_BIN_PNL.set(binance["pnl_usd"])
         G_BIN_PNL_PCT.set(binance["pnl_pct"])
+        G_FETCH_TS.labels(source="binance").set(time.time())
 
         current_assets = set()
         for a in binance["assets"]:
             sym = a["asset"]
+            wallet = a.get("wallet", "spot")
             current_assets.add(sym)
-            G_ASSET_BAL.labels(asset=sym).set(a["value_usd"])
-            G_ASSET_QTY.labels(asset=sym).set(a["qty"])
+            G_ASSET_BAL.labels(asset=sym, wallet=wallet).set(a["value_usd"])
+            G_ASSET_QTY.labels(asset=sym, wallet=wallet).set(a["qty"])
             G_ASSET_PRICE.labels(asset=sym).set(a["price"])
             G_ASSET_CHG.labels(asset=sym).set(a["change_24h_pct"])
+            # Allocation %
+            if binance["total_usd"] > 0:
+                G_BIN_ALLOC.labels(asset=sym).set(
+                    round(a["value_usd"] / binance["total_usd"] * 100, 2))
 
             if sym == "BTC":
                 G_BTC_PRICE.set(a["price"])
@@ -325,10 +755,9 @@ def update_metrics():
         # Clear stale asset labels
         for old in _prev_assets - current_assets:
             try:
-                G_ASSET_BAL.remove(old)
-                G_ASSET_QTY.remove(old)
                 G_ASSET_PRICE.remove(old)
                 G_ASSET_CHG.remove(old)
+                G_BIN_ALLOC.remove(old)
             except Exception:
                 pass
         _prev_assets = current_assets
@@ -336,10 +765,20 @@ def update_metrics():
         log.info("Binance updated: $%.2f (%+.2f USD, %+.2f%%)",
                  binance["total_usd"], binance["pnl_usd"], binance["pnl_pct"])
 
+        # Hourly PNL notification
+        _maybe_send_hourly_pnl(binance)
+    else:
+        _fetch_errors["binance"] += 1
+        G_FETCH_ERRORS.labels(source="binance").set(_fetch_errors["binance"])
+
     # ── Market indicators ─────────────────────────────────────
     fg = fetch_fear_greed()
     if fg is not None:
         G_FEAR_GREED.set(fg)
+        G_FETCH_TS.labels(source="market").set(time.time())
+    else:
+        _fetch_errors["market"] += 1
+        G_FETCH_ERRORS.labels(source="market").set(_fetch_errors["market"])
 
     dom = fetch_btc_dominance()
     if dom is not None:
@@ -352,10 +791,162 @@ def update_metrics():
         G_PAPER_WINRATE.set(paper["win_rate_pct"])
         G_PAPER_TRADES.set(paper["total_trades"])
 
+    # ── Phase 1: USD/ARS, ATH, drawdown, combined total ──────
+    usd_ars = fetch_usd_ars_rate()
+    if usd_ars:
+        _last_usd_ars = usd_ars
+        G_USD_ARS_RATE.set(usd_ars)
+
+    ath = _load_ath_state()
+    binance_usd = binance["total_usd"] if binance else 0
+    iol_ars = iol.get("total_ars", 0) if iol else 0
+    iol_usd = (iol_ars / _last_usd_ars) if _last_usd_ars > 0 else 0
+    combined_usd = binance_usd + iol_usd
+
+    if binance_usd > ath.get("binance_ath_usd", 0):
+        ath["binance_ath_usd"] = binance_usd
+    if iol_ars > ath.get("iol_ath_ars", 0):
+        ath["iol_ath_ars"] = iol_ars
+    _save_ath_state(ath)
+
+    _last_drawdown_bin = _calc_drawdown(binance_usd, ath.get("binance_ath_usd", 0))
+    iol_drawdown = _calc_drawdown(iol_ars, ath.get("iol_ath_ars", 0))
+    G_BIN_DRAWDOWN.set(_last_drawdown_bin)
+    G_IOL_DRAWDOWN.set(iol_drawdown)
+    G_PORTFOLIO_TOTAL_USD.set(round(combined_usd, 2))
+
+    _last_total_pnl_usd = (binance["pnl_usd"] if binance else 0) + (
+        (iol.get("pnl_day_ars", 0) / _last_usd_ars) if iol and _last_usd_ars > 0 else 0)
+
+    # ── Phase 2: Unified positions ────────────────────────────
+    try:
+        from finance_positions import build_unified_positions
+        _last_positions = build_unified_positions(binance, iol, _last_usd_ars)
+        for pos in _last_positions:
+            G_POS_VALUE.labels(symbol=pos["symbol"], source=pos["source"]).set(pos["value_usd"])
+            G_POS_CHANGE.labels(symbol=pos["symbol"], source=pos["source"]).set(pos.get("change_pct", 0))
+    except Exception as e:
+        log.warning("Unified positions failed: %s", e)
+
+    # ── Phase 3: Rules evaluation ─────────────────────────────
+    try:
+        from finance_rules import evaluate_all_rules
+        triggered = evaluate_all_rules(_last_positions, _last_drawdown_bin, _last_total_pnl_usd)
+        G_RULES_TRIGGERED.inc(len(triggered))
+        from finance_rules import load_rules
+        enabled = sum(1 for r in load_rules() if r.get("enabled", True))
+        G_RULES_ACTIVE.set(enabled)
+    except ImportError:
+        pass
+    except Exception as e:
+        log.warning("Rules evaluation failed: %s", e)
+
+    # ── Phase 4: Portfolio indicators ─────────────────────────
+    if combined_usd > 0:
+        _save_portfolio_snapshot(combined_usd, binance_usd, iol_usd)
+    history = _load_portfolio_history()
+    ma7 = calc_portfolio_ma(history, 168)   # 7 days * 24h
+    ma30 = calc_portfolio_ma(history, 720)  # 30 days * 24h
+    if ma7 is not None:
+        G_PORT_MA7.set(ma7)
+    if ma30 is not None:
+        G_PORT_MA30.set(ma30)
+    trend = classify_portfolio_trend(combined_usd, ma7, ma30)
+    G_PORT_TREND.set(trend)
+    vol = calc_portfolio_volatility(history)
+    if vol is not None:
+        G_PORT_VOL.set(vol)
+    if len(history) >= 2:
+        prev_val = history[-2]["total_usd"]
+        if prev_val > 0:
+            G_PORT_RETURN.set(round((combined_usd - prev_val) / prev_val * 100, 2))
+
 
 # ── Main ──────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    if "--status" in sys.argv:
+        b = fetch_binance()
+        iol = fetch_iol_live()
+        usd_ars = fetch_usd_ars_rate()
+        ath = _load_ath_state()
+
+        print("\n== Binance ==")
+        if b:
+            dd = _calc_drawdown(b["total_usd"], ath.get("binance_ath_usd", 0))
+            print(f"Total: ${b['total_usd']:,.2f}  PNL: ${b['pnl_usd']:+,.2f} ({b['pnl_pct']:+.2f}%)  DD: {dd:.1f}%")
+            for a in b["assets"][:10]:
+                alloc = (a["value_usd"] / b["total_usd"] * 100) if b["total_usd"] > 0 else 0
+                print(f"  {a['asset']:6s} ${a['value_usd']:>9,.2f}  {alloc:5.1f}%  24h={a['change_24h_pct']:+.2f}%")
+        else:
+            print("  (no data)")
+
+        print("\n== IOL ==")
+        if iol:
+            dd_iol = _calc_drawdown(iol["total_ars"], ath.get("iol_ath_ars", 0))
+            print(f"Total: ${iol['total_ars']:,.0f} ARS  PNL: ${iol['pnl_day_ars']:+,.0f}  DD: {dd_iol:.1f}%")
+            for p in iol.get("positions", []):
+                print(f"  {p['symbol']:10s} ${p['value']:>10,.0f} ARS  {p.get('change_pct', 0):+.2f}%")
+        else:
+            print("  (no data)")
+
+        print("\n== Combined ==")
+        rate = usd_ars or 0
+        iol_usd = (iol["total_ars"] / rate) if iol and rate > 0 else 0
+        bin_usd = b["total_usd"] if b else 0
+        total = bin_usd + iol_usd
+        print(f"USD/ARS blue: ${rate:,.0f}")
+        print(f"Total: ${total:,.2f} USD (Binance: ${bin_usd:,.2f} | IOL: ${iol_usd:,.2f})")
+
+        print("\n== Market ==")
+        fg = fetch_fear_greed()
+        dom = fetch_btc_dominance()
+        print(f"  Fear & Greed: {fg}  BTC Dominance: {dom}%")
+
+        # Unified positions
+        if "--positions" not in sys.argv:
+            print("\n(use --positions for unified view)")
+        exit(0)
+
+    if "--positions" in sys.argv:
+        b = fetch_binance()
+        iol = fetch_iol_live()
+        usd_ars = fetch_usd_ars_rate() or 0
+        try:
+            from finance_positions import build_unified_positions, format_positions_table
+            positions = build_unified_positions(b, iol, usd_ars)
+            print(f"\nUnified Positions (USD/ARS: ${usd_ars:,.0f})")
+            if "--json" in sys.argv:
+                print(json.dumps(positions, indent=2))
+            else:
+                print(format_positions_table(positions))
+        except ImportError:
+            print("finance_positions.py not found")
+        exit(0)
+
+    if "--indicators" in sys.argv:
+        history = _load_portfolio_history()
+        if not history:
+            print("No portfolio history yet")
+            exit(0)
+        current = history[-1]["total_usd"]
+        ma7 = calc_portfolio_ma(history, 168)
+        ma30 = calc_portfolio_ma(history, 720)
+        vol = calc_portfolio_volatility(history)
+        trend = classify_portfolio_trend(current, ma7, ma30)
+        trend_label = {1: "bullish", 0: "sideways", -1: "bearish"}[trend]
+        daily_ret = 0
+        if len(history) >= 2 and history[-2]["total_usd"] > 0:
+            daily_ret = (current - history[-2]["total_usd"]) / history[-2]["total_usd"] * 100
+        print(f"\nPortfolio Indicators ({len(history)} samples)")
+        print(f"  Current: ${current:,.2f}")
+        print(f"  MA7:  ${ma7:,.2f}" if ma7 else "  MA7:  (insufficient data)")
+        print(f"  MA30: ${ma30:,.2f}" if ma30 else "  MA30: (insufficient data)")
+        print(f"  Trend: {trend_label}")
+        print(f"  Volatility: {vol:.2f}%" if vol else "  Volatility: (insufficient data)")
+        print(f"  Daily return: {daily_ret:+.2f}%")
+        exit(0)
+
     if not PROM_AVAILABLE:
         # Dry run: fetch and print
         print("prometheus_client not available — dry run mode")
@@ -382,7 +973,7 @@ if __name__ == "__main__":
         print(f"  {p}" if p else "  (no data)")
 
         print("\n== IOL (snapshot) ==")
-        iol = fetch_iol_from_snapshot()
+        iol = fetch_iol_live()
         print(f"  {iol}" if iol else "  (no data)")
         exit(0)
 

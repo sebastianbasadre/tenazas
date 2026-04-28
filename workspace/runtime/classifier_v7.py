@@ -25,11 +25,16 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError
 from runtime_utils import now
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "classifier_v7.log"
 
 # Qwen3 config (primary)
-OLLAMA_BASE = "http://192.168.2.6:11434"
+OLLAMA_BASE = OLLAMA_GPU_URL
 QWEN3_MODEL = "qwen3:30b"
 QWEN3_TIMEOUT = 7.5
 QWEN3_SLOW_THRESHOLD = 3.0

@@ -14,6 +14,11 @@ from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
 
+try:
+    from runtime_config import LAN_SUBNET
+except ImportError:
+    from workspace.runtime.runtime_config import LAN_SUBNET
+
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "planner.log"
 
@@ -42,7 +47,7 @@ PLAN_TEMPLATES = {
              "estimated_duration": "10s", "description": "Verify VPN status and country"},
             {"action": "check_ollama", "target": "notebook", "requires_approval": False,
              "estimated_duration": "5s", "description": "Check Ollama GPU backend"},
-            {"action": "check_network", "target": "192.168.2.0/24", "requires_approval": False,
+            {"action": "check_network", "target": LAN_SUBNET, "requires_approval": False,
              "estimated_duration": "15s", "description": "Scan LAN devices"},
         ],
     },

@@ -47,10 +47,10 @@ LOG_FILE = RUNTIME / "logs" / "auto_training.log"
 TRAINING_HISTORY = RUNTIME / "logs" / "training_history.json"
 
 # HomeLab
-HOMELAB_HOST = "sbasadre@192.168.2.6"
+HOMELAB_HOST = f"{HOMELAB_USER}@{HOMELAB_IP}"
 HOMELAB_KEY = "/home/tenazas/.ssh/id_homelab"
 WORKBENCH_CTR = "project-tenazas-router-workbench-clean"
-OLLAMA_URL = "http://192.168.2.6:11434"
+OLLAMA_URL = OLLAMA_GPU_URL
 CHAT_ID = get_default_telegram_chat_id()
 
 log = logging.getLogger("auto_training")

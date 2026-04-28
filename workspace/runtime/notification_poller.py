@@ -38,7 +38,7 @@ STATE_DIR = Path("/home/tenazas/.openclaw/state")
 NOTIFIED_EVENTS = STATE_DIR / "notified_events.json"
 NOTIFIED_EMAILS = STATE_DIR / "notified_emails.json"
 GCAL_SCRIPT = "/home/tenazas/.openclaw/workspace/skills/calendar-agenda/gcal.py"
-GEMMA_URL = "http://192.168.2.6:11434/v1/chat/completions"
+GEMMA_URL = f"{OLLAMA_GPU_URL}/v1/chat/completions"
 GEMMA_MODEL = "gemma3:12b"
 CHAT_ID = get_default_telegram_chat_id()
 

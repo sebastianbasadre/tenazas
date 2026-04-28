@@ -24,6 +24,11 @@ from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
+try:
+    from runtime_config import OLLAMA_GPU_TAGS_URL, OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_TAGS_URL, OLLAMA_GPU_URL
+
 log = logging.getLogger("metrics_server")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -38,7 +43,6 @@ IOL_CHECK_INTERVAL = 300  # 5 min
 LOG_PARSE_INTERVAL = 30
 
 # Ollama GPU endpoint (configurable)
-OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
 OLLAMA_GPU_TIMEOUT = 5
 
 try:
@@ -173,11 +177,33 @@ if PROM_AVAILABLE:
     G_BA_BACKEND_OFFLINE_24H = Gauge("tenazas_backend_offline_events_24h", "Backend offline outages in last 24h")
     G_BA_PREFERENCE_CONF = Gauge("tenazas_preference_confidence", "Preference confidence by category", ["category"])
 
-    # ── OpenRouter ─────────────────────────────────────────────
+    # ── OpenRouter ─────────────��───────────────────────────────
     G_OPENROUTER_BALANCE = Gauge("tenazas_openrouter_balance_usd", "Créditos disponibles en OpenRouter")
     G_OPENROUTER_USED = Gauge("tenazas_openrouter_used_usd", "Total gastado en OpenRouter")
     G_OPENROUTER_REQUESTS = Gauge("tenazas_openrouter_requests_total", "Requests realizadas via OpenRouter")
     G_OPENROUTER_LAST_CHECK = Gauge("tenazas_openrouter_last_check_ts", "Timestamp del último chequeo exitoso")
+
+    # ── ROI Dashboard ──────────────────────────────────────────
+    G_ROI_SKILL_EXECUTIONS = Gauge("tenazas_roi_skill_executions_total", "Total skill executions (period)")
+    G_ROI_LLM_CHATS = Gauge("tenazas_roi_llm_chats_total", "Total LLM chat interactions (period)")
+    G_ROI_AUTOMATION_RATE = Gauge("tenazas_roi_automation_rate", "Skill intercept rate 0-1")
+    G_ROI_HOURS_SAVED = Gauge("tenazas_roi_hours_saved", "Estimated hours saved (period)")
+    G_ROI_MINUTES_SAVED = Gauge("tenazas_roi_minutes_saved", "Estimated minutes saved (period)")
+    G_ROI_ERRORS_AVOIDED = Gauge("tenazas_roi_errors_avoided_total", "Total errors avoided (all time)")
+    G_ROI_CONTAINER_RESTARTS = Gauge("tenazas_roi_container_restarts", "Container restarts performed")
+    G_ROI_VPN_FIXES = Gauge("tenazas_roi_vpn_fixes", "VPN disconnects fixed")
+    G_ROI_BY_SKILL = Gauge("tenazas_roi_skill_usage", "Skill usage count", ["skill"])
+    G_ROI_BY_SKILL_SUCCESS = Gauge("tenazas_roi_skill_success_rate", "Skill success rate 0-1", ["skill"])
+    G_ROI_BY_SKILL_HOURS = Gauge("tenazas_roi_skill_hours_saved", "Hours saved per skill", ["skill"])
+    G_ROI_PERIOD_DAYS = Gauge("tenazas_roi_period_days", "ROI tracking period in days")
+    G_ROI_LAST_UPDATE = Gauge("tenazas_roi_last_update_ts", "Timestamp of last ROI snapshot")
+
+    # Portfolio Reconciler
+    G_RECONCILER_OK = Gauge("tenazas_reconciler_ok", "1 if portfolio data matches, 0 if issues found")
+    G_RECONCILER_ISSUES = Gauge("tenazas_reconciler_issues_count", "Number of reconciliation issues")
+    G_RECONCILER_BIN_DIFF = Gauge("tenazas_reconciler_binance_diff_pct", "Binance total divergence %")
+    G_RECONCILER_IOL_DIFF = Gauge("tenazas_reconciler_iol_diff_pct", "IOL total divergence %")
+    G_RECONCILER_LAST_RUN = Gauge("tenazas_reconciler_last_run_ts", "Last reconciliation timestamp")
 
 
 def update_from_file():
@@ -443,7 +469,7 @@ def update_iol_metrics():
 # ── Ollama Models (via 192.168.2.6) ──────────────────────────
 
 
-OLLAMA_MODELS_URL = "http://192.168.2.6:11434/api/tags"
+OLLAMA_MODELS_URL = OLLAMA_GPU_TAGS_URL
 OLLAMA_MODELS_INTERVAL = 300  # 5 min
 
 
@@ -813,6 +839,53 @@ def update_device_discovery_metrics():
         log.warning("Device discovery metrics failed: %s", e)
 
 
+ROI_STATE_FILE = LOGS_DIR / "roi_state.json"
+
+
+def update_roi_metrics():
+    """Read roi_state.json and update ROI Prometheus gauges."""
+    if not PROM_AVAILABLE:
+        return
+    try:
+        if not ROI_STATE_FILE.exists():
+            return
+        data = json.loads(ROI_STATE_FILE.read_text())
+        totals = data.get("totals", {})
+
+        G_ROI_SKILL_EXECUTIONS.set(totals.get("skill_executions", 0))
+        G_ROI_LLM_CHATS.set(totals.get("llm_chats", 0))
+        G_ROI_AUTOMATION_RATE.set(totals.get("automation_rate", 0))
+        G_ROI_HOURS_SAVED.set(totals.get("hours_saved", 0))
+        G_ROI_MINUTES_SAVED.set(totals.get("minutes_saved", 0))
+        G_ROI_ERRORS_AVOIDED.set(totals.get("errors_avoided", 0))
+
+        detail = data.get("errors_avoided_detail", {})
+        G_ROI_CONTAINER_RESTARTS.set(detail.get("container_restarts", 0))
+        G_ROI_VPN_FIXES.set(detail.get("vpn_fixes", 0))
+
+        G_ROI_PERIOD_DAYS.set(data.get("period_days", 7))
+
+        gen_at = data.get("generated_at", "")
+        if gen_at:
+            try:
+                G_ROI_LAST_UPDATE.set(datetime.fromisoformat(gen_at).timestamp())
+            except (ValueError, TypeError):
+                pass
+
+        # Per-skill labeled metrics
+        for skill, info in data.get("skills", {}).items():
+            clean = skill.replace("skill:", "")
+            G_ROI_BY_SKILL.labels(skill=clean).set(info.get("count", 0))
+            G_ROI_BY_SKILL_SUCCESS.labels(skill=clean).set(info.get("success_rate", 0))
+
+        for skill, hours in data.get("hours_saved_detail", {}).items():
+            clean = skill.replace("skill:", "")
+            G_ROI_BY_SKILL_HOURS.labels(skill=clean).set(hours)
+
+    except Exception as e:
+        log.warning("ROI metrics update failed: %s", e)
+
+
 # ── Main Loop ──────────────────────────────────────────────────
 
 
@@ -872,12 +945,31 @@ if __name__ == "__main__":
         update_feedback_metrics()
         update_device_discovery_metrics()
         update_ba_metrics()
+        update_roi_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:
             ts_file = Path("/home/tenazas/runtime/network_scan_last_ts")
             if ts_file.exists():
                 G_NETWORK_SCAN_TS.set(float(ts_file.read_text().strip()))
+        except Exception:
+            pass
+
+        # Portfolio reconciler state (reads reconcile_state.json)
+        try:
+            _state_dir = (Path("/home/tenazas/.openclaw/state")
+                          if Path("/home/tenazas").exists()
+                          else BASE_DIR.parent / "state")
+            _reconcile_file = _state_dir / "reconcile_state.json"
+            if _reconcile_file.exists():
+                _rstate = json.loads(_reconcile_file.read_text())
+                G_RECONCILER_OK.set(1.0 if _rstate.get("ok") else 0.0)
+                G_RECONCILER_ISSUES.set(float(len(_rstate.get("issues", []))))
+                G_RECONCILER_BIN_DIFF.set(
+                    _rstate.get("checks", {}).get("binance", {}).get("diff_pct", 0))
+                G_RECONCILER_IOL_DIFF.set(
+                    _rstate.get("checks", {}).get("iol", {}).get("diff_pct", 0))
+                G_RECONCILER_LAST_RUN.set(time.time())
         except Exception:
             pass
 

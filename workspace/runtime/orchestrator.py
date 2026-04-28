@@ -26,6 +26,11 @@ from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
 
+try:
+    from runtime_config import HUE_BRIDGE_IP, OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import HUE_BRIDGE_IP, OLLAMA_GPU_URL
+
 # ── Config ───────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
@@ -968,7 +973,7 @@ SKILL_MAP = {
     "skill:smart-home": {
         # Default: list light states. Actual action extracted from query.
         "command": (
-            'curl -sf http://192.168.2.11/api/'
+            f'curl -sf http://{HUE_BRIDGE_IP}/api/'
             '${HUE_API_KEY}/lights'
         ),
         "destructive": True,
@@ -2099,7 +2104,7 @@ def route_and_execute(
 # Falls back to route_and_execute() on any failure.
 
 MULTITOOL_MODEL = "tenazas-multitool"
-MULTITOOL_OLLAMA_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
+MULTITOOL_OLLAMA_URL = OLLAMA_GPU_URL
 MULTITOOL_SYSTEM_PROMPT = (
     "You are a deterministic multi-tool caller. "
     "Respond only with valid XML. Allowed format:\n"
