@@ -73,6 +73,13 @@ except ImportError:
         MULTITOOL_SYSTEM_PROMPT, MULTITOOL_OLLAMA_URL,
     )
 
+# ── Escalation (re-exported from escalation.py) ─────────────────
+
+try:
+    from escalation import escalate
+except ImportError:
+    from workspace.runtime.escalation import escalate
+
 
 # ── V1 Model tiers (used as fallback when V2 is off or fails) ───
 
@@ -491,64 +498,6 @@ def route_query(
             log_entry["guardrail_degraded"] = True
             log_entry["guardrail_reason"] = v2_info.get("degrade_reason")
     _log(log_entry)
-
-    return result
-
-
-def escalate(
-    original_route: dict,
-    reason: str,
-    available_backends: dict | None = None,
-) -> dict:
-    """Escalate to a more capable pipeline after failure or low confidence.
-
-    Escalation paths:
-      knowledge_query → complex_reasoning
-      infrastructure_issue → complex_reasoning
-      diagnostic_request → infrastructure_issue
-      chat → knowledge_query
-      automation_command → infrastructure_issue
-    """
-    escalation_map = {
-        "chat": "knowledge_query",
-        "knowledge_query": "complex_reasoning",
-        "infrastructure_issue": "complex_reasoning",
-        "automation_command": "infrastructure_issue",
-        "diagnostic_request": "infrastructure_issue",
-        "complex_reasoning": "complex_reasoning",  # No further escalation
-    }
-
-    current = original_route["classification"]
-    escalated = escalation_map.get(current, "complex_reasoning")
-
-    model = select_model(escalated, available_backends,
-                         query=original_route.get("query", ""))
-    pipeline = get_pipeline(escalated)
-    params = _get_parameters(escalated)
-
-    result = {
-        "query": original_route["query"],
-        "classification": escalated,
-        "pipeline": pipeline,
-        "model": {
-            "id": model["id"],
-            "alias": model["alias"],
-            "tier": model["tier"],
-        },
-        "parameters": params,
-        "context_signals": original_route.get("context_signals", []),
-        "escalated_from": current,
-        "escalation_reason": reason,
-    }
-
-    _log({
-        "type": "escalation",
-        "query": original_route["query"][:100],
-        "from": current,
-        "to": escalated,
-        "reason": reason,
-        "model": model["id"],
-    })
 
     return result
 
