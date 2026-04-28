@@ -37,6 +37,11 @@ def save_json(path, data):
 # -- Time --
 
 
+def now():
+    """Return current local time as timezone-aware datetime."""
+    return datetime.now().astimezone()
+
+
 def now_iso():
     """Return current local time as ISO8601 string."""
     return datetime.now().astimezone().isoformat()
