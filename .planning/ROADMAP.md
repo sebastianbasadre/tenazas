@@ -44,8 +44,8 @@ Plans:
   5. All 700+ existing tests pass after the migration
 **Plans:** 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
-- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
+- [ ] 02-01-PLAN.md — Create runtime_config.py endpoint constants with env var overrides + tests
+- [ ] 02-02-PLAN.md — Migrate all 65 files to import from runtime_config
 
 ### Phase 3: Orchestrator Decomposition
 **Goal**: The orchestrator is split into independently testable modules while preserving backward compatibility for all callers
@@ -56,10 +56,7 @@ Plans:
   2. Each extracted module (classifier, skill_executor, escalation, routing_facade) can be imported and tested independently
   3. All existing `from runtime.orchestrator import X` and `from orchestrator import X` statements work without modification
   4. All existing orchestrator tests (65 tests in test_orchestrator.py) pass without changes to assertions (only patch paths updated if needed)
-**Plans:** 2 plans
-Plans:
-- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
-- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
+**Plans:** TBD (plan after Phase 2 completes)
 
 ### Phase 4: Dead Code Cleanup
 **Goal**: The repository contains only code that is actively used, with no deprecated artifacts or orphaned modules
@@ -71,10 +68,7 @@ Plans:
   3. No Python module in `workspace/runtime/` is unreachable (verified via import graph from entry points)
   4. No test file, CLAUDE.md section, or module references any removed code
   5. All 700+ existing tests pass after cleanup
-**Plans:** 2 plans
-Plans:
-- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
-- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
+**Plans:** TBD (plan after Phase 3 completes)
 
 ## Progress
 
@@ -84,6 +78,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Utilities | 3/3 | Complete | 2026-04-28 |
-| 2. Config Centralization | 0/? | Not started | - |
+| 2. Config Centralization | 0/2 | Planning complete | - |
 | 3. Orchestrator Decomposition | 0/? | Not started | - |
 | 4. Dead Code Cleanup | 0/? | Not started | - |
