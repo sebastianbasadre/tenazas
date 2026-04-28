@@ -2264,3 +2264,356 @@ docker exec openclaw python3 /home/tenazas/runtime/device_discovery.py --deep
 docker exec openclaw python3 /home/tenazas/runtime/deco_client.py
 # Dashboard Grafana: http://192.168.2.2:3000/d/tenazas-device-discovery
 ```
+
+<!-- GSD:project-start source:PROJECT.md -->
+## Project
+
+**Tenazas Runtime Refactor**
+
+A structural refactoring of the Tenazas runtime layer — the 42+ Python module system running Sebas's personal AI assistant on a Synology NAS. The goal is to clean up organic growth, fix reliability issues, remove dead code, and make the codebase testable and maintainable without changing any user-facing behavior.
+
+**Core Value:** After the refactor, Tenazas works exactly as before — same skills, same Telegram interactions, same cron jobs — but the code is organized, reliable under concurrent access, and easy to extend.
+
+### Constraints
+
+- **Runtime:** Python 3 inside Docker container (node:24-bookworm base)
+- **No new dependencies:** Prefer stdlib solutions (fcntl, tempfile, pathlib) over adding packages
+- **Test compatibility:** All existing unittest-based tests must pass without modification (unless testing refactored interfaces)
+- **Container paths:** Scripts reference `/home/tenazas/runtime/` — module moves must preserve import paths or update all references
+- **Cron/startup:** `startup.sh`, `runtime.py`, `metrics_server.py` entry points must continue to work
+<!-- GSD:project-end -->
+
+<!-- GSD:stack-start source:codebase/STACK.md -->
+## Technology Stack
+
+## Languages
+- Node.js 24 (Bookworm) - OpenClaw gateway and main runtime host
+- Python 3 (system) - 42+ runtime modules for orchestration, AI routing, infra monitoring
+- Bash - Startup scripts, system monitoring (`auto-heal.sh`, `ollama-check.sh`)
+## Runtime
+- Node.js 24 (node:24-bookworm base image)
+- Python 3 (system packages via apt-get)
+- Container: Docker (DSM 7.3.2 on Synology DS923+)
+- Host: Synology DS923+ with Ryzen Embedded R1600, 16GB RAM, 27TB storage
+- npm (Node.js) - manages openclaw CLI
+- pip3 (Python) - installs runtime dependencies
+- System: apt-get (Debian/Bookworm)
+## Frameworks
+- OpenClaw - Node.js 24 gateway framework (main entry point)
+- Ollama - Local LLM inference (GPU: RTX 3090 @ 192.168.2.6:11434, CPU fallback: NAS @ 127.0.0.1:11434)
+- unittest - Python test framework (54+ test suites across runtime/)
+- pytest - Test discovery and execution
+- Docker Compose - Container orchestration (20 services total)
+- Prometheus - Metrics collection (:9090)
+- Grafana - Dashboarding and visualization (:3000)
+## Key Dependencies
+- requests - HTTP library for API calls to external services
+- torch - Deep learning (CPU only, installed from pytorch.org/whl/cpu)
+- openai-whisper - Speech-to-text transcription (base model, Spanish)
+- google-auth, google-auth-oauthlib, google-api-python-client - Google APIs (Calendar, Gmail)
+- prometheus_client - Metrics export to Prometheus
+- pycryptodome - Cryptography utilities
+- tplinkrouterc6u - TP-Link Deco WiFi API
+- python-miio - Xiaomi device control (vacuum)
+- pychromecast - Google Cast device control
+- websocket-client - WebSocket support for Samsung TV control
+- himalaya CLI (v0.7+) - Email client (IMAP/SMTP for Gmail)
+- curl - HTTP requests (system package)
+- nmap - Network scanning (system package)
+- iputils-ping, dnsutils - Network utilities (system packages)
+- docker.io - Docker CLI in-container (for docker_wrapper.py)
+- ffmpeg - Audio/video processing (system package)
+## Configuration
+- `.env` file with variables: TZ, NODE_OPTIONS, OLLAMA_API_KEY, OLLAMA_API_BASE, GOG_ACCOUNT, GOOGLE_API_KEY, OPENROUTER_API_KEY, BINANCE_API_KEY, BINANCE_SECRET, GF_SECURITY_ADMIN_PASSWORD
+- `state/openclaw.json` - Primary config (20KB+): auth profiles, model providers, LLM backends, Telegram settings, channel config
+- `state/iol_config.json` - InvertirOnline (IOL) broker configuration
+- `state/iol_credentials.json` - IOL API credentials (gitignored)
+- `Dockerfile` - 15 lines, installs deps, adds himalaya CLI, creates tenazas user
+- `docker-compose.yml` - 91 lines, defines 4 services (openclaw, prometheus, grafana, searxng)
+- `prometheus.yml` - Scrape config (NAS metrics, OpenRouter, ROI, health)
+- `alerts.yml` - Alert rules for Prometheus
+## Platform Requirements
+- Docker (Synology DSM compatible)
+- Python 3.8+ (system)
+- Node.js 24+
+- SSH access to NAS (port 4822)
+- Windows 11 (HomeLab server with RTX 3090)
+- Synology DS923+ NAS (primary host)
+- HomeLab GPU server 192.168.2.6 (RTX 3090, Windows 11)
+- NordVPN (via gluetun container, Spanish gateway)
+- ChromaDB - Vector database (:8100 on NAS)
+- Piper TTS - Text-to-speech container (Spanish voice es_MX-claude-high)
+- 20 Docker containers total (arr-stack × 10, Ollama, gluetun, chromadb, prometheus, grafana, etc.)
+<!-- GSD:stack-end -->
+
+<!-- GSD:conventions-start source:CONVENTIONS.md -->
+## Conventions
+
+## Python Overview
+## Naming Patterns
+- Lowercase with underscores: `model_router.py`, `orchestrator.py`, `docker_wrapper.py`
+- Test files use prefix: `test_*.py` (e.g., `test_orchestrator.py`, `test_runtime.py`)
+- Bash scripts use hyphens: `auto-heal.sh`, `ollama-check.sh`
+- Lowercase with underscores for public functions: `classify_query()`, `select_model()`, `detect_backends()`
+- Private functions prefixed with underscore: `_now()`, `_log()`, `_ping_backend()`, `_check_action()`
+- Inline helper functions use underscore prefix: `_mock_backends()` in test files
+- Lowercase with underscores: `routing_metrics`, `confidence_score`, `available_backends`
+- Constants in UPPERCASE_WITH_UNDERSCORES: `ALLOWED_ACTIONS`, `BLOCKED_CONTAINERS`, `MODEL_CATALOG`, `GUARDRAIL_COOLDOWN`
+- Internal module-level state prefixed with underscore: `_guardrail_state`, `_routing_metrics`, `_ollama_status`
+- Classes use PascalCase: `TestDockerWrapper`, `TestQueryClassification` (unittest)
+- Enums/Role constants: `VALID_ROLES`, `ROLE_MAP`, `CATEGORY_TO_ROLE`
+- Dict keys use lowercase with underscores: `{"ok": bool, "error": str, "ts": datetime}`
+## Code Style
+- No explicit formatter is configured (no `.prettier`, `.flake8`, `pyproject.toml`)
+- Implicit style: 4 spaces indentation (Python standard)
+- Line length: appears to be ~100-120 characters based on existing code
+- No trailing whitespace
+- No explicit linter configured (no `.eslintrc`, `.pylintrc`)
+- Code follows PEP8-like conventions but not enforced
+- Type hints absent — dynamic typing throughout
+- Comments are inline and docstring-based (see below)
+#!/usr/bin/env python3
+## Error Handling
+## Logging
+## Comments
+- Explain *why*, not *what* (code shows what)
+- Complex business logic or non-obvious heuristics
+- Trade-offs and design decisions
+- Warnings about side effects
+- Docstrings on simple functions (rare)
+- Type hints (dynamic Python, not enforced)
+- Inline comments for obvious code
+- Line comments use `#` with single space: `# This explains logic`
+- Section markers (e.g., above major sections): 
+- Example from `orchestrator.py` (lines 28-35):
+## Module Design
+- No explicit `__all__` (all public functions available)
+- Private helpers prefixed with `_` (naming convention only)
+- No barrel files (each module imports directly)
+- Module-level dicts for metrics/state: `_guardrail_state`, `_routing_metrics`
+- Lazy loading with guard variables: `_guardrail_loaded` in `model_router.py`
+- JSON file persistence for state: `guardrail_state.json`, `gluetun_restart_state.json`
+## Function Design
+- Most functions 10-50 lines
+- Complex multi-step operations wrapped in functions (e.g., `route_by_role()` is ~80 lines but broken into logical sections)
+- Helper functions extracted for readability
+- Few args (2-4 typical), use dicts for complex options
+- Optional args have defaults: `flags: dict | None = None`
+- Use `**kwargs` rarely (prefer explicit dicts)
+- Consistent types per function (don't mix list/dict/None for same function)
+- Dicts with known keys for complex returns:
+- Tuples for fixed-length multi-return: `(backend, model, url)`
+- Empty dict `{}` or list `[]` instead of `None` (graceful defaults)
+## Subprocess & Security
+- ONLY use list arguments: `["docker", "restart", "sonarr"]`
+- NEVER use `shell=True`
+- Example from `docker_wrapper.py` (lines 94-98):
+- Container names validated via regex before subprocess call
+- All Docker actions whitelisted in `docker_wrapper.py`
+- All actions logged to `logs/docker_actions.log`
+## Code Organization by Domain
+<!-- GSD:conventions-end -->
+
+<!-- GSD:architecture-start source:ARCHITECTURE.md -->
+## Architecture
+
+## System Overview
+```text
+```
+## Component Responsibilities
+| Component | Responsibility | File |
+|-----------|----------------|------|
+| **Orchestrator** | Classify queries, route to models/skills, execute deterministically | `orchestrator.py` |
+| **Model Router V2** | Select optimal model by role, manage VRAM/guardrails, fallback chains | `model_router.py` |
+| **Telegram Router** | Poll Telegram, classify skills deterministically, forward others to LLM | `telegram_router.py` |
+| **Runtime Loop** | Event detection → task enqueue → safe execution → memory → patterns | `runtime.py` |
+| **Docker Wrapper** | Whitelist-enforced Docker subprocess calls (restart/ps/start/stop only) | `docker_wrapper.py` |
+| **IoT Dispatcher** | Route device commands, manage composite actions, handle multi-device queries | `devices/__init__.py` |
+| **Worker Supervisor** | Run 5 isolated worker subprocesses, protect against freezes, stagger execution | `worker_supervisor.py` |
+| **Learning Engine** | Multi-model critic+synthesizer, extract truths, generate typed proposals | `idle_learning.py` |
+| **Error Mining** | Parse logs, classify failures, detect patterns for improvement candidates | `error_mining.py` |
+| **Finance Module** | Parse natural language transactions, categorize, alert on anomalies | `finance.py` |
+| **RAG Pipeline** | Retrieve + rerank context from ChromaDB, inject into LLM prompts | `skills/rag/query.py` |
+| **Self-Heal Agent** | Tier-1 OPS, Tier-2 CODE, Tier-3 PROPOSAL approval workflow | `autofix_agent.py` |
+## Pattern Overview
+- **5-minute event loop** — Cron runs `runtime.py` every 5 min for infrastructure monitoring
+- **Skill-first routing** — Orchestrator intercepts known skills (weather, calendar, email) before LLM
+- **Role-based model selection** — V2 router classifies prompts by role (fast/reason/code) and selects hardware-optimal model
+- **Deterministic execution** — Docker restarts, device commands, finance transactions executed safely without LLM
+- **Approval gates** — High-risk actions (code fixes, tier-2 autofix) require Telegram approval before execution
+- **Learning in isolation** — Proposals never auto-apply; always review→accept→execute workflow
+- **VRAM-aware routing** — Model selection respects GPU/CPU constraints, falls back to cloud if needed
+- **Modular devices** — Each IoT device type in separate module, composed via dispatcher
+## Layers
+- Purpose: Accept input from users (Telegram, HTTP endpoints, CLI)
+- Location: `telegram_router.py`, OpenClaw gateway (Node.js), CLI scripts
+- Contains: Message polling, payload parsing, response formatting
+- Depends on: Orchestrator for routing
+- Used by: All upstream; public-facing interface
+- Purpose: Classify queries, route to optimal pipeline (LLM/skill/diagnostics), execute
+- Location: `orchestrator.py`
+- Contains: Classification rules (skill, infra, reasoning, etc.), pipeline definitions, skill execution engine
+- Depends on: Model Router V2 (for model selection), skill modules, RAG, diagnostics
+- Used by: Telegram Router, HTTP gateway, CLI commands
+- Purpose: Route queries to best LLM by capability, manage hardware constraints
+- Location: `model_router.py`
+- Contains: Backend detection (ping HomeLab/NAS), role classification, VRAM tracking, guardrails, fallback chains
+- Depends on: Ollama endpoints (local GPU/CPU), OpenRouter API (cloud)
+- Used by: Orchestrator, Worker pipeline
+- Purpose: Monitor infrastructure, detect anomalies, execute safe remediation
+- Location: `runtime.py`, `executors.py`, `docker_wrapper.py`
+- Contains: State monitoring (docker ps, network scan, VPN check), task enqueue, execution with cooldown
+- Depends on: Docker socket, network tools (nmap, curl), pattern engine
+- Used by: Cron scheduler (every 5 min)
+- Purpose: Deterministic implementation of specific capabilities (weather, calendar, smart-home, etc.)
+- Location: `workspace/skills/*/`, `devices/`
+- Contains: Email (himalaya), Calendar (Google Calendar API), Weather (Open-Meteo), Device commands (REST/WebSocket)
+- Depends on: External APIs, local services (Piper for TTS)
+- Used by: Orchestrator skill_execution engine
+- Purpose: Control smart home devices and infrastructure
+- Location: `devices/hue_lights.py`, `devices/samsung_tv.py`, `devices/marantz_avr.py`, etc.
+- Contains: Device drivers for 9 device types, composite action support (e.g., cinema mode)
+- Depends on: Device REST/WebSocket endpoints
+- Used by: Orchestrator via device dispatcher
+- Purpose: Standalone management of personal finance, jobs, health tracking
+- Location: `finance.py`, `expenses.py`, `jobs.py`, `smoking.py`
+- Contains: Natural language parsing, categorization, state persistence
+- Depends on: JSON persistence (no external APIs)
+- Used by: Telegram router, daily brief, personal supervisor
+- Purpose: Analyze logs/metrics, generate improvement proposals, support review workflow
+- Location: `idle_learning.py`, `error_mining.py`, `improvement_candidates.py`, `dreaming.py`
+- Contains: Multi-model analysis (critic+synthesizer), typed proposals, memory consolidation
+- Depends on: Runtime logs, metrics, proposal execution engine
+- Used by: Daily cron, workers (learning_worker)
+- Purpose: Expose metrics, monitor health, support dashboards
+- Location: `metrics_server.py`, `health_sweep.py`
+- Contains: Prometheus scrape targets, SQLite health history, Grafana payload builders
+- Depends on: Runtime state files, external service health checks
+- Used by: Grafana dashboards, alert systems
+## Data Flow
+### Primary Request Path (User Message to Response)
+- User input: `telegram_router.py` line ~200 (update loop)
+- Classification: `telegram_router.py` line ~400 (`classify_intent()`)
+- Skill execution: `orchestrator.py` line ~600 (`route_and_execute()`)
+- Model selection: `model_router.py` line ~250 (`route_by_role()`)
+- Response send: `telegram_router.py` line ~800 (`_send_response()`)
+### Infrastructure Monitoring Path (Event-Driven)
+- Main loop: `runtime.py` line ~1 (`main()`)
+- Update state: `runtime.py` line ~150 (`update_state()`)
+- Event detection: `runtime.py` line ~206 (`detect_events()`)
+- Task enqueue: `runtime.py` line ~296 (`enqueue_tasks()`)
+- Execution: `runtime.py` line ~343 (`run_tasks()`)
+- Pattern analysis: `runtime.py` line ~381 (`analyze_patterns()`, `trigger_patterns()`)
+### Self-Improvement Path (Learning → Proposal → Review → Execute)
+- Learning loop: `idle_learning.py` line ~1
+- Critic: `idle_learning.py` line ~100 (`run_critic()`)
+- Synthesizer: `idle_learning.py` line ~150 (`run_synthesizer()`)
+- Proposals save: `idle_learning.py` line ~200 (`save_proposals()`)
+- Execution: `apply_improvements.py` line ~1
+### State Management
+- `state.json` — Current system snapshot (containers, internet, VPN, Ollama status)
+- `events.json` — Last detected events
+- `memory_log.json` — Event history (max 1000 entries, capped on trim)
+- `patterns.json` — Learned time-correlated patterns + last_triggered timestamps
+- `finance/transactions.json` — Income/expenses with timestamps
+- `jobs/opportunities.json` — Job search pipeline state
+- `smoking/log.json` — Cigarette log with timestamps
+- `learning/proposals.json` — All proposals (pending/reviewed/accepted/rejected)
+- `learning/dreams.md` — REM memory consolidation (append-only, dedup)
+- Routing metrics (v2_calls, v1_calls, fallbacks, role distribution) — reset on process restart
+- Telegram conversation history per chat (sliding window 10 turns, 10 min TTL)
+- Guardrail state (cooldowns, frequency counters, VRAM swap tracking) — persistent file `guardrail_state.json`
+## Key Abstractions
+- Purpose: Map user messages to execution paths without full LLM inference
+- Examples: `telegram_router.py` keyword matchers for skills, `orchestrator.py` category rules, `model_router.py` role heuristics
+- Pattern: Regex rules first, keyword scoring second, fallback to LLM if ambiguous
+- Purpose: Prevent dangerous or unauthorized Docker/file operations
+- Examples: `docker_wrapper.py` whitelist (ps/restart/start/stop), blocklist (openclaw/watchtower), container name regex validation
+- Pattern: Default-deny, explicit allowlist, sanitization before subprocess call
+- Purpose: Select optimal model for task type without user specification
+- Examples: fast (qwen2.5:7b), reason (deepseek-r1:14b), code (qwen2.5-coder:14b), heavy (qwen2.5:32b)
+- Pattern: Heuristic classification → role → backend detection → VRAM fit check → guardrails → fallback chain
+- Purpose: Execute known capabilities (weather, calendar, email) without LLM hallucination risk
+- Examples: Weather calls Open-Meteo curl, Calendar queries Google Calendar API, Email queries Gmail via himalaya
+- Pattern: Orchestrator intercepts → calls skill subprocess → captures output → formats for user
+- Purpose: Require human review for risky actions before execution
+- Examples: Autofix tier-2 code changes, high-risk proposals, infrastructure restarts
+- Pattern: Action generated → queued for approval → Telegram buttons (approve/reject/details) → execute only if approved
+- Purpose: Track improvement ideas with context, decision history, and execution status
+- Examples: Error-mining proposals (type: routing_adjustment), guardrail tuning (type: guardrail_tuning)
+- Pattern: Generated with `id`, `type`, `status` (proposed/reviewed/accepted/rejected), `source`, `evidence`, never auto-applied
+- Purpose: Combine insights from multiple models (Qwen for synthesis, Deepseek for reasoning, Ollama for local speed)
+- Examples: Critic (deepseek-r1) analyzes logs, Synthesizer (qwen2.5:32b) generates solutions
+- Pattern: Critic provides analysis → synthesizer builds on analysis → merge results with dedup
+## Entry Points
+- Location: `telegram_router.py` line ~1 (`main()`)
+- Triggers: Telegram bot poll updates every 30s (long-polling)
+- Responsibilities: Classify message, intercept skills, forward to LLM if needed, send response
+- Location: `runtime.py` line ~1 (`main()`)
+- Triggers: DSM Task Scheduler via `docker exec` every 5 minutes
+- Responsibilities: Detect infrastructure events, enqueue tasks, execute, log, pattern detection
+- Location: `idle_learning.py` line ~1 (`main()`)
+- Triggers: CLI `python3 idle_learning.py` or cron (configurable)
+- Responsibilities: Analyze logs/metrics via multi-model, generate proposals, save JSON
+- Location: `worker_supervisor.py` line ~1
+- Triggers: Cron (alternative to direct `runtime.py`)
+- Responsibilities: Run 5 workers (runtime, diagnostics, rag, agents, learning) with isolation + timeout protection
+## Architectural Constraints
+- **Threading:** Single-threaded event loop (runtime.py, telegram_router.py) — all concurrency via subprocess + multiprocessing for workers
+- **Global state:** Orchestrator metrics stored in-memory with reset on process restart; guardrail state persisted to `guardrail_state.json`
+- **Circular imports:** Models imported lazily in `model_router.py` to avoid import cycles with orchestrator
+- **IPC:** No shared memory between workers; coordination via JSON state files + SQL (health_sweep.sqlite)
+- **Model loading:** All Ollama models loaded on-demand (not preloaded); latency ~2-5s first inference
+- **API rate limits:** OpenRouter balance checked hourly (cached), Telegram uses long-polling (no rate limit)
+- **Docker socket:** Mounted at `/var/run/docker.sock` in container, only accessible via `docker_wrapper.py`
+## Anti-Patterns
+### LLM Over Determinism
+### Missing Approval for Risky Actions
+### Blocking on External API Calls
+### Unbounded Memory Growth
+## Error Handling
+- Load state gracefully: `load_json()` returns default dict on missing/corrupt file
+- Subprocess safety: All Docker calls wrapped in try-except + logged; non-zero exit doesn't stop loop
+- LLM fallback: If Ollama offline, try NAS CPU; if both down, try cloud; if all fail, log and return empty
+- Approval timeout: If user doesn't approve within 5 min, auto-expire and log decision
+- Proposal parsing: JSON parse failures logged with `_raw` field for manual recovery
+## Cross-Cutting Concerns
+- `telegram_router.log` — message classification, skill execution, LLM calls
+- `orchestrator.log` — routing decisions, model selection, pipeline execution
+- `model_router.log` — backend pings, role classification, guardrail decisions
+- `runtime.log` — event detection, task execution, pattern triggers
+- `finance.log` — transaction parsing, alerts
+- Container names: Regex `^[a-zA-Z0-9][a-zA-Z0-9_.-]*$` before Docker subprocess
+- API responses: Check `ok` field, handle missing/malformed data gracefully
+- User input (Telegram): Strip to 4096 char limit, sanitize Markdown for Telegram format
+- Telegram: Bot token from `openclaw.json`, allowlist chat IDs from config
+- Google Calendar: OAuth refresh token in `gcal-token.json` (read-only)
+- Gmail: App password via himalaya config (IMAP/SMTP)
+- IOL InvertirOnline: Bearer token from `openclaw.json`, refresh every 10 min
+<!-- GSD:architecture-end -->
+
+<!-- GSD:skills-start source:skills/ -->
+## Project Skills
+
+No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with a `SKILL.md` index file.
+<!-- GSD:skills-end -->
+
+<!-- GSD:workflow-start source:GSD defaults -->
+## GSD Workflow Enforcement
+
+Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
+
+Use these entry points:
+- `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
+- `/gsd-debug` for investigation and bug fixing
+- `/gsd-execute-phase` for planned phase work
+
+Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+<!-- GSD:workflow-end -->
+
+<!-- GSD:profile-start -->
+## Developer Profile
+
+> Profile not yet configured. Run `/gsd-profile-user` to generate your developer profile.
+> This section is managed by `generate-claude-profile` -- do not edit manually.
+<!-- GSD:profile-end -->
