@@ -15,6 +15,7 @@ import math
 from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 try:
     from .runtime_config import get_default_telegram_chat_id
@@ -39,11 +40,9 @@ THRESHOLDS = {
 }
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -106,7 +105,7 @@ def calculate_metrics() -> dict:
         hyp_acc = {"accuracy": 0, "total": 0}
 
     report = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "total_trades": len(closed),
         "winners": len(winners),
         "losers": len(losers),

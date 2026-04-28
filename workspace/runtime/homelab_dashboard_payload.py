@@ -15,6 +15,7 @@ Usage:
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -25,13 +26,10 @@ STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exist
 LOG_FILE = BASE_DIR / "logs" / "dashboard.log"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -52,7 +50,7 @@ def _safe_import(module_name: str, func_name: str, *args, **kwargs):
 
 def build_payload() -> dict:
     """Build the complete dashboard payload."""
-    payload = {"ts": _now().isoformat()}
+    payload = {"ts": now().isoformat()}
 
     # 1. Homelab snapshot
     payload["snapshot"] = _safe_import("homelab_snapshot", "snapshot") or {}
@@ -127,7 +125,7 @@ def format_telegram(payload: dict = None) -> str:
     if payload is None:
         payload = build_payload()
 
-    now_str = _now().strftime("%H:%M %d/%m")
+    now_str = now().strftime("%H:%M %d/%m")
     lines = [f"Tenazas Dashboard ({now_str})"]
     lines.append("")
 

@@ -15,6 +15,7 @@ Logs to logs/shared_memory.log.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -30,9 +31,6 @@ MAX_ENTRIES_PER_TYPE = 100
 
 SKILLS_DIR = Path("/home/tenazas/.openclaw/workspace/skills")
 
-
-def _now():
-    return datetime.now().astimezone()
 
 
 def _log(entry: dict):
@@ -74,13 +72,13 @@ def add_entry(memory_type: str, content: str, source: str = "", metadata: dict =
         True if added successfully
     """
     if memory_type not in MEMORY_TYPES:
-        _log({"ts": _now().isoformat(), "action": "add_entry", "type": memory_type,
+        _log({"ts": now().isoformat(), "action": "add_entry", "type": memory_type,
               "ok": False, "error": f"Invalid memory type: {memory_type}"})
         return False
 
     data = load_memory()
     entry = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "content": content,
         "source": source,
     }
@@ -90,7 +88,7 @@ def add_entry(memory_type: str, content: str, source: str = "", metadata: dict =
     data[memory_type].append(entry)
     save_memory(data)
 
-    _log({"ts": _now().isoformat(), "action": "add_entry", "type": memory_type,
+    _log({"ts": now().isoformat(), "action": "add_entry", "type": memory_type,
           "source": source, "ok": True})
     return True
 
@@ -121,7 +119,7 @@ def query_memory(memory_type: str, keyword: str = "", limit: int = 10) -> list:
     results = entries[-limit:]
     results.reverse()
 
-    _log({"ts": _now().isoformat(), "action": "query", "type": memory_type,
+    _log({"ts": now().isoformat(), "action": "query", "type": memory_type,
           "keyword": keyword, "results": len(results)})
     return results
 
@@ -131,7 +129,7 @@ def clear_working_memory():
     data = load_memory()
     data["working"] = []
     save_memory(data)
-    _log({"ts": _now().isoformat(), "action": "clear_working", "ok": True})
+    _log({"ts": now().isoformat(), "action": "clear_working", "ok": True})
 
 
 def ingest_episodic():
@@ -163,7 +161,7 @@ def ingest_episodic():
             added += 1
 
     save_memory(data)
-    _log({"ts": _now().isoformat(), "action": "ingest_episodic", "added": added})
+    _log({"ts": now().isoformat(), "action": "ingest_episodic", "added": added})
 
 
 def ingest_procedural():
@@ -181,14 +179,14 @@ def ingest_procedural():
                 source = str(skill_md)
                 if source not in existing_sources:
                     data["procedural"].append({
-                        "ts": _now().isoformat(),
+                        "ts": now().isoformat(),
                         "content": f"Skill: {skill_dir.name}",
                         "source": source,
                     })
                     added += 1
 
     save_memory(data)
-    _log({"ts": _now().isoformat(), "action": "ingest_procedural", "added": added})
+    _log({"ts": now().isoformat(), "action": "ingest_procedural", "added": added})
 
 
 def get_memory_stats() -> dict:

@@ -13,19 +13,17 @@ import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 METRICS_DIR = BASE_DIR / "metrics"
 METRICS_LOG = BASE_DIR / "logs" / "metrics.log"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _today_file() -> Path:
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
-    return METRICS_DIR / f"{_now().strftime('%Y-%m-%d')}.json"
+    return METRICS_DIR / f"{now().strftime('%Y-%m-%d')}.json"
 
 
 def _load_day(path: Path) -> list:
@@ -45,7 +43,7 @@ def _save_day(path: Path, entries: list):
 
 def _log(entry: dict):
     METRICS_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(METRICS_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -62,7 +60,7 @@ def record(event_type: str, data: dict):
         data: event-specific payload
     """
     entry = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "type": event_type,
         **data,
     }
@@ -132,7 +130,7 @@ def _load_range(days: int = 7) -> list:
     """Load metrics from the last N days."""
     entries = []
     for i in range(days):
-        day = _now() - timedelta(days=i)
+        day = now() - timedelta(days=i)
         path = METRICS_DIR / f"{day.strftime('%Y-%m-%d')}.json"
         entries.extend(_load_day(path))
     return entries

@@ -17,6 +17,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -33,13 +34,10 @@ BENCHMARK_WINDOW_DAYS = 7
 MIN_SAMPLES = 3
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -48,7 +46,7 @@ def _load_metrics(days: int = BENCHMARK_WINDOW_DAYS) -> list:
     """Load metric entries from the last N days."""
     entries = []
     for i in range(days):
-        day = _now() - timedelta(days=i)
+        day = now() - timedelta(days=i)
         path = METRICS_DIR / f"{day.strftime('%Y-%m-%d')}.json"
         try:
             with open(path) as f:
@@ -148,7 +146,7 @@ def _benchmark_diagnostic_accuracy(entries: list) -> dict:
     recurrence_count = 0
     total_issues = 0
 
-    cutoff = _now() - timedelta(days=BENCHMARK_WINDOW_DAYS)
+    cutoff = now() - timedelta(days=BENCHMARK_WINDOW_DAYS)
 
     for i, entry in enumerate(memory):
         try:
@@ -227,7 +225,7 @@ def run_benchmark() -> dict:
     entries = _load_metrics()
 
     report = {
-        "benchmark_date": _now().isoformat(),
+        "benchmark_date": now().isoformat(),
         "window_days": BENCHMARK_WINDOW_DAYS,
         "total_metrics_entries": len(entries),
         "model_quality": _benchmark_model_quality(entries),
@@ -264,7 +262,7 @@ APPROVAL_LOG = BASE_DIR / "logs" / "approval_queue.log"
 def _load_jsonl(path: Path, max_age_hours: int = 24) -> list:
     """Load JSONL log entries from last N hours."""
     entries = []
-    cutoff = _now() - timedelta(hours=max_age_hours)
+    cutoff = now() - timedelta(hours=max_age_hours)
     try:
         with open(path) as f:
             for line in f:
@@ -461,7 +459,7 @@ def run_gate(candidate_id: str = None) -> dict:
     If candidate_id is given, checks if promoting it would break metrics.
     """
     results = {
-        "gate_run_at": _now().isoformat(),
+        "gate_run_at": now().isoformat(),
         "candidate_id": candidate_id,
         "checks": {},
         "passed": True,

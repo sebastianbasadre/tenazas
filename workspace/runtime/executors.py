@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import docker_wrapper
 from .runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 EXECUTOR_LOG = BASE_DIR / "logs" / "executor.log"
@@ -33,9 +34,6 @@ OLLAMA_STATUS_FILE = Path("/tmp/ollama-notebook.status")
 OPENCLAW_CONFIG = Path("/home/tenazas/.openclaw/openclaw.json")
 TELEGRAM_CHAT = get_default_telegram_chat_id()
 
-
-def _now():
-    return datetime.now().astimezone().isoformat()
 
 
 def _log_exec(entry: dict):
@@ -140,7 +138,7 @@ def notify_telegram(message: str) -> bool:
     """Send a Telegram notification to Sebas. Returns True on success."""
     token = get_telegram_bot_token()
     if not token or not TELEGRAM_CHAT:
-        _log_exec({"ts": _now(), "action": "telegram", "ok": False, "error": "cannot read bot token"})
+        _log_exec({"ts": now(), "action": "telegram", "ok": False, "error": "cannot read bot token"})
         return False
 
     r = _run_cmd([
@@ -150,7 +148,7 @@ def notify_telegram(message: str) -> bool:
     ], timeout=15)
 
     ok = r.returncode == 0
-    _log_exec({"ts": _now(), "action": "telegram", "ok": ok})
+    _log_exec({"ts": now(), "action": "telegram", "ok": ok})
     return ok
 
 
@@ -174,7 +172,7 @@ def execute_task(task: dict) -> dict:
         result = handler(task)
 
     entry = {
-        "ts": _now(),
+        "ts": now(),
         "action": action,
         "target": task.get("target", ""),
         "reason": task.get("reason", ""),

@@ -10,6 +10,7 @@ import json
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 METRICS_DIR = BASE_DIR / "metrics"
@@ -19,13 +20,10 @@ ANALYTICS_FILE = BASE_DIR / "skill_analytics.json"
 SKILLS_DIR = "/home/tenazas/.openclaw/workspace/skills"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -42,7 +40,7 @@ def list_skills() -> list:
 def _load_metrics(days: int = 7) -> list:
     entries = []
     for i in range(days):
-        day = _now() - timedelta(days=i)
+        day = now() - timedelta(days=i)
         path = METRICS_DIR / f"{day.strftime('%Y-%m-%d')}.json"
         try:
             with open(path) as f:
@@ -94,7 +92,7 @@ def generate_report(days: int = 7) -> dict:
         "usage": usage,
         "unused_skills": unused[:10],
         "suggestions": [],
-        "generated_at": _now().isoformat(),
+        "generated_at": now().isoformat(),
     }
 
     if unused:

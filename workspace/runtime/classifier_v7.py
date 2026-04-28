@@ -5,8 +5,8 @@ Classifier V7 — Multi-tier classification pipeline.
 Flow:
   1. Normalize input
   2. Regex fast-path (confidence tiers: >=0.90 direct, >=0.70 candidate)
-  3. Gemma 12B via Ollama (7.5s timeout, 2.5s slow threshold)
-  4. Fallback: regex candidate → finetuned v6 → safe chat
+  3. Qwen3 30B via Ollama (7.5s timeout, /no_think, temp=0)
+  4. Fallback: Gemma 12B → regex candidate → finetuned v6 → safe chat
   5. NEVER returns None, NEVER crashes
 
 Integrates additively with orchestrator.py classify_query().
@@ -23,16 +23,23 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import URLError
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "classifier_v7.log"
 
-# Gemma config
-GEMMA_URL = "http://192.168.2.6:11434/api/generate"
-GEMMA_MODEL = "gemma2:12b"  # adjust when model is pulled
-GEMMA_HARD_TIMEOUT = 7.5
-GEMMA_SLOW_THRESHOLD = 2.5
-GEMMA_MIN_CONFIDENCE = 0.6
+# Qwen3 config (primary)
+OLLAMA_BASE = "http://192.168.2.6:11434"
+QWEN3_MODEL = "qwen3:30b"
+QWEN3_TIMEOUT = 7.5
+QWEN3_SLOW_THRESHOLD = 3.0
+
+# Gemma config (fallback)
+GEMMA_MODEL = "gemma3:12b"
+GEMMA_HARD_TIMEOUT = 15.0
+GEMMA_SLOW_THRESHOLD = 5.0
+
+LLM_MIN_CONFIDENCE = 0.6
 
 # Finetuned V6 domains
 V6_DOMAINS = {"infra", "arr", "smart-home", "network", "containers",
@@ -51,13 +58,10 @@ VALID_TOOLS = {
 }
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -178,27 +182,87 @@ def regex_classify(query: str) -> tuple[str | None, float]:
     return best_cat, round(confidence, 2)
 
 
-# ── Step 3: Gemma 12B ──────────────────────────────────────────
+# ── Step 3: Qwen3 30B (primary) ───────────────────────────────
+
+_CLASSIFIER_SYSTEM_PROMPT = (
+    "You are a query classifier for a home automation assistant called Tenazas. "
+    "Classify the following query into EXACTLY ONE of these categories:\n"
+    "skill:weather, skill:email, skill:calendar, skill:smart-home, skill:tts, "
+    "skill:network-scanner, skill:arr-monitor, skill:infra-monitor, "
+    "skill:morning-greeting, skill:self-evolve, skill:reminders, "
+    "skill:smoking, skill:expense, skill:iol-broker, "
+    "chat, knowledge_query, infrastructure_issue, automation_command, "
+    "diagnostic_request, complex_reasoning\n\n"
+    "Respond ONLY with JSON: {\"tool\": \"category_name\", \"confidence\": 0.0-1.0} /no_think"
+)
+
+
+def qwen3_classify(query: str) -> tuple[str | None, float, str]:
+    """Classify via Qwen3 30B on HomeLab GPU (think:false, temp=0).
+
+    Uses /api/chat with think:false — Ollama disables the <think> tag but the
+    model may still emit chain-of-thought before the JSON answer.  We parse the
+    last JSON object from the response which is the actual classification.
+
+    Returns (tool, confidence, reason).
+    reason: "qwen3_success", "qwen3_slow", "qwen3_timeout", "qwen3_error"
+    """
+    payload = json.dumps({
+        "model": QWEN3_MODEL,
+        "messages": [
+            {"role": "system", "content": _CLASSIFIER_SYSTEM_PROMPT},
+            {"role": "user", "content": query},
+        ],
+        "stream": False,
+        "think": False,
+        "options": {"temperature": 0, "num_predict": 500},
+    }).encode()
+
+    start = time.time()
+    try:
+        resp = urlopen(
+            Request(f"{OLLAMA_BASE}/api/chat", data=payload,
+                    headers={"Content-Type": "application/json"}),
+            timeout=QWEN3_TIMEOUT,
+        )
+        elapsed = time.time() - start
+        raw = json.loads(resp.read()).get("message", {}).get("content", "")
+
+        # Strip thinking prefix: content may contain CoT before </think> or JSON
+        if "</think>" in raw:
+            raw = raw.split("</think>")[-1].strip()
+
+        tool, conf = _parse_llm_response(raw)
+
+        if tool and tool in VALID_TOOLS and conf >= LLM_MIN_CONFIDENCE:
+            reason = "qwen3_success" if elapsed < QWEN3_SLOW_THRESHOLD else "qwen3_slow"
+            _log({"action": "qwen3_classify", "tool": tool, "confidence": conf,
+                  "elapsed": round(elapsed, 2), "reason": reason})
+            return tool, conf, reason
+
+        _log({"action": "qwen3_low_confidence", "tool": tool, "confidence": conf,
+              "elapsed": round(elapsed, 2), "raw": raw[:100]})
+        return None, conf, "qwen3_low_confidence"
+
+    except Exception as e:
+        elapsed = time.time() - start
+        reason = "qwen3_timeout" if elapsed >= QWEN3_TIMEOUT - 0.5 else "qwen3_error"
+        _log({"action": reason, "error": str(e)[:100], "elapsed": round(elapsed, 2)})
+        return None, 0.0, reason
+
+
+# ── Step 3b: Gemma 12B (fallback) ─────────────────────────────
 
 
 def gemma_classify(query: str) -> tuple[str | None, float, str]:
-    """Classify via Gemma 12B on HomeLab GPU.
+    """Classify via Gemma 12B on HomeLab GPU (fallback if Qwen3 fails).
 
     Returns (tool, confidence, reason).
     reason: "gemma_success", "gemma_slow_wait", "gemma_timeout", "gemma_error"
     """
     prompt = (
-        "You are a query classifier for a home automation assistant called Tenazas. "
-        "Classify the following query into EXACTLY ONE of these categories:\n"
-        "skill:weather, skill:email, skill:calendar, skill:smart-home, skill:tts, "
-        "skill:network-scanner, skill:arr-monitor, skill:infra-monitor, "
-        "skill:morning-greeting, skill:self-evolve, skill:reminders, "
-        "skill:smoking, skill:expense, skill:iol-broker, "
-        "chat, knowledge_query, infrastructure_issue, automation_command, "
-        "diagnostic_request, complex_reasoning\n\n"
-        f"Query: \"{query}\"\n\n"
-        "Respond with ONLY a JSON object: {\"tool\": \"category_name\", \"confidence\": 0.0-1.0}\n"
-        "No explanation, no extra text."
+        f"{_CLASSIFIER_SYSTEM_PROMPT}\n\n"
+        f"Query: \"{query}\"\n"
     )
 
     payload = json.dumps({
@@ -211,23 +275,21 @@ def gemma_classify(query: str) -> tuple[str | None, float, str]:
     start = time.time()
     try:
         resp = urlopen(
-            Request(GEMMA_URL, data=payload,
+            Request(f"{OLLAMA_BASE}/api/generate", data=payload,
                     headers={"Content-Type": "application/json"}),
             timeout=GEMMA_HARD_TIMEOUT,
         )
         elapsed = time.time() - start
         raw = json.loads(resp.read()).get("response", "")
 
-        # Parse JSON from response
-        tool, conf = _parse_gemma_response(raw)
+        tool, conf = _parse_llm_response(raw)
 
-        if tool and tool in VALID_TOOLS and conf >= GEMMA_MIN_CONFIDENCE:
+        if tool and tool in VALID_TOOLS and conf >= LLM_MIN_CONFIDENCE:
             reason = "gemma_success" if elapsed < GEMMA_SLOW_THRESHOLD else "gemma_slow_wait"
             _log({"action": "gemma_classify", "tool": tool, "confidence": conf,
                   "elapsed": round(elapsed, 2), "reason": reason})
             return tool, conf, reason
 
-        # Low confidence
         _log({"action": "gemma_low_confidence", "tool": tool, "confidence": conf,
               "elapsed": round(elapsed, 2), "raw": raw[:100]})
         return None, conf, "gemma_low_confidence"
@@ -239,8 +301,12 @@ def gemma_classify(query: str) -> tuple[str | None, float, str]:
         return None, 0.0, reason
 
 
-def _parse_gemma_response(raw: str) -> tuple[str | None, float]:
-    """Parse Gemma JSON response tolerantly."""
+def _parse_llm_response(raw: str) -> tuple[str | None, float]:
+    """Parse LLM JSON response tolerantly.
+
+    Finds the LAST JSON object in the text — important because Qwen3 with
+    think:false may dump chain-of-thought before the actual JSON answer.
+    """
     # Try direct JSON parse
     try:
         data = json.loads(raw.strip())
@@ -248,14 +314,15 @@ def _parse_gemma_response(raw: str) -> tuple[str | None, float]:
     except (json.JSONDecodeError, ValueError, TypeError):
         pass
 
-    # Try extracting JSON from text
-    m = re.search(r'\{[^}]+\}', raw)
-    if m:
+    # Try extracting LAST JSON object from text (skip CoT fragments)
+    matches = list(re.finditer(r'\{[^}]+\}', raw))
+    for m in reversed(matches):
         try:
             data = json.loads(m.group())
-            return data.get("tool"), float(data.get("confidence", 0))
+            if "tool" in data:
+                return data.get("tool"), float(data.get("confidence", 0))
         except (json.JSONDecodeError, ValueError, TypeError):
-            pass
+            continue
 
     # Try extracting tool name directly
     for tool in VALID_TOOLS:
@@ -323,7 +390,19 @@ def classify(query: str) -> dict:
 
     regex_candidate = regex_tool if regex_conf >= 0.70 else None
 
-    # Step 3: Gemma 12B
+    # Step 3: Qwen3 30B (primary)
+    qwen_tool, qwen_conf, qwen_reason = qwen3_classify(q)
+    steps.append(f"qwen3:{qwen_reason}")
+
+    if qwen_tool and qwen_reason in ("qwen3_success", "qwen3_slow"):
+        _log({"action": "classify", "tool": qwen_tool, "confidence": qwen_conf,
+              "reason": qwen_reason, "query": q[:80]})
+        return {
+            "tool": qwen_tool, "confidence": qwen_conf,
+            "reason": qwen_reason, "pipeline_steps": steps,
+        }
+
+    # Step 3b: Gemma 12B (fallback if Qwen3 failed)
     gemma_tool, gemma_conf, gemma_reason = gemma_classify(q)
     steps.append(f"gemma:{gemma_reason}")
 

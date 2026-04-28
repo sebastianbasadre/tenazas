@@ -25,6 +25,7 @@ import re
 import time
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "cognitive_core.log"
@@ -159,13 +160,10 @@ STRATEGIES = {
 # ── Helpers ──────────────────────────────────────────────────────
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 

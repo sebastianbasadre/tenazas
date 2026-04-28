@@ -11,14 +11,12 @@ Storage: runtime/logs/decisions.jsonl (append-only, one JSON per line)
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 DECISIONS_LOG = BASE_DIR / "logs" / "decisions.jsonl"
 MAX_LOG_SIZE_MB = 10
 
-
-def _now():
-    return datetime.now().astimezone()
 
 
 def _ensure_log():
@@ -48,7 +46,7 @@ def trace(
     _ensure_log()
 
     entry = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "query": query[:200],
         "classification": classification,
         "pipeline": pipeline,
@@ -100,7 +98,7 @@ def get_escalations(limit: int = 20) -> list:
 
 def summary(hours: int = 24) -> dict:
     """Summarize decision traces from the last N hours."""
-    cutoff = _now() - timedelta(hours=hours)
+    cutoff = now() - timedelta(hours=hours)
     recent = get_recent(500)
     filtered = []
     for t in recent:

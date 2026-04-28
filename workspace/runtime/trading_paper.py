@@ -18,6 +18,7 @@ import json
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -32,11 +33,9 @@ FEE_PCT = 0.001             # 0.1%
 MIN_HYPOTHESIS_CONFIDENCE = 0.70
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -110,7 +109,7 @@ def open_trade(hypothesis: dict) -> dict | None:
         stop_loss = price * (1 + STOP_LOSS_PCT)
 
     trade = {
-        "trade_id": sha256(f"{hypothesis['hypothesis_id']}:{_now().isoformat()}".encode()).hexdigest()[:12],
+        "trade_id": sha256(f"{hypothesis['hypothesis_id']}:{now().isoformat()}".encode()).hexdigest()[:12],
         "hypothesis_id": hypothesis["hypothesis_id"],
         "asset": hypothesis["asset"],
         "direction": direction,
@@ -120,7 +119,7 @@ def open_trade(hypothesis: dict) -> dict | None:
         "take_profit": hypothesis["target_price"],
         "fee_paid": round(fee, 2),
         "status": "open",
-        "opened_at": _now().isoformat(),
+        "opened_at": now().isoformat(),
         "pnl_usdt": None,
         "pnl_pct": None,
     }
@@ -177,7 +176,7 @@ def check_trades() -> list:
             trade["exit_price"] = price
             trade["pnl_usdt"] = round(pnl_usdt, 2)
             trade["pnl_pct"] = round(pnl_pct * 100, 2)
-            trade["closed_at"] = _now().isoformat()
+            trade["closed_at"] = now().isoformat()
 
             # Return funds to portfolio
             portfolio["balance"] = round(portfolio["balance"] + trade["size_usdt"] + pnl_usdt, 2)

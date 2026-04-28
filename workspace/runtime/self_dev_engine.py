@@ -12,6 +12,7 @@ Log: workspace/runtime/logs/self_dev.log
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -25,13 +26,10 @@ TELEMETRY_LOG = BASE_DIR / "logs" / "self_dev.log"
 MAX_PROPOSALS = 30
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -217,7 +215,7 @@ def generate_proposals() -> list:
         key = (p["module"], p["change_description"][:50])
         if key not in seen:
             seen.add(key)
-            p["proposed_at"] = _now().isoformat()
+            p["proposed_at"] = now().isoformat()
             p["status"] = "pending"
             unique.append(p)
 
@@ -237,7 +235,7 @@ def generate_proposals() -> list:
 
     data = {
         "proposals": all_saved,
-        "last_analysis": _now().isoformat(),
+        "last_analysis": now().isoformat(),
         "pending_count": len(unique),
     }
     save_json(PROPOSALS_FILE, data)

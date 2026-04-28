@@ -18,6 +18,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 METRICS_LOG = BASE_DIR / "logs" / "runtime_metrics.log"
@@ -30,9 +31,6 @@ try:
 except ImportError:
     PROM_AVAILABLE = False
 
-
-def _now():
-    return datetime.now().astimezone()
 
 
 # ── Prometheus Metrics (if available) ────────────────────────────
@@ -144,7 +142,7 @@ def start_server():
 def _log_metric(name: str, value=1, labels: dict | None = None):
     """Append metric to JSON log file (fallback when no prometheus)."""
     METRICS_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry = {"ts": _now().isoformat(), "metric": name, "value": value}
+    entry = {"ts": now().isoformat(), "metric": name, "value": value}
     if labels:
         entry["labels"] = labels
     with open(METRICS_LOG, "a") as f:

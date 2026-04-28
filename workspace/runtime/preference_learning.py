@@ -26,6 +26,7 @@ import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -41,13 +42,10 @@ MIN_CONFIDENCE = 0.1
 MAX_CONFIDENCE = 0.95
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -94,7 +92,7 @@ def record_signal(signal_type: str, category: str, reason: str = "", metadata: d
         "type": signal_type,
         "category": category,
         "reason": reason,
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "metadata": metadata or {},
     }
 
@@ -117,7 +115,7 @@ def record_signal(signal_type: str, category: str, reason: str = "", metadata: d
         if category not in prefs["rejections"]:
             prefs["rejections"][category] = []
         prefs["rejections"][category].append({
-            "reason": reason, "ts": _now().isoformat()
+            "reason": reason, "ts": now().isoformat()
         })
         # Keep last 10 rejections per category
         prefs["rejections"][category] = prefs["rejections"][category][-10:]
@@ -138,7 +136,7 @@ def record_signal(signal_type: str, category: str, reason: str = "", metadata: d
               "total": prefs["skill_usage"][category]})
 
     elif signal_type == "telegram_activity":
-        hour = str(_now().hour)
+        hour = str(now().hour)
         prefs["telegram_hours"][hour] = prefs["telegram_hours"].get(hour, 0) + 1
 
     _save_prefs(prefs)

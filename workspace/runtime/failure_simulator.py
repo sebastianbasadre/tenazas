@@ -13,25 +13,23 @@ NEVER touches real infrastructure.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "failure_simulator.log"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
 
 def _base_state() -> dict:
     return {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "containers": [
             {"name": n, "status": "Up 3 days", "up": True}
             for n in ["gluetun", "qbittorrent", "sonarr", "radarr", "lidarr",
@@ -55,7 +53,7 @@ def simulate_crash_loop(target: str = "sonarr", restarts: int = 5) -> dict:
             c["status"] = f"Restarting ({restarts}) 10 seconds ago"
             c["up"] = False
     memory = [
-        {"ts": _now().isoformat(), "events": [], "results": [
+        {"ts": now().isoformat(), "events": [], "results": [
             {"action": "docker.restart", "target": target, "ok": True}
         ]} for _ in range(restarts)
     ]

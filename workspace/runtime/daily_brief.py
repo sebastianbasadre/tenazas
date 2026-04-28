@@ -18,6 +18,7 @@ Output: prints brief to stdout (for Telegram capture) + logs to daily_brief.log
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "daily_brief.log"
@@ -29,13 +30,10 @@ JOBS_FILE = BASE_DIR / "jobs" / "opportunities.json"
 DAILY_IMPROVEMENT_FILE = BASE_DIR / "learning" / "daily_improvement.json"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -185,7 +183,7 @@ def generate_brief() -> dict:
     Returns:
         dict with: date, sections (dict of gathered data), brief_text, action
     """
-    now = _now()
+    now = now()
     sections = {}
     errors = []
 
@@ -239,7 +237,7 @@ def generate_brief() -> dict:
 
 def format_brief(brief: dict) -> str:
     """Format brief as concise Telegram-ready text."""
-    now = _now()
+    now = now()
     lines = [f"Buenos dias Sebas — {now.strftime('%A %d/%m')}"]
     lines.append("")
 

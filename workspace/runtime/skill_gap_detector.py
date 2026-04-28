@@ -25,6 +25,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -48,13 +49,10 @@ MEMORY_FILE = BASE_DIR / "memory_log.json"
 SHARED_MEMORY = BASE_DIR / "shared_memory.json"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -64,7 +62,7 @@ def _log(entry: dict):
 
 def _load_jsonl(path: Path, max_age_hours: int = 24) -> list:
     entries = []
-    cutoff = _now() - timedelta(hours=max_age_hours)
+    cutoff = now() - timedelta(hours=max_age_hours)
     try:
         with open(path) as f:
             for line in f:
@@ -233,7 +231,7 @@ def detect_all() -> list:
     # Add IDs and timestamps
     for gap in all_gaps:
         gap["id"] = _gap_id(gap["type"], gap["pattern"])
-        gap["detected_at"] = _now().isoformat()
+        gap["detected_at"] = now().isoformat()
 
     # Save
     GAPS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -268,7 +266,7 @@ def generate_proposals(gaps: list = None) -> list:
                 "suggested_tests": _suggest_tests(gap),
             },
             "status": "proposed",
-            "created_at": _now().isoformat(),
+            "created_at": now().isoformat(),
         }
         proposals.append(proposal)
 

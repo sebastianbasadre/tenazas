@@ -13,6 +13,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -34,9 +35,6 @@ SATURATION_COUNT = 10
 MAX_PROBABILITY = 0.90
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to predictions.log."""
@@ -56,7 +54,7 @@ def _analyze_history() -> dict:
     if not isinstance(memory, list):
         return {}
 
-    cutoff = _now() - timedelta(days=LOOKBACK_DAYS)
+    cutoff = now() - timedelta(days=LOOKBACK_DAYS)
     counts = defaultdict(int)
 
     for entry in memory:
@@ -156,14 +154,14 @@ def generate_predictions() -> list:
 
     # Save and log
     result = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "lookback_days": LOOKBACK_DAYS,
         "predictions": predictions,
     }
     save_json(PREDICTIONS_FILE, result)
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "generate_predictions",
         "count": len(predictions),
     })
@@ -209,7 +207,7 @@ def predict_next_hours(hours_ahead: int = 6) -> list:
     Returns:
         List of prediction dicts for the upcoming hours
     """
-    current_hour = _now().hour
+    current_hour = now().hour
     target_hours = [(current_hour + h) % 24 for h in range(1, hours_ahead + 1)]
 
     data = load_json(PREDICTIONS_FILE, {"predictions": []})

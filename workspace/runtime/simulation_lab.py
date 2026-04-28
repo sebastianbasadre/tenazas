@@ -15,6 +15,7 @@ Log: workspace/runtime/logs/simulation.log
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "simulation.log"
@@ -28,13 +29,10 @@ SIMULATED_CONTAINERS = [
 ]
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -45,7 +43,7 @@ def _log(entry: dict):
 def _healthy_state() -> dict:
     """Generate a healthy baseline system state."""
     return {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "containers": [
             {"name": c, "status": "Up 3 days", "up": True}
             for c in SIMULATED_CONTAINERS
@@ -304,7 +302,7 @@ def run_all_simulations() -> dict:
         "scenarios_run": len(results),
         "avg_quality_score": avg_quality,
         "results": results,
-        "run_at": _now().isoformat(),
+        "run_at": now().isoformat(),
     }
 
     _log({

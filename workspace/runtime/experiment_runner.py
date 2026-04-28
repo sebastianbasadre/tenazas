@@ -32,6 +32,7 @@ import time
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -53,13 +54,10 @@ VALID_TYPES = {
 }
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -113,8 +111,8 @@ def create(name: str, exp_type: str, config: dict,
     if len(active) >= 3:
         return {"error": "Max 3 concurrent experiments. Stop one first."}
 
-    experiment_id = sha256(f"{name}:{_now().isoformat()}".encode()).hexdigest()[:12]
-    expires_at = (_now() + timedelta(hours=MAX_DURATION_HOURS)).isoformat()
+    experiment_id = sha256(f"{name}:{now().isoformat()}".encode()).hexdigest()[:12]
+    expires_at = (now() + timedelta(hours=MAX_DURATION_HOURS)).isoformat()
 
     experiment = {
         "id": experiment_id,
@@ -123,7 +121,7 @@ def create(name: str, exp_type: str, config: dict,
         "config": config,
         "traffic_percent": traffic_percent,
         "status": "active",
-        "created_at": _now().isoformat(),
+        "created_at": now().isoformat(),
         "expires_at": expires_at,
         "baseline_metric": None,
         "results": {
@@ -151,7 +149,7 @@ def should_use_variant(experiment_id: str) -> bool:
     # Check expiry
     try:
         expires = datetime.fromisoformat(exp["expires_at"])
-        if _now() > expires:
+        if now() > expires:
             stop(experiment_id, reason="expired")
             return False
     except (ValueError, KeyError):
@@ -202,7 +200,7 @@ def check_guardrails(experiment_id: str) -> dict:
     # Check expiry
     try:
         expires = datetime.fromisoformat(exp["expires_at"])
-        if _now() > expires:
+        if now() > expires:
             stop(experiment_id, reason="expired")
             return {"ok": False, "reason": "expired", "action": "stopped"}
     except (ValueError, KeyError):
@@ -250,7 +248,7 @@ def stop(experiment_id: str, reason: str = "manual") -> bool:
         return False
 
     exp["status"] = "stopped"
-    exp["stopped_at"] = _now().isoformat()
+    exp["stopped_at"] = now().isoformat()
     exp["stop_reason"] = reason
     _save_experiment(exp)
     _log({"action": "stop", "id": experiment_id, "reason": reason})
@@ -298,7 +296,7 @@ def list_active() -> list:
                 # Check expiry
                 try:
                     expires = datetime.fromisoformat(exp["expires_at"])
-                    if _now() > expires:
+                    if now() > expires:
                         stop(exp["id"], reason="expired")
                         continue
                 except (ValueError, KeyError):

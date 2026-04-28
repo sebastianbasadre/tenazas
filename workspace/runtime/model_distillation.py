@@ -14,6 +14,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -30,13 +31,10 @@ MAX_CHAINS_PER_TYPE = 10
 MIN_CONFIDENCE_FOR_RECORD = 0.6
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -109,7 +107,7 @@ def record_reasoning_chain(query: str, result: dict, confidence: float = 0.0):
         "conclusion": (result.get("conclusion") or "")[:500],
         "agents_used": result.get("agents_used", []),
         "confidence": round(confidence, 4),
-        "recorded_at": _now().isoformat(),
+        "recorded_at": now().isoformat(),
     }
 
     # Load existing data
@@ -177,7 +175,7 @@ def _update_templates(data: dict):
                 4,
             ),
             "best_confidence": best.get("confidence", 0),
-            "last_updated": _now().isoformat(),
+            "last_updated": now().isoformat(),
         }
 
     data["templates"] = templates

@@ -19,6 +19,7 @@ import re
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 # ── Config ───────────────────────────────────────────────────────
 
@@ -51,14 +52,11 @@ DIAGNOSTICS_LOG = Path(__file__).parent / "logs" / "diagnostics.log"
 # ── Helpers ──────────────────────────────────────────────────────
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log_diagnostic(entry: dict):
     """Append JSON line to diagnostics log."""
     DIAGNOSTICS_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(DIAGNOSTICS_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -75,7 +73,7 @@ def _classify_source(source: str) -> str:
         match = re.match(r"memory/(\d{4}-\d{2}-\d{2})", source)
         if match:
             try:
-                days = (_now().date() - datetime.strptime(match.group(1), "%Y-%m-%d").date()).days
+                days = (now().date() - datetime.strptime(match.group(1), "%Y-%m-%d").date()).days
                 return "memory_recent" if days <= 7 else "memory_old"
             except ValueError:
                 pass

@@ -17,6 +17,7 @@ import re
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOGS_DIR = BASE_DIR / "logs"
@@ -29,13 +30,10 @@ LOOKBACK_HOURS = 24
 MAX_ERRORS_PER_REPORT = 20
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 

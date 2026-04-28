@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import URLError
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -34,11 +35,9 @@ SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
 MAX_OBSERVATIONS = 720  # 30 days × 24h
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -137,7 +136,7 @@ def classify_volatility(vol: float, price: float) -> str:
 
 def observe() -> dict:
     """Fetch all market data and save observation."""
-    observation = {"ts": _now().isoformat(), "tickers": {}, "fear_greed": None}
+    observation = {"ts": now().isoformat(), "tickers": {}, "fear_greed": None}
 
     # Fetch tickers
     for symbol in SYMBOLS:

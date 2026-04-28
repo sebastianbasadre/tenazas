@@ -64,13 +64,10 @@ TRAIN_CONFIG = {
 CHAT_ID = get_default_telegram_chat_id()
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -251,6 +248,7 @@ except ImportError:
 from datasets import load_dataset
 from trl import SFTTrainer
 from transformers import TrainingArguments
+from runtime_utils import now
 
 DATASET_DIR = Path.home() / "tenazas_finetune" / "dataset"
 OUTPUT_DIR = Path.home() / "tenazas_finetune" / "output" / "{cfg['output_name']}"
@@ -518,7 +516,7 @@ def phase_eval(dataset_path: str, dry_run: bool = False) -> dict:
 
     # Save eval results
     EVALS_DIR.mkdir(parents=True, exist_ok=True)
-    ts = _now().strftime("%Y%m%d_%H%M%S")
+    ts = now().strftime("%Y%m%d_%H%M%S")
     eval_path = EVALS_DIR / f"eval_results_{ts}.json"
     with open(eval_path, "w") as f:
         json.dump(new_result, f, indent=2, ensure_ascii=False)
@@ -548,7 +546,7 @@ def phase_eval(dataset_path: str, dry_run: bool = False) -> dict:
                 "old_f1": old_f1,
                 "new_f1": new_f1,
                 "eval": new_result,
-                "timestamp": _now().isoformat(),
+                "timestamp": now().isoformat(),
             }, f, indent=2, ensure_ascii=False)
 
         result["fail_report"] = str(fail_path)

@@ -16,6 +16,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -33,13 +34,10 @@ ESCALATION_THRESHOLD = 0.3  # If >30% escalate, adjust routing
 CONFIDENCE_THRESHOLD = 0.7   # Below this, pipeline underperforms
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -48,7 +46,7 @@ def _load_metrics(days: int = ANALYSIS_WINDOW_DAYS) -> list:
     """Load metric entries from the last N days."""
     entries = []
     for i in range(days):
-        day = _now() - timedelta(days=i)
+        day = now() - timedelta(days=i)
         path = METRICS_DIR / f"{day.strftime('%Y-%m-%d')}.json"
         try:
             with open(path) as f:
@@ -147,7 +145,7 @@ def optimize() -> dict:
     # Save
     full_state = {
         "preferences": state,
-        "last_optimization": _now().isoformat(),
+        "last_optimization": now().isoformat(),
         "analysis_window_days": ANALYSIS_WINDOW_DAYS,
         "total_queries_analyzed": sum(s["count"] for s in by_type.values()),
     }

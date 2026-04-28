@@ -17,6 +17,7 @@ SAFETY: Read-only analysis. Never modifies infrastructure.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -46,13 +47,10 @@ INFO = "info"
 # ── Helpers ──────────────────────────────────────────────────────
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log_diagnostic(entry: dict):
     DIAGNOSTICS_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(DIAGNOSTICS_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -86,7 +84,7 @@ def _check_containers(state: dict, memory: list) -> list:
             })
 
     # Crash loop detection: count restart events in recent memory
-    cutoff = _now() - timedelta(hours=CRASH_LOOP_LOOKBACK_HOURS)
+    cutoff = now() - timedelta(hours=CRASH_LOOP_LOOKBACK_HOURS)
     restart_counts = {}
 
     for entry in memory if isinstance(memory, list) else []:

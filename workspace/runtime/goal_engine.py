@@ -16,6 +16,7 @@ Stores state in goals_state.json. Logs to logs/goals.log.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -61,9 +62,6 @@ PERMANENT_GOALS = [
 ]
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to goals.log."""
@@ -78,7 +76,7 @@ def _count_today_events() -> int:
     if not isinstance(memory, list):
         return 0
 
-    today = _now().date().isoformat()
+    today = now().date().isoformat()
     count = 0
     for entry in memory:
         ts = entry.get("ts", "")
@@ -93,7 +91,7 @@ def _count_today_restarts() -> int:
     if not isinstance(memory, list):
         return 0
 
-    today = _now().date().isoformat()
+    today = now().date().isoformat()
     count = 0
     for entry in memory:
         ts = entry.get("ts", "")
@@ -128,7 +126,7 @@ def load_goals() -> list:
 
 def save_goals(goals: list):
     """Save goal states to disk."""
-    save_json(GOALS_FILE, {"goals": goals, "last_updated": _now().isoformat()})
+    save_json(GOALS_FILE, {"goals": goals, "last_updated": now().isoformat()})
 
 
 def evaluate_goals() -> list:
@@ -195,12 +193,12 @@ def evaluate_goals() -> list:
 
         goal["metrics"] = metrics
         goal["status"] = "achieved" if met else "active"
-        goal["last_evaluation"] = _now().isoformat()
+        goal["last_evaluation"] = now().isoformat()
 
     save_goals(goals)
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "evaluate_goals",
         "results": {g["id"]: g["status"] for g in goals},
     })

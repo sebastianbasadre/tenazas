@@ -19,6 +19,7 @@ Usage:
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -31,13 +32,10 @@ CANARY_EVAL_THRESHOLD = 100    # queries before full promotion
 ACCURACY_THRESHOLD = 0.80      # 80% accuracy to advance
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -82,12 +80,12 @@ def register(skill_id: str, name: str, description: str, source: str = "skill_ga
         "description": description,
         "phase": "proposed",
         "source": source,
-        "registered_at": _now().isoformat(),
+        "registered_at": now().isoformat(),
         "shadow_queries": 0,
         "shadow_correct": 0,
         "canary_queries": 0,
         "canary_correct": 0,
-        "phase_history": [{"phase": "proposed", "ts": _now().isoformat()}],
+        "phase_history": [{"phase": "proposed", "ts": now().isoformat()}],
     }
     skills.append(skill)
     _save_skills(skills)
@@ -140,7 +138,7 @@ def advance_phase(skill_id: str) -> dict:
     # Advance
     next_phase = PHASES[current_idx + 1]
     skill["phase"] = next_phase
-    skill["phase_history"].append({"phase": next_phase, "ts": _now().isoformat()})
+    skill["phase_history"].append({"phase": next_phase, "ts": now().isoformat()})
     _save_skills(skills)
     _log({"action": "advance", "id": skill_id, "from": current, "to": next_phase})
 
@@ -180,7 +178,7 @@ def archive(skill_id: str, reason: str = "manual") -> bool:
         if s["id"] == skill_id:
             s["phase"] = "archived"
             s["archived_reason"] = reason
-            s["phase_history"].append({"phase": "archived", "ts": _now().isoformat()})
+            s["phase_history"].append({"phase": "archived", "ts": now().isoformat()})
             _save_skills(skills)
             _log({"action": "archive", "id": skill_id, "reason": reason})
             return True

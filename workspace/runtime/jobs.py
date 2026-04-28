@@ -31,6 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -85,13 +86,10 @@ KNOWN_SOURCES = {"linkedin", "referido", "indeed", "glassdoor", "computrabajo",
                  "web", "recruiter", "telegram", "email", "otro"}
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -268,9 +266,9 @@ def add_opportunity(
         "notes": notes,
         "status": status,
         "job_description": job_description,
-        "created_at": _now().isoformat(),
-        "updated_at": _now().isoformat(),
-        "history": [{"status": status, "date": _now().isoformat()}],
+        "created_at": now().isoformat(),
+        "updated_at": now().isoformat(),
+        "history": [{"status": status, "date": now().isoformat()}],
     }
 
     opps = _load_opportunities()
@@ -345,12 +343,12 @@ def update_status(opp_id: str, new_status: str, notes: str = "") -> bool:
             return False
 
         opp["status"] = new_status
-        opp["updated_at"] = _now().isoformat()
+        opp["updated_at"] = now().isoformat()
         if notes:
             opp["notes"] = (opp.get("notes", "") + f"\n[{new_status}] {notes}").strip()
         opp.setdefault("history", []).append({
             "status": new_status,
-            "date": _now().isoformat(),
+            "date": now().isoformat(),
             "notes": notes,
         })
 
@@ -376,7 +374,7 @@ def update_field(opp_id: str, field: str, value) -> bool:
     for opp in opps:
         if opp.get("id") == opp_id:
             opp[field] = value
-            opp["updated_at"] = _now().isoformat()
+            opp["updated_at"] = now().isoformat()
             _save_opportunities(opps)
             _log({"action": "update_field", "id": opp_id, "field": field})
             return True

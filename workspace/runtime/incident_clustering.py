@@ -15,6 +15,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -31,13 +32,10 @@ MIN_CLUSTER_SIZE = 3
 TIME_WINDOW_HOURS = 1
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -47,7 +45,7 @@ def _log(entry: dict):
 
 def _load_jsonl(path: Path, max_age_hours: int = 168) -> list:
     entries = []
-    cutoff = _now() - timedelta(hours=max_age_hours)
+    cutoff = now() - timedelta(hours=max_age_hours)
     try:
         with open(path) as f:
             for line in f:

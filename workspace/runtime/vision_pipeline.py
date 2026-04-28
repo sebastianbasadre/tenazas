@@ -34,6 +34,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -57,13 +58,10 @@ EXTRACTION_TIMEOUT = 120  # seconds
 ANALYSIS_TIMEOUT = 120
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 

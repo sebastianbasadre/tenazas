@@ -17,6 +17,7 @@ import time
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -39,11 +40,9 @@ POSTPONE_SECONDS = 300  # 5 min
 MAX_POSTPONE_COUNT = 3
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -153,9 +152,9 @@ def _handle_tie(a: dict, b: dict) -> dict:
     cid = _conflict_id(a["agent"], b["agent"], resource)
 
     conflicts = _load(CONFLICTS_FILE, {"history": {}})
-    history = conflicts["history"].get(cid, {"count": 0, "first": _now().isoformat()})
+    history = conflicts["history"].get(cid, {"count": 0, "first": now().isoformat()})
     history["count"] += 1
-    history["last"] = _now().isoformat()
+    history["last"] = now().isoformat()
     conflicts["history"][cid] = history
     _save(CONFLICTS_FILE, conflicts)
 

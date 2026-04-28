@@ -12,6 +12,7 @@ Usage:
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -34,11 +35,9 @@ MULTI_DOMAIN_QUERIES = [
 ]
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -140,7 +139,7 @@ def route(query: str) -> dict:
         "multi_domain": multi,
     }
 
-    _save_coord_log({**result, "ts": _now().isoformat()})
+    _save_coord_log({**result, "ts": now().isoformat()})
     _log({"action": "route", "query": query[:80], "agents": agents,
           "responses": len(responses), "multi": multi})
 

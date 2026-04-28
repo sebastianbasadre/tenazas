@@ -19,6 +19,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -35,13 +36,10 @@ ABSENT_THRESHOLD_HOURS = 4
 LONG_ABSENT_THRESHOLD_HOURS = 8
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -60,7 +58,7 @@ def _check_calendar_busy() -> dict:
         if not events:
             return {"busy": False, "upcoming_minutes": None}
 
-        now = _now()
+        now = now()
         for event in events:
             start_str = event.get("start", event.get("time", ""))
             try:
@@ -120,7 +118,7 @@ def _check_active_critical() -> bool:
 
 def get_context() -> dict:
     """Build current awareness context."""
-    now = _now()
+    now = now()
 
     # Calendar
     cal = _check_calendar_busy()
@@ -210,7 +208,7 @@ def _accumulate_notification(severity: str):
     accumulated = load_json(ACCUMULATED_FILE, {"notifications": []})
     accumulated["notifications"].append({
         "severity": severity,
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
     })
     # Cap at 50
     accumulated["notifications"] = accumulated["notifications"][-50:]
@@ -225,7 +223,7 @@ def get_accumulated() -> list:
 
 def clear_accumulated():
     """Clear accumulated notifications after delivery."""
-    save_json(ACCUMULATED_FILE, {"notifications": [], "cleared_at": _now().isoformat()})
+    save_json(ACCUMULATED_FILE, {"notifications": [], "cleared_at": now().isoformat()})
 
 
 def format_status() -> str:

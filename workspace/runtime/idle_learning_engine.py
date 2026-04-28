@@ -13,6 +13,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -30,13 +31,10 @@ MIN_SAMPLES_FOR_SUGGESTION = 3
 MAX_SUGGESTIONS = 20
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -45,7 +43,7 @@ def _load_metrics(days: int = ANALYSIS_WINDOW_DAYS) -> list:
     """Load metric entries from the last N days."""
     entries = []
     for i in range(days):
-        day = _now() - timedelta(days=i)
+        day = now() - timedelta(days=i)
         path = METRICS_DIR / f"{day.strftime('%Y-%m-%d')}.json"
         try:
             with open(path) as f:
@@ -255,7 +253,7 @@ def analyze_idle() -> dict:
     unique = unique[:MAX_SUGGESTIONS]
 
     result = {
-        "analyzed_at": _now().isoformat(),
+        "analyzed_at": now().isoformat(),
         "metrics_entries_analyzed": len(entries),
         "suggestions": unique,
         "analysis_window_days": ANALYSIS_WINDOW_DAYS,

@@ -24,6 +24,7 @@ import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 # ── Config ───────────────────────────────────────────────────────
 
@@ -308,17 +309,17 @@ CLASSIFICATION_RULES = [
          "cámara", "camaras", "doorbell", "timbre",
          "sync"},
     ),
-    # TTS
+    # TTS — only trigger when user wants Tenazas to GENERATE audio,
+    # not when mentioning "audio" in conversation (e.g. "te mando un audio")
     (
         "skill:tts",
-        [r"(dec[ií]|habl[aá]|le[eé])\s+en\s+voz", r"dec[ií]\s+",
-         r"habl[aá]\w*\s+", r"(mand|envi)\w*\s+(un\s+)?audio",
+        [r"(dec[ií]|habl[aá]|le[eé])\s+en\s+voz", r"dec[ií]me\s+",
+         r"hablame\s+", r"(mandam|enviame|mand[aá]me)\s+(un\s+)?audio",
          r"text.to.speech", r"voz\s+alta",
-         r"(que\s+me\s+)?habl[eé]s", r"por\s+voz",
-         r"(mandam|enviame|mand[aá]me)\s+(un\s+)?audio",
+         r"(que\s+me\s+)?habl[eé]s", r"(respond|contest)[aáeé]\w*\s+(en|por)\s+voz",
          r"(salud|respond)[aáeé]\w*\s+(en|por)\s+voz"],
-        {"decí", "habla", "hablá", "hables", "audio", "voz", "deci", "tts",
-         "hablame", "decime", "mandarme", "mandame"},
+        {"decí", "hablá", "hables", "voz", "deci", "tts",
+         "hablame", "decime"},
     ),
     # Network scanner
     (
@@ -463,13 +464,10 @@ CLASSIFICATION_RULES = [
 # ── Helpers ──────────────────────────────────────────────────────
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     ORCHESTRATOR_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(ORCHESTRATOR_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 

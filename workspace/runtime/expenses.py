@@ -31,6 +31,7 @@ import re
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 # ── Config (shared storage with finance.py) ─────────────────────
 
@@ -92,13 +93,10 @@ DEFAULT_WEEKLY_THRESHOLDS = {
 }
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -191,7 +189,7 @@ def parse_relative_date(text: str) -> tuple:
         (date_iso_string, text_without_date_part)
     """
     text = text.strip()
-    now = _now()
+    now = now()
 
     # "ayer" at start or end
     m = re.match(r"^ayer\s+(.+)", text, re.I)
@@ -346,7 +344,7 @@ def quick_add(text: str) -> dict | None:
         "description": parsed["description"],
         "category": parsed["category"],
         "date": parsed["date"],
-        "created_at": _now().isoformat(),
+        "created_at": now().isoformat(),
         "raw_input": parsed["raw_input"],
         "source": "quick_add",
     }
@@ -385,7 +383,7 @@ def reclassify(txn_id: str, new_category: str) -> bool:
             old = txn.get("category", "otros")
             txn["category"] = new_category
             txn["reclassified_from"] = old
-            txn["reclassified_at"] = _now().isoformat()
+            txn["reclassified_at"] = now().isoformat()
             _save_transactions(txns)
             _log({"action": "reclassify", "id": txn_id,
                   "from": old, "to": new_category})
@@ -408,7 +406,7 @@ def daily_summary(date: str | None = None) -> dict:
         dict with: date, total, count, by_category, transactions
     """
     if date is None:
-        date = _now().strftime("%Y-%m-%d")
+        date = now().strftime("%Y-%m-%d")
 
     txns = _load_transactions()
     day_txns = [t for t in txns
@@ -440,7 +438,7 @@ def weekly_summary(category: str | None = None) -> dict:
     Returns:
         dict with: start, end, total, count, by_category, by_day
     """
-    now = _now()
+    now = now()
     monday = now - timedelta(days=now.weekday())
     start = monday.strftime("%Y-%m-%d")
     end = now.strftime("%Y-%m-%d")
@@ -589,7 +587,7 @@ if __name__ == "__main__":
               else format_daily(s))
 
     elif args.yesterday:
-        yesterday = (_now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (now() - timedelta(days=1)).strftime("%Y-%m-%d")
         s = daily_summary(yesterday)
         print(json.dumps(s, ensure_ascii=False, default=str) if args.json
               else format_daily(s))

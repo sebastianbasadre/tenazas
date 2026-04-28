@@ -15,6 +15,7 @@ import json
 import traceback
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -26,9 +27,6 @@ EVENTS_FILE = BASE_DIR / "events.json"
 STATE_FILE = BASE_DIR / "state.json"
 MAX_CRASHES = 50
 
-
-def _now():
-    return datetime.now().astimezone()
 
 
 def capture_crash(
@@ -50,7 +48,7 @@ def capture_crash(
     recent_events = events_data.get("events", []) if isinstance(events_data, dict) else []
 
     crash = {
-        "timestamp": _now().isoformat(),
+        "timestamp": now().isoformat(),
         "error": str(error),
         "error_type": type(error).__name__,
         "stacktrace": traceback.format_exc(),
@@ -191,7 +189,7 @@ def analyze_and_suggest() -> list:
         SUGGESTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(SUGGESTIONS_FILE, "w") as f:
             json.dump({
-                "ts": _now().isoformat(),
+                "ts": now().isoformat(),
                 "suggestions": suggestions,
             }, f, indent=2, default=str)
 

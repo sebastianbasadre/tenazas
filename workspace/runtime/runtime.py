@@ -12,6 +12,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import signal
 import sys
 import time
@@ -19,6 +20,7 @@ import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 # Allow running as script or module.
 if __name__ == "__main__":
@@ -71,9 +73,6 @@ NMAP_CACHE_FILE = BASE_DIR / "nmap_cache.json"
 
 # ── JSON helpers ──────────────────────────────────────────────────
 
-
-def _now():
-    return datetime.now().astimezone()
 
 
 def load_json(path: Path, default=None):
@@ -155,7 +154,7 @@ def _runtime_log(msg: str):
 def _log(entry: dict):
     """Log structured JSON entry to runtime.log."""
     try:
-        entry["ts"] = _now().isoformat()
+        entry["ts"] = now().isoformat()
         _get_logger().info(json.dumps(entry, default=str, ensure_ascii=False))
     except Exception:
         pass
@@ -175,37 +174,12 @@ def update_state() -> tuple:
     ollama_notebook = executors.check_ollama_notebook()
     executors.write_ollama_status(ollama_notebook.get("ok", False))
 
-    # Rate-limit nmap scans via cache file (every 30 min)
-    # Also updates device_inventory.json for discovery tracking
+    # Network device count from cache (actual scan moved to network_scan step)
     nmap_cache = load_json(NMAP_CACHE_FILE, {"last_scan": 0, "hosts": 0})
-    if time.time() - nmap_cache.get("last_scan", 0) > NMAP_INTERVAL_SECONDS:
-        network_devices = executors.check_network_devices()
-        scan_ts = time.time()
-        save_json(NMAP_CACHE_FILE, {
-            "last_scan": scan_ts,
-            "hosts": network_devices.get("count", 0),
-        })
-        # Write freshness timestamp for Prometheus metric
-        try:
-            Path("/home/tenazas/runtime/network_scan_last_ts").write_text(str(scan_ts))
-        except Exception:
-            pass
-        # Update device inventory (quick scan + ARP enrichment)
-        try:
-            if __package__:
-                from . import device_discovery
-            else:
-                from runtime import device_discovery
-            result = device_discovery.discover(mode="quick")
-            _log({"action": "device_inventory_updated",
-                  "total": result.get("summary", {}).get("total", 0)})
-        except Exception as e:
-            _log({"action": "device_inventory_error", "error": str(e)})
-    else:
-        network_devices = {"count": nmap_cache.get("hosts", 0)}
+    network_devices = {"count": nmap_cache.get("hosts", 0)}
 
     curr = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "containers": executors.check_containers(),
         "internet": executors.check_internet(),
         "vpn": vpn,
@@ -232,7 +206,7 @@ def detect_events(prev: dict, curr: dict) -> list:
     if not prev:
         return []  # First run = baseline
 
-    ts = curr.get("ts", _now().isoformat())
+    ts = curr.get("ts", now().isoformat())
     events = []
 
     # Container transitions
@@ -302,7 +276,7 @@ def _recent_actions(target: str) -> dict | None:
     if not isinstance(memory, list):
         return None
 
-    cutoff = _now() - timedelta(seconds=TASK_COOLDOWN_SECONDS)
+    cutoff = now() - timedelta(seconds=TASK_COOLDOWN_SECONDS)
 
     for entry in reversed(memory):
         try:
@@ -386,7 +360,7 @@ def append_memory(events: list, results: list):
         memory = []
 
     memory.append({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "events": events,
         "tasks_run": len(results),
         "results": results,
@@ -410,7 +384,7 @@ def analyze_patterns():
     if last:
         try:
             last_dt = datetime.fromisoformat(last)
-            if (_now() - last_dt).total_seconds() < PATTERN_ANALYSIS_INTERVAL:
+            if (now() - last_dt).total_seconds() < PATTERN_ANALYSIS_INTERVAL:
                 return  # Too soon
         except (ValueError, TypeError):
             pass
@@ -419,7 +393,7 @@ def analyze_patterns():
     if not isinstance(memory, list) or len(memory) < PATTERN_MIN_OCCURRENCES:
         return
 
-    cutoff = _now() - timedelta(days=PATTERN_LOOKBACK_DAYS)
+    cutoff = now() - timedelta(days=PATTERN_LOOKBACK_DAYS)
 
     # Count (event_type, target, hour) occurrences
     counts = defaultdict(int)
@@ -443,7 +417,7 @@ def analyze_patterns():
                 "target": target,
                 "hour": hour,
                 "occurrences": count,
-                "last_seen": _now().isoformat(),
+                "last_seen": now().isoformat(),
                 "last_triggered": "",
             })
 
@@ -456,15 +430,15 @@ def analyze_patterns():
             p["last_triggered"] = old_map[key].get("last_triggered", "")
 
     patterns_data["patterns"] = new_patterns
-    patterns_data["last_analysis"] = _now().isoformat()
+    patterns_data["last_analysis"] = now().isoformat()
     save_json(PATTERNS_FILE, patterns_data)
 
 
 def trigger_patterns() -> list:
     """Check if current hour matches any pattern. Returns preemptive tasks."""
     patterns_data = load_json(PATTERNS_FILE, {"patterns": []})
-    current_hour = _now().hour
-    today = _now().date().isoformat()
+    current_hour = now().hour
+    today = now().date().isoformat()
     tasks = []
 
     for pattern in patterns_data.get("patterns", []):
@@ -487,10 +461,158 @@ def trigger_patterns() -> list:
                 "reason": f"pattern:{etype}@{current_hour}h",
                 "source": "pattern",
             })
-            pattern["last_triggered"] = _now().isoformat()
+            pattern["last_triggered"] = now().isoformat()
 
     if tasks:
         save_json(PATTERNS_FILE, patterns_data)
+
+    return tasks
+
+
+# ── Network Scan (separate step to avoid freeze) ─────────────────
+
+
+def _network_scan(curr: dict):
+    """Run nmap + device discovery. Separate from update_state to avoid freeze alerts."""
+    nmap_cache = load_json(NMAP_CACHE_FILE, {"last_scan": 0, "hosts": 0})
+    if time.time() - nmap_cache.get("last_scan", 0) <= NMAP_INTERVAL_SECONDS:
+        return  # Not due yet
+
+    network_devices = executors.check_network_devices()
+    # Heartbeat after nmap so the watchdog knows we're alive
+    freeze_detector.heartbeat("network_scan:discovery")
+    scan_ts = time.time()
+    save_json(NMAP_CACHE_FILE, {
+        "last_scan": scan_ts,
+        "hosts": network_devices.get("count", 0),
+    })
+    # Update count in current state
+    curr["network_devices"] = {"count": network_devices.get("count", 0)}
+    # Freshness timestamp for Prometheus
+    try:
+        Path("/home/tenazas/runtime/network_scan_last_ts").write_text(str(scan_ts))
+    except Exception:
+        pass
+    # Device inventory enrichment
+    try:
+        if __package__:
+            from . import device_discovery
+        else:
+            from runtime import device_discovery
+        result = device_discovery.discover(mode="quick")
+        _log({"action": "device_inventory_updated",
+              "total": result.get("summary", {}).get("total", 0)})
+    except Exception as e:
+        _log({"action": "device_inventory_error", "error": str(e)})
+
+
+# ── Gluetun port-binding check ───────────────────────────────────
+
+# Arr-stack containers that share gluetun's network namespace.
+# After gluetun restarts, these need to be restarted to rebind ports.
+# Ports are the actual listening port inside the shared namespace (not host-mapped).
+# NOTE: sabnzbd listens on 8080 internally (same as qbittorrent), port conflict
+# means it won't show up in netstat — excluded from auto-check.
+ARR_GLUETUN_DEPENDENTS = {
+    "sonarr": 8989,
+    "radarr": 7878,
+    "lidarr": 8686,
+    "prowlarr": 9696,
+    "qbittorrent": 8080,
+    "seerr": 5055,
+    "requestrr": 4545,
+    "tautulli": 8181,
+}
+
+GLUETUN_STATE_FILE = BASE_DIR / "gluetun_restart_state.json"
+
+
+def _check_arr_port_bindings(prev: dict, curr: dict) -> list:
+    """Detect gluetun restart and verify arr-stack port bindings.
+
+    When gluetun restarts, containers sharing its network namespace lose
+    their port bindings. This detects that and restarts affected containers.
+    Returns a list of restart tasks.
+    """
+    import subprocess
+
+    tasks = []
+
+    # Detect gluetun restart: either via container_recovered event or uptime check
+    gluetun_restarted = False
+    gstate = load_json(GLUETUN_STATE_FILE, {"last_checked_uptime": ""})
+
+    # Check gluetun uptime from docker ps
+    for c in curr.get("containers", []):
+        if c.get("name") == "gluetun" and c.get("up"):
+            status = c.get("status", "")
+            # If gluetun was recently restarted (status contains seconds/minutes)
+            # or if the previous state had gluetun down
+            prev_gluetun_up = any(
+                pc.get("name") == "gluetun" and pc.get("up")
+                for pc in prev.get("containers", [])
+            )
+            if not prev_gluetun_up and prev.get("containers"):
+                gluetun_restarted = True
+            # Also check if uptime changed significantly (gluetun restart between cycles)
+            if status != gstate.get("last_checked_uptime", ""):
+                # Only trigger port check on short uptimes (< 10 min = recent restart)
+                if any(x in status.lower() for x in ["second", " 1 min", " 2 min",
+                                                       " 3 min", " 4 min", " 5 min",
+                                                       " 6 min", " 7 min", " 8 min",
+                                                       " 9 min"]):
+                    gluetun_restarted = True
+                gstate["last_checked_uptime"] = status
+                save_json(GLUETUN_STATE_FILE, gstate)
+
+    if not gluetun_restarted:
+        return tasks
+
+    _log({"action": "gluetun_restart_detected", "checking_port_bindings": True})
+
+    # Check which ports are NOT listening inside gluetun's network namespace
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "gluetun", "netstat", "-tlnp"],
+            capture_output=True, text=True, timeout=10,
+        )
+        listening_output = result.stdout if result.returncode == 0 else ""
+    except Exception:
+        listening_output = ""
+
+    if not listening_output:
+        # Can't check — skip to avoid false positives
+        _log({"action": "gluetun_port_check_skipped", "reason": "netstat_failed"})
+        return tasks
+
+    # Parse listening ports
+    listening_ports = set()
+    for line in listening_output.splitlines():
+        # Match :::PORT or 0.0.0.0:PORT
+        match = re.search(r"[:\s](\d+)\s+.*LISTEN", line)
+        if match:
+            listening_ports.add(int(match.group(1)))
+
+    # Find containers whose ports are missing
+    missing = []
+    for container, port in ARR_GLUETUN_DEPENDENTS.items():
+        if port not in listening_ports:
+            missing.append(container)
+
+    if missing:
+        _log({"action": "arr_port_bindings_missing",
+              "containers": missing,
+              "listening_ports": sorted(listening_ports)})
+        for container in missing:
+            if not _recent_actions(container):
+                tasks.append({
+                    "action": "docker.restart",
+                    "target": container,
+                    "reason": "gluetun_restart_port_missing",
+                    "source": "port_check",
+                })
+    else:
+        _log({"action": "arr_port_bindings_ok", "all_ports_listening": True})
 
     return tasks
 
@@ -573,6 +695,12 @@ def main():
 
         prev, curr = _profiled("update_state", update_state)
 
+        # Network scan + device discovery (separate step to avoid freeze on nmap)
+        _profiled("network_scan", _network_scan, curr)
+
+        # Check arr-stack port bindings after gluetun restart
+        gluetun_tasks = _profiled("gluetun_port_check", _check_arr_port_bindings, prev, curr)
+
         events = _profiled("detect_events", detect_events, prev, curr)
         save_json(EVENTS_FILE, {"ts": curr["ts"], "events": events})
 
@@ -586,7 +714,7 @@ def main():
 
         tasks = _profiled("enqueue_tasks", enqueue_tasks, events)
         pattern_tasks = _profiled("trigger_patterns", trigger_patterns)
-        all_tasks = tasks + pattern_tasks
+        all_tasks = tasks + pattern_tasks + gluetun_tasks
         save_json(TASKS_FILE, {"ts": curr["ts"], "tasks": all_tasks})
 
         freeze_detector.heartbeat("run_tasks")

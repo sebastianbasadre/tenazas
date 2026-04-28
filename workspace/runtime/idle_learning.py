@@ -31,6 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -55,14 +56,11 @@ MAX_PROPOSALS = 10
 LLM_TIMEOUT = 120  # seconds
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to idle_learning_v2.log."""
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -371,7 +369,7 @@ Si no hay propuestas viables, responde con []."""
             "expected_benefit": str(p.get("expected_benefit", "")),
             "risk": str(p.get("risk", "unknown")),
             "status": "proposed",
-            "created_at": _now().isoformat(),
+            "created_at": now().isoformat(),
             "source_issues": [i.get("issue", "") for i in issues],
         })
 
@@ -522,7 +520,7 @@ def review_proposal(
             return False
 
         p["status"] = decision
-        p["reviewed_at"] = _now().isoformat()
+        p["reviewed_at"] = now().isoformat()
         p["decision"] = decision
         if reviewer_note:
             p["reviewer_note"] = reviewer_note
@@ -589,7 +587,7 @@ def generate_report(issues: list, proposals: list, decisions: list | None = None
         decisions: original decisions (for stats)
     """
     LEARNING_DIR.mkdir(parents=True, exist_ok=True)
-    now = _now()
+    now = now()
     review = get_review_summary()
 
     lines = [

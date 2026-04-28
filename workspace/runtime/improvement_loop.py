@@ -20,6 +20,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -42,13 +43,10 @@ MAX_WAIT_HOURS = 48
 MIN_SAMPLES = 10
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -165,7 +163,7 @@ def process_candidate(candidate: dict) -> dict:
         "candidate_id": cid,
         "experiment_id": exp["id"],
         "evaluation": evaluation,
-        "processed_at": _now().isoformat(),
+        "processed_at": now().isoformat(),
     }
 
     if evaluation["improved"]:
@@ -179,7 +177,7 @@ def process_candidate(candidate: dict) -> dict:
                 if c.get("id") == cid:
                     c["status"] = "approved"  # keep approved, add validated flag
                     c["validated"] = True
-                    c["validated_at"] = _now().isoformat()
+                    c["validated_at"] = now().isoformat()
                     c["experiment_results"] = evaluation
             save_json(CANDIDATES_FILE, candidates)
         except Exception:
@@ -209,7 +207,7 @@ def process_candidate(candidate: dict) -> dict:
     loop_state = load_json(LOOP_STATE_FILE, {"processed": []})
     loop_state["processed"].append(cid)
     loop_state["processed"] = loop_state["processed"][-100:]  # cap
-    loop_state["last_run"] = _now().isoformat()
+    loop_state["last_run"] = now().isoformat()
     save_json(LOOP_STATE_FILE, loop_state)
 
     _log({"action": "candidate_processed", **result})

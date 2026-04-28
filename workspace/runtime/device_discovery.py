@@ -38,6 +38,7 @@ import time
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now_iso
 
 BASE_DIR = Path(__file__).parent
 INVENTORY_FILE = BASE_DIR / "device_inventory.json"
@@ -144,15 +145,12 @@ PORT_CATEGORIES = {
 }
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(LOG_FILE, "a") as f:
-            f.write(json.dumps({**entry, "ts": _now()}, default=str) + "\n")
+            f.write(json.dumps({**entry, "ts": now_iso()}, default=str) + "\n")
     except OSError:
         pass
 
@@ -557,7 +555,7 @@ def update_inventory(scan_results: list, scan_type: str = "quick") -> dict:
     Returns the updated inventory.
     """
     inventory = _load_inventory()
-    now = _now()
+    now = now_iso()
 
     for device in scan_results:
         ip = device.get("ip")

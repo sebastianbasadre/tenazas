@@ -12,6 +12,7 @@ Logs to logs/planner.log.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "planner.log"
@@ -102,9 +103,6 @@ PROBLEM_MAP = {
 }
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to planner.log."""
@@ -146,12 +144,12 @@ def generate_plan(problem: str, context: dict = None) -> dict:
             "template": template_name,
             "description": template["description"],
             "steps": steps,
-            "generated_at": _now().isoformat(),
+            "generated_at": now().isoformat(),
             "requires_any_approval": any(s.get("requires_approval") for s in steps),
         }
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "generate_plan",
         "problem": problem,
         "template": plan.get("template", "generic"),
@@ -173,7 +171,7 @@ def _generate_generic_plan(problem: str, context: dict) -> dict:
             {"action": "notify", "target": "telegram", "requires_approval": False,
              "estimated_duration": "5s", "description": "Report findings"},
         ],
-        "generated_at": _now().isoformat(),
+        "generated_at": now().isoformat(),
         "requires_any_approval": False,
     }
 

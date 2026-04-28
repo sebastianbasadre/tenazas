@@ -14,6 +14,7 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "docker_actions.log"
@@ -22,9 +23,6 @@ ALLOWED_ACTIONS = {"restart", "start", "stop"}
 BLOCKED_CONTAINERS = {"openclaw", "watchtower"}
 CONTAINER_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 
-
-def _now():
-    return datetime.now().astimezone().isoformat()
 
 
 def _log(entry: dict):
@@ -54,10 +52,10 @@ def docker_ps() -> list:
             capture_output=True, text=True, timeout=15,
         )
         if result.returncode != 0:
-            _log({"ts": _now(), "action": "ps", "ok": False, "error": result.stderr.strip()})
+            _log({"ts": now(), "action": "ps", "ok": False, "error": result.stderr.strip()})
             return []
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        _log({"ts": _now(), "action": "ps", "ok": False, "error": str(e)})
+        _log({"ts": now(), "action": "ps", "ok": False, "error": str(e)})
         return []
 
     containers = []
@@ -75,7 +73,7 @@ def docker_ps() -> list:
 
 def docker_action(action: str, container: str) -> dict:
     """Execute a whitelisted Docker action on a validated container."""
-    ts = _now()
+    ts = now()
 
     if action not in ALLOWED_ACTIONS:
         entry = {"ts": ts, "action": action, "container": container,

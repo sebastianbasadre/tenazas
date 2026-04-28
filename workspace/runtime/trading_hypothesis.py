@@ -15,6 +15,7 @@ import json
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -24,11 +25,9 @@ LOG_FILE = BASE_DIR / "logs" / "trading_hypothesis.log"
 MAX_ACTIVE = 10
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -123,10 +122,10 @@ def generate(observation: dict = None) -> list:
 def _create_hypothesis(asset: str, direction: str, target_price: float,
                        timeframe_days: int, confidence: float,
                        reasoning: str, current_price: float) -> dict:
-    hid = sha256(f"{asset}:{direction}:{_now().isoformat()}".encode()).hexdigest()[:12]
+    hid = sha256(f"{asset}:{direction}:{now().isoformat()}".encode()).hexdigest()[:12]
     return {
         "hypothesis_id": hid,
-        "created_at": _now().isoformat(),
+        "created_at": now().isoformat(),
         "asset": asset,
         "direction": direction,
         "entry_price": current_price,
@@ -150,7 +149,7 @@ def evaluate() -> list:
     except Exception:
         return []
 
-    now = _now()
+    now = now()
     for h in hypotheses:
         if h.get("status") != "active":
             continue

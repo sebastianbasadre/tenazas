@@ -8,6 +8,7 @@ Reads snapshot, uses predictor + root_cause_engine, proposes via action_registry
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -21,11 +22,9 @@ OWNERSHIP = {"container", "containers", "gpu", "ram", "disk", "network", "vpn",
 BLOCKED_TARGETS = {"openclaw", "watchtower"}
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -46,7 +45,7 @@ def owns(topic: str) -> bool:
 
 def assess() -> dict:
     """Assess current infra state. Returns status + proposals."""
-    status = {"agent": "infra", "ts": _now().isoformat(), "health": "ok", "proposals": [], "issues": []}
+    status = {"agent": "infra", "ts": now().isoformat(), "health": "ok", "proposals": [], "issues": []}
     try:
         from homelab_snapshot import snapshot
         snap = snapshot()
@@ -97,6 +96,6 @@ def handle_query(query: str) -> str:
 def get_memory() -> dict: return _load(MEMORY_FILE, {"events": []})
 def save_memory_event(event: dict):
     mem = get_memory()
-    mem["events"].append({**event, "ts": _now().isoformat()})
+    mem["events"].append({**event, "ts": now().isoformat()})
     mem["events"] = mem["events"][-100:]
     _save(MEMORY_FILE, mem)

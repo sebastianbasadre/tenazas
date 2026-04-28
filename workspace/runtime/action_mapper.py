@@ -13,6 +13,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 DIAGNOSTICS_LOG = Path(__file__).parent / "logs" / "diagnostics.log"
 
@@ -144,13 +145,10 @@ ACTION_RULES = [
 # ── Helpers ──────────────────────────────────────────────────────
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log_action(entry: dict):
     DIAGNOSTICS_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(DIAGNOSTICS_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 

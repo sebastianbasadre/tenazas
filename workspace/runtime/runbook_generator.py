@@ -13,19 +13,17 @@ import json
 import hashlib
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 RUNBOOKS_DIR = BASE_DIR / "runbooks"
 TELEMETRY_LOG = BASE_DIR / "logs" / "runbooks.log"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -167,7 +165,7 @@ def generate_runbook(
         "target": target,
         "problem": problem,
         "steps": steps,
-        "generated_at": _now().isoformat(),
+        "generated_at": now().isoformat(),
         "pattern_context": [
             {"pattern": p["pattern"], "confidence": p["confidence"]}
             for p in (patterns or [])

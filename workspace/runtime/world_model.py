@@ -12,6 +12,7 @@ Logs to logs/world_model.log.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_FILE = BASE_DIR / "state.json"
@@ -118,9 +119,6 @@ def refresh_devices():
     KNOWN_DEVICES = _load_devices()
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to world_model.log."""
@@ -180,7 +178,7 @@ def get_entity(entity_type: str, name: str = "") -> dict | list:
     elif entity_type == "skill":
         return {"count": SKILL_COUNT}
 
-    _log({"ts": _now().isoformat(), "action": "get_entity",
+    _log({"ts": now().isoformat(), "action": "get_entity",
           "type": entity_type, "name": name, "error": "unknown entity type"})
     return {}
 
@@ -199,7 +197,7 @@ def get_status() -> dict:
     down_count = len(containers) - up_count
 
     status = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "containers": {
             "total": len(containers),
             "up": up_count,
@@ -217,7 +215,7 @@ def get_status() -> dict:
         "skills": SKILL_COUNT,
     }
 
-    _log({"ts": _now().isoformat(), "action": "get_status"})
+    _log({"ts": now().isoformat(), "action": "get_status"})
     return status
 
 
@@ -239,5 +237,5 @@ def get_topology() -> dict:
                      for name, svc in KNOWN_SERVICES.items()},
     }
 
-    _log({"ts": _now().isoformat(), "action": "get_topology"})
+    _log({"ts": now().isoformat(), "action": "get_topology"})
     return topology

@@ -13,6 +13,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -29,9 +30,6 @@ LOOKBACK_DAYS = 30
 MIN_RECURRENCE = 3        # Minimum times a workflow must repeat to propose
 MAX_PROPOSALS = 20
 
-
-def _now():
-    return datetime.now().astimezone()
 
 
 def _log(entry: dict):
@@ -52,7 +50,7 @@ def _analyze_workflows() -> list:
     if not isinstance(memory, list):
         return []
 
-    cutoff = _now() - timedelta(days=LOOKBACK_DAYS)
+    cutoff = now() - timedelta(days=LOOKBACK_DAYS)
     workflow_counts = defaultdict(lambda: {"count": 0, "events": [], "actions": []})
 
     for entry in memory:
@@ -126,7 +124,7 @@ def _create_proposal(events: list, actions: list, count: int) -> dict:
         "steps": steps,
         "requires_approval": True,  # ALWAYS requires approval
         "recurrence": count,
-        "proposed_at": _now().isoformat(),
+        "proposed_at": now().isoformat(),
         "status": "pending",
     }
 
@@ -162,7 +160,7 @@ def generate_proposals() -> list:
         _save_proposals(all_proposals)
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "generate_proposals",
         "workflows_found": len(workflows),
         "new_proposals": len(new_proposals),
@@ -181,7 +179,7 @@ def _save_proposals(proposals: list):
     """Save proposals to disk."""
     save_json(PROPOSALS_FILE, {
         "proposals": proposals,
-        "last_updated": _now().isoformat(),
+        "last_updated": now().isoformat(),
     })
 
 
@@ -204,9 +202,9 @@ def approve_proposal(name: str) -> bool:
     for p in proposals:
         if p.get("name") == name and p.get("status") == "pending":
             p["status"] = "approved"
-            p["approved_at"] = _now().isoformat()
+            p["approved_at"] = now().isoformat()
             _save_proposals(proposals)
-            _log({"ts": _now().isoformat(), "action": "approve_proposal", "name": name})
+            _log({"ts": now().isoformat(), "action": "approve_proposal", "name": name})
             return True
     return False
 
@@ -225,8 +223,8 @@ def reject_proposal(name: str) -> bool:
     for p in proposals:
         if p.get("name") == name and p.get("status") == "pending":
             p["status"] = "rejected"
-            p["rejected_at"] = _now().isoformat()
+            p["rejected_at"] = now().isoformat()
             _save_proposals(proposals)
-            _log({"ts": _now().isoformat(), "action": "reject_proposal", "name": name})
+            _log({"ts": now().isoformat(), "action": "reject_proposal", "name": name})
             return True
     return False

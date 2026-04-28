@@ -9,6 +9,7 @@ high token usage. Suggests but NEVER auto-deploys prompt changes.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "prompt_optimizer.log"
@@ -16,13 +17,10 @@ SUGGESTIONS_FILE = BASE_DIR / "prompt_suggestions.json"
 DECISIONS_LOG = BASE_DIR / "logs" / "decisions.jsonl"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -151,7 +149,7 @@ def generate_suggestions() -> list:
     # Save
     SUGGESTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SUGGESTIONS_FILE, "w") as f:
-        json.dump({"suggestions": suggestions, "ts": _now().isoformat()},
+        json.dump({"suggestions": suggestions, "ts": now().isoformat()},
                   f, indent=2, default=str)
 
     _log({"type": "prompt_analysis", "suggestions": len(suggestions)})

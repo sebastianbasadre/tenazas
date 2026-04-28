@@ -26,6 +26,7 @@ import re
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -69,13 +70,10 @@ ALERT_DAILY_LIMIT = 100000       # Daily total > 100k ARS
 ALERT_CATEGORY_DEVIATION = 2.0   # Category spending > 2x monthly average
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -268,8 +266,8 @@ def add_transaction(
         "amount": round(amount, 2),
         "description": description,
         "category": category,
-        "date": date or _now().isoformat(),
-        "created_at": _now().isoformat(),
+        "date": date or now().isoformat(),
+        "created_at": now().isoformat(),
     }
 
     txns = _load_transactions()
@@ -341,7 +339,7 @@ def list_transactions(
 
 def _date_range(period: str) -> tuple:
     """Get (start, end) ISO date strings for a period."""
-    now = _now()
+    now = now()
     if period == "day":
         start = now.strftime("%Y-%m-%d")
         end = start
@@ -445,8 +443,8 @@ def check_alerts() -> list:
         List of alert dicts: [{type, message, amount, details}, ...]
     """
     alerts = []
-    today = _now().strftime("%Y-%m-%d")
-    month_start = _now().strftime("%Y-%m-01")
+    today = now().strftime("%Y-%m-%d")
+    month_start = now().strftime("%Y-%m-01")
 
     # All transactions this month
     month_txns = list_transactions(start_date=month_start, txn_type="expense")
@@ -473,7 +471,7 @@ def check_alerts() -> list:
         })
 
     # 3. Category deviation (compare this month vs average)
-    days_in_month = max(1, _now().day)
+    days_in_month = max(1, now().day)
     cat_totals = {}
     for t in month_txns:
         cat = t.get("category", "otros")
@@ -500,7 +498,7 @@ def check_alerts() -> list:
 
 def _calculate_monthly_averages(months: int = 3) -> dict:
     """Calculate average monthly spending per category over last N months."""
-    now = _now()
+    now = now()
     totals = {}
     months_counted = 0
 

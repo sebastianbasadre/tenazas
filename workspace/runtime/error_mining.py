@@ -32,6 +32,7 @@ try:
 except ImportError:
     from runtime_utils import load_json
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 try:
     from .runtime_config import get_default_telegram_chat_id
@@ -56,17 +57,14 @@ DIAGNOSTICS_LOG = LOGS_DIR / "diagnostics.log"
 INCIDENTS_DIR = STATE_DIR / "incidents"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _today():
-    return _now().strftime("%Y-%m-%d")
+    return now().strftime("%Y-%m-%d")
 
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -77,7 +75,7 @@ def _log(entry: dict):
 def _load_jsonl(path: Path, max_age_hours: int = 24) -> list:
     """Load JSONL log entries from last N hours."""
     entries = []
-    cutoff = _now() - timedelta(hours=max_age_hours)
+    cutoff = now() - timedelta(hours=max_age_hours)
     try:
         with open(path) as f:
             for line in f:
@@ -326,7 +324,7 @@ def mine_repeated_incidents() -> list:
                     "type": "repeated_incident",
                     "detail": f"incident '{base}' appeared {count} times",
                     "source": "state/incidents/",
-                    "ts": _now().isoformat(),
+                    "ts": now().isoformat(),
                     "severity": "medium",
                     "count": count,
                 })
@@ -421,7 +419,7 @@ def mine_all() -> dict:
 
     report = {
         "date": _today(),
-        "mined_at": _now().isoformat(),
+        "mined_at": now().isoformat(),
         "total_errors": len(all_errors),
         "by_type": counts,
         "errors": all_errors,

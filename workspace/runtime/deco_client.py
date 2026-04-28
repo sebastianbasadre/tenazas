@@ -24,6 +24,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now_iso
 
 log = logging.getLogger("deco_client")
 
@@ -46,10 +47,16 @@ if not DECO_PASSWORD:
             if cfg_path.exists():
                 with open(cfg_path) as f:
                     cfg = json.load(f)
-                DECO_PASSWORD = (
-                    cfg.get("tenazas", {}).get("deco_password", "") or
-                    cfg.get("deco_password", "")
-                )
+                DECO_PASSWORD = cfg.get("deco_password", "")
+                if not DECO_PASSWORD:
+                    # Check tenazas.json (split config)
+                    _tcfg_path = cfg_path.parent / "tenazas.json"
+                    if _tcfg_path.exists():
+                        try:
+                            _tcfg = json.load(open(_tcfg_path))
+                            DECO_PASSWORD = _tcfg.get("deco_password", "")
+                        except Exception:
+                            pass
                 if DECO_PASSWORD:
                     break
     except Exception:
@@ -68,15 +75,12 @@ BAND_MAP = {
 }
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(LOG_FILE, "a") as f:
-            f.write(json.dumps({**entry, "ts": _now()}, default=str) + "\n")
+            f.write(json.dumps({**entry, "ts": now_iso()}, default=str) + "\n")
     except OSError:
         pass
 

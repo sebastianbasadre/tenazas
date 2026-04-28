@@ -10,6 +10,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "safety.log"
@@ -45,9 +46,6 @@ RUNTIME_DIR = BASE_DIR
 CONTAINER_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to safety.log."""
@@ -68,7 +66,7 @@ def validate_action(action: str, target: str = "", context: str = "") -> dict:
     Returns:
         dict with keys: allowed (bool), reason (str)
     """
-    ts = _now()
+    ts = now()
     result = _check_action(action, target)
 
     _log({

@@ -26,6 +26,7 @@ Usage:
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -49,13 +50,10 @@ MAX_FACTS_PER_DOMAIN = 200
 DEFAULT_TTL_DAYS = 90  # facts expire after 90 days by default
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -122,7 +120,7 @@ def save_fact(
         if (existing.get("type") == fact_type
                 and existing.get("content") == content.strip()):
             # Update timestamp and metadata
-            existing["updated_at"] = _now().isoformat()
+            existing["updated_at"] = now().isoformat()
             if metadata:
                 existing["metadata"] = metadata
             if source:
@@ -136,7 +134,7 @@ def save_fact(
 
     expires = None
     if ttl_days > 0:
-        expires = (_now() + timedelta(days=ttl_days)).isoformat()
+        expires = (now() + timedelta(days=ttl_days)).isoformat()
 
     fact = {
         "domain": domain,
@@ -144,8 +142,8 @@ def save_fact(
         "content": content.strip(),
         "source": source,
         "metadata": metadata or {},
-        "created_at": _now().isoformat(),
-        "updated_at": _now().isoformat(),
+        "created_at": now().isoformat(),
+        "updated_at": now().isoformat(),
         "expires_at": expires,
     }
 
@@ -176,7 +174,7 @@ def get_context(domain: str, fact_type: str | None = None) -> list:
     """
     mem = _load_memory()
     facts = mem.get(domain, [])
-    now_iso = _now().isoformat()
+    now_iso = now().isoformat()
 
     # Filter expired
     active = []
@@ -217,7 +215,7 @@ def search_facts(keyword: str, domain: str | None = None) -> list:
     """
     mem = _load_memory()
     results = []
-    now_iso = _now().isoformat()
+    now_iso = now().isoformat()
     keyword_lower = keyword.lower()
 
     domains = [domain] if domain else VALID_DOMAINS
@@ -262,7 +260,7 @@ def cleanup_expired() -> int:
         Number of facts removed.
     """
     mem = _load_memory()
-    now_iso = _now().isoformat()
+    now_iso = now().isoformat()
     removed = 0
 
     for domain in list(mem.keys()):

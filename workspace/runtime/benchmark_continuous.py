@@ -26,6 +26,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -69,13 +70,10 @@ KNOWN_QUERIES = [
 ]
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -85,7 +83,7 @@ def _log(entry: dict):
 
 def _load_jsonl_recent(path: Path, hours: int = 1) -> list:
     entries = []
-    cutoff = _now() - timedelta(hours=hours)
+    cutoff = now() - timedelta(hours=hours)
     try:
         with open(path) as f:
             for line in f:
@@ -144,7 +142,7 @@ def check_alert_precision() -> float:
     if not dq_dir.exists():
         return 1.0  # no data = assume good
 
-    today = _now().strftime("%Y-%m-%d")
+    today = now().strftime("%Y-%m-%d")
     entries = load_json(dq_dir / f"{today}.json", [])
     if not entries:
         return 1.0
@@ -182,7 +180,7 @@ def check_latency_p95() -> float:
 def run() -> dict:
     """Run all benchmark suites and check thresholds."""
     results = {
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "router_accuracy": check_router_accuracy(),
         "infra_uptime": check_infra_uptime(),
         "alert_precision": check_alert_precision(),

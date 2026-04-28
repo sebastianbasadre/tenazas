@@ -16,6 +16,7 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "model_router.log"
@@ -191,7 +192,7 @@ def _load_guardrail_state():
 
     import time
     now = time.monotonic()
-    wall_now = _now().timestamp()
+    wall_now = now().timestamp()
 
     st = _guardrail_state
 
@@ -222,7 +223,7 @@ def _save_guardrail_state():
     """Persist guardrail state to JSON file."""
     import time
     now = time.monotonic()
-    wall_now = _now().timestamp()
+    wall_now = now().timestamp()
     st = _guardrail_state
 
     # Convert monotonic timestamps to wall-clock for persistence
@@ -233,7 +234,7 @@ def _save_guardrail_state():
         "last_heavy_latency": st["last_heavy_latency"],
         "last_heavy_wall_ts": wall_now - (now - st["last_heavy_ts"]) if st["last_heavy_ts"] > 0 else 0,
         "degradations": st["degradations"],
-        "saved_at": _now().isoformat(),
+        "saved_at": now().isoformat(),
     }
 
     try:
@@ -370,7 +371,7 @@ def report_inference_complete(model: str, latency: float, vram_swap: bool = Fals
     if model in HEAVY_MODELS:
         st["last_heavy_latency"] = latency
         _log({
-            "ts": _now().isoformat(),
+            "ts": now().isoformat(),
             "action": "inference_complete",
             "model": model,
             "latency": round(latency, 2),
@@ -436,9 +437,6 @@ _CODE_SPECIAL_CHARS = set("{}();=[]<>")
 _CODE_CHAR_THRESHOLD = 0.08  # 8% special chars → likely code
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to model_router.log."""
@@ -487,7 +485,7 @@ def detect_backends() -> dict:
         }
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "detect_backends",
         "results": {bid: s["available"] for bid, s in status.items()},
     })
@@ -518,7 +516,7 @@ def select_model(task: str = "general", prefer_fast: bool = False) -> dict:
 
     if not available:
         _log({
-            "ts": _now().isoformat(),
+            "ts": now().isoformat(),
             "action": "select_model",
             "task": task,
             "result": "no_backend_available",
@@ -568,7 +566,7 @@ def select_model(task: str = "general", prefer_fast: bool = False) -> dict:
     }
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "select_model",
         "task": task,
         "prefer_fast": prefer_fast,
@@ -720,7 +718,7 @@ def route_by_role(
 
     if not available:
         _log({
-            "ts": _now().isoformat(),
+            "ts": now().isoformat(),
             "action": "route_v2",
             "task_type": role,
             "result": "no_backend_available",
@@ -774,7 +772,7 @@ def route_by_role(
     }
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "route_v2",
         "prompt_preview": prompt[:80] if prompt else "",
         "task_type": role,

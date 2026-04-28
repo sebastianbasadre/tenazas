@@ -8,6 +8,7 @@ NEVER promotes to runtime direct — always staging.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -19,10 +20,9 @@ OWNERSHIP = {"improve", "benchmark", "error_mining", "experiment", "staging",
              "candidate", "self-evolve", "calibration", "learning"}
 
 
-def _now(): return datetime.now().astimezone()
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -40,7 +40,7 @@ def owns(topic: str) -> bool:
 
 
 def assess() -> dict:
-    status = {"agent": "self_improve", "ts": _now().isoformat(), "pending": 0, "experiments": 0}
+    status = {"agent": "self_improve", "ts": now().isoformat(), "pending": 0, "experiments": 0}
     try:
         from improvement_candidates import list_candidates
         cands = list_candidates(status="proposed")
@@ -64,7 +64,7 @@ def handle_query(query: str) -> str:
 
 def run_daily():
     """Daily self-improvement cycle. Returns results dict."""
-    results = {"mined": 0, "candidates": 0, "ts": _now().isoformat()}
+    results = {"mined": 0, "candidates": 0, "ts": now().isoformat()}
     try:
         from error_mining import mine_all
         report = mine_all()
@@ -83,6 +83,6 @@ def run_daily():
 def get_memory() -> dict: return _load(MEMORY_FILE, {"events": []})
 def save_memory_event(event: dict):
     mem = get_memory()
-    mem["events"].append({**event, "ts": _now().isoformat()})
+    mem["events"].append({**event, "ts": now().isoformat()})
     mem["events"] = mem["events"][-100:]
     _save(MEMORY_FILE, mem)

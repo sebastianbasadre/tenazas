@@ -17,6 +17,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -35,13 +36,10 @@ CONFIDENCE_THRESHOLD = 0.5
 MAX_PATTERNS = 50
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -55,7 +53,7 @@ def _analyze_memory_log() -> list:
     if not isinstance(memory, list):
         return []
 
-    cutoff = _now() - timedelta(days=LOOKBACK_DAYS)
+    cutoff = now() - timedelta(days=LOOKBACK_DAYS)
     # Strip timezone for comparison (fromisoformat may return naive or aware)
     cutoff_naive = cutoff.replace(tzinfo=None)
 
@@ -176,7 +174,7 @@ def update_memory():
 
     data = {
         "patterns": patterns,
-        "last_analysis": _now().isoformat(),
+        "last_analysis": now().isoformat(),
         "lookback_days": LOOKBACK_DAYS,
     }
     save_json(MEMORY_FILE, data)
@@ -208,7 +206,7 @@ def get_patterns_for_event(event: str) -> list:
 
 def get_active_patterns(min_confidence: float = 0.6) -> list:
     """Get high-confidence patterns currently active."""
-    current_hour = _now().hour
+    current_hour = now().hour
     current_bucket = (current_hour // 3) * 3
     return [
         p for p in get_patterns()

@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -44,13 +45,10 @@ IOL_KEYWORDS = {"portfolio", "portafolio", "audita", "analiza", "posiciones",
 MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -290,7 +288,7 @@ def _update_compact_guard(has_photo: bool = False, intent: str = ""):
         "last_had_photo": has_photo,
         "last_user_intent": intent,
         "has_pending_order": PENDING_ORDER_FILE.exists(),
-        "updated_at": _now().isoformat(),
+        "updated_at": now().isoformat(),
     }
     COMPACT_GUARD_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(COMPACT_GUARD_FILE, "w") as f:
@@ -384,7 +382,7 @@ def save_pre_compact_context(pipeline: str = "", intent: str = "", extra: str = 
         "iol_active": pipeline == "iol_broker",
         "extra": extra,
         "timestamp": time.time(),
-        "saved_at": _now().isoformat(),
+        "saved_at": now().isoformat(),
     }
     try:
         COMPACT_CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)

@@ -14,6 +14,7 @@ import urllib.request
 import urllib.error
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "openrouter_usage.log"
@@ -21,14 +22,11 @@ LOG_FILE = BASE_DIR / "logs" / "openrouter_usage.log"
 _API_BASE = "https://openrouter.ai/api/v1"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to openrouter_usage.log."""
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 

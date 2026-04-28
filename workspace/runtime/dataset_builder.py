@@ -30,13 +30,10 @@ MAX_ENTRIES_PER_DATASET = 500
 MIN_QUALITY_SCORE = 0.3
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -62,7 +59,7 @@ def _load_metrics(days: int = 7) -> list:
     """Load metric entries from the last N days."""
     entries = []
     for i in range(days):
-        day = _now() - timedelta(days=i)
+        day = now() - timedelta(days=i)
         path = METRICS_DIR / f"{day.strftime('%Y-%m-%d')}.json"
         try:
             with open(path) as f:
@@ -177,7 +174,7 @@ def build_diagnostic_dataset() -> dict:
         "entries": entries,
         "count": len(entries),
         "avg_quality": round(avg_quality, 4),
-        "built_at": _now().isoformat(),
+        "built_at": now().isoformat(),
     }
 
     # Save to datasets directory
@@ -241,7 +238,7 @@ def build_reasoning_dataset() -> dict:
         "entries": entries,
         "count": len(entries),
         "avg_quality": round(avg_quality, 4),
-        "built_at": _now().isoformat(),
+        "built_at": now().isoformat(),
     }
 
     save_json(DATASETS_DIR / "reasoning_dataset.json", result)
@@ -309,7 +306,7 @@ def build_metrics_dataset() -> dict:
         "entries": entries,
         "count": len(entries),
         "avg_quality": round(avg_quality, 4),
-        "built_at": _now().isoformat(),
+        "built_at": now().isoformat(),
     }
 
     save_json(DATASETS_DIR / "metrics_dataset.json", result)
@@ -350,7 +347,7 @@ def build_all_datasets() -> dict:
         "datasets": {k: {"count": v["count"], "avg_quality": v["avg_quality"]}
                      for k, v in results.items()},
         "total_entries": total,
-        "built_at": _now().isoformat(),
+        "built_at": now().isoformat(),
     }
 
 
@@ -387,6 +384,7 @@ import re
 import time
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 OLLAMA_URL = "http://192.168.2.6:11434"
 # Resolve evals dir: works both on host (../../state/workspace/evals)

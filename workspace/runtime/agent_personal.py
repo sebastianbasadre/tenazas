@@ -7,6 +7,7 @@ Ownership: calendar, email, reminders, smoking, briefing.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -18,10 +19,9 @@ OWNERSHIP = {"calendar", "email", "reminder", "smoking", "briefing", "agenda",
              "morning", "greeting", "habit", "schedule"}
 
 
-def _now(): return datetime.now().astimezone()
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -39,7 +39,7 @@ def owns(topic: str) -> bool:
 
 
 def assess() -> dict:
-    status = {"agent": "personal", "ts": _now().isoformat(), "items": []}
+    status = {"agent": "personal", "ts": now().isoformat(), "items": []}
     try:
         from notification_poller import check_calendar
         events = check_calendar()
@@ -66,6 +66,6 @@ def handle_query(query: str) -> str:
 def get_memory() -> dict: return _load(MEMORY_FILE, {"events": []})
 def save_memory_event(event: dict):
     mem = get_memory()
-    mem["events"].append({**event, "ts": _now().isoformat()})
+    mem["events"].append({**event, "ts": now().isoformat()})
     mem["events"] = mem["events"][-100:]
     _save(MEMORY_FILE, mem)

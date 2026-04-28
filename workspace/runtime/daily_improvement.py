@@ -27,6 +27,7 @@ Future: schedule via cron at 6AM (idle hours, before morning greeting at 8AM)
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -59,13 +60,10 @@ AREAS = (
 )
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -233,7 +231,7 @@ def _scan_jobs_signals() -> list:
             updated = o.get("updated_at", "")
             if updated:
                 try:
-                    age = (_now() - datetime.fromisoformat(updated)).days
+                    age = (now() - datetime.fromisoformat(updated)).days
                     if age > 7:
                         stale += 1
                 except (ValueError, TypeError):
@@ -448,7 +446,7 @@ Sé específico. No propuestas vagas. Responde SOLO el JSON."""
         risk = "requiere evaluacion"
 
     return {
-        "date": _now().strftime("%Y-%m-%d"),
+        "date": now().strftime("%Y-%m-%d"),
         "area": area,
         "signal": signal,
         "insight": detail,
@@ -459,7 +457,7 @@ Sé específico. No propuestas vagas. Responde SOLO el JSON."""
         "impact": impact,
         "evidence": evidence,
         "status": "proposed",
-        "generated_at": _now().isoformat(),
+        "generated_at": now().isoformat(),
         "model": PROPOSAL_MODEL,
     }
 
@@ -500,7 +498,7 @@ def save_daily_proposal(proposal: dict) -> dict:
 def generate_daily_report(proposal: dict, signals: list):
     """Generate a human-readable daily improvement report."""
     LEARNING_DIR.mkdir(parents=True, exist_ok=True)
-    now = _now()
+    now = now()
 
     lines = [
         f"# Mejora del dia — {now.strftime('%Y-%m-%d')}",
@@ -577,7 +575,7 @@ def run_daily_improvement() -> dict:
         dict with: date, signals_found, area, proposal, status
     """
     _log({"action": "pipeline_start"})
-    today = _now().strftime("%Y-%m-%d")
+    today = now().strftime("%Y-%m-%d")
 
     # Phase 1: Scan signals
     signals = scan_all_signals()
@@ -590,7 +588,7 @@ def run_daily_improvement() -> dict:
             "proposal": "Sistema operando dentro de parametros normales",
             "steps": [], "expected_benefit": "N/A", "risk": "N/A",
             "impact": "none", "evidence": "", "status": "info",
-            "generated_at": _now().isoformat(), "model": "none",
+            "generated_at": now().isoformat(), "model": "none",
         }
         save_daily_proposal(empty_proposal)
         generate_daily_report(empty_proposal, [])

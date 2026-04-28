@@ -20,6 +20,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 try:
     from .runtime_config import get_default_telegram_chat_id
@@ -34,13 +35,10 @@ SECTION_TIMEOUT = 5  # seconds per section
 MAX_LINES = 30
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -84,7 +82,7 @@ def _notify(msg: str):
 
 
 def _section_header() -> str:
-    now = _now()
+    now = now()
     dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"]
     dia = dias[now.weekday()]
     return f"Buenos dias Sebas — {dia} {now.strftime('%d/%m')}"

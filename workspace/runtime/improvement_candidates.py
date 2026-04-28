@@ -27,6 +27,7 @@ from collections import Counter
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json
 except ImportError:
@@ -40,13 +41,10 @@ STAGING_DIR = BASE_DIR.parent / "staging" if Path("/home/tenazas").exists() else
 LOG_FILE = BASE_DIR / "logs" / "improvement_candidates.log"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -237,7 +235,7 @@ def generate(date: str = None) -> list:
     Returns: list of new candidates generated
     """
     if not date:
-        date = _now().strftime("%Y-%m-%d")
+        date = now().strftime("%Y-%m-%d")
 
     # Load errors
     error_file = ERROR_MINING_DIR / f"daily_{date}.json"
@@ -277,7 +275,7 @@ def generate(date: str = None) -> list:
     for c in new_candidates:
         c["id"] = _candidate_id(c["type"], c["title"])
         c["status"] = "proposed"
-        c["created_at"] = _now().isoformat()
+        c["created_at"] = now().isoformat()
         c["source_date"] = date
 
         if c["id"] not in existing_ids:
@@ -322,7 +320,7 @@ def update_status(candidate_id: str, new_status: str, note: str = "") -> bool:
             if new_status not in valid_transitions.get(current, []):
                 return False
             c["status"] = new_status
-            c[f"{new_status}_at"] = _now().isoformat()
+            c[f"{new_status}_at"] = now().isoformat()
             if note:
                 c["note"] = note
             _save_candidates(candidates)

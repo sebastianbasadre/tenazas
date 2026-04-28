@@ -23,6 +23,7 @@ except ImportError:
     from runtime_utils import load_json
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -33,13 +34,10 @@ PREDICTIONS_FILE = STATE_DIR / "predictions.json"
 MIN_PROBABILITY = 0.7  # minimum to notify
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -102,7 +100,7 @@ def predict_container_failure_risk() -> dict | None:
         # Fallback: check decision_quality for repeated restart actions
         dq_dir = STATE_DIR / "decision_quality"
         if dq_dir.exists():
-            today = _now().strftime("%Y-%m-%d")
+            today = now().strftime("%Y-%m-%d")
             dq_file = dq_dir / f"{today}.json"
             data = load_json(dq_file, [])
             restart_counts = {}
@@ -262,7 +260,7 @@ def predict_all() -> list:
         try:
             result = pred()
             if result and result.get("probability", 0) >= MIN_PROBABILITY:
-                result["predicted_at"] = _now().isoformat()
+                result["predicted_at"] = now().isoformat()
                 predictions.append(result)
         except Exception as e:
             _log({"action": "predictor_error", "predictor": pred.__name__,

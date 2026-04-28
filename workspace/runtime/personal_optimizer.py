@@ -21,6 +21,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -37,13 +38,10 @@ MIN_DAYS_FOR_SUGGESTIONS = 7
 MIN_SAMPLES = 20
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
@@ -54,7 +52,7 @@ def _log(entry: dict):
 def _load_telegram_activity(days: int = 14) -> list:
     """Load Telegram interaction timestamps from logs."""
     entries = []
-    cutoff = _now() - timedelta(days=days)
+    cutoff = now() - timedelta(days=days)
     try:
         with open(TELEGRAM_LOG) as f:
             for line in f:
@@ -202,7 +200,7 @@ def analyze() -> dict:
     entries = _load_telegram_activity()
 
     report = {
-        "analyzed_at": _now().isoformat(),
+        "analyzed_at": now().isoformat(),
         "active_hours": detect_active_hours(entries),
         "decision_patterns": detect_decision_patterns(),
         "skill_rhythm": detect_skill_rhythm(entries),

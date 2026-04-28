@@ -14,6 +14,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 try:
     from .runtime_config import get_default_telegram_chat_id
@@ -28,11 +29,9 @@ CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json") if Path("/home/tenaz
 CHAT_ID = get_default_telegram_chat_id()
 
 
-def _now(): return datetime.now().astimezone()
-
 def _log(e):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    e["ts"] = _now().isoformat()
+    e["ts"] = now().isoformat()
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
@@ -41,7 +40,7 @@ def _log(e):
 def generate_entry(date: str = None) -> dict:
     """Generate daily journal entry from trading_observer data."""
     if not date:
-        date = _now().strftime("%Y-%m-%d")
+        date = now().strftime("%Y-%m-%d")
 
     entry = {
         "date": date,
@@ -54,8 +53,12 @@ def generate_entry(date: str = None) -> dict:
     }
 
     try:
-        from trading_observer import get_latest, get_history
-        latest = get_latest()
+        from trading_observer import get_latest, get_history, observe
+        # Fetch fresh data instead of relying on stale observations
+        try:
+            latest = observe()
+        except Exception:
+            latest = get_latest()
         if latest:
             btc = latest.get("tickers", {}).get("BTCUSDT", {})
             eth = latest.get("tickers", {}).get("ETHUSDT", {})

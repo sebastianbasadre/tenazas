@@ -18,6 +18,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 _host_evals = BASE_DIR.parent.parent / "state" / "workspace" / "evals"
@@ -54,13 +55,10 @@ TOOL_TO_ACTION = {
 }
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -226,7 +224,7 @@ def run_eval(dataset_path: str, verbose: bool = False) -> dict:
         "avg_f1": round(avg_f1, 4),
         "per_tool": per_tool,
         "dataset": dataset_path,
-        "evaluated_at": _now().isoformat(),
+        "evaluated_at": now().isoformat(),
     }
 
     _log({
@@ -293,7 +291,7 @@ def _print_results(result: dict):
 def _save_results(result: dict):
     """Save eval results to JSON file."""
     EVALS_DIR.mkdir(parents=True, exist_ok=True)
-    ts = _now().strftime("%Y%m%d_%H%M%S")
+    ts = now().strftime("%Y%m%d_%H%M%S")
     path = EVALS_DIR / f"eval_results_{ts}.json"
     with open(path, "w") as f:
         json.dump(result, f, indent=2, default=str, ensure_ascii=False)

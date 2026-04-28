@@ -11,19 +11,17 @@ import json
 import hashlib
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 EXPERIMENTS_DIR = BASE_DIR / "experiments"
 TELEMETRY_LOG = BASE_DIR / "logs" / "experiments.log"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -44,7 +42,7 @@ def create_experiment(
 
     Returns: experiment definition dict.
     """
-    exp_id = hashlib.md5(f"{name}:{_now().isoformat()}".encode()).hexdigest()[:8]
+    exp_id = hashlib.md5(f"{name}:{now().isoformat()}".encode()).hexdigest()[:8]
 
     experiment = {
         "id": exp_id,
@@ -54,7 +52,7 @@ def create_experiment(
         "metric": metric,
         "status": "created",
         "results": [],
-        "created_at": _now().isoformat(),
+        "created_at": now().isoformat(),
     }
 
     EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -91,7 +89,7 @@ def record_result(
     experiment["results"].append({
         "variant": variant,
         "metrics": metrics,
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
     })
     experiment["status"] = "running"
 

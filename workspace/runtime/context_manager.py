@@ -14,6 +14,7 @@ Prevents context overflow and reduces token waste.
 import json
 from datetime import datetime
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 TELEMETRY_LOG = BASE_DIR / "logs" / "context_manager.log"
@@ -30,13 +31,10 @@ DEFAULT_BUDGET = {
 CHARS_PER_TOKEN = 3.5
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -104,7 +102,7 @@ def compress_old_context(items: list, max_age_hours: int = 24) -> list:
 
     Older items get their text truncated to first 200 chars.
     """
-    cutoff = _now().timestamp() - (max_age_hours * 3600)
+    cutoff = now().timestamp() - (max_age_hours * 3600)
     compressed = []
     for item in items:
         ts = item.get("ts", "")

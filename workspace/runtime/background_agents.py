@@ -17,6 +17,7 @@ Log: workspace/runtime/logs/background_agents.log
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -28,13 +29,10 @@ AGENTS_STATE_FILE = BASE_DIR / "agents_state.json"
 TELEMETRY_LOG = BASE_DIR / "logs" / "background_agents.log"
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -147,7 +145,7 @@ def _should_run(agent_name: str, interval_seconds: int,
         return True
     try:
         last_dt = datetime.fromisoformat(last_run)
-        return (_now() - last_dt).total_seconds() >= interval_seconds
+        return (now() - last_dt).total_seconds() >= interval_seconds
     except (ValueError, TypeError):
         return True
 
@@ -177,7 +175,7 @@ def check_and_run() -> list:
             ok = False
 
         agents_state[name] = {
-            "last_run": _now().isoformat(),
+            "last_run": now().isoformat(),
             "ok": ok,
             "result_summary": str(result)[:200],
         }

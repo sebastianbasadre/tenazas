@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 LOG_FILE = BASE_DIR / "logs" / "agent_lab.log"
@@ -90,9 +91,6 @@ PIPELINES = {
 }
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     """Append a JSON line to agent_lab.log."""
@@ -144,9 +142,9 @@ def run_agent(agent_name: str, input_text: str, context: str = "") -> dict:
                 "error": f"Unknown agent: {agent_name}"}
 
     prompt = agent["prompt_template"].format(input=input_text, context=context)
-    start = _now()
+    start = now()
     result = _call_ollama(agent["model"], agent["system_prompt"], prompt)
-    duration_ms = int((_now() - start).total_seconds() * 1000)
+    duration_ms = int((now() - start).total_seconds() * 1000)
 
     entry = {
         "agent": agent_name,
@@ -156,7 +154,7 @@ def run_agent(agent_name: str, input_text: str, context: str = "") -> dict:
         "duration_ms": duration_ms,
     }
 
-    _log({"ts": _now().isoformat(), "action": "run_agent", **entry})
+    _log({"ts": now().isoformat(), "action": "run_agent", **entry})
 
     return {
         "agent": agent_name,
@@ -198,14 +196,14 @@ def run_pipeline(pipeline_name: str, input_text: str, context: str = "") -> dict
         else:
             all_ok = False
             # Continue with original input if an agent fails
-            _log({"ts": _now().isoformat(), "action": "pipeline_agent_failed",
+            _log({"ts": now().isoformat(), "action": "pipeline_agent_failed",
                   "pipeline": pipeline_name, "agent": agent_name,
                   "error": result.get("error")})
 
     final_output = results[-1]["response"] if results and results[-1]["ok"] else ""
 
     _log({
-        "ts": _now().isoformat(),
+        "ts": now().isoformat(),
         "action": "run_pipeline",
         "pipeline": pipeline_name,
         "agents_run": len(results),

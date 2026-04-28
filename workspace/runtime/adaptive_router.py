@@ -12,6 +12,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
 METRICS_DIR = BASE_DIR / "metrics"
@@ -22,13 +23,10 @@ MIN_SAMPLES = 3
 ANALYSIS_DAYS = 7
 
 
-def _now():
-    return datetime.now().astimezone()
-
 
 def _log(entry: dict):
     TELEMETRY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entry["ts"] = _now().isoformat()
+    entry["ts"] = now().isoformat()
     with open(TELEMETRY_LOG, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
@@ -36,7 +34,7 @@ def _log(entry: dict):
 def _load_metrics(days: int = ANALYSIS_DAYS) -> list:
     entries = []
     for i in range(days):
-        day = _now() - timedelta(days=i)
+        day = now() - timedelta(days=i)
         path = METRICS_DIR / f"{day.strftime('%Y-%m-%d')}.json"
         try:
             with open(path) as f:
@@ -124,7 +122,7 @@ def update_recommendations() -> dict:
 
     state = {
         "recommendations": recommendations,
-        "last_update": _now().isoformat(),
+        "last_update": now().isoformat(),
         "analysis_days": ANALYSIS_DAYS,
     }
 
