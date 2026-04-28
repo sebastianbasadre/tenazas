@@ -40,10 +40,25 @@ from hashlib import sha256
 from pathlib import Path
 from runtime_utils import now_iso
 
+try:
+    from runtime_config import (
+        DECO_IP, HOME_MINI_IP, HOMELAB_IP, HUE_BRIDGE_IP, HUE_SYNC_BOX_IP,
+        LAN_SUBNET, MARANTZ_IP, NAS_BACKUP_IP, NAS_IP, NEST_DOORBELL_IP,
+        NEST_MINI_IP, ROUTER_IP, SAMSUNG_M8_IP, SAMSUNG_Q70_IP,
+        XIAOMI_VACUUM_IP,
+    )
+except ImportError:
+    from workspace.runtime.runtime_config import (
+        DECO_IP, HOME_MINI_IP, HOMELAB_IP, HUE_BRIDGE_IP, HUE_SYNC_BOX_IP,
+        LAN_SUBNET, MARANTZ_IP, NAS_BACKUP_IP, NAS_IP, NEST_DOORBELL_IP,
+        NEST_MINI_IP, ROUTER_IP, SAMSUNG_M8_IP, SAMSUNG_Q70_IP,
+        XIAOMI_VACUUM_IP,
+    )
+
 BASE_DIR = Path(__file__).parent
 INVENTORY_FILE = BASE_DIR / "device_inventory.json"
 LOG_FILE = BASE_DIR / "logs" / "device_discovery.log"
-SUBNET = "192.168.2.0/24"
+SUBNET = LAN_SUBNET
 
 # Timeouts
 QUICK_SCAN_TIMEOUT = 30
@@ -53,18 +68,18 @@ TARGET_SCAN_TIMEOUT = 60
 # ── Known device overrides (manual enrichment) ──────────────────
 
 KNOWN_OVERRIDES = {
-    "192.168.2.1": {"name": "Router", "category": "network", "control": None},
-    "192.168.2.2": {"name": "NAS DS923+", "category": "server", "control": "ssh"},
-    "192.168.2.3": {"name": "NAS Backup", "category": "server", "control": "ssh"},
-    "192.168.2.6": {"name": "HomeLab", "category": "server", "control": "ssh"},
-    "192.168.2.11": {"name": "Hue Bridge", "category": "smart_home",
-                      "control": "http", "api": "http://192.168.2.11/api"},
-    "192.168.2.46": {"name": "Samsung M8", "category": "display",
-                      "control": "websocket", "api": "ws://192.168.2.46:8001"},
-    "192.168.2.30": {"name": "TP-Link Deco B63 main", "category": "network", "control": "http"},
+    ROUTER_IP: {"name": "Router", "category": "network", "control": None},
+    NAS_IP: {"name": "NAS DS923+", "category": "server", "control": "ssh"},
+    NAS_BACKUP_IP: {"name": "NAS Backup", "category": "server", "control": "ssh"},
+    HOMELAB_IP: {"name": "HomeLab", "category": "server", "control": "ssh"},
+    HUE_BRIDGE_IP: {"name": "Hue Bridge", "category": "smart_home",
+                      "control": "http", "api": f"http://{HUE_BRIDGE_IP}/api"},
+    SAMSUNG_M8_IP: {"name": "Samsung M8", "category": "display",
+                      "control": "websocket", "api": f"ws://{SAMSUNG_M8_IP}:8001"},
+    DECO_IP: {"name": "TP-Link Deco B63 main", "category": "network", "control": "http"},
     "192.168.2.12": {"name": "TP-Link Deco extender 1", "category": "network", "control": "http"},
     "192.168.2.23": {"name": "TP-Link Deco extender 2", "category": "network", "control": "http"},
-    "192.168.2.62": {"name": "Google Nest Mini", "category": "speaker", "control": "cast"},
+    NEST_MINI_IP: {"name": "Google Nest Mini", "category": "speaker", "control": "cast"},
     "192.168.2.57": {"name": "Moto G75 Sebas", "category": "phone", "control": None},
     # Cameras (EZVIZ)
     "192.168.2.10": {"name": "EZVIZ C6N (2)", "category": "camera", "control": "http"},
@@ -79,12 +94,12 @@ KNOWN_OVERRIDES = {
     # NVR
     "192.168.2.4": {"name": "Dahua NVR", "category": "camera", "control": "http"},
     # Media
-    "192.168.2.80": {"name": "Marantz CINEMA 60", "category": "media", "control": "http"},
-    "192.168.2.36": {"name": "Hue Sync Box", "category": "smart_home", "control": "http"},
-    "192.168.2.83": {"name": "Google Home Mini", "category": "speaker", "control": "cast"},
-    "192.168.2.22": {"name": "Nest Doorbell Wired", "category": "smart_home", "control": None},
+    MARANTZ_IP: {"name": "Marantz CINEMA 60", "category": "media", "control": "http"},
+    HUE_SYNC_BOX_IP: {"name": "Hue Sync Box", "category": "smart_home", "control": "http"},
+    HOME_MINI_IP: {"name": "Google Home Mini", "category": "speaker", "control": "cast"},
+    NEST_DOORBELL_IP: {"name": "Nest Doorbell Wired", "category": "smart_home", "control": None},
     # IoT
-    "192.168.2.99": {"name": "Xiaomi Vacuum", "category": "iot", "control": None},
+    XIAOMI_VACUUM_IP: {"name": "Xiaomi Vacuum", "category": "iot", "control": None},
     "192.168.2.61": {"name": "ESP32", "category": "iot", "control": None},
     "192.168.2.5": {"name": "Epson Printer", "category": "printer", "control": "http"},
     # Phones & tablets
@@ -93,7 +108,7 @@ KNOWN_OVERRIDES = {
     "192.168.2.102": {"name": "S25 Viviana", "category": "phone", "control": None},
     "192.168.2.128": {"name": "Tab A9 Sebas", "category": "tablet", "control": None},
     "192.168.2.60": {"name": "Tab S6 Lite Juliana", "category": "tablet", "control": None},
-    "192.168.2.29": {"name": "Samsung TV", "category": "display", "control": None},
+    SAMSUNG_Q70_IP: {"name": "Samsung TV", "category": "display", "control": None},
     "192.168.2.32": {"name": "Tab A9 Viviana", "category": "tablet", "control": None},
     "192.168.2.35": {"name": "Android (ethernet)", "category": "client", "control": None},
     "192.168.2.56": {"name": "Phone (5GHz)", "category": "phone", "control": None},

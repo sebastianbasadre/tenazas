@@ -14,6 +14,11 @@ import re
 import sys
 from urllib.request import urlopen, Request
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 ALLOWED_TOOLS = {
     "weather", "email", "calendar", "infra-monitor", "network-scanner",
     "arr-monitor", "self-evolve", "reminders", "smart-home-on",
@@ -99,7 +104,7 @@ def validate_xml(text: str) -> list[str]:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--host", default="http://192.168.2.6:11434")
+    p.add_argument("--host", default=OLLAMA_GPU_URL)
     p.add_argument("--model", default="tenazas-multitool")
     p.add_argument("--verbose", "-v", action="store_true")
     args = p.parse_args()

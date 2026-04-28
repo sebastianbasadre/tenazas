@@ -13,6 +13,11 @@ from __future__ import annotations
 import logging
 import re
 
+try:
+    from runtime_config import HOME_MINI_IP, NEST_MINI_IP
+except ImportError:
+    from workspace.runtime.runtime_config import HOME_MINI_IP, NEST_MINI_IP
+
 logger = logging.getLogger(__name__)
 
 DEVICE_ID = "google_cast"
@@ -28,8 +33,8 @@ ACTIONS = {
 }
 
 _SPEAKERS = {
-    "living": {"name": "Nest Mini (Living)", "ip": "192.168.2.62"},
-    "cocina": {"name": "Home Mini (Cocina)", "ip": "192.168.2.83"},
+    "living": {"name": "Nest Mini (Living)", "ip": NEST_MINI_IP},
+    "cocina": {"name": "Home Mini (Cocina)", "ip": HOME_MINI_IP},
 }
 
 

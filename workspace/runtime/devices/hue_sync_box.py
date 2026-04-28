@@ -14,11 +14,16 @@ import re
 import ssl
 from urllib.request import Request, urlopen
 
+try:
+    from runtime_config import HUE_SYNC_BOX_IP
+except ImportError:
+    from workspace.runtime.runtime_config import HUE_SYNC_BOX_IP
+
 logger = logging.getLogger(__name__)
 
 DEVICE_ID = "hue_sync_box"
 DEVICE_NAME = "Hue Sync Box"
-DEFAULT_IP = "192.168.2.36"
+DEFAULT_IP = HUE_SYNC_BOX_IP
 TIMEOUT = 5
 
 ACTIONS = {

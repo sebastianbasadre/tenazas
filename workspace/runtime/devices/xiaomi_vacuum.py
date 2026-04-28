@@ -28,11 +28,16 @@ import json
 import logging
 import re
 
+try:
+    from runtime_config import XIAOMI_VACUUM_IP
+except ImportError:
+    from workspace.runtime.runtime_config import XIAOMI_VACUUM_IP
+
 logger = logging.getLogger(__name__)
 
 DEVICE_ID = "xiaomi_vacuum"
 DEVICE_NAME = "Xiaomi Vacuum X20+"
-DEFAULT_IP = "192.168.2.99"
+DEFAULT_IP = XIAOMI_VACUUM_IP
 
 ACTIONS = {
     "aspirar": "Inicia limpieza",

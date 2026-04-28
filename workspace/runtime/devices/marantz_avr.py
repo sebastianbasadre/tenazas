@@ -15,13 +15,18 @@ import xml.etree.ElementTree as ET
 
 import requests
 import urllib3
+
+try:
+    from runtime_config import MARANTZ_IP
+except ImportError:
+    from workspace.runtime.runtime_config import MARANTZ_IP
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
 DEVICE_ID = "marantz_avr"
 DEVICE_NAME = "Marantz CINEMA 60"
-DEFAULT_IP = "192.168.2.80"
+DEFAULT_IP = MARANTZ_IP
 TIMEOUT = 5
 
 ACTIONS = {

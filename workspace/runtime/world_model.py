@@ -14,22 +14,27 @@ from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
 
+try:
+    from runtime_config import CHROMADB_URL, GLUETUN_PROXY, HOMELAB_IP, HUE_BRIDGE_IP, LAN_SUBNET, NAS_BACKUP_IP, NAS_IP, OLLAMA_GPU_URL, ROUTER_IP, SAMSUNG_M8_IP
+except ImportError:
+    from workspace.runtime.runtime_config import CHROMADB_URL, GLUETUN_PROXY, HOMELAB_IP, HUE_BRIDGE_IP, LAN_SUBNET, NAS_BACKUP_IP, NAS_IP, OLLAMA_GPU_URL, ROUTER_IP, SAMSUNG_M8_IP
+
 BASE_DIR = Path(__file__).parent
 STATE_FILE = BASE_DIR / "state.json"
 INVENTORY_FILE = BASE_DIR / "device_inventory.json"
 LOG_FILE = BASE_DIR / "logs" / "world_model.log"
 
-SUBNET = "192.168.2.0/24"
+SUBNET = LAN_SUBNET
 
 # ── Known devices (hardcoded fallback) ───────────────────────────
 
 _FALLBACK_DEVICES = {
-    "192.168.2.1": {"name": "Router", "type": "network"},
-    "192.168.2.2": {"name": "NAS DS923+", "type": "nas"},
-    "192.168.2.3": {"name": "NAS Backup", "type": "nas"},
-    "192.168.2.11": {"name": "Hue Bridge", "type": "smart_home"},
-    "192.168.2.46": {"name": "Samsung M8", "type": "display"},
-    "192.168.2.6": {"name": "HomeLab", "type": "compute"},
+    ROUTER_IP: {"name": "Router", "type": "network"},
+    NAS_IP: {"name": "NAS DS923+", "type": "nas"},
+    NAS_BACKUP_IP: {"name": "NAS Backup", "type": "nas"},
+    HUE_BRIDGE_IP: {"name": "Hue Bridge", "type": "smart_home"},
+    SAMSUNG_M8_IP: {"name": "Samsung M8", "type": "display"},
+    HOMELAB_IP: {"name": "HomeLab", "type": "compute"},
 }
 
 
@@ -63,39 +68,39 @@ KNOWN_DEVICES = _load_devices()
 
 KNOWN_SERVICES = {
     "ollama_notebook": {
-        "url": "http://192.168.2.6:11434",
+        "url": OLLAMA_GPU_URL,
         "type": "llm_inference",
-        "host": "192.168.2.6",
+        "host": HOMELAB_IP,
         "description": "Ollama GPU (RTX 3090)",
     },
     "ollama_nas": {
         "url": "http://127.0.0.1:11434",
         "type": "llm_inference",
-        "host": "192.168.2.2",
+        "host": NAS_IP,
         "description": "Ollama CPU (Ryzen, fallback)",
     },
     "chromadb": {
-        "url": "http://192.168.2.2:8100",
+        "url": CHROMADB_URL,
         "type": "vector_db",
-        "host": "192.168.2.2",
+        "host": NAS_IP,
         "description": "ChromaDB for RAG",
     },
     "hue_bridge": {
-        "url": "http://192.168.2.11/api",
+        "url": f"http://{HUE_BRIDGE_IP}/api",
         "type": "smart_home",
-        "host": "192.168.2.11",
+        "host": HUE_BRIDGE_IP,
         "description": "Philips Hue (8 lights)",
     },
     "gluetun_proxy": {
-        "url": "http://192.168.2.2:8888",
+        "url": GLUETUN_PROXY,
         "type": "vpn_proxy",
-        "host": "192.168.2.2",
+        "host": NAS_IP,
         "description": "NordVPN via gluetun (Spain)",
     },
     "samsung_m8": {
-        "url": "ws://192.168.2.46:8001",
+        "url": f"ws://{SAMSUNG_M8_IP}:8001",
         "type": "display",
-        "host": "192.168.2.46",
+        "host": SAMSUNG_M8_IP,
         "description": "Samsung M8 WebSocket control",
     },
 }
@@ -228,10 +233,10 @@ def get_topology() -> dict:
     """
     topology = {
         "subnet": SUBNET,
-        "gateway": "192.168.2.1",
-        "primary_nas": "192.168.2.2",
-        "backup_nas": "192.168.2.3",
-        "compute_node": "192.168.2.6",
+        "gateway": ROUTER_IP,
+        "primary_nas": NAS_IP,
+        "backup_nas": NAS_BACKUP_IP,
+        "compute_node": HOMELAB_IP,
         "devices": KNOWN_DEVICES,
         "services": {name: {"url": svc["url"], "host": svc["host"]}
                      for name, svc in KNOWN_SERVICES.items()},

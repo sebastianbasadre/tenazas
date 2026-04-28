@@ -13,6 +13,11 @@ import os
 import re
 import subprocess
 
+try:
+    from runtime_config import HUE_BRIDGE_IP
+except ImportError:
+    from workspace.runtime.runtime_config import HUE_BRIDGE_IP
+
 DEVICE_ID = "hue_lights"
 DEVICE_NAME = "Luces Hue"
 ACTIONS = {
@@ -24,7 +29,7 @@ ACTIONS = {
     "estado": "Estado de cada luz",
 }
 
-BRIDGE_IP = "192.168.2.11"
+BRIDGE_IP = HUE_BRIDGE_IP
 LIGHT_IDS = ["1", "3", "4", "6", "11", "12", "13", "15"]
 
 SCENES = {

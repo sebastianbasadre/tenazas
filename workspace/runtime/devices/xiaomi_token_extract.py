@@ -24,8 +24,13 @@ from urllib.parse import urlencode, urlparse, parse_qs
 from urllib.request import Request, urlopen, build_opener, HTTPCookieProcessor
 from http.cookiejar import CookieJar
 
+try:
+    from runtime_config import XIAOMI_VACUUM_IP
+except ImportError:
+    from workspace.runtime.runtime_config import XIAOMI_VACUUM_IP
+
 CONFIG_PATH = Path("/home/tenazas/.openclaw/tenazas_config.json")
-DEFAULT_IP = "192.168.2.99"
+DEFAULT_IP = XIAOMI_VACUUM_IP
 
 
 def save_token(token: str, ip: str = DEFAULT_IP) -> None:

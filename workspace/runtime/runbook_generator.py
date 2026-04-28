@@ -15,6 +15,11 @@ from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
 
+try:
+    from runtime_config import GLUETUN_PROXY, HOMELAB_IP, LAN_SUBNET, OLLAMA_GPU_TAGS_URL, ROUTER_IP
+except ImportError:
+    from workspace.runtime.runtime_config import GLUETUN_PROXY, HOMELAB_IP, LAN_SUBNET, OLLAMA_GPU_TAGS_URL, ROUTER_IP
+
 BASE_DIR = Path(__file__).parent
 RUNBOOKS_DIR = BASE_DIR / "runbooks"
 TELEMETRY_LOG = BASE_DIR / "logs" / "runbooks.log"
@@ -49,10 +54,10 @@ RUNBOOK_TEMPLATES = {
         "severity": "critical",
         "steps": [
             {"action": "Verificar estado de gluetun", "command": "docker logs gluetun --tail 30"},
-            {"action": "Verificar IP publica via proxy", "command": "curl -sf -x http://192.168.2.2:8888 https://ifconfig.me"},
-            {"action": "Verificar pais de la IP", "command": "curl -sf http://ip-api.com/json/$(curl -sf -x http://192.168.2.2:8888 https://ifconfig.me)?fields=countryCode"},
+            {"action": "Verificar IP publica via proxy", "command": f"curl -sf -x {GLUETUN_PROXY} https://ifconfig.me"},
+            {"action": "Verificar pais de la IP", "command": "curl -sf http://ip-api.com/json/$(curl -sf -x {GLUETUN_PROXY} https://ifconfig.me)?fields=countryCode"},
             {"action": "Reiniciar gluetun", "command": "docker restart gluetun", "requires_approval": True},
-            {"action": "Esperar 30s y reverificar VPN", "command": "sleep 30 && curl -sf -x http://192.168.2.2:8888 https://ifconfig.me"},
+            {"action": "Esperar 30s y reverificar VPN", "command": f"sleep 30 && curl -sf -x {GLUETUN_PROXY} https://ifconfig.me"},
             {"action": "Si persiste, verificar config de NordVPN", "command": "docker exec gluetun cat /gluetun/servers.json | head -5"},
         ],
     },
@@ -62,7 +67,7 @@ RUNBOOK_TEMPLATES = {
         "steps": [
             {"action": "Verificar conectividad basica", "command": "ping -c 3 8.8.8.8"},
             {"action": "Verificar DNS", "command": "nslookup google.com"},
-            {"action": "Verificar gateway", "command": "ping -c 1 192.168.2.1"},
+            {"action": "Verificar gateway", "command": f"ping -c 1 {ROUTER_IP}"},
             {"action": "Verificar interfaces de red", "command": "ip addr show | grep 'inet '"},
             {"action": "Si el router responde pero no hay internet, contactar ISP"},
         ],
@@ -71,11 +76,11 @@ RUNBOOK_TEMPLATES = {
         "title": "Ollama offline (notebook o NAS)",
         "severity": "warning",
         "steps": [
-            {"action": "Verificar notebook GPU", "command": "curl -sf --max-time 5 http://192.168.2.6:11434/api/tags"},
+            {"action": "Verificar notebook GPU", "command": f"curl -sf --max-time 5 {OLLAMA_GPU_TAGS_URL}"},
             {"action": "Verificar NAS CPU", "command": "curl -sf --max-time 5 http://127.0.0.1:11434/api/tags"},
-            {"action": "Verificar que la notebook esta encendida y accesible", "command": "ping -c 1 -W 3 192.168.2.6"},
+            {"action": "Verificar que la notebook esta encendida y accesible", "command": f"ping -c 1 -W 3 {HOMELAB_IP}"},
             {"action": "Si la notebook responde pero Ollama no, reiniciar servicio Ollama en la notebook"},
-            {"action": "Verificar modelos disponibles despues del fix", "command": "curl -sf http://192.168.2.6:11434/api/tags | python3 -c 'import sys,json; print(json.load(sys.stdin))'"},
+            {"action": "Verificar modelos disponibles despues del fix", "command": f"curl -sf {OLLAMA_GPU_TAGS_URL} | python3 -c 'import sys,json; print(json.load(sys.stdin))'"},
         ],
     },
     "container_down": {
@@ -93,8 +98,8 @@ RUNBOOK_TEMPLATES = {
         "severity": "info",
         "steps": [
             {"action": "Medir latencia a multiples destinos", "command": "ping -c 5 8.8.8.8"},
-            {"action": "Verificar carga de red", "command": "nmap -sn 192.168.2.0/24 | grep 'Host is up' | wc -l"},
-            {"action": "Verificar si VPN afecta velocidad", "command": "curl -sf --max-time 10 -x http://192.168.2.2:8888 https://ifconfig.me"},
+            {"action": "Verificar carga de red", "command": f"nmap -sn {LAN_SUBNET} | grep 'Host is up' | wc -l"},
+            {"action": "Verificar si VPN afecta velocidad", "command": f"curl -sf --max-time 10 -x {GLUETUN_PROXY} https://ifconfig.me"},
             {"action": "Si es persistente, considerar cambiar servidor VPN"},
         ],
     },

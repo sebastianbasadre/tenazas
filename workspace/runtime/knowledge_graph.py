@@ -13,6 +13,11 @@ from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
 
+try:
+    from runtime_config import HOMELAB_IP, HUE_BRIDGE_IP, NAS_BACKUP_IP, NAS_IP, OLLAMA_GPU_URL, ROUTER_IP, SAMSUNG_M8_IP
+except ImportError:
+    from workspace.runtime.runtime_config import HOMELAB_IP, HUE_BRIDGE_IP, NAS_BACKUP_IP, NAS_IP, OLLAMA_GPU_URL, ROUTER_IP, SAMSUNG_M8_IP
+
 BASE_DIR = Path(__file__).parent
 GRAPH_FILE = BASE_DIR / "knowledge_graph.json"
 TELEMETRY_LOG = BASE_DIR / "logs" / "knowledge_graph.log"
@@ -46,14 +51,14 @@ NODES = {
     "portainer": {"type": "container", "role": "docker_ui"},
     "watchtower": {"type": "container", "role": "auto_updater", "critical": True},
     # Devices
-    "nas": {"type": "device", "ip": "192.168.2.2", "role": "host"},
-    "notebook": {"type": "device", "ip": "192.168.2.6", "role": "gpu_inference"},
-    "nas_backup": {"type": "device", "ip": "192.168.2.3", "role": "backup"},
-    "router": {"type": "device", "ip": "192.168.2.1", "role": "gateway"},
-    "hue_bridge": {"type": "device", "ip": "192.168.2.11", "role": "smart_home"},
-    "samsung_m8": {"type": "device", "ip": "192.168.2.46", "role": "display"},
+    "nas": {"type": "device", "ip": NAS_IP, "role": "host"},
+    "notebook": {"type": "device", "ip": HOMELAB_IP, "role": "gpu_inference"},
+    "nas_backup": {"type": "device", "ip": NAS_BACKUP_IP, "role": "backup"},
+    "router": {"type": "device", "ip": ROUTER_IP, "role": "gateway"},
+    "hue_bridge": {"type": "device", "ip": HUE_BRIDGE_IP, "role": "smart_home"},
+    "samsung_m8": {"type": "device", "ip": SAMSUNG_M8_IP, "role": "display"},
     # Services
-    "ollama_gpu": {"type": "service", "url": "http://192.168.2.6:11434", "role": "inference"},
+    "ollama_gpu": {"type": "service", "url": OLLAMA_GPU_URL, "role": "inference"},
     "ollama_cpu": {"type": "service", "url": "http://127.0.0.1:11434", "role": "inference_fallback"},
     "gemini": {"type": "service", "role": "cloud_inference"},
     "telegram": {"type": "service", "role": "communication"},

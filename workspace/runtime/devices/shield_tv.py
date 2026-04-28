@@ -15,11 +15,16 @@ import logging
 import re
 import socket
 
+try:
+    from runtime_config import SHIELD_TV_IP
+except ImportError:
+    from workspace.runtime.runtime_config import SHIELD_TV_IP
+
 logger = logging.getLogger(__name__)
 
 DEVICE_ID = "shield_tv"
 DEVICE_NAME = "NVIDIA SHIELD"
-DEFAULT_IP = "192.168.2.96"
+DEFAULT_IP = SHIELD_TV_IP
 DEFAULT_MAC = "9C:00:D3:94:47:49"
 
 ACTIONS = {

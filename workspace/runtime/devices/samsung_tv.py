@@ -22,6 +22,11 @@ import socket
 import struct
 import time
 
+try:
+    from runtime_config import SAMSUNG_M8_IP, SAMSUNG_M8_MAC, SAMSUNG_Q70_IP, SAMSUNG_Q70_MAC
+except ImportError:
+    from workspace.runtime.runtime_config import SAMSUNG_M8_IP, SAMSUNG_M8_MAC, SAMSUNG_Q70_IP, SAMSUNG_Q70_MAC
+
 logger = logging.getLogger(__name__)
 
 DEVICE_ID = "samsung_tv"
@@ -74,8 +79,8 @@ _APP_IDS = {
 
 # Device registry: name → {ip, mac, token}
 _DEVICES = {
-    "m8": {"ip": "192.168.2.46", "mac": "BC:45:5B:9F:F3:2A", "config_key": "samsung_m8"},
-    "q70": {"ip": "192.168.2.29", "mac": "B0:E4:5C:20:38:60", "config_key": "samsung_q70"},
+    "m8": {"ip": SAMSUNG_M8_IP, "mac": SAMSUNG_M8_MAC, "config_key": "samsung_m8"},
+    "q70": {"ip": SAMSUNG_Q70_IP, "mac": SAMSUNG_Q70_MAC, "config_key": "samsung_q70"},
 }
 
 

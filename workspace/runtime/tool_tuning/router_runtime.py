@@ -46,6 +46,11 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
+try:
+    from runtime_config import HUE_BRIDGE_IP, LAN_SUBNET
+except ImportError:
+    from workspace.runtime.runtime_config import HUE_BRIDGE_IP, LAN_SUBNET
+
 # Import canonical labels from contract
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from routes_contract import VALID_ROUTES
@@ -61,7 +66,7 @@ NMAP_TIMEOUT = 30
 DOCKER_TIMEOUT = 10
 TTS_TIMEOUT = 30
 
-HUE_BRIDGE = "http://192.168.2.11/api"
+HUE_BRIDGE = f"http://{HUE_BRIDGE_IP}/api"
 OPENCLAW_CONFIG = "/home/tenazas/.openclaw/openclaw.json"
 GCAL_SCRIPT = "/home/tenazas/.openclaw/workspace/skills/calendar-agenda/gcal.py"
 TTS_SCRIPT = "/home/tenazas/.openclaw/workspace/skills/tts/tts.sh"
@@ -245,7 +250,7 @@ def run_lights(user_input: str) -> Optional[str]:
 def run_network_scan(user_input: str) -> Optional[str]:
     """nmap -sn LAN scan. Updates freshness timestamp on success."""
     ok, raw = _run_cmd(
-        ["nmap", "-sn", "192.168.2.0/24"], timeout=NMAP_TIMEOUT,
+        ["nmap", "-sn", LAN_SUBNET], timeout=NMAP_TIMEOUT,
     )
     if not ok:
         return None

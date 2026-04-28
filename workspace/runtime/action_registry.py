@@ -28,6 +28,11 @@ from pathlib import Path
 from docker_wrapper import ALLOWED_ACTIONS as DOCKER_ALLOWED, BLOCKED_CONTAINERS
 from safety_guard import PROTECTED_CONTAINERS, ARR_CONTAINERS
 
+try:
+    from runtime_config import LAN_SUBNET
+except ImportError:
+    from workspace.runtime.runtime_config import LAN_SUBNET
+
 LOG_PATH = Path(__file__).parent / "logs" / "action_registry.log"
 
 RISK_SAFE = "safe"
@@ -122,7 +127,7 @@ ACTIONS = [
         "max_retries": 1,
         "validator_name": None,
         "rollback": None,
-        "allowed_targets": ["192.168.2.0/24"],
+        "allowed_targets": [LAN_SUBNET],
         "blocked_targets": [],
     },
 

@@ -10,9 +10,14 @@ from __future__ import annotations
 
 import socket
 
+try:
+    from runtime_config import NEST_DOORBELL_IP
+except ImportError:
+    from workspace.runtime.runtime_config import NEST_DOORBELL_IP
+
 DEVICE_ID = "nest_doorbell"
 DEVICE_NAME = "Nest Doorbell"
-DEFAULT_IP = "192.168.2.22"
+DEFAULT_IP = NEST_DOORBELL_IP
 
 ACTIONS = {
     "estado": "Verifica si esta online",

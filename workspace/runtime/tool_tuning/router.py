@@ -54,12 +54,17 @@ from typing import Callable, Dict, Optional
 
 import requests
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 # Import canonical labels from contract
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from routes_contract import VALID_ROUTES, normalize_route as _contract_normalize
 
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "tenazas-router-labels")
-DEFAULT_OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://192.168.2.6:11434").rstrip("/")
+DEFAULT_OLLAMA_HOST = OLLAMA_GPU_URL
 DEFAULT_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "30"))
 
 # ── Structured JSON logging ──────────────────────────────────────────

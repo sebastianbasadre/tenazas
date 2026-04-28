@@ -16,12 +16,16 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+try:
+    from runtime_config import OLLAMA_GPU_URL
+except ImportError:
+    from workspace.runtime.runtime_config import OLLAMA_GPU_URL
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 from eval_metrics import aggregate_metrics
 from multitool_parser import parse_multitool_response, ALLOWED_TOOLS
 
-OLLAMA_GPU_URL = "http://192.168.2.6:11434"
 OLLAMA_NAS_URL = "http://localhost:11434"
 
 # Use the real registry from multitool_parser.py
