@@ -9,9 +9,9 @@ Requirements for this refactoring milestone. Each maps to roadmap phases.
 
 ### Foundation
 
-- [ ] **FOUND-01**: All duplicate `_save_json()`, `_load_json()`, `_now()` functions extracted into a single `runtime_utils.py` module
+- [x] **FOUND-01**: All duplicate `_save_json()`, `_load_json()`, `_now()` functions extracted into a single `runtime_utils.py` module
 - [ ] **FOUND-02**: All modules that previously defined their own `_save_json()` import from `runtime_utils.py` instead
-- [ ] **FOUND-03**: `runtime_utils.py` provides `write_atomic()` using tempfile + os.replace() pattern for safe writes
+- [x] **FOUND-03**: `runtime_utils.py` provides `write_atomic()` using tempfile + os.replace() pattern for safe writes
 
 ### Config
 
@@ -82,9 +82,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Pending |
+| FOUND-01 | Phase 1 | Complete |
 | FOUND-02 | Phase 1 | Pending |
-| FOUND-03 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Complete |
 | CONF-01 | Phase 2 | Pending |
 | CONF-02 | Phase 2 | Pending |
 | CONF-03 | Phase 2 | Pending |

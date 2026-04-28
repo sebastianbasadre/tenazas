@@ -28,7 +28,7 @@ A bottom-up structural refactoring in 4 phases: extract shared utilities first (
   4. `write_atomic()` uses tempfile + os.replace() pattern (verifiable by reading the implementation)
 **Plans:** 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
+- [x] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
 - [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
 
 ### Phase 2: Config Centralization
@@ -82,7 +82,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation Utilities | 0/? | Not started | - |
+| 1. Foundation Utilities | 1/2 | In progress | - |
 | 2. Config Centralization | 0/? | Not started | - |
 | 3. Orchestrator Decomposition | 0/? | Not started | - |
 | 4. Dead Code Cleanup | 0/? | Not started | - |
