@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-04-28)
 ## Current Position
 
 Phase: 3 of 4 (Orchestrator Decomposition)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-04-28 -- Phase 2 complete (Config Centralization verified)
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-04-28 -- Plan 03-01 complete (routing_metrics + classifier extraction)
 
-Progress: [#####.....] 50%
+Progress: [######....] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 10 min
-- Total execution time: 0.86 hours
+- Total execution time: 1.06 hours
 
 **By Phase:**
 
@@ -29,10 +29,11 @@ Progress: [#####.....] 50%
 |-------|-------|-------|----------|
 | 01-foundation-utilities | 3 | 30 min | 10 min |
 | 02-config-centralization | 2 | 20 min | 10 min |
+| 03-orchestrator-decomposition | 1 | 12 min | 12 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (9 min), 01-03 (19 min), 02-01 (2 min), 02-02 (18 min)
-- Trend: migration plan (60 files, mechanical replacement)
+- Last 5 plans: 01-02 (9 min), 01-03 (19 min), 02-01 (2 min), 02-02 (18 min), 03-01 (12 min)
+- Trend: extraction plans with facade re-exports
 
 *Updated after each plan completion*
 
@@ -58,6 +59,9 @@ Recent decisions affecting current work:
 - [02-02]: Device inventory IPs (cameras, phones, tablets) left as literals (data, not config)
 - [02-02]: Alias pattern (LOCAL_NAME = IMPORTED_CONSTANT) for backward-compatible local names
 - [02-02]: Docstring/comment IPs preserved as documentation
+- [03-01]: Duplicate _log() in each submodule (4 lines) rather than complex import chain
+- [03-01]: _routing_metrics dict object identity preserved via Python import semantics for mutable types
+- [03-01]: Programmatic extraction of CLASSIFICATION_RULES to guarantee byte-for-byte fidelity
 
 ### Pending Todos
 
@@ -71,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Completed 02-02-PLAN.md (IP migration to runtime_config) -- Phase 2 complete
+Stopped at: Completed 03-01-PLAN.md (routing_metrics + classifier extraction)
 Resume file: None
