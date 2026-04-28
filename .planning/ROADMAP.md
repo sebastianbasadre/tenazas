@@ -26,7 +26,10 @@ A bottom-up structural refactoring in 4 phases: extract shared utilities first (
   2. Running `grep -r "def _save_json\|def _load_json\|def _now" workspace/runtime/` returns zero matches (all duplicates removed)
   3. All 700+ existing tests pass after the migration
   4. `write_atomic()` uses tempfile + os.replace() pattern (verifiable by reading the implementation)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
+- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
 
 ### Phase 2: Config Centralization
 **Goal**: Every infrastructure endpoint is defined once and overridable, eliminating scattered hardcoded values
@@ -38,7 +41,10 @@ A bottom-up structural refactoring in 4 phases: extract shared utilities first (
   3. Tests can override any config value by patching `runtime_config.CONSTANT` in one place (not 30+ modules)
   4. Config loads from `openclaw.json` with env var overrides (e.g., `TENAZAS_OLLAMA_GPU_URL` overrides the HomeLab URL)
   5. All 700+ existing tests pass after the migration
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
+- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
 
 ### Phase 3: Orchestrator Decomposition
 **Goal**: The orchestrator is split into independently testable modules while preserving backward compatibility for all callers
@@ -49,7 +55,10 @@ A bottom-up structural refactoring in 4 phases: extract shared utilities first (
   2. Each extracted module (classifier, skill_executor, escalation, routing_facade) can be imported and tested independently
   3. All existing `from runtime.orchestrator import X` and `from orchestrator import X` statements work without modification
   4. All existing orchestrator tests (65 tests in test_orchestrator.py) pass without changes to assertions (only patch paths updated if needed)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
+- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
 
 ### Phase 4: Dead Code Cleanup
 **Goal**: The repository contains only code that is actively used, with no deprecated artifacts or orphaned modules
@@ -61,7 +70,10 @@ A bottom-up structural refactoring in 4 phases: extract shared utilities first (
   3. No Python module in `workspace/runtime/` is unreachable (verified via import graph from entry points)
   4. No test file, CLAUDE.md section, or module references any removed code
   5. All 700+ existing tests pass after cleanup
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
+- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
 
 ## Progress
 
