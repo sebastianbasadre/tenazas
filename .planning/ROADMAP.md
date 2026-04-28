@@ -44,7 +44,7 @@ Plans:
   5. All 700+ existing tests pass after the migration
 **Plans:** 2 plans
 Plans:
-- [ ] 02-01-PLAN.md — Create runtime_config.py endpoint constants with env var overrides + tests
+- [x] 02-01-PLAN.md — Create runtime_config.py endpoint constants with env var overrides + tests
 - [ ] 02-02-PLAN.md — Migrate all 65 files to import from runtime_config
 
 ### Phase 3: Orchestrator Decomposition
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Utilities | 3/3 | Complete | 2026-04-28 |
-| 2. Config Centralization | 0/2 | Planning complete | - |
+| 2. Config Centralization | 1/2 | In progress | - |
 | 3. Orchestrator Decomposition | 0/? | Not started | - |
 | 4. Dead Code Cleanup | 0/? | Not started | - |

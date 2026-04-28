@@ -15,10 +15,10 @@ Requirements for this refactoring milestone. Each maps to roadmap phases.
 
 ### Config
 
-- [ ] **CONF-01**: A single `runtime_config.py` module defines all infrastructure endpoints (IPs, ports, URLs)
+- [x] **CONF-01**: A single `runtime_config.py` module defines all infrastructure endpoints (IPs, ports, URLs)
 - [ ] **CONF-02**: Every hardcoded IP/port in the codebase (268 occurrences, 65 files) is replaced with imports from `runtime_config.py`
-- [ ] **CONF-03**: `runtime_config.py` loads values from `openclaw.json` with env var overrides for each endpoint
-- [ ] **CONF-04**: Tests can override config values without patching constants in 30+ modules
+- [x] **CONF-03**: `runtime_config.py` loads values from `openclaw.json` with env var overrides for each endpoint
+- [x] **CONF-04**: Tests can override config values without patching constants in 30+ modules
 
 ### Orchestrator
 
@@ -85,10 +85,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-01 | Phase 1 | Complete |
 | FOUND-02 | Phase 1 | Complete |
 | FOUND-03 | Phase 1 | Complete |
-| CONF-01 | Phase 2 | Pending |
+| CONF-01 | Phase 2 | Complete |
 | CONF-02 | Phase 2 | Pending |
-| CONF-03 | Phase 2 | Pending |
-| CONF-04 | Phase 2 | Pending |
+| CONF-03 | Phase 2 | Complete |
+| CONF-04 | Phase 2 | Complete |
 | ORCH-01 | Phase 3 | Pending |
 | ORCH-02 | Phase 3 | Pending |
 | ORCH-03 | Phase 3 | Pending |

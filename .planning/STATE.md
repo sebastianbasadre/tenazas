@@ -10,28 +10,29 @@ See: .planning/PROJECT.md (updated 2026-04-28)
 ## Current Position
 
 Phase: 2 of 4 (Config Centralization)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-04-28 -- Phase 1 complete (Foundation Utilities verified)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-04-28 -- Plan 02-01 complete (config endpoint constants)
 
-Progress: [###.......] 25%
+Progress: [####......] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 10.3 min
-- Total execution time: 0.52 hours
+- Total plans completed: 4
+- Average duration: 8.5 min
+- Total execution time: 0.56 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation-utilities | 3 | 30 min | 10 min |
+| 02-config-centralization | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (9 min), 01-03 (19 min)
-- Trend: increasing (larger scope per plan)
+- Last 5 plans: 01-01 (2 min), 01-02 (9 min), 01-03 (19 min), 02-01 (2 min)
+- Trend: fast plan (config constants only, no migration)
 
 *Updated after each plan completion*
 
@@ -51,6 +52,9 @@ Recent decisions affecting current work:
 - [01-02]: Left _load_jsonl specialized functions untouched (not same as _load_json)
 - [01-03]: deco_client.py and device_discovery.py use now_iso() (return string variant)
 - [01-03]: Parameter-level _now in action_budget.py left untouched (test injection)
+- [02-01]: Constants computed at import time (not lazily) for read-only infra values
+- [02-01]: Derived URLs compose from base constant (OLLAMA_GPU_TAGS_URL = f"{OLLAMA_GPU_URL}/api/tags")
+- [02-01]: MAC addresses not env-overridable (hardware-bound identifiers)
 
 ### Pending Todos
 
@@ -64,5 +68,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Completed 01-03-PLAN.md (migrate _now to runtime_utils)
+Stopped at: Completed 02-01-PLAN.md (config endpoint constants)
 Resume file: None
