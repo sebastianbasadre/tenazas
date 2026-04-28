@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-04-28)
 ## Current Position
 
 Phase: 1 of 4 (Foundation Utilities)
-Plan: 1 of 5 in current phase
+Plan: 2 of 5 in current phase
 Status: Executing
-Last activity: 2026-04-28 -- Plan 01-01 completed (runtime_utils.py)
+Last activity: 2026-04-28 -- Plan 01-02 completed (migrate _save_json/_load_json)
 
-Progress: [##........] 20%
+Progress: [###.......] 30%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 2 min
-- Total execution time: 0.03 hours
+- Total plans completed: 2
+- Average duration: 5.5 min
+- Total execution time: 0.18 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation-utilities | 1 | 2 min | 2 min |
+| 01-foundation-utilities | 2 | 11 min | 5.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (9 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -47,6 +47,8 @@ Recent decisions affecting current work:
 - [Roadmap]: Domain packaging (research Phase 5) deferred to v2 -- not in current requirements
 - [01-01]: write_atomic catches BaseException (not Exception) for temp cleanup on signals
 - [01-01]: ensure_ascii=False + default=str matches existing 19 _save_json implementations
+- [01-02]: Used try/except relative/absolute import pattern (matches runtime_config precedent)
+- [01-02]: Left _load_jsonl specialized functions untouched (not same as _load_json)
 
 ### Pending Todos
 
@@ -60,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Completed 01-01-PLAN.md (runtime_utils.py)
+Stopped at: Completed 01-02-PLAN.md (migrate _save_json/_load_json)
 Resume file: None

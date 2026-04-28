@@ -29,7 +29,7 @@ A bottom-up structural refactoring in 4 phases: extract shared utilities first (
 **Plans:** 2 plans
 Plans:
 - [x] 01-01-PLAN.md — Create runtime_utils.py with load_json, save_json, now_iso, write_atomic
-- [ ] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
+- [x] 01-02-PLAN.md — Migrate all 30 modules to import from runtime_utils
 
 ### Phase 2: Config Centralization
 **Goal**: Every infrastructure endpoint is defined once and overridable, eliminating scattered hardcoded values
