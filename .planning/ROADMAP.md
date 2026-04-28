@@ -72,7 +72,9 @@ Plans:
   3. No Python module in `workspace/runtime/` is unreachable (verified via import graph from entry points)
   4. No test file, CLAUDE.md section, or module references any removed code
   5. All 700+ existing tests pass after cleanup
-**Plans:** TBD (plan after Phase 3 completes)
+**Plans:** 1 plan
+Plans:
+- [ ] 04-01-PLAN.md — Remove auto-heal.sh, audit MODEL_CATALOG, import graph analysis, stale reference sweep
 
 ## Progress
 
@@ -84,4 +86,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation Utilities | 3/3 | Complete | 2026-04-28 |
 | 2. Config Centralization | 2/2 | Complete | 2026-04-28 |
 | 3. Orchestrator Decomposition | 3/3 | Complete | 2026-04-28 |
-| 4. Dead Code Cleanup | 0/? | Not started | - |
+| 4. Dead Code Cleanup | 0/1 | Not started | - |
