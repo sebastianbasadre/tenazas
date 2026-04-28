@@ -82,27 +82,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase ? | Pending |
-| FOUND-02 | Phase ? | Pending |
-| FOUND-03 | Phase ? | Pending |
-| CONF-01 | Phase ? | Pending |
-| CONF-02 | Phase ? | Pending |
-| CONF-03 | Phase ? | Pending |
-| CONF-04 | Phase ? | Pending |
-| ORCH-01 | Phase ? | Pending |
-| ORCH-02 | Phase ? | Pending |
-| ORCH-03 | Phase ? | Pending |
-| ORCH-04 | Phase ? | Pending |
-| CLEN-01 | Phase ? | Pending |
-| CLEN-02 | Phase ? | Pending |
-| CLEN-03 | Phase ? | Pending |
-| CLEN-04 | Phase ? | Pending |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| CONF-01 | Phase 2 | Pending |
+| CONF-02 | Phase 2 | Pending |
+| CONF-03 | Phase 2 | Pending |
+| CONF-04 | Phase 2 | Pending |
+| ORCH-01 | Phase 3 | Pending |
+| ORCH-02 | Phase 3 | Pending |
+| ORCH-03 | Phase 3 | Pending |
+| ORCH-04 | Phase 3 | Pending |
+| CLEN-01 | Phase 4 | Pending |
+| CLEN-02 | Phase 4 | Pending |
+| CLEN-03 | Phase 4 | Pending |
+| CLEN-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-28*
-*Last updated: 2026-04-28 after initial definition*
+*Last updated: 2026-04-28 after roadmap creation*
