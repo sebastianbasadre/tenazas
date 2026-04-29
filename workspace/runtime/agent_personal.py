@@ -82,11 +82,14 @@ def _observe_smoking() -> dict:
             today_count = 0
             week_count = 0
             today_str = now().strftime("%Y-%m-%d")
+            from datetime import timedelta
+            week_start = (now() - timedelta(days=7)).strftime("%Y-%m-%d")
             for entry in log_data.get("entries", []):
                 ts = entry.get("ts", "")
                 if ts.startswith(today_str):
                     today_count += 1
-                week_count += 1  # Simplified — count all recent
+                if ts[:10] >= week_start:
+                    week_count += 1
             stats = {"today": today_count, "week": metrics_data.get("week", week_count),
                      "total": metrics_data.get("total", len(log_data.get("entries", [])))}
         today = stats.get("today", 0)
