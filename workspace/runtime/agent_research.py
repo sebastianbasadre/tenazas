@@ -14,6 +14,7 @@ BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
 AGENT_DIR = STATE_DIR / "agents"
 MEMORY_FILE = AGENT_DIR / "research_memory.json"
+STATUS_FILE = AGENT_DIR / "research_status.json"
 LOG_FILE = BASE_DIR / "logs" / "agent_research.log"
 
 OWNERSHIP = {"research", "searxng", "knowledge_base", "knowledge",
@@ -120,6 +121,14 @@ def handle(query: str):
                 requires_approval=False,
                 rationale=f.get("detail", f.get("title", "")),
             ))
+    # Save observation to per-agent state file for cross-agent reads (D-07)
+    try:
+        state = load_json(str(STATUS_FILE), {})
+        state.update(data)
+        state["observation"] = obs.to_dict()
+        save_json(str(STATUS_FILE), state)
+    except Exception:
+        pass  # Never crash on observation caching
     if recs:
         _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "recs": len(recs)})
     else:
