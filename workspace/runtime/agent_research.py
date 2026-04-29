@@ -16,7 +16,7 @@ AGENT_DIR = STATE_DIR / "agents"
 MEMORY_FILE = AGENT_DIR / "research_memory.json"
 LOG_FILE = BASE_DIR / "logs" / "agent_research.log"
 
-OWNERSHIP = {"research", "search", "searxng", "knowledge", "learning",
+OWNERSHIP = {"research", "searxng", "knowledge_base", "knowledge",
              "rag", "investigate", "documentation"}
 PREFERRED_ROLE = "reason"
 

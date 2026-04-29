@@ -17,7 +17,7 @@ MEMORY_FILE = AGENT_DIR / "self_improve_memory.json"
 LOG_FILE = BASE_DIR / "logs" / "agent_self_improve.log"
 
 OWNERSHIP = {"improve", "benchmark", "error_mining", "experiment", "staging",
-             "candidate", "self-evolve", "calibration", "learning"}
+             "candidate", "self-evolve", "calibration", "idle_learning"}
 PREFERRED_ROLE = "reason"
 
 
