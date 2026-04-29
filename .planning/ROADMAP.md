@@ -27,7 +27,7 @@
 
 - [x] **Phase 5: Foundation & Contracts** - Typed agent protocol, registry, shared state with file locking *(3/3 plans, completed 2026-04-29)*
 - [x] **Phase 6: Domain Agents** - 5 specialized agents implementing observe/recommend contract *(3/3 plans, completed 2026-04-29)*
-- [ ] **Phase 7: Arbitrator & Cross-Agent** - Conflict resolution, cross-agent context, proactive observations
+- [x] **Phase 7: Arbitrator & Cross-Agent** - Conflict resolution, cross-agent context, proactive observations *(3/3 plans, completed 2026-04-29)*
 - [ ] **Phase 8: Coordinator Rewrite** - Central routing brain replacing orchestrator as entry point
 - [ ] **Phase 9: Pipeline Integration & Testing** - Wire into Telegram, feature flag, metrics, full test coverage
 
@@ -115,6 +115,6 @@ Phases execute in numeric order: 5 -> 5.x -> 6 -> 6.x -> 7 -> 8 -> 9
 | 4. Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-04-28 |
 | 5. Foundation & Contracts | v2.0 | 3/3 | Complete | 2026-04-29 |
 | 6. Domain Agents | v2.0 | 3/3 | Complete | 2026-04-29 |
-| 7. Arbitrator & Cross-Agent | v2.0 | 0/3 | Planned | - |
+| 7. Arbitrator & Cross-Agent | v2.0 | 3/3 | Complete | 2026-04-29 |
 | 8. Coordinator Rewrite | v2.0 | 0/0 | Not started | - |
 | 9. Pipeline Integration & Testing | v2.0 | 0/0 | Not started | - |
