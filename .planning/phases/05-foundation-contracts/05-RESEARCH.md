@@ -560,19 +560,13 @@ def locked_write_json(path, data):
 ## Open Questions
 
 1. **Should handle_query() wrapper return observation.summary or the full formatted text?**
-   - What we know: Current handle_query() returns a formatted string with issues and proposals
-   - What's unclear: Whether any caller parses the string format
-   - Recommendation: Return `obs.summary` for simple callers; add `format_observation()` helper for rich output
+   - RESOLVED: Return `obs.summary`. Plan 03 Task 1 step E implements `handle_query()` as a thin wrapper that calls `handle()` and returns `obs.summary`. No caller parses the formatted string -- they all treat it as opaque text for Telegram.
 
 2. **Failure counter: simple int or rolling window?**
-   - What we know: D-07 says "failure counter" without specifying
-   - What's unclear: Whether failures should expire (e.g., last 1 hour)
-   - Recommendation: Start with simple int + reset on successful handle(). Phase 7 can add rolling window if needed.
+   - RESOLVED: Simple int with reset on success. Plan 01 Task 2 step 6 implements `failure_count: int` in the registry entry dict, incremented on exception in dispatch, observable via `list_agents()`. Phase 7 can add rolling window if needed.
 
 3. **Should agents_registry.json persist across container restarts?**
-   - What we know: It lives in state/agents/ which is a mounted volume
-   - What's unclear: Whether the registry should auto-populate from AGENT_MODULES or require explicit registration
-   - Recommendation: Auto-register all known agents on startup (from a hardcoded list matching current AGENT_MODULES), persist to JSON as audit trail. The JSON is descriptive, not prescriptive.
+   - RESOLVED: Auto-register from DEFAULT_AGENTS on startup; JSON as audit trail. Plan 01 Task 2 steps 5 and 12 implement `DEFAULT_AGENTS` dict matching AGENT_MODULES and `init_default_agents()` which registers all 5 known agents. The JSON file persists in state/agents/ (mounted volume) as descriptive record, not prescriptive source.
 
 ## Project Constraints (from CLAUDE.md)
 
