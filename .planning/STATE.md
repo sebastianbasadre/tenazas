@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Every query reaches the right domain agent, gets an expert-level response, and any recommended action flows through Telegram approval.
-**Current focus:** Phase 5 — Foundation & Contracts
+**Current focus:** Phase 6 — Domain Agents
 
 ## Current Position
 
-Phase: 5 of 9 (Foundation & Contracts)
-Plan: 3 of 3 in current phase
-Status: Executing
-Last activity: 2026-04-29 — Phase 5 execution started (3 plans, 2 waves)
+Phase: 6 of 9 (Domain Agents)
+Plan: 0 of 0 in current phase
+Status: Ready to plan
+Last activity: 2026-04-29 — Phase 5 complete (3/3 plans, verified)
 
-Progress: [████████████████████░░░░░░░░░░░░░░░░░░░░] 43% (v1.0: 9/9 plans, v2.0: 0/? plans)
+Progress: [██████████████████████████░░░░░░░░░░░░░░] 54% (v1.0: 9/9 plans, v2.0: 3/? plans)
 
 ## Performance Metrics
 
@@ -55,5 +55,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Phase 5 planned, ready to execute
-Resume file: .planning/phases/05-foundation-contracts/05-01-PLAN.md
+Stopped at: Phase 5 complete, ready to plan Phase 6
+Resume file: .planning/ROADMAP.md (Phase 6: Domain Agents)
