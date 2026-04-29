@@ -38,8 +38,14 @@ scrape_configs:
         labels:
           instance: "openclaw"
   - job_name: 'tenazas_finance'
-    scrape_interval: 300s
+    scrape_interval: 60s
     static_configs:
       - targets: ["host.docker.internal:9109"]
+        labels:
+          instance: "openclaw"
+  - job_name: 'portfolio_exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["host.docker.internal:9101"]
         labels:
           instance: "openclaw"

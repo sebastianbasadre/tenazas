@@ -5,263 +5,322 @@
     "title": "Tenazas Finance",
     "tags": ["tenazas", "finance"],
     "timezone": "America/Argentina/Buenos_Aires",
-    "refresh": "5m",
+    "refresh": "1m",
     "time": { "from": "now-30d", "to": "now" },
     "schemaVersion": 39,
-    "version": 1,
     "editable": true,
     "graphTooltip": 1,
     "panels": [
       {
-        "id": 100,
-        "title": "Portfolio Actual",
-        "type": "row",
+        "id": 700, "title": "Saldo Total", "type": "row",
         "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
         "collapsed": false
       },
       {
-        "id": 1,
-        "title": "IOL Portfolio",
-        "description": "Valor total del portfolio IOL en ARS",
+        "id": 70, "title": "Saldo Total — Binance + IOL",
+        "description": "Portfolio combinado: Binance USD + IOL convertido a USD",
         "type": "stat",
-        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
-        "targets": [
-          { "expr": "tenazas_iol_portfolio_ars{instance=\"openclaw\"}", "legendFormat": "IOL ARS" }
-        ],
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 9, "x": 0, "y": 1 },
         "fieldConfig": {
-          "defaults": {
-            "unit": "currencyARS",
-            "decimals": 0,
-            "thresholds": { "mode": "absolute", "steps": [
-              { "color": "blue", "value": null }
-            ]}
-          }
+          "defaults": { "unit": "currencyUSD", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"yellow","value":5000},{"color":"green","value":10000}] } },
+          "overrides": [{"matcher":{"id":"byName","options":"IOL ARS"},"properties":[{"id":"unit","value":"locale"},{"id":"decimals","value":0},{"id":"color","value":{"fixedColor":"blue","mode":"fixed"}}]}]
         },
-        "options": {
-          "reduceOptions": { "calcs": ["lastNotNull"] },
-          "graphMode": "area",
-          "colorMode": "background",
-          "textMode": "value_and_name"
-        }
+        "options": { "colorMode": "background", "graphMode": "area", "orientation": "vertical", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+        "targets": [
+          { "expr": "tenazas_portfolio_total_usd", "legendFormat": "Total USD", "refId": "A" },
+          { "expr": "tenazas_iol_portfolio_ars", "legendFormat": "IOL ARS", "refId": "B" }
+        ]
       },
       {
-        "id": 2,
-        "title": "PNL IOL Hoy",
-        "description": "PNL del dia IOL en ARS",
+        "id": 71, "title": "PNL Hoy Combinado",
         "type": "stat",
-        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
-        "targets": [
-          { "expr": "tenazas_iol_pnl_day_ars{instance=\"openclaw\"}", "legendFormat": "PNL ARS" }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "currencyARS",
-            "decimals": 0,
-            "thresholds": { "mode": "absolute", "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 0 }
-            ]}
-          }
-        },
-        "options": {
-          "reduceOptions": { "calcs": ["lastNotNull"] },
-          "graphMode": "area",
-          "colorMode": "value",
-          "textMode": "value_and_name"
-        }
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 5, "x": 9, "y": 1 },
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"green","value":0}] } } },
+        "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_usd + tenazas_iol_pnl_day_ars / 1410", "legendFormat": "PNL USD" }]
       },
       {
-        "id": 3,
-        "title": "Binance Portfolio",
-        "description": "Valor total Binance en USD",
+        "id": 73, "title": "NVDA",
         "type": "stat",
-        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
-        "targets": [
-          { "expr": "tenazas_binance_total_usd{instance=\"openclaw\"}", "legendFormat": "Binance USD" }
-        ],
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 5, "x": 14, "y": 1 },
         "fieldConfig": {
-          "defaults": {
-            "unit": "currencyUSD",
-            "decimals": 0,
-            "thresholds": { "mode": "absolute", "steps": [
-              { "color": "green", "value": null }
-            ]}
-          }
-        },
-        "options": {
-          "reduceOptions": { "calcs": ["lastNotNull"] },
-          "graphMode": "area",
-          "colorMode": "background",
-          "textMode": "value_and_name"
-        }
-      },
-      {
-        "id": 4,
-        "title": "PNL Binance Hoy",
-        "description": "PNL del dia Binance en USD",
-        "type": "stat",
-        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
-        "targets": [
-          { "expr": "tenazas_binance_pnl_usd{instance=\"openclaw\"}", "legendFormat": "PNL USD" }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "currencyUSD",
-            "decimals": 0,
-            "thresholds": { "mode": "absolute", "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 0 }
-            ]}
-          }
-        },
-        "options": {
-          "reduceOptions": { "calcs": ["lastNotNull"] },
-          "graphMode": "area",
-          "colorMode": "value",
-          "textMode": "value_and_name"
-        }
-      },
-      {
-        "id": 200,
-        "title": "Historico",
-        "type": "row",
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
-        "collapsed": false
-      },
-      {
-        "id": 5,
-        "title": "Portfolio — IOL (ARS) + Binance (USD)",
-        "description": "Evolucion del valor de ambos portfolios",
-        "type": "timeseries",
-        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
-        "targets": [
-          { "expr": "tenazas_iol_portfolio_ars{instance=\"openclaw\"}", "legendFormat": "IOL (ARS)" },
-          { "expr": "tenazas_binance_total_usd{instance=\"openclaw\"}", "legendFormat": "Binance (USD)" }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "short",
-            "custom": {
-              "drawStyle": "line",
-              "lineInterpolation": "smooth",
-              "fillOpacity": 10,
-              "pointSize": 5,
-              "showPoints": "auto",
-              "spanNulls": true
-            }
-          },
+          "defaults": { "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null}] } },
           "overrides": [
-            {
-              "matcher": { "id": "byName", "options": "IOL (ARS)" },
-              "properties": [
-                { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } },
-                { "id": "custom.axisPlacement", "value": "left" },
-                { "id": "unit", "value": "currencyARS" }
-              ]
-            },
-            {
-              "matcher": { "id": "byName", "options": "Binance (USD)" },
-              "properties": [
-                { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } },
-                { "id": "custom.axisPlacement", "value": "right" },
-                { "id": "unit", "value": "currencyUSD" }
-              ]
-            }
+            {"matcher":{"id":"byName","options":"Precio"},"properties":[{"id":"unit","value":"locale"},{"id":"decimals","value":0},{"id":"color","value":{"fixedColor":"#73BF69","mode":"fixed"}}]},
+            {"matcher":{"id":"byName","options":"Dia %"},"properties":[{"id":"unit","value":"percent"},{"id":"decimals","value":2},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":0}]}},{"id":"color","value":{"mode":"thresholds"}}]}
           ]
         },
-        "options": {
-          "tooltip": { "mode": "multi" },
-          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max"] }
-        }
-      },
-      {
-        "id": 300,
-        "title": "PNL Diario",
-        "type": "row",
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
-        "collapsed": false
-      },
-      {
-        "id": 6,
-        "title": "PNL IOL Diario (ARS)",
-        "description": "Ganancia/perdida diaria IOL — verde positivo, rojo negativo",
-        "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "options": { "colorMode": "value", "graphMode": "area", "orientation": "vertical", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
         "targets": [
-          { "expr": "tenazas_iol_pnl_day_ars{instance=\"openclaw\"}", "legendFormat": "PNL IOL" }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "currencyARS",
-            "custom": {
-              "drawStyle": "bars",
-              "fillOpacity": 80,
-              "gradientMode": "scheme",
-              "thresholdsStyle": { "mode": "line" }
-            },
-            "thresholds": { "mode": "absolute", "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 0 }
-            ]},
-            "color": { "mode": "thresholds" }
-          }
-        }
+          { "expr": "tenazas_iol_position_price{symbol=\"NVDA\"}", "legendFormat": "Precio", "refId": "A" },
+          { "expr": "tenazas_iol_position_change_day_pct{symbol=\"NVDA\"}", "legendFormat": "Dia %", "refId": "B" }
+        ]
       },
       {
-        "id": 7,
-        "title": "PNL Binance Diario (USD)",
-        "description": "Ganancia/perdida diaria Binance",
-        "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
-        "targets": [
-          { "expr": "tenazas_binance_pnl_usd{instance=\"openclaw\"}", "legendFormat": "PNL Binance" }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "currencyUSD",
-            "custom": {
-              "drawStyle": "bars",
-              "fillOpacity": 80,
-              "gradientMode": "scheme",
-              "thresholdsStyle": { "mode": "line" }
-            },
-            "thresholds": { "mode": "absolute", "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 0 }
-            ]},
-            "color": { "mode": "thresholds" }
-          }
-        }
+        "id": 72, "title": "Fear & Greed",
+        "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 5, "x": 19, "y": 1 },
+        "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"orange","value":25},{"color":"#808080","value":45},{"color":"green","value":55}] } } },
+        "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+        "targets": [{ "expr": "tenazas_binance_fear_greed_index", "legendFormat": "F&G" }]
+      },
+
+      {
+        "id": 800, "title": "Posiciones IOL", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }, "collapsed": false
       },
       {
-        "id": 8,
-        "title": "BTC Price",
-        "description": "Precio BTC desde portfolio Binance",
-        "type": "timeseries",
-        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 27 },
-        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
-        "targets": [
-          { "expr": "tenazas_binance_btc_price{instance=\"openclaw\"}", "legendFormat": "BTC/USD" }
-        ],
+        "id": 20, "title": "IOL Total ARS",
+        "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 4, "x": 0, "y": 6 },
+        "fieldConfig": { "defaults": { "unit": "locale", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{"color":"blue","value":null}] } } },
+        "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+        "targets": [{ "expr": "tenazas_iol_portfolio_ars", "legendFormat": "ARS" }]
+      },
+      {
+        "id": 21, "title": "IOL PNL Dia",
+        "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 4, "x": 4, "y": 6 },
+        "fieldConfig": { "defaults": { "unit": "locale", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"green","value":0}] } } },
+        "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+        "targets": [{ "expr": "tenazas_iol_pnl_day_ars", "legendFormat": "ARS" }]
+      },
+      {
+        "id": 23, "title": "Posiciones IOL",
+        "type": "table",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 7, "w": 16, "x": 8, "y": 6 },
         "fieldConfig": {
-          "defaults": {
-            "unit": "currencyUSD",
-            "custom": {
-              "drawStyle": "line",
-              "lineInterpolation": "smooth",
-              "fillOpacity": 15,
-              "spanNulls": true
-            },
-            "color": { "fixedColor": "orange", "mode": "fixed" }
-          }
-        }
+          "defaults": { "custom": { "align": "right" } },
+          "overrides": [
+            {"matcher":{"id":"byName","options":"Simbolo"},"properties":[{"id":"custom.align","value":"left"},{"id":"custom.width","value":90}]},
+            {"matcher":{"id":"byName","options":"Tipo"},"properties":[{"id":"custom.align","value":"left"},{"id":"custom.width","value":70}]},
+            {"matcher":{"id":"byName","options":"Valor"},"properties":[{"id":"unit","value":"locale"},{"id":"decimals","value":0}]},
+            {"matcher":{"id":"byName","options":"Cant"},"properties":[{"id":"decimals","value":1}]},
+            {"matcher":{"id":"byName","options":"Precio"},"properties":[{"id":"unit","value":"locale"},{"id":"decimals","value":2}]},
+            {"matcher":{"id":"byName","options":"PPC"},"properties":[{"id":"unit","value":"locale"},{"id":"decimals","value":3}]},
+            {"matcher":{"id":"byName","options":"G%"},"properties":[{"id":"unit","value":"percent"},{"id":"decimals","value":2},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":0}]}},{"id":"custom.cellOptions","value":{"type":"color-text"}}]},
+            {"matcher":{"id":"byName","options":"Dia%"},"properties":[{"id":"unit","value":"percent"},{"id":"decimals","value":2},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":0}]}},{"id":"custom.cellOptions","value":{"type":"color-text"}}]},
+            {"matcher":{"id":"byName","options":"PNL Dia"},"properties":[{"id":"unit","value":"locale"},{"id":"decimals","value":0},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":0}]}},{"id":"custom.cellOptions","value":{"type":"color-text"}}]}
+          ]
+        },
+        "targets": [
+          {"expr":"tenazas_iol_position_value_ars","format":"table","instant":true,"refId":"A"},
+          {"expr":"tenazas_iol_position_qty","format":"table","instant":true,"refId":"B"},
+          {"expr":"tenazas_iol_position_price","format":"table","instant":true,"refId":"C"},
+          {"expr":"tenazas_iol_position_ppc","format":"table","instant":true,"refId":"D"},
+          {"expr":"tenazas_iol_position_gain_pct","format":"table","instant":true,"refId":"E"},
+          {"expr":"tenazas_iol_position_change_day_pct","format":"table","instant":true,"refId":"F"},
+          {"expr":"tenazas_iol_position_pnl_day_ars","format":"table","instant":true,"refId":"G"}
+        ],
+        "transformations": [
+          {"id":"merge","options":{}},
+          {"id":"organize","options":{"excludeByName":{"Time":true,"__name__":true,"instance":true,"job":true},"indexByName":{"Value #A":5,"Value #B":2,"Value #C":3,"Value #D":4,"Value #E":6,"Value #F":7,"Value #G":8,"symbol":0,"type":1},"renameByName":{"Value #A":"Valor","Value #B":"Cant","Value #C":"Precio","Value #D":"PPC","Value #E":"G%","Value #F":"Dia%","Value #G":"PNL Dia","symbol":"Simbolo","type":"Tipo"}}}
+        ]
+      },
+      {
+        "id": 24, "title": "IOL — Valor por Posicion",
+        "type": "bargauge",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 5, "w": 8, "x": 0, "y": 10 },
+        "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "locale", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{"color":"blue","value":null}] } } },
+        "options": { "displayMode": "gradient", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "showUnfilled": true },
+        "targets": [{ "expr": "tenazas_iol_position_value_ars", "legendFormat": "{{symbol}}" }]
+      },
+
+      {
+        "id": 810, "title": "Binance Assets", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 }, "collapsed": false
+      },
+      {
+        "id": 30, "title": "Binance Total",
+        "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 4, "x": 0, "y": 16 },
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null}] } } },
+        "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+        "targets": [{ "expr": "tenazas_binance_total_usd", "legendFormat": "USD" }]
+      },
+      {
+        "id": 31, "title": "Binance PNL Hoy",
+        "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 4, "w": 4, "x": 4, "y": 16 },
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"green","value":0}] } } },
+        "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_usd", "legendFormat": "USD" }]
+      },
+      {
+        "id": 33, "title": "Binance Assets",
+        "type": "table",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 7, "w": 16, "x": 8, "y": 16 },
+        "fieldConfig": {
+          "defaults": { "custom": { "align": "right" } },
+          "overrides": [
+            {"matcher":{"id":"byName","options":"Asset"},"properties":[{"id":"custom.align","value":"left"},{"id":"custom.width","value":70}]},
+            {"matcher":{"id":"byName","options":"Wallet"},"properties":[{"id":"custom.align","value":"left"},{"id":"custom.width","value":60}]},
+            {"matcher":{"id":"byName","options":"Valor USD"},"properties":[{"id":"unit","value":"currencyUSD"},{"id":"decimals","value":2}]},
+            {"matcher":{"id":"byName","options":"Cantidad"},"properties":[{"id":"decimals","value":6}]},
+            {"matcher":{"id":"byName","options":"Precio"},"properties":[{"id":"unit","value":"currencyUSD"},{"id":"decimals","value":2}]},
+            {"matcher":{"id":"byName","options":"24h%"},"properties":[{"id":"unit","value":"percent"},{"id":"decimals","value":2},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":0}]}},{"id":"custom.cellOptions","value":{"type":"color-text"}}]}
+          ]
+        },
+        "targets": [
+          {"expr":"tenazas_binance_asset_balance_usd","format":"table","instant":true,"refId":"A"},
+          {"expr":"tenazas_binance_asset_qty","format":"table","instant":true,"refId":"B"},
+          {"expr":"tenazas_binance_asset_price_usd","format":"table","instant":true,"refId":"C"},
+          {"expr":"tenazas_binance_asset_change_24h_pct","format":"table","instant":true,"refId":"D"}
+        ],
+        "transformations": [
+          {"id":"merge","options":{}},
+          {"id":"organize","options":{"excludeByName":{"Time":true,"__name__":true,"instance":true,"job":true},"indexByName":{"Value #A":4,"Value #B":2,"Value #C":3,"Value #D":5,"asset":0,"wallet":1},"renameByName":{"Value #A":"Valor USD","Value #B":"Cantidad","Value #C":"Precio","Value #D":"24h%","asset":"Asset","wallet":"Wallet"}}}
+        ]
+      },
+      {
+        "id": 34, "title": "Binance — Allocation %",
+        "type": "piechart",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 5, "w": 8, "x": 0, "y": 20 },
+        "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [{ "expr": "tenazas_binance_allocation_pct", "legendFormat": "{{asset}}" }]
+      },
+
+      {
+        "id": 820, "title": "PNL Diario", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }, "collapsed": false
+      },
+      {
+        "id": 50, "title": "IOL PNL (ARS)",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 26 },
+        "fieldConfig": { "defaults": { "unit": "locale", "decimals": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "spanNulls": true } } },
+        "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "expr": "tenazas_iol_pnl_day_ars", "legendFormat": "IOL Total" },
+          { "expr": "tenazas_iol_position_pnl_day_ars", "legendFormat": "{{symbol}}" }
+        ]
+      },
+      {
+        "id": 51, "title": "Binance PNL (USD)",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 26 },
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"green","value":0}] }, "custom": { "drawStyle": "bars", "fillOpacity": 80, "gradientMode": "scheme", "thresholdsStyle": { "mode": "line" } } } },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_usd", "legendFormat": "PNL USD" }]
+      },
+      {
+        "id": 52, "title": "IOL Variacion Diaria %",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 26 },
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "spanNulls": true } } },
+        "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+        "targets": [{ "expr": "tenazas_iol_position_change_day_pct", "legendFormat": "{{symbol}}" }]
+      },
+
+      {
+        "id": 830, "title": "Tendencias", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }, "collapsed": false
+      },
+      {
+        "id": 40, "title": "BTC Price",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+        "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "unit": "none", "decimals": 2, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineInterpolation": "smooth", "lineWidth": 2, "spanNulls": true } } },
+        "options": { "legend": { "calcs": ["lastNotNull", "min", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+        "targets": [{ "expr": "tenazas_binance_btc_price_usd", "legendFormat": "BTC/USD" }]
+      },
+      {
+        "id": 41, "title": "Portfolio Total USD",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+        "fieldConfig": {
+          "defaults": { "unit": "currencyUSD", "decimals": 0, "custom": { "drawStyle": "line", "fillOpacity": 0, "lineInterpolation": "smooth", "lineWidth": 2, "spanNulls": true } },
+          "overrides": [
+            {"matcher":{"id":"byName","options":"Total USD"},"properties":[{"id":"color","value":{"fixedColor":"blue","mode":"fixed"}},{"id":"custom.fillOpacity","value":15}]},
+            {"matcher":{"id":"byName","options":"MA7"},"properties":[{"id":"color","value":{"fixedColor":"yellow","mode":"fixed"}},{"id":"custom.lineWidth","value":1},{"id":"custom.lineStyle","value":{"fill":"dash"}}]},
+            {"matcher":{"id":"byName","options":"MA30"},"properties":[{"id":"color","value":{"fixedColor":"red","mode":"fixed"}},{"id":"custom.lineWidth","value":1},{"id":"custom.lineStyle","value":{"fill":"dash"}}]}
+          ]
+        },
+        "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "expr": "tenazas_portfolio_total_usd", "legendFormat": "Total USD" },
+          { "expr": "tenazas_portfolio_ma7_usd", "legendFormat": "MA7" },
+          { "expr": "tenazas_portfolio_ma30_usd", "legendFormat": "MA30" }
+        ]
+      },
+
+      {
+        "id": 840, "title": "Portfolio History", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 }, "collapsed": false
+      },
+      {
+        "id": 60, "title": "IOL Total ARS",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 7, "w": 12, "x": 0, "y": 44 },
+        "fieldConfig": { "defaults": { "color": { "fixedColor": "blue", "mode": "fixed" }, "unit": "locale", "decimals": 0, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineInterpolation": "smooth", "lineWidth": 2, "spanNulls": true } } },
+        "options": { "legend": { "calcs": ["lastNotNull", "min", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+        "targets": [{ "expr": "tenazas_iol_portfolio_ars", "legendFormat": "IOL ARS" }]
+      },
+      {
+        "id": 61, "title": "Binance Total USD",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 7, "w": 12, "x": 12, "y": 44 },
+        "fieldConfig": {
+          "defaults": { "unit": "currencyUSD", "decimals": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "spanNulls": true } },
+          "overrides": [
+            {"matcher":{"id":"byName","options":"Total (wallet/balance)"},"properties":[{"id":"color","value":{"fixedColor":"green","mode":"fixed"}}]},
+            {"matcher":{"id":"byName","options":"Total (per-asset)"},"properties":[{"id":"color","value":{"fixedColor":"semi-dark-green","mode":"fixed"}},{"id":"custom.lineStyle","value":{"fill":"dash"}},{"id":"custom.lineWidth","value":1}]}
+          ]
+        },
+        "options": { "legend": { "calcs": ["lastNotNull", "min", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "expr": "portfolio_total_value_usd", "legendFormat": "Total (wallet/balance)" },
+          { "expr": "tenazas_binance_total_usd", "legendFormat": "Total (per-asset)" }
+        ]
+      },
+      {
+        "id": 62, "title": "Drawdown %",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 7, "w": 12, "x": 0, "y": 51 },
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null},{"color":"orange","value":5},{"color":"red","value":15}] }, "custom": { "drawStyle": "line", "fillOpacity": 30, "lineInterpolation": "smooth", "spanNulls": true, "transform": "negative-Y" } } },
+        "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "expr": "tenazas_portfolio_drawdown_pct", "legendFormat": "Binance DD%" },
+          { "expr": "tenazas_iol_drawdown_pct", "legendFormat": "IOL DD%" }
+        ]
+      },
+      {
+        "id": 63, "title": "Volatility & Return",
+        "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "afhjgavdgav40d" },
+        "gridPos": { "h": 7, "w": 12, "x": 12, "y": 51 },
+        "fieldConfig": {
+          "defaults": { "unit": "percent", "decimals": 2, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "spanNulls": true } },
+          "overrides": [
+            {"matcher":{"id":"byName","options":"Volatility %"},"properties":[{"id":"color","value":{"fixedColor":"orange","mode":"fixed"}},{"id":"custom.axisPlacement","value":"right"}]},
+            {"matcher":{"id":"byName","options":"Daily Return %"},"properties":[{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":0}]}},{"id":"color","value":{"mode":"thresholds"}}]}
+          ]
+        },
+        "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "expr": "tenazas_portfolio_volatility_pct", "legendFormat": "Volatility %" },
+          { "expr": "tenazas_portfolio_daily_return_pct", "legendFormat": "Daily Return %" }
+        ]
       }
     ]
   },

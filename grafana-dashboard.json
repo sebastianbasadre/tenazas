@@ -288,8 +288,85 @@
           ]}}}
       },
       {
+        "id": 70, "title": "Ollama GPU Status", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 0, "y": 54 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "ollama_gpu_up", "legendFormat": "GPU" }],
+        "fieldConfig": { "defaults": { "unit": "none", "mappings": [
+          { "type": "value", "options": { "0": { "text": "OFFLINE", "color": "red" }, "1": { "text": "ONLINE", "color": "green" } } }
+        ], "thresholds": { "mode": "absolute", "steps": [
+          { "color": "red", "value": null }, { "color": "green", "value": 1 }
+        ]}}}
+      },
+      {
+        "id": 71, "title": "GPU VRAM Usage", "type": "gauge",
+        "gridPos": { "h": 6, "w": 6, "x": 4, "y": 54 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "ollama_gpu_vram_used_bytes / ollama_gpu_vram_total_bytes * 100", "legendFormat": "VRAM %" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "orange", "value": 80 }, { "color": "red", "value": 95 }
+        ]}}}
+      },
+      {
+        "id": 72, "title": "VRAM Used (GB)", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 10, "y": 54 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "ollama_gpu_vram_used_bytes / 1073741824", "legendFormat": "Used GB" }],
+        "fieldConfig": { "defaults": { "unit": "decgbytes", "decimals": 1, "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 16 }, { "color": "red", "value": 22 }
+        ]}}}
+      },
+      {
+        "id": 73, "title": "Modelos cargados", "type": "stat",
+        "gridPos": { "h": 6, "w": 3, "x": 14, "y": 54 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "ollama_gpu_loaded_models", "legendFormat": "Loaded" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "blue", "value": null }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 5 }
+        ]}}}
+      },
+      {
+        "id": 74, "title": "GPU Latency", "type": "stat",
+        "gridPos": { "h": 6, "w": 3, "x": 17, "y": 54 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "ollama_gpu_latency_seconds", "legendFormat": "Latency" }],
+        "fieldConfig": { "defaults": { "unit": "s", "decimals": 3, "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }
+        ]}}}
+      },
+      {
+        "id": 75, "title": "GPU VRAM (historia)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 60 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "ollama_gpu_vram_used_bytes / 1073741824", "legendFormat": "Used (GB)" },
+          { "expr": "ollama_gpu_vram_total_bytes / 1073741824", "legendFormat": "Total (24 GB)" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "decgbytes", "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "Used (GB)" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Total (24 GB)" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }, { "id": "custom.fillOpacity", "value": 0 }, { "id": "custom.lineStyle", "value": { "fill": "dash" } }] }
+          ]
+        }
+      },
+      {
+        "id": 76, "title": "Ollama GPU Status (historia)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 60 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "ollama_gpu_up", "legendFormat": "GPU Up" },
+          { "expr": "ollama_gpu_loaded_models", "legendFormat": "Loaded models" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "GPU Up" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "Loaded models" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+          ]
+        }
+      },
+      {
         "id": 50, "title": "Memoria del proceso", "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 68 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [
           { "expr": "process_resident_memory_bytes", "legendFormat": "RSS" },
@@ -304,7 +381,7 @@
       },
       {
         "id": 51, "title": "CPU del proceso", "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 68 },
         "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
         "targets": [{ "expr": "rate(process_cpu_seconds_total[5m])", "legendFormat": "CPU usage" }],
         "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },

@@ -9,6 +9,7 @@ RUN curl -sL "https://github.com/pimalaya/himalaya/releases/latest/download/hima
 RUN useradd -m -u 1026 -s /bin/bash tenazas
 RUN echo "precedence ::ffff:0:0/96 100" >> /etc/gai.conf
 RUN usermod -aG docker tenazas
+ENV PYTHONPATH=/home/tenazas/runtime
 USER tenazas
 WORKDIR /home/tenazas
 CMD ["openclaw", "gateway"]
