@@ -73,11 +73,13 @@ def assess() -> dict:
     return status
 
 
-def _observe_containers():
+def _observe_containers(cached_snap=None):
     """Focused observation of container status."""
     try:
-        from homelab_snapshot import snapshot
-        snap = snapshot()
+        if cached_snap is None:
+            from homelab_snapshot import snapshot
+            cached_snap = snapshot()
+        snap = cached_snap
         c = snap.get("containers", {})
         total = c.get("total", 0)
         running = c.get("running", 0)
@@ -97,11 +99,13 @@ def _observe_containers():
         return {"summary": f"Containers: error ({str(e)[:80]})", "confidence": 0.3, "sub": "containers", "issues": [str(e)[:100]], "raw": {}}
 
 
-def _observe_ollama():
+def _observe_ollama(cached_snap=None):
     """Focused observation of Ollama/GPU status."""
     try:
-        from homelab_snapshot import snapshot
-        snap = snapshot()
+        if cached_snap is None:
+            from homelab_snapshot import snapshot
+            cached_snap = snapshot()
+        snap = cached_snap
         o = snap.get("ollama", {})
         status = o.get("status", "unknown")
         models = o.get("models", [])
@@ -117,11 +121,13 @@ def _observe_ollama():
         return {"summary": f"Ollama: error ({str(e)[:80]})", "confidence": 0.3, "sub": "ollama", "issues": [str(e)[:100]], "raw": {}}
 
 
-def _observe_vpn():
+def _observe_vpn(cached_snap=None):
     """Focused observation of VPN/gluetun status."""
     try:
-        from homelab_snapshot import snapshot
-        snap = snapshot()
+        if cached_snap is None:
+            from homelab_snapshot import snapshot
+            cached_snap = snapshot()
+        snap = cached_snap
         vpn = snap.get("vpn", snap.get("gluetun", {}))
         status = vpn.get("status", "unknown")
         country = vpn.get("country", "")
@@ -139,11 +145,13 @@ def _observe_vpn():
         return {"summary": f"VPN: error ({str(e)[:80]})", "confidence": 0.3, "sub": "vpn", "issues": [str(e)[:100]], "raw": {}}
 
 
-def _observe_disk():
+def _observe_disk(cached_snap=None):
     """Focused observation of disk usage."""
     try:
-        from homelab_snapshot import snapshot
-        snap = snapshot()
+        if cached_snap is None:
+            from homelab_snapshot import snapshot
+            cached_snap = snapshot()
+        snap = cached_snap
         disk = snap.get("disk", snap.get("storage", {}))
         used_pct = disk.get("used_pct", disk.get("percent", 0))
         issues = []
@@ -216,15 +224,21 @@ def _build_recommendations(data):
 
 def handle(query: str):
     """Returns (Observation, list[Recommendation])."""
+    # Cache snapshot once to avoid redundant I/O across sub-observers
+    try:
+        from homelab_snapshot import snapshot
+        snap = snapshot()
+    except Exception:
+        snap = None
     q = query.lower()
     if any(k in q for k in ("container", "docker", "stopped", "unhealthy", "restart")):
-        data = _observe_containers()
+        data = _observe_containers(cached_snap=snap)
     elif any(k in q for k in ("gpu", "vram", "ollama", "modelo", "model")):
-        data = _observe_ollama()
+        data = _observe_ollama(cached_snap=snap)
     elif any(k in q for k in ("vpn", "gluetun", "leak", "ip")):
-        data = _observe_vpn()
+        data = _observe_vpn(cached_snap=snap)
     elif any(k in q for k in ("disk", "disco", "espacio", "storage")):
-        data = _observe_disk()
+        data = _observe_disk(cached_snap=snap)
     else:
         data = _assess_full()
     obs = Observation(
