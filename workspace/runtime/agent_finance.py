@@ -7,7 +7,8 @@ Ownership: Binance, IOL, market alerts.
 import json
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import now
+from runtime_utils import now, load_json, save_json
+from agent_protocol import Observation, Recommendation
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -19,6 +20,7 @@ OWNERSHIP = {"finance", "binance", "iol", "crypto", "btc", "portfolio",
              "market", "trading", "investment", "dolar", "pnl"}
 BTC_ALERT_THRESHOLD = 0.05  # 5%
 IOL_ALERT_THRESHOLD = 0.03  # 3%
+PREFERRED_ROLE = "fast"
 
 
 def _log(e):
@@ -27,14 +29,6 @@ def _log(e):
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
-def _load(p, d=None):
-    try:
-        with open(p) as f: return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError): return d if d is not None else {}
-def _save(p, data):
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with open(p, "w") as f: json.dump(data, f, indent=2, default=str)
-
 
 def owns(topic: str) -> bool:
     return any(k in topic.lower() for k in OWNERSHIP)
@@ -58,19 +52,38 @@ def assess() -> dict:
     return status
 
 
-def handle_query(query: str) -> str:
+def handle(query: str):
+    """Returns (Observation, list[Recommendation])."""
     status = assess()
-    parts = []
-    if status["summary"]:
-        parts.append(status["summary"])
-    for a in status["alerts"][:3]:
-        parts.append(f"  ! {a}")
-    return "\n".join(parts) if parts else "Finanzas: sin alertas."
+    alerts = status.get("alerts", [])
+    obs = Observation(
+        agent_name="finance",
+        domain="finance",
+        summary=status.get("summary", "Finance: sin alertas") if not alerts else f"Finance: {', '.join(alerts[:3])}",
+        confidence=0.85,
+        details=status,
+    )
+    recs = []
+    for alert in alerts:
+        recs.append(Recommendation(
+            action="alert",
+            target="telegram",
+            risk_level="medium",
+            requires_approval=False,
+            rationale=alert,
+        ))
+    return (obs, recs)
 
 
-def get_memory() -> dict: return _load(MEMORY_FILE, {"events": []})
+def handle_query(query: str) -> str:
+    """Backward-compat wrapper. Returns string summary."""
+    obs, recs = handle(query)
+    return obs.summary
+
+
+def get_memory() -> dict: return load_json(str(MEMORY_FILE), {"events": []})
 def save_memory_event(event: dict):
     mem = get_memory()
     mem["events"].append({**event, "ts": now().isoformat()})
     mem["events"] = mem["events"][-100:]
-    _save(MEMORY_FILE, mem)
+    save_json(str(MEMORY_FILE), mem)
