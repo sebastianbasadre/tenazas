@@ -59,6 +59,11 @@
   3. agent_finance observes finance queries (IOL portfolio, expenses, Binance) and returns typed Observations
   4. agent_research observes knowledge queries (RAG, SearXNG) and returns typed Observations using reason-role LLM
   5. agent_self_improve observes self-improvement queries (error mining, proposals) and returns typed Observations
+**Plans:** 3 plans
+  Plans:
+  - [ ] 06-01-PLAN.md -- Query-responsive handle() for agent_infra, agent_finance, agent_self_improve
+  - [ ] 06-02-PLAN.md -- Query-responsive handle() for agent_personal, agent_research
+  - [ ] 06-03-PLAN.md -- Tests for all 5 agents' query-responsive handle()
 
 ### Phase 7: Arbitrator & Cross-Agent
 **Goal**: When multiple agents claim a query, the system resolves conflicts and agents can share context
@@ -104,7 +109,7 @@ Phases execute in numeric order: 5 -> 5.x -> 6 -> 6.x -> 7 -> 8 -> 9
 | 3. Orchestrator Decomposition | v1.0 | 3/3 | Complete | 2026-04-28 |
 | 4. Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-04-28 |
 | 5. Foundation & Contracts | v2.0 | 3/3 | Complete | 2026-04-29 |
-| 6. Domain Agents | v2.0 | 0/0 | Not started | - |
+| 6. Domain Agents | v2.0 | 0/3 | Planning | - |
 | 7. Arbitrator & Cross-Agent | v2.0 | 0/0 | Not started | - |
 | 8. Coordinator Rewrite | v2.0 | 0/0 | Not started | - |
 | 9. Pipeline Integration & Testing | v2.0 | 0/0 | Not started | - |
