@@ -53,6 +53,29 @@ workspace/runtime/tool_tuning/eval_baseline.json
 workspace/runtime/tool_tuning/eval_finetuned.json
 workspace/runtime/tool_tuning/eval_3b_baseline.json
 
+# SSH keys (NEVER commit)
+ssh-keys/
+
+# Snapshots & archives
+*.tar.gz
+files.zip
+
+# Runtime state files (regenerated, not code)
+workspace/runtime/gluetun_restart_state.json
+workspace/runtime/goals_state.json
+workspace/runtime/self_heal_state.json
+workspace/runtime/task_queue.json
+workspace/runtime/recent_context.json
+workspace/runtime/deco_clients.json
+workspace/runtime/device_inventory.json
+workspace/runtime/finance_rules.json
+
+# Learning logs (generated)
+learning/
+
+# SearXNG config drafts
+searxng/settings.yml.new
+
 # Email config (credentials)
 himalaya-config/
 
