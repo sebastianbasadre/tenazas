@@ -81,13 +81,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| FRMK-01 | Phase 5 | Pending |
+| FRMK-02 | Phase 5 | Pending |
+| FRMK-03 | Phase 5 | Pending |
+| FRMK-04 | Phase 5 | Pending |
+| CORD-01 | Phase 8 | Pending |
+| CORD-02 | Phase 8 | Pending |
+| CORD-03 | Phase 8 | Pending |
+| CORD-04 | Phase 8 | Pending |
+| AGNT-01 | Phase 6 | Pending |
+| AGNT-02 | Phase 6 | Pending |
+| AGNT-03 | Phase 6 | Pending |
+| AGNT-04 | Phase 6 | Pending |
+| AGNT-05 | Phase 6 | Pending |
+| AGNT-06 | Phase 7 | Pending |
+| AGNT-07 | Phase 7 | Pending |
+| ARBT-01 | Phase 7 | Pending |
+| ARBT-02 | Phase 7 | Pending |
+| ARBT-03 | Phase 7 | Pending |
+| INTG-01 | Phase 9 | Pending |
+| INTG-02 | Phase 5 | Pending |
+| INTG-03 | Phase 9 | Pending |
+| INTG-04 | Phase 9 | Pending |
+| TEST-01 | Phase 9 | Pending |
+| TEST-02 | Phase 9 | Pending |
+| TEST-03 | Phase 9 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-28*
-*Last updated: 2026-04-28 after initial definition*
+*Last updated: 2026-04-28 after roadmap creation*

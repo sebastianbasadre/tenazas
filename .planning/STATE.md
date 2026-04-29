@@ -5,29 +5,43 @@
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Every query reaches the right domain agent, gets an expert-level response, and any recommended action flows through Telegram approval.
-**Current focus:** v2.0 Multi-Agent System
+**Current focus:** Phase 5 — Foundation & Contracts
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-28 — Milestone v2.0 started
+Phase: 5 of 9 (Foundation & Contracts)
+Plan: 0 of 0 in current phase
+Status: Ready to plan
+Last activity: 2026-04-28 — Roadmap created for v2.0
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████████████████████░░░░░░░░░░░░░░░░░░░░] 43% (v1.0: 9/9 plans, v2.0: 0/? plans)
 
 ## Performance Metrics
 
-**Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+**Velocity (v1.0):**
+- Total plans completed: 9
+- Average duration: 10.1 min
+- Total execution time: 1.52 hours
+
+**By Phase (v1.0):**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 1. Foundation Utilities | 3 | ~30 min | ~10 min |
+| 2. Config Centralization | 2 | ~20 min | ~10 min |
+| 3. Orchestrator Decomposition | 3 | ~30 min | ~10 min |
+| 4. Dead Code Cleanup | 1 | ~10 min | ~10 min |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+- v2.0: Coordinator replaces orchestrator (not augments) per user's explicit choice
+- v2.0: Shared JSON state for agent communication (fits existing patterns)
+- v2.0: Observe + recommend only; all actions require Telegram approval
 
 ### Pending Todos
 
@@ -36,9 +50,10 @@ None.
 ### Blockers/Concerns
 
 - Pre-existing test failures (31 suites) from v1.0 import path changes need a future maintenance pass
+- Research recommends starting with 3 agents (infra, personal, finance) and adding others only when justified by activation rates
 
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Milestone v2.0 initialized
+Stopped at: v2.0 roadmap created, ready to plan Phase 5
 Resume file: None
