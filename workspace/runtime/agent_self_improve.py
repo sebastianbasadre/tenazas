@@ -14,6 +14,7 @@ BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
 AGENT_DIR = STATE_DIR / "agents"
 MEMORY_FILE = AGENT_DIR / "self_improve_memory.json"
+STATUS_FILE = AGENT_DIR / "self_improve_status.json"
 LOG_FILE = BASE_DIR / "logs" / "agent_self_improve.log"
 
 OWNERSHIP = {"improve", "benchmark", "error_mining", "experiment", "staging",
@@ -185,6 +186,14 @@ def handle(query: str):
         details=data,
     )
     recs = _build_improve_recs(data)
+    # Save observation to per-agent state file for cross-agent reads (D-07)
+    try:
+        state = load_json(str(STATUS_FILE), {})
+        state.update(data)
+        state["observation"] = obs.to_dict()
+        save_json(str(STATUS_FILE), state)
+    except Exception:
+        pass  # Never crash on observation caching
     _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "confidence": obs.confidence})
     return (obs, recs)
 
