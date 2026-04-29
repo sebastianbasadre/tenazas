@@ -1,0 +1,1516 @@
+{
+  "dashboard": {
+    "uid": "tenazas-home",
+    "title": "Tenazas Control Tower",
+    "tags": [
+      "tenazas",
+      "home"
+    ],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "panels": [
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 100,
+        "title": "Estado Global",
+        "type": "row"
+      },
+      {
+        "id": 1,
+        "title": "System Health",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 1
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {
+                "type": "range",
+                "options": {
+                  "from": 80,
+                  "to": 100,
+                  "result": {
+                    "text": "OK",
+                    "color": "green"
+                  }
+                }
+              },
+              {
+                "type": "range",
+                "options": {
+                  "from": 50,
+                  "to": 79.99,
+                  "result": {
+                    "text": "DEGRADED",
+                    "color": "yellow"
+                  }
+                }
+              },
+              {
+                "type": "range",
+                "options": {
+                  "from": 0,
+                  "to": 49.99,
+                  "result": {
+                    "text": "DOWN",
+                    "color": "red"
+                  }
+                }
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 50
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            },
+            "color": {
+              "mode": "fixed"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "background",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "runtime_health_score",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Availability %",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 1
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 95
+                },
+                {
+                  "color": "green",
+                  "value": 99
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "(1 - runtime_failures_total / runtime_runs_total) * 100",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 8,
+          "y": 1
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 2
+                },
+                {
+                  "color": "red",
+                  "value": 10
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "runtime_failures_total / runtime_runs_total * 100",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Active Alerts",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 1
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 4
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "tenazas_goals_failing + tenazas_staging_pending",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Watchdog Events",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 16,
+          "y": 1
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "red",
+                  "value": 20
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "runtime_watchdog_triggered",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Cloud Fallbacks",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 20,
+          "y": 1
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 5
+                },
+                {
+                  "color": "red",
+                  "value": 20
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "router_cloud_fallbacks_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 5
+        },
+        "id": 101,
+        "title": "Tendencia 6h",
+        "type": "row"
+      },
+      {
+        "id": 10,
+        "title": "Runtime Cycles",
+        "type": "timeseries",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 0,
+          "y": 6
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "lineInterpolation": "smooth",
+              "fillOpacity": 15,
+              "showPoints": "never",
+              "spanNulls": true
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "runtime_runs_total"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "green"
+                  }
+                },
+                {
+                  "id": "displayName",
+                  "value": "Runs"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "runtime_failures_total"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "red"
+                  }
+                },
+                {
+                  "id": "displayName",
+                  "value": "Failures"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "runtime_runs_total",
+            "legendFormat": "runtime_runs_total",
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "runtime_failures_total",
+            "legendFormat": "runtime_failures_total",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Routing Decisions",
+        "type": "timeseries",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 8,
+          "y": 6
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "lineInterpolation": "smooth",
+              "fillOpacity": 15,
+              "showPoints": "never",
+              "spanNulls": true
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "router_v2_calls_total"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "blue"
+                  }
+                },
+                {
+                  "id": "displayName",
+                  "value": "V2"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "router_v1_calls_total"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "yellow"
+                  }
+                },
+                {
+                  "id": "displayName",
+                  "value": "V1"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "router_cloud_fallbacks_total"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "red"
+                  }
+                },
+                {
+                  "id": "displayName",
+                  "value": "Cloud"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "router_v2_calls_total",
+            "legendFormat": "router_v2_calls_total",
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "router_v1_calls_total",
+            "legendFormat": "router_v1_calls_total",
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "router_cloud_fallbacks_total",
+            "legendFormat": "router_cloud_fallbacks_total",
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Messages & Queries",
+        "type": "timeseries",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 16,
+          "y": 6
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "lineInterpolation": "smooth",
+              "fillOpacity": 15,
+              "showPoints": "never",
+              "spanNulls": true
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "telegram_messages_today"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "blue"
+                  }
+                },
+                {
+                  "id": "displayName",
+                  "value": "Telegram"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "rag_queries_total"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "purple"
+                  }
+                },
+                {
+                  "id": "displayName",
+                  "value": "RAG"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "telegram_messages_today",
+            "legendFormat": "telegram_messages_today",
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "rag_queries_total",
+            "legendFormat": "rag_queries_total",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 13
+        },
+        "id": 102,
+        "title": "Saturaci\u00f3n",
+        "type": "row"
+      },
+      {
+        "id": 20,
+        "title": "NAS CPU",
+        "type": "gauge",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 60
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "nas_cpu_load_percent",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 21,
+        "title": "NAS RAM",
+        "type": "gauge",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 85
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "nas_ram_used_bytes / nas_ram_total_bytes * 100",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 22,
+        "title": "HomeLab CPU",
+        "type": "gauge",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 8,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 60
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "100 - avg(rate(windows_cpu_time_total{instance=\"homelab\",mode=\"idle\"}[2m])) * 100",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 23,
+        "title": "HomeLab RAM",
+        "type": "gauge",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 85
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "100 - windows_memory_available_bytes{instance=\"homelab\"} / windows_memory_physical_total_bytes{instance=\"homelab\"} * 100",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 24,
+        "title": "GPU VRAM",
+        "type": "gauge",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 16,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "nvidia_smi_memory_used_bytes{instance=\"homelab\"} / nvidia_smi_memory_total_bytes{instance=\"homelab\"} * 100",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 25,
+        "title": "NAS Disk",
+        "type": "gauge",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 20,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 85
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "nas_disk_used_bytes / nas_disk_total_bytes * 100",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 18
+        },
+        "id": 103,
+        "title": "Estado Operativo",
+        "type": "row"
+      },
+      {
+        "id": 30,
+        "title": "Container Restarts",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 4,
+          "x": 0,
+          "y": 19
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 10
+                },
+                {
+                  "color": "red",
+                  "value": 50
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "container_restarts_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 31,
+        "title": "VPN Disconnects",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 4,
+          "x": 4,
+          "y": 19
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "red",
+                  "value": 20
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "vpn_disconnects_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 32,
+        "title": "Ollama Status",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 4,
+          "x": 8,
+          "y": 19
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {
+                "type": "value",
+                "options": {
+                  "1": {
+                    "text": "ONLINE",
+                    "color": "green"
+                  }
+                }
+              },
+              {
+                "type": "value",
+                "options": {
+                  "0": {
+                    "text": "OFFLINE",
+                    "color": "red"
+                  }
+                }
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            },
+            "color": {
+              "mode": "fixed"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "background",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "ollama_gpu_up",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 33,
+        "title": "Model Failover",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 4,
+          "x": 12,
+          "y": 19
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {
+                "type": "value",
+                "options": {
+                  "0": {
+                    "text": "PRIMARY",
+                    "color": "green"
+                  }
+                }
+              },
+              {
+                "type": "value",
+                "options": {
+                  "1": {
+                    "text": "FALLBACK",
+                    "color": "orange"
+                  }
+                }
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 1
+                }
+              ]
+            },
+            "color": {
+              "mode": "fixed"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "background",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "model_failover_active",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 34,
+        "title": "Staging Queue",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 4,
+          "x": 16,
+          "y": 19
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 6
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "tenazas_staging_pending",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 35,
+        "title": "NAS Temp",
+        "type": "stat",
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 4,
+          "x": 20,
+          "y": 19
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "celsius",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 55
+                },
+                {
+                  "color": "red",
+                  "value": 65
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "afhjgavdgav40d",
+              "type": "prometheus"
+            },
+            "expr": "nas_cpu_temp_celsius",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "schemaVersion": 39,
+    "version": 1
+  },
+  "overwrite": true
+}

@@ -1,0 +1,402 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "tenazas-portfolio",
+    "title": "Tenazas Portfolio",
+    "tags": ["tenazas", "finance", "binance", "iol", "crypto"],
+    "timezone": "America/Argentina/Buenos_Aires",
+    "refresh": "5m",
+    "time": { "from": "now-7d", "to": "now" },
+    "schemaVersion": 39,
+    "version": 1,
+    "editable": true,
+    "graphTooltip": 1,
+    "panels": [
+
+      { "id": 100, "title": "Resumen General", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false },
+
+      {
+        "id": 50, "title": "Portfolio Total USD", "type": "stat",
+        "gridPos": { "h": 3, "w": 5, "x": 0, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_portfolio_total_usd", "legendFormat": "Total" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 51, "title": "USD/ARS Blue", "type": "stat",
+        "gridPos": { "h": 3, "w": 4, "x": 5, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_usd_ars_rate", "legendFormat": "Rate" }],
+        "fieldConfig": { "defaults": { "unit": "currencyARS", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 52, "title": "Binance DD", "type": "gauge",
+        "gridPos": { "h": 3, "w": 4, "x": 9, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_portfolio_drawdown_pct", "legendFormat": "DD" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 50,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 5 },
+            { "color": "orange", "value": 10 }, { "color": "red", "value": 20 }
+          ]} }}
+      },
+      {
+        "id": 53, "title": "IOL DD", "type": "gauge",
+        "gridPos": { "h": 3, "w": 4, "x": 13, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_iol_drawdown_pct", "legendFormat": "DD" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 50,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 5 },
+            { "color": "orange", "value": 10 }, { "color": "red", "value": 20 }
+          ]} }}
+      },
+      {
+        "id": 54, "title": "Trend", "type": "stat",
+        "gridPos": { "h": 3, "w": 3, "x": 17, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_portfolio_trend", "legendFormat": "Trend" }],
+        "fieldConfig": { "defaults": { "mappings": [
+          { "type": "value", "options": { "1": { "text": "BULLISH", "color": "green" }, "0": { "text": "SIDEWAYS", "color": "text" }, "-1": { "text": "BEARISH", "color": "red" } } }
+        ] }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "background_solid" }
+      },
+      {
+        "id": 55, "title": "Rules", "type": "stat",
+        "gridPos": { "h": 3, "w": 4, "x": 20, "y": 1 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_rules_active", "legendFormat": "Active" },
+          { "expr": "tenazas_rules_triggered_total", "legendFormat": "Triggered" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "none" }
+      },
+
+      {
+        "id": 1, "title": "Binance Total", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 0, "y": 4 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_total_usd", "legendFormat": "Binance" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 2, "title": "Binance PNL", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 4, "y": 4 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_usd", "legendFormat": "PNL USD" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value" }
+      },
+      {
+        "id": 3, "title": "Binance PNL %", "type": "stat",
+        "gridPos": { "h": 6, "w": 3, "x": 8, "y": 4 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_pct", "legendFormat": "%" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "background_solid" }
+      },
+      {
+        "id": 4, "title": "IOL Total", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 11, "y": 4 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_iol_portfolio_ars", "legendFormat": "IOL" }],
+        "fieldConfig": { "defaults": { "unit": "currencyARS", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 5, "title": "IOL PNL", "type": "stat",
+        "gridPos": { "h": 6, "w": 4, "x": 15, "y": 4 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_iol_pnl_day_ars", "legendFormat": "PNL ARS" }],
+        "fieldConfig": { "defaults": { "unit": "currencyARS", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value" }
+      },
+      {
+        "id": 6, "title": "Fear & Greed", "type": "gauge",
+        "gridPos": { "h": 6, "w": 5, "x": 19, "y": 4 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_fear_greed_index", "legendFormat": "F&G" }],
+        "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "dark-red", "value": null }, { "color": "red", "value": 10 },
+            { "color": "orange", "value": 25 }, { "color": "text", "value": 45 },
+            { "color": "light-green", "value": 55 }, { "color": "green", "value": 75 }
+          ]} }}
+      },
+
+      { "id": 200, "title": "BTC", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 }, "collapsed": false },
+
+      {
+        "id": 10, "title": "BTC Precio USD", "type": "timeseries",
+        "gridPos": { "h": 10, "w": 16, "x": 0, "y": 8 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_binance_btc_price_usd", "legendFormat": "BTC/USD" },
+          { "expr": "min_over_time(tenazas_binance_btc_price_usd[24h])", "legendFormat": "Soporte 24h" },
+          { "expr": "max_over_time(tenazas_binance_btc_price_usd[24h])", "legendFormat": "Resistencia 24h" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none", "decimals": 2,
+          "custom": { "lineWidth": 2, "fillOpacity": 5, "lineInterpolation": "smooth", "showPoints": "never" } },
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "BTC/USD" }, "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } },
+              { "id": "custom.lineWidth", "value": 3 }, { "id": "custom.fillOpacity", "value": 10 }
+            ]},
+            { "matcher": { "id": "byName", "options": "Soporte 24h" }, "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.lineWidth", "value": 1 }, { "id": "custom.fillOpacity", "value": 0 }
+            ]},
+            { "matcher": { "id": "byName", "options": "Resistencia 24h" }, "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.lineWidth", "value": 1 }, { "id": "custom.fillOpacity", "value": 0 }
+            ]}
+          ]},
+        "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+      },
+      {
+        "id": 11, "title": "BTC Actual", "type": "stat",
+        "gridPos": { "h": 5, "w": 4, "x": 16, "y": 8 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_btc_price_usd", "legendFormat": "BTC" }],
+        "fieldConfig": { "defaults": { "unit": "none", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 12, "title": "BTC 24h %", "type": "stat",
+        "gridPos": { "h": 5, "w": 4, "x": 20, "y": 8 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_asset_change_24h_pct{asset=\"BTC\"}", "legendFormat": "24h" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "background_solid" }
+      },
+      {
+        "id": 13, "title": "BTC Dominance", "type": "stat",
+        "gridPos": { "h": 5, "w": 4, "x": 16, "y": 13 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_btc_dominance_pct", "legendFormat": "Dom" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 14, "title": "Fear & Greed Historico", "type": "timeseries",
+        "gridPos": { "h": 5, "w": 4, "x": 20, "y": 13 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_fear_greed_index", "legendFormat": "F&G" }],
+        "fieldConfig": { "defaults": { "unit": "none", "min": 0, "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 15, "lineInterpolation": "smooth", "showPoints": "never",
+            "thresholdsStyle": { "mode": "area" } },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null }, { "color": "orange", "value": 25 },
+            { "color": "transparent", "value": 45 }, { "color": "light-green", "value": 55 }, { "color": "green", "value": 75 }
+          ]}, "color": { "mode": "thresholds" } }},
+        "options": { "legend": { "displayMode": "hidden" } }
+      },
+
+      { "id": 300, "title": "Binance Assets", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }, "collapsed": false },
+
+      {
+        "id": 20, "title": "Assets por Valor USD", "type": "bargauge",
+        "gridPos": { "h": 8, "w": 10, "x": 0, "y": 19 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "topk(10, tenazas_binance_asset_balance_usd)", "legendFormat": "{{asset}}" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "blue", "value": null }, { "color": "green", "value": 100 }, { "color": "yellow", "value": 500 }
+          ]} }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+      },
+      {
+        "id": 21, "title": "Detalle Assets", "type": "table",
+        "gridPos": { "h": 8, "w": 14, "x": 10, "y": 19 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_binance_asset_qty", "legendFormat": "{{asset}}", "refId": "A", "format": "table", "instant": true },
+          { "expr": "tenazas_binance_asset_price_usd", "legendFormat": "{{asset}}", "refId": "B", "format": "table", "instant": true },
+          { "expr": "tenazas_binance_asset_balance_usd", "legendFormat": "{{asset}}", "refId": "C", "format": "table", "instant": true },
+          { "expr": "tenazas_binance_asset_change_24h_pct", "legendFormat": "{{asset}}", "refId": "D", "format": "table", "instant": true }
+        ],
+        "transformations": [
+          { "id": "joinByField", "options": { "byField": "asset", "mode": "outer" } },
+          { "id": "organize", "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true,
+              "__name__": true, "__name__ 1": true, "__name__ 2": true, "__name__ 3": true,
+              "instance": true, "instance 1": true, "instance 2": true, "instance 3": true,
+              "job": true, "job 1": true, "job 2": true, "job 3": true },
+            "renameByName": { "asset": "Asset", "Value #A": "Cantidad", "Value #B": "Precio USD", "Value #C": "Valor USD", "Value #D": "24h %" },
+            "indexByName": { "Asset": 0, "Cantidad": 1, "Precio USD": 2, "Valor USD": 3, "24h %": 4 }
+          }},
+          { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Valor USD", "desc": true }] } }
+        ],
+        "fieldConfig": { "defaults": {},
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "Precio USD" }, "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }] },
+            { "matcher": { "id": "byName", "options": "Valor USD" }, "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }] },
+            { "matcher": { "id": "byName", "options": "Cantidad" }, "properties": [{ "id": "decimals", "value": 6 }] },
+            { "matcher": { "id": "byName", "options": "24h %" }, "properties": [
+              { "id": "unit", "value": "percent" }, { "id": "decimals", "value": 2 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]}
+          ]}
+      },
+
+      { "id": 400, "title": "PNL Historico", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }, "collapsed": false },
+
+      {
+        "id": 30, "title": "Portfolio IOL + Binance (tendencia)", "type": "timeseries",
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_iol_portfolio_ars", "legendFormat": "IOL (ARS)" },
+          { "expr": "tenazas_binance_total_usd", "legendFormat": "Binance (USD)" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "short",
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10, "showPoints": "auto", "spanNulls": true } },
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "IOL (ARS)" }, "properties": [
+              { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } },
+              { "id": "custom.axisPlacement", "value": "left" }, { "id": "unit", "value": "currencyARS" }
+            ]},
+            { "matcher": { "id": "byName", "options": "Binance (USD)" }, "properties": [
+              { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } },
+              { "id": "custom.axisPlacement", "value": "right" }, { "id": "unit", "value": "currencyUSD" }
+            ]}
+          ]},
+        "options": { "tooltip": { "mode": "multi" },
+          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max"] } }
+      },
+
+      {
+        "id": 31, "title": "PNL IOL Diario (ARS)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_iol_pnl_day_ars", "legendFormat": "PNL IOL" }],
+        "fieldConfig": { "defaults": { "unit": "currencyARS",
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "gradientMode": "scheme", "thresholdsStyle": { "mode": "line" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] },
+          "color": { "mode": "thresholds" } }}
+      },
+      {
+        "id": 32, "title": "PNL Binance Diario (USD)", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_binance_pnl_day_usd", "legendFormat": "PNL Binance" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD",
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "gradientMode": "scheme", "thresholdsStyle": { "mode": "line" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] },
+          "color": { "mode": "thresholds" } }}
+      },
+
+      { "id": 600, "title": "Indicators", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 46 }, "collapsed": false },
+
+      {
+        "id": 60, "title": "Portfolio + Moving Averages", "type": "timeseries",
+        "gridPos": { "h": 8, "w": 16, "x": 0, "y": 47 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_portfolio_total_usd", "legendFormat": "Portfolio" },
+          { "expr": "tenazas_portfolio_ma7_usd", "legendFormat": "MA7" },
+          { "expr": "tenazas_portfolio_ma30_usd", "legendFormat": "MA30" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "lineWidth": 2, "fillOpacity": 5, "lineInterpolation": "smooth", "showPoints": "never" } },
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "Portfolio" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }, { "id": "custom.lineWidth", "value": 3 }] },
+            { "matcher": { "id": "byName", "options": "MA7" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }, { "id": "custom.lineStyle", "value": { "fill": "dash" } }] },
+            { "matcher": { "id": "byName", "options": "MA30" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }, { "id": "custom.lineStyle", "value": { "fill": "dash" } }] }
+          ]}
+      },
+      {
+        "id": 61, "title": "Volatility", "type": "gauge",
+        "gridPos": { "h": 4, "w": 4, "x": 16, "y": 47 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_portfolio_volatility_pct", "legendFormat": "Vol" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2, "min": 0, "max": 10,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 5 }
+          ]} }}
+      },
+      {
+        "id": 62, "title": "Daily Return", "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 20, "y": 47 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_portfolio_daily_return_pct", "legendFormat": "Return" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 63, "title": "Drawdown History", "type": "timeseries",
+        "gridPos": { "h": 4, "w": 8, "x": 16, "y": 51 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_portfolio_drawdown_pct", "legendFormat": "Binance DD" },
+          { "expr": "tenazas_iol_drawdown_pct", "legendFormat": "IOL DD" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "percent", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 } },
+          "overrides": [
+            { "matcher": { "id": "byName", "options": "Binance DD" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+            { "matcher": { "id": "byName", "options": "IOL DD" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+          ]}
+      },
+
+      { "id": 500, "title": "Paper Trading", "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 55 }, "collapsed": false },
+
+      {
+        "id": 40, "title": "Paper Portfolio", "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 56 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_paper_portfolio_usd", "legendFormat": "Paper USD" }],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2, "noValue": "Sin datos",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "background_solid" }
+      },
+      {
+        "id": 41, "title": "Win Rate", "type": "gauge",
+        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 56 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_paper_win_rate_pct", "legendFormat": "Win %" }],
+        "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 100, "noValue": "Sin datos",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null }, { "color": "orange", "value": 40 }, { "color": "green", "value": 55 }
+          ]} }}
+      },
+      {
+        "id": 42, "title": "Total Trades", "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 56 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_paper_total_trades", "legendFormat": "Trades" }],
+        "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "noValue": "Sin datos",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] } }},
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "background_solid" }
+      }
+
+    ],
+    "links": [],
+    "templating": { "list": [] },
+    "annotations": { "list": [] }
+  },
+  "overwrite": true
+}

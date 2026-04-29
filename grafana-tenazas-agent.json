@@ -1,0 +1,1419 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "tenazas-agent-ops",
+    "title": "Tenazas Agent Ops",
+    "tags": [
+      "tenazas",
+      "agent"
+    ],
+    "timezone": "America/Argentina/Buenos_Aires",
+    "refresh": "30s",
+    "time": {
+      "from": "now-12h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 100,
+        "title": "Agent Health",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "collapsed": false
+      },
+      {
+        "id": 1,
+        "title": "Success Rate",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 1
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_feedback_positive_total / (tenazas_feedback_positive_total + tenazas_feedback_negative_total) * 100",
+            "legendFormat": "Success %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 60
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "V2 Routing %",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 1
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "router_v2_calls_total / (router_v2_calls_total + router_v1_calls_total) * 100",
+            "legendFormat": "V2 %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 50
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Decision Latency",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 8,
+          "y": 1
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "router_last_decision_latency_seconds",
+            "legendFormat": "Latency",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 0.01
+                },
+                {
+                  "color": "red",
+                  "value": 0.1
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Cloud Fallback Rate",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 1
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "router_cloud_fallbacks_total / (router_v2_calls_total + router_v1_calls_total) * 100",
+            "legendFormat": "Cloud %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "red",
+                  "value": 15
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Positive Feedback",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 16,
+          "y": 1
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_feedback_positive_total",
+            "legendFormat": "Positive",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "area",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 6,
+        "title": "Pending Proposals",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 20,
+          "y": 1
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_evolve_status{status=\"proposed\"}",
+            "legendFormat": "Pending",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "orange",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 101,
+        "title": "Routing Decisions",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 5
+        },
+        "collapsed": false
+      },
+      {
+        "id": 10,
+        "title": "Decisions Over Time",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 0,
+          "y": 6
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "increase(router_v2_calls_total[1h])",
+            "legendFormat": "V2",
+            "refId": "A"
+          },
+          {
+            "expr": "increase(router_v1_calls_total[1h])",
+            "legendFormat": "V1",
+            "refId": "B"
+          },
+          {
+            "expr": "increase(router_cloud_fallbacks_total[1h])",
+            "legendFormat": "Cloud",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 80,
+              "stacking": {
+                "mode": "normal",
+                "group": "A"
+              },
+              "lineWidth": 1,
+              "barAlignment": 0
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "V2"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "blue",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "V1"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "yellow",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Cloud"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "red",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Role Distribution",
+        "type": "piechart",
+        "gridPos": {
+          "h": 7,
+          "w": 6,
+          "x": 12,
+          "y": 6
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "router_v2_role_fast_total",
+            "legendFormat": "fast",
+            "refId": "A"
+          },
+          {
+            "expr": "router_v2_role_reason_total",
+            "legendFormat": "reason",
+            "refId": "B"
+          },
+          {
+            "expr": "router_v2_role_heavy_total",
+            "legendFormat": "heavy",
+            "refId": "C"
+          },
+          {
+            "expr": "router_v2_role_code_total",
+            "legendFormat": "code",
+            "refId": "D"
+          },
+          {
+            "expr": "router_v2_role_vision_total",
+            "legendFormat": "vision",
+            "refId": "E"
+          },
+          {
+            "expr": "router_v2_role_embed_total",
+            "legendFormat": "embed",
+            "refId": "F"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "pieType": "donut",
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": [
+              "value",
+              "percent"
+            ]
+          },
+          "tooltip": {
+            "mode": "single"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Guardrail Triggers",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 7,
+          "w": 6,
+          "x": 18,
+          "y": 6
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "guardrail_cooldown_total",
+            "legendFormat": "Cooldown",
+            "refId": "A"
+          },
+          {
+            "expr": "guardrail_frequency_total",
+            "legendFormat": "Frequency",
+            "refId": "B"
+          },
+          {
+            "expr": "guardrail_latency_total",
+            "legendFormat": "Latency",
+            "refId": "C"
+          },
+          {
+            "expr": "guardrail_vram_storm_total",
+            "legendFormat": "VRAM Storm",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "red",
+                  "value": 15
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
+      },
+      {
+        "id": 102,
+        "title": "LLM Runtime",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 13
+        },
+        "collapsed": false
+      },
+      {
+        "id": 20,
+        "title": "Ollama Latency",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 0,
+          "y": 14
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "ollama_gpu_latency_seconds",
+            "legendFormat": "Latency",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 15,
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "auto"
+            },
+            "color": {
+              "fixedColor": "green",
+              "mode": "fixed"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "single"
+          }
+        }
+      },
+      {
+        "id": 21,
+        "title": "VRAM Usage",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 8,
+          "y": 14
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "ollama_gpu_vram_used_bytes",
+            "legendFormat": "Used",
+            "refId": "A"
+          },
+          {
+            "expr": "ollama_gpu_vram_total_bytes",
+            "legendFormat": "Total",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Used"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "orange",
+                    "mode": "fixed"
+                  }
+                },
+                {
+                  "id": "custom.fillOpacity",
+                  "value": 30
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "green",
+                    "mode": "fixed"
+                  }
+                },
+                {
+                  "id": "custom.lineStyle",
+                  "value": {
+                    "fill": "dash",
+                    "dash": [
+                      10,
+                      10
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 22,
+        "title": "Loaded Models",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 16,
+          "y": 14
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "ollama_gpu_loaded_models",
+            "legendFormat": "Loaded",
+            "refId": "A"
+          },
+          {
+            "expr": "ollama_gpu_models_count",
+            "legendFormat": "Available",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Loaded"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "blue",
+                    "mode": "fixed"
+                  }
+                },
+                {
+                  "id": "custom.fillOpacity",
+                  "value": 25
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Available"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "green",
+                    "mode": "fixed"
+                  }
+                },
+                {
+                  "id": "custom.lineStyle",
+                  "value": {
+                    "fill": "dash",
+                    "dash": [
+                      10,
+                      10
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 103,
+        "title": "Feedback & Quality",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 21
+        },
+        "collapsed": false
+      },
+      {
+        "id": 30,
+        "title": "Feedback Over Time",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 0,
+          "y": 22
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_feedback_positive_total",
+            "legendFormat": "Positive",
+            "refId": "A"
+          },
+          {
+            "expr": "tenazas_feedback_negative_total",
+            "legendFormat": "Negative",
+            "refId": "B"
+          },
+          {
+            "expr": "tenazas_feedback_implicit_neg_total",
+            "legendFormat": "Implicit Neg",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 15,
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Positive"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "green",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Negative"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "red",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Implicit Neg"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "orange",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 31,
+        "title": "Feedback by Skill",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 8,
+          "y": 22
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_feedback_by_skill{feedback=\"positive\"}",
+            "legendFormat": "{{category}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
+      },
+      {
+        "id": 32,
+        "title": "RAG Quality",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 8,
+          "x": 16,
+          "y": 22
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "rag_queries_total",
+            "legendFormat": "Queries",
+            "refId": "A"
+          },
+          {
+            "expr": "rag_low_confidence_total",
+            "legendFormat": "Low Confidence",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 15,
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Queries"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "blue",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Low Confidence"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "red",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 104,
+        "title": "Self-Improvement",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 29
+        },
+        "collapsed": false
+      },
+      {
+        "id": 40,
+        "title": "Evolve Runs",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 30
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_evolve_runs_total",
+            "legendFormat": "Runs",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "blue",
+                  "value": null
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "area",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 41,
+        "title": "Total Proposals",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 30
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_evolve_proposals_total",
+            "legendFormat": "Proposals",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "blue",
+                  "value": null
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 42,
+        "title": "High Priority",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 8,
+          "y": 30
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "sum(tenazas_evolve_proposals{priority=\"high\"})",
+            "legendFormat": "High",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 2
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 43,
+        "title": "Processed",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 30
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_evolve_status{status=\"processed\"}",
+            "legendFormat": "Processed",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 44,
+        "title": "OpenRouter Spent",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 16,
+          "y": 30
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_openrouter_used_usd",
+            "legendFormat": "Spent",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 45,
+        "title": "OpenRouter Balance",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 20,
+          "y": 30
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_openrouter_balance_usd",
+            "legendFormat": "Balance",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "green",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      }
+    ],
+    "schemaVersion": 39,
+    "version": 1,
+    "editable": true,
+    "graphTooltip": 1
+  },
+  "overwrite": true
+}

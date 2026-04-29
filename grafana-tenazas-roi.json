@@ -1,0 +1,123 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "tenazas-roi",
+    "title": "Tenazas ROI Dashboard",
+    "tags": ["tenazas", "roi", "personal"],
+    "timezone": "America/Argentina/Buenos_Aires",
+    "refresh": "5m",
+    "time": { "from": "now-7d", "to": "now" },
+    "panels": [
+      {
+        "id": 1, "title": "Horas Ahorradas", "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_hours_saved", "legendFormat": "Horas" }],
+        "fieldConfig": { "defaults": { "unit": "h", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "yellow", "value": null }, { "color": "green", "value": 5 }
+        ]}}},
+        "options": { "colorMode": "background", "graphMode": "area", "textMode": "value_and_name" }
+      },
+      {
+        "id": 2, "title": "Tasa de Automatizacion", "type": "gauge",
+        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_automation_rate * 100", "legendFormat": "%" }],
+        "fieldConfig": { "defaults": { "min": 0, "max": 100, "unit": "percent", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "red", "value": null }, { "color": "orange", "value": 30 },
+          { "color": "yellow", "value": 50 }, { "color": "green", "value": 65 }
+        ]}}}
+      },
+      {
+        "id": 3, "title": "Skill Executions (periodo)", "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_skill_executions_total", "legendFormat": "Skills" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "blue", "value": null }
+        ]}}}
+      },
+      {
+        "id": 4, "title": "Errores Evitados", "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_errors_avoided_total", "legendFormat": "Errores evitados" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }
+        ]}}},
+        "options": { "colorMode": "background" }
+      },
+      {
+        "id": 5, "title": "Uso por Skill", "type": "bargauge",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_skill_usage", "legendFormat": "{{skill}}" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "blue", "value": null }, { "color": "green", "value": 20 }
+        ]}}},
+        "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+      },
+      {
+        "id": 6, "title": "Horas Ahorradas por Skill", "type": "bargauge",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_skill_hours_saved", "legendFormat": "{{skill}}" }],
+        "fieldConfig": { "defaults": { "unit": "h", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "yellow", "value": null }, { "color": "green", "value": 1 }
+        ]}}},
+        "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+      },
+      {
+        "id": 7, "title": "Success Rate por Skill", "type": "bargauge",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_skill_success_rate * 100", "legendFormat": "{{skill}}" }],
+        "fieldConfig": { "defaults": { "min": 0, "max": 100, "unit": "percent", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "red", "value": null }, { "color": "orange", "value": 70 },
+          { "color": "yellow", "value": 85 }, { "color": "green", "value": 95 }
+        ]}}},
+        "options": { "orientation": "horizontal", "displayMode": "lcd", "showUnfilled": true }
+      },
+      {
+        "id": 8, "title": "Skills vs LLM Chat", "type": "piechart",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [
+          { "expr": "tenazas_roi_skill_executions_total", "legendFormat": "Skills (automatizados)" },
+          { "expr": "tenazas_roi_llm_chats_total", "legendFormat": "LLM Chat" }
+        ],
+        "fieldConfig": { "defaults": { "unit": "none" }},
+        "options": { "legend": { "displayMode": "list", "placement": "right" }, "pieType": "donut" }
+      },
+      {
+        "id": 9, "title": "Container Restarts (evitados)", "type": "stat",
+        "gridPos": { "h": 5, "w": 8, "x": 0, "y": 25 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_container_restarts", "legendFormat": "Restarts" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }
+        ]}}}
+      },
+      {
+        "id": 10, "title": "VPN Fixes", "type": "stat",
+        "gridPos": { "h": 5, "w": 8, "x": 8, "y": 25 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "tenazas_roi_vpn_fixes", "legendFormat": "VPN fixes" }],
+        "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }
+        ]}}}
+      },
+      {
+        "id": 11, "title": "Ultima Actualizacion ROI", "type": "stat",
+        "gridPos": { "h": 5, "w": 8, "x": 16, "y": 25 },
+        "datasource": { "uid": "afhjgavdgav40d", "type": "prometheus" },
+        "targets": [{ "expr": "time() - tenazas_roi_last_update_ts", "legendFormat": "Hace" }],
+        "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 21600 },
+          { "color": "red", "value": 43200 }
+        ]}}}
+      }
+    ]
+  },
+  "overwrite": true
+}
