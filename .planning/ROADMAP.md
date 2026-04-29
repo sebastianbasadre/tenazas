@@ -90,6 +90,10 @@
   2. Multi-domain queries (e.g., "how is my portfolio and any infra alerts?") receive an aggregated response combining outputs from multiple agents
   3. Coordinator selects execution strategy per query: parallel (multi-domain), sequential (dependent), or first-wins (single-domain)
   4. Every query passing through the coordinator carries a correlation ID traceable through coordinator, agent, and skill execution logs
+**Plans:** 2 plans
+  Plans:
+  - [ ] 08-01-PLAN.md -- Add correlation_id kwarg to handle() in all 5 agents
+  - [ ] 08-02-PLAN.md -- Rewrite agent_coordinator.py + TestCoordinatorRewrite tests
 
 ### Phase 9: Pipeline Integration & Testing
 **Goal**: The multi-agent system is live in Telegram behind a feature flag with full observability and test coverage
@@ -116,5 +120,5 @@ Phases execute in numeric order: 5 -> 5.x -> 6 -> 6.x -> 7 -> 8 -> 9
 | 5. Foundation & Contracts | v2.0 | 3/3 | Complete | 2026-04-29 |
 | 6. Domain Agents | v2.0 | 3/3 | Complete | 2026-04-29 |
 | 7. Arbitrator & Cross-Agent | v2.0 | 3/3 | Complete | 2026-04-29 |
-| 8. Coordinator Rewrite | v2.0 | 0/0 | Not started | - |
+| 8. Coordinator Rewrite | v2.0 | 0/2 | Not started | - |
 | 9. Pipeline Integration & Testing | v2.0 | 0/0 | Not started | - |
