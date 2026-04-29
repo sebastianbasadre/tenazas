@@ -73,25 +73,170 @@ def assess() -> dict:
     return status
 
 
+def _observe_containers():
+    """Focused observation of container status."""
+    try:
+        from homelab_snapshot import snapshot
+        snap = snapshot()
+        c = snap.get("containers", {})
+        total = c.get("total", 0)
+        running = c.get("running", 0)
+        stopped = c.get("stopped", 0)
+        unhealthy = c.get("unhealthy", 0)
+        issues = []
+        if stopped > 0:
+            issues.append(f"{stopped} stopped")
+        if unhealthy > 0:
+            issues.append(f"{unhealthy} unhealthy")
+        summary = f"Containers: {running}/{total} running"
+        if issues:
+            summary += f" ({', '.join(issues)})"
+        confidence = 0.9 if not issues else 0.6
+        return {"summary": summary, "confidence": confidence, "sub": "containers", "issues": issues, "raw": c}
+    except Exception as e:
+        return {"summary": f"Containers: error ({str(e)[:80]})", "confidence": 0.3, "sub": "containers", "issues": [str(e)[:100]], "raw": {}}
+
+
+def _observe_ollama():
+    """Focused observation of Ollama/GPU status."""
+    try:
+        from homelab_snapshot import snapshot
+        snap = snapshot()
+        o = snap.get("ollama", {})
+        status = o.get("status", "unknown")
+        models = o.get("models", [])
+        issues = []
+        if status != "online":
+            issues.append(f"ollama {status}")
+        summary = f"Ollama: {status}"
+        if models:
+            summary += f" ({len(models)} models)"
+        confidence = 0.9 if status == "online" else 0.5
+        return {"summary": summary, "confidence": confidence, "sub": "ollama", "issues": issues, "raw": o}
+    except Exception as e:
+        return {"summary": f"Ollama: error ({str(e)[:80]})", "confidence": 0.3, "sub": "ollama", "issues": [str(e)[:100]], "raw": {}}
+
+
+def _observe_vpn():
+    """Focused observation of VPN/gluetun status."""
+    try:
+        from homelab_snapshot import snapshot
+        snap = snapshot()
+        vpn = snap.get("vpn", snap.get("gluetun", {}))
+        status = vpn.get("status", "unknown")
+        country = vpn.get("country", "")
+        issues = []
+        if status != "connected" and status != "ok":
+            issues.append(f"VPN {status}")
+        if country and country.upper() == "AR":
+            issues.append("VPN leak detected (AR)")
+        summary = f"VPN: {status}"
+        if country:
+            summary += f" ({country})"
+        confidence = 0.9 if not issues else 0.5
+        return {"summary": summary, "confidence": confidence, "sub": "vpn", "issues": issues, "raw": vpn}
+    except Exception as e:
+        return {"summary": f"VPN: error ({str(e)[:80]})", "confidence": 0.3, "sub": "vpn", "issues": [str(e)[:100]], "raw": {}}
+
+
+def _observe_disk():
+    """Focused observation of disk usage."""
+    try:
+        from homelab_snapshot import snapshot
+        snap = snapshot()
+        disk = snap.get("disk", snap.get("storage", {}))
+        used_pct = disk.get("used_pct", disk.get("percent", 0))
+        issues = []
+        if used_pct > 90:
+            issues.append(f"disk usage critical: {used_pct}%")
+        elif used_pct > 80:
+            issues.append(f"disk usage high: {used_pct}%")
+        summary = f"Disk: {used_pct}% used"
+        confidence = 0.9 if not issues else 0.6
+        return {"summary": summary, "confidence": confidence, "sub": "disk", "issues": issues, "raw": disk}
+    except Exception as e:
+        return {"summary": f"Disk: error ({str(e)[:80]})", "confidence": 0.3, "sub": "disk", "issues": [str(e)[:100]], "raw": {}}
+
+
+def _assess_full():
+    """Full assessment via existing assess(), reformatted as observer dict."""
+    status = assess()
+    return {
+        "summary": f"Infra: {status['health']}" + (f" - {', '.join(status['issues'][:3])}" if status.get("issues") else ""),
+        "confidence": 0.9 if status["health"] == "ok" else 0.6,
+        "sub": "full",
+        "issues": status.get("issues", []),
+        "raw": status,
+    }
+
+
+def _build_recommendations(data):
+    """Build typed Recommendations from observer data issues."""
+    recs = []
+    for issue in data.get("issues", []):
+        issue_lower = issue.lower()
+        # Determine action based on issue type
+        if "stopped" in issue_lower or "unhealthy" in issue_lower:
+            action = "restart"
+            risk_level = "medium"
+            requires_approval = True
+            target = "container"
+        elif "ollama" in issue_lower and ("offline" in issue_lower or "error" in issue_lower):
+            action = "investigate"
+            risk_level = "low"
+            requires_approval = False
+            target = "ollama"
+        elif "vpn" in issue_lower or "leak" in issue_lower:
+            action = "restart"
+            risk_level = "medium"
+            requires_approval = True
+            target = "gluetun"
+        elif "disk" in issue_lower:
+            action = "investigate"
+            risk_level = "low"
+            requires_approval = False
+            target = "storage"
+        else:
+            action = "investigate"
+            risk_level = "low"
+            requires_approval = False
+            target = "infra"
+        # Filter BLOCKED_TARGETS
+        if target.lower() in BLOCKED_TARGETS:
+            continue
+        recs.append(Recommendation(
+            action=action,
+            target=target,
+            risk_level=risk_level,
+            requires_approval=requires_approval,
+            rationale=issue,
+        ))
+    return recs
+
+
 def handle(query: str):
     """Returns (Observation, list[Recommendation])."""
-    status = assess()
+    q = query.lower()
+    if any(k in q for k in ("container", "docker", "stopped", "unhealthy", "restart")):
+        data = _observe_containers()
+    elif any(k in q for k in ("gpu", "vram", "ollama", "modelo", "model")):
+        data = _observe_ollama()
+    elif any(k in q for k in ("vpn", "gluetun", "leak", "ip")):
+        data = _observe_vpn()
+    elif any(k in q for k in ("disk", "disco", "espacio", "storage")):
+        data = _observe_disk()
+    else:
+        data = _assess_full()
     obs = Observation(
         agent_name="infra",
         domain="infrastructure",
-        summary=f"Infra: {status['health']}" + (f" - {', '.join(status['issues'][:3])}" if status.get("issues") else ""),
-        confidence=0.9 if status["health"] == "ok" else 0.6,
-        details=status,
+        summary=data.get("summary", "Infra: sin datos"),
+        confidence=data.get("confidence", 0.5),
+        details=data,
     )
-    recs = []
-    for p in status.get("proposals", []):
-        recs.append(Recommendation(
-            action=p.get("action", "investigate"),
-            target=p.get("target", ""),
-            risk_level=p.get("severity", "low"),
-            requires_approval=True,
-            rationale=p.get("reason", ""),
-        ))
+    recs = _build_recommendations(data)
+    save_json(str(STATUS_FILE), data)
+    _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "confidence": obs.confidence})
     return (obs, recs)
 
 
