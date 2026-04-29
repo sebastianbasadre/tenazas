@@ -109,7 +109,7 @@ Phases execute in numeric order: 5 -> 5.x -> 6 -> 6.x -> 7 -> 8 -> 9
 | 3. Orchestrator Decomposition | v1.0 | 3/3 | Complete | 2026-04-28 |
 | 4. Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-04-28 |
 | 5. Foundation & Contracts | v2.0 | 3/3 | Complete | 2026-04-29 |
-| 6. Domain Agents | v2.0 | 0/3 | Planning | - |
+| 6. Domain Agents | v2.0 | 0/3 | Planned | - |
 | 7. Arbitrator & Cross-Agent | v2.0 | 0/0 | Not started | - |
 | 8. Coordinator Rewrite | v2.0 | 0/0 | Not started | - |
 | 9. Pipeline Integration & Testing | v2.0 | 0/0 | Not started | - |
