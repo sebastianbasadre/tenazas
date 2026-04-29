@@ -75,6 +75,11 @@
   3. When agents tie or produce contradictory recommendations, the system escalates to Telegram for Sebas to choose
   4. Each agent can read other agents' recent observations from shared state (cross-agent context)
   5. Agents produce cached observations via background cron that the coordinator reads instantly during Telegram queries
+**Plans:** 3 plans
+  Plans:
+  - [ ] 07-01-PLAN.md -- Arbitrator refactor: confidence tiebreak + Telegram escalation
+  - [ ] 07-02-PLAN.md -- Observation caching in all 5 agents + proactive cron observations
+  - [ ] 07-03-PLAN.md -- Tests for arbitrator, cross-agent cache, proactive observations
 
 ### Phase 8: Coordinator Rewrite
 **Goal**: A new coordinator routes every query to the right agent(s) and aggregates multi-domain responses
@@ -110,6 +115,6 @@ Phases execute in numeric order: 5 -> 5.x -> 6 -> 6.x -> 7 -> 8 -> 9
 | 4. Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-04-28 |
 | 5. Foundation & Contracts | v2.0 | 3/3 | Complete | 2026-04-29 |
 | 6. Domain Agents | v2.0 | 3/3 | Complete | 2026-04-29 |
-| 7. Arbitrator & Cross-Agent | v2.0 | 0/0 | Not started | - |
+| 7. Arbitrator & Cross-Agent | v2.0 | 0/3 | Planned | - |
 | 8. Coordinator Rewrite | v2.0 | 0/0 | Not started | - |
 | 9. Pipeline Integration & Testing | v2.0 | 0/0 | Not started | - |
