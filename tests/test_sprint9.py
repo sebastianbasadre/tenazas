@@ -1492,5 +1492,429 @@ class TestAgentResearchHandle(unittest.TestCase):
         self.assertEqual(agent_research.PREFERRED_ROLE, "reason")
 
 
+# ══════════════════════════════════════════════════════════════
+#  Phase 7: Arbitrator Confidence — priority + tiebreak (ARBT-01, ARBT-02)
+# ══════════════════════════════════════════════════════════════
+
+class TestArbitratorConfidence(unittest.TestCase):
+    """Tests for Phase 7: confidence-based tiebreaking in arbitrator."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_arbitrator as aa
+        self._orig_cf = aa.CONFLICTS_FILE
+        self._orig_sd = aa.AGENT_STATE_DIR
+        aa.CONFLICTS_FILE = Path(self.tmpdir) / "conflicts.json"
+        aa.AGENT_STATE_DIR = Path(self.tmpdir)
+        self.aa = aa
+
+    def tearDown(self):
+        self.aa.CONFLICTS_FILE = self._orig_cf
+        self.aa.AGENT_STATE_DIR = self._orig_sd
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_different_priority_picks_lower_number(self):
+        """infra (prio 4) beats research (prio 7)."""
+        result = self.aa.resolve([
+            {"agent": "infra", "action": "restart sonarr", "resource": "sonarr", "context": {}},
+            {"agent": "research", "action": "search query", "resource": "searxng", "context": {}},
+        ])
+        self.assertEqual(result["winner"], "infra")
+        self.assertEqual(result["loser"], "research")
+
+    def test_context_boost_infra_critical(self):
+        """infra with severity=critical (effective prio 1) beats personal (prio 5)."""
+        result = self.aa.resolve([
+            {"agent": "infra", "action": "restart gluetun", "resource": "gluetun",
+             "context": {"severity": "critical"}},
+            {"agent": "personal", "action": "send reminder", "resource": "telegram", "context": {}},
+        ])
+        self.assertEqual(result["winner"], "infra")
+        # Verify the effective priority is 1 (infra_critical)
+        eff = self.aa._get_effective_priority("infra", {"severity": "critical"})
+        self.assertEqual(eff, 1)
+
+    def test_same_priority_higher_confidence_wins(self):
+        """When priorities match (mocked), higher confidence wins."""
+        from agent_protocol import Observation
+        obs_high = Observation(agent_name="infra", domain="infra", summary="test", confidence=0.9)
+        obs_low = Observation(agent_name="finance", domain="finance", summary="test", confidence=0.3)
+        proposals = [
+            {"agent": "infra", "action": "restart", "resource": "gluetun",
+             "observation": obs_high, "context": {}},
+            {"agent": "finance", "action": "alert", "resource": "telegram",
+             "observation": obs_low, "context": {}},
+        ]
+        with patch.object(self.aa, '_get_effective_priority', return_value=5):
+            result = self.aa.resolve(proposals)
+        self.assertEqual(result["winner"], "infra")
+        self.assertIn("confidence", result.get("reason", ""))
+
+    def test_same_priority_lower_confidence_loses(self):
+        """When priorities match, lower confidence loses."""
+        from agent_protocol import Observation
+        obs_high = Observation(agent_name="finance", domain="finance", summary="test", confidence=0.95)
+        obs_low = Observation(agent_name="infra", domain="infra", summary="test", confidence=0.2)
+        proposals = [
+            {"agent": "infra", "action": "restart", "resource": "gluetun",
+             "observation": obs_low, "context": {}},
+            {"agent": "finance", "action": "alert", "resource": "telegram",
+             "observation": obs_high, "context": {}},
+        ]
+        with patch.object(self.aa, '_get_effective_priority', return_value=5):
+            result = self.aa.resolve(proposals)
+        self.assertEqual(result["winner"], "finance")
+        self.assertEqual(result["loser"], "infra")
+
+    @patch("agent_arbitrator.send_approval_request", return_value="test-id-123")
+    def test_true_tie_escalates(self, mock_send):
+        """Same priority + same confidence (both 0.5) escalates to Telegram."""
+        from agent_protocol import Observation
+        obs_a = Observation(agent_name="infra", domain="infra", summary="test", confidence=0.5)
+        obs_b = Observation(agent_name="finance", domain="finance", summary="test", confidence=0.5)
+        proposals = [
+            {"agent": "infra", "action": "restart", "resource": "shared",
+             "observation": obs_a, "context": {}},
+            {"agent": "finance", "action": "alert", "resource": "shared",
+             "observation": obs_b, "context": {}},
+        ]
+        # Patch exec_approvals at the module level where _escalate_to_telegram imports it
+        with patch.object(self.aa, '_get_effective_priority', return_value=5):
+            with patch.dict("sys.modules", {"exec_approvals": MagicMock(send_approval_request=mock_send)}):
+                result = self.aa.resolve(proposals)
+        self.assertTrue(result["escalated"])
+
+    def test_confidence_from_observation_object(self):
+        """_get_confidence with Observation dataclass returns correct value."""
+        from agent_protocol import Observation
+        obs = Observation(agent_name="test", domain="test", summary="ok", confidence=0.75)
+        claim = {"observation": obs}
+        self.assertAlmostEqual(self.aa._get_confidence(claim), 0.75)
+
+    def test_confidence_from_dict(self):
+        """_get_confidence with dict observation returns correct value."""
+        claim = {"observation": {"confidence": 0.88}}
+        self.assertAlmostEqual(self.aa._get_confidence(claim), 0.88)
+
+    def test_confidence_missing_returns_zero(self):
+        """_get_confidence with no observation returns 0.0."""
+        claim = {}
+        self.assertEqual(self.aa._get_confidence(claim), 0.0)
+
+    def test_single_proposal_no_conflict(self):
+        """Single proposal returns winner with 'no conflict' reason."""
+        result = self.aa.resolve([
+            {"agent": "infra", "action": "restart sonarr", "resource": "sonarr"}
+        ])
+        self.assertEqual(result["winner"], "infra")
+        self.assertIsNone(result["loser"])
+        self.assertIn("no conflict", result["reason"])
+
+    def test_empty_proposals(self):
+        """Empty list returns winner=None."""
+        result = self.aa.resolve([])
+        self.assertIsNone(result["winner"])
+        self.assertIsNone(result["loser"])
+
+
+# ══════════════════════════════════════════════════════════════
+#  Phase 7: Arbitrator Escalation — Telegram + contradictions (ARBT-03)
+# ══════════════════════════════════════════════════════════════
+
+class TestArbitratorEscalation(unittest.TestCase):
+    """Tests for Phase 7: Telegram escalation on ties and contradictions."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_arbitrator as aa
+        self._orig_cf = aa.CONFLICTS_FILE
+        self._orig_sd = aa.AGENT_STATE_DIR
+        aa.CONFLICTS_FILE = Path(self.tmpdir) / "conflicts.json"
+        aa.AGENT_STATE_DIR = Path(self.tmpdir)
+        self.aa = aa
+
+    def tearDown(self):
+        self.aa.CONFLICTS_FILE = self._orig_cf
+        self.aa.AGENT_STATE_DIR = self._orig_sd
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_contradictory_restart_vs_stop(self):
+        """restart vs stop on same target is contradictory."""
+        from agent_protocol import Recommendation
+        recs_a = [Recommendation(action="restart", target="sonarr")]
+        recs_b = [Recommendation(action="stop", target="sonarr")]
+        self.assertTrue(self.aa._are_contradictory(recs_a, recs_b))
+
+    def test_non_contradictory_different_targets(self):
+        """Same actions but different targets: not contradictory."""
+        from agent_protocol import Recommendation
+        recs_a = [Recommendation(action="restart", target="sonarr")]
+        recs_b = [Recommendation(action="stop", target="radarr")]
+        self.assertFalse(self.aa._are_contradictory(recs_a, recs_b))
+
+    def test_non_contradictory_same_action(self):
+        """Both restart on same target: not contradictory."""
+        from agent_protocol import Recommendation
+        recs_a = [Recommendation(action="restart", target="sonarr")]
+        recs_b = [Recommendation(action="restart", target="sonarr")]
+        self.assertFalse(self.aa._are_contradictory(recs_a, recs_b))
+
+    def test_investigate_never_contradictory(self):
+        """investigate action is never contradictory (maps to None in OPPOSITE_ACTIONS)."""
+        recs_a = [{"action": "investigate", "target": "sonarr"}]
+        recs_b = [{"action": "restart", "target": "sonarr"}]
+        self.assertFalse(self.aa._are_contradictory(recs_a, recs_b))
+
+    def test_escalation_sends_telegram(self):
+        """Contradictory recs + same priority -> escalation sends Telegram."""
+        from agent_protocol import Observation, Recommendation
+        mock_send = MagicMock(return_value="esc-id-456")
+        obs_a = Observation(agent_name="infra", domain="infra", summary="restart needed", confidence=0.7)
+        obs_b = Observation(agent_name="finance", domain="finance", summary="stop for maintenance", confidence=0.7)
+        proposals = [
+            {"agent": "infra", "action": "restart", "resource": "shared",
+             "observation": obs_a, "context": {},
+             "recommendations": [Recommendation(action="restart", target="shared")]},
+            {"agent": "finance", "action": "stop", "resource": "shared",
+             "observation": obs_b, "context": {},
+             "recommendations": [Recommendation(action="stop", target="shared")]},
+        ]
+        with patch.object(self.aa, '_get_effective_priority', return_value=5):
+            with patch.dict("sys.modules", {"exec_approvals": MagicMock(send_approval_request=mock_send)}):
+                result = self.aa.resolve(proposals)
+        self.assertTrue(result["escalated"])
+        mock_send.assert_called_once()
+        # Summary should contain both agent names
+        call_args = mock_send.call_args
+        summary_arg = call_args[0][0] if call_args[0] else call_args[1].get("summary", "")
+        self.assertIn("infra", summary_arg)
+        self.assertIn("finance", summary_arg)
+
+    def test_escalation_failure_defaults_to_priority(self):
+        """If send_approval_request raises, fall back to static priority winner."""
+        from agent_protocol import Observation, Recommendation
+        mock_send = MagicMock(side_effect=Exception("Telegram down"))
+        obs_a = Observation(agent_name="infra", domain="infra", summary="test", confidence=0.5)
+        obs_b = Observation(agent_name="research", domain="research", summary="test", confidence=0.5)
+        proposals = [
+            {"agent": "infra", "action": "restart", "resource": "shared",
+             "observation": obs_a, "context": {},
+             "recommendations": [Recommendation(action="restart", target="shared")]},
+            {"agent": "research", "action": "stop", "resource": "shared",
+             "observation": obs_b, "context": {},
+             "recommendations": [Recommendation(action="stop", target="shared")]},
+        ]
+        with patch.object(self.aa, '_get_effective_priority', return_value=5):
+            with patch.dict("sys.modules", {"exec_approvals": MagicMock(send_approval_request=mock_send)}):
+                result = self.aa.resolve(proposals)
+        # Should have a winner by static priority (infra=4 < research=7)
+        self.assertIsNotNone(result["winner"])
+        self.assertEqual(result["winner"], "infra")
+        self.assertFalse(result["escalated"])
+
+
+# ══════════════════════════════════════════════════════════════
+#  Phase 7: Observation Cache — cross-agent TTL reads (AGNT-06)
+# ══════════════════════════════════════════════════════════════
+
+class TestObservationCache(unittest.TestCase):
+    """Tests for Phase 7: cross-agent observation caching with TTL."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_arbitrator as aa
+        self._orig_sd = aa.AGENT_STATE_DIR
+        self._orig_sf = dict(aa.AGENT_STATE_FILES)
+        aa.AGENT_STATE_DIR = Path(self.tmpdir)
+        aa.AGENT_STATE_FILES["test_agent"] = "test_status.json"
+        self.aa = aa
+
+    def tearDown(self):
+        self.aa.AGENT_STATE_DIR = self._orig_sd
+        self.aa.AGENT_STATE_FILES.clear()
+        self.aa.AGENT_STATE_FILES.update(self._orig_sf)
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_state(self, agent_name, observation_dict):
+        """Helper to write a state file for an agent."""
+        fname = self.aa.AGENT_STATE_FILES.get(agent_name)
+        if not fname:
+            return
+        state_path = Path(self.tmpdir) / fname
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(state_path, "w") as f:
+            json.dump({"observation": observation_dict}, f)
+
+    def test_read_fresh_observation(self):
+        """Recent observation is returned."""
+        ts = datetime.now().astimezone().isoformat()
+        self._write_state("test_agent", {
+            "agent_name": "test_agent", "domain": "test",
+            "summary": "all good", "confidence": 0.85,
+            "timestamp": ts,
+        })
+        result = self.aa.read_cached_observation("test_agent")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["summary"], "all good")
+        self.assertAlmostEqual(result["confidence"], 0.85)
+
+    def test_read_stale_observation_returns_none(self):
+        """Observation 15 minutes old is stale -> None."""
+        from datetime import timedelta
+        old_ts = (datetime.now().astimezone() - timedelta(minutes=15)).isoformat()
+        self._write_state("test_agent", {
+            "agent_name": "test_agent", "domain": "test",
+            "summary": "stale", "confidence": 0.5,
+            "timestamp": old_ts,
+        })
+        result = self.aa.read_cached_observation("test_agent")
+        self.assertIsNone(result)
+
+    def test_read_missing_file_returns_none(self):
+        """No state file -> None."""
+        result = self.aa.read_cached_observation("test_agent")
+        self.assertIsNone(result)
+
+    def test_read_no_observation_key_returns_none(self):
+        """State file without 'observation' key -> None."""
+        fname = self.aa.AGENT_STATE_FILES["test_agent"]
+        state_path = Path(self.tmpdir) / fname
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(state_path, "w") as f:
+            json.dump({"status": "ok"}, f)
+        result = self.aa.read_cached_observation("test_agent")
+        self.assertIsNone(result)
+
+    def test_read_unknown_agent_returns_none(self):
+        """Agent not in AGENT_STATE_FILES -> None."""
+        result = self.aa.read_cached_observation("nonexistent_agent")
+        self.assertIsNone(result)
+
+    def test_ttl_boundary_10_minutes(self):
+        """9 minutes old is fresh; 11 minutes old is stale."""
+        from datetime import timedelta
+        # 9 minutes ago -> fresh
+        fresh_ts = (datetime.now().astimezone() - timedelta(minutes=9)).isoformat()
+        self._write_state("test_agent", {
+            "summary": "recent", "confidence": 0.9, "timestamp": fresh_ts,
+        })
+        result = self.aa.read_cached_observation("test_agent")
+        self.assertIsNotNone(result)
+
+        # 11 minutes ago -> stale
+        stale_ts = (datetime.now().astimezone() - timedelta(minutes=11)).isoformat()
+        self._write_state("test_agent", {
+            "summary": "old", "confidence": 0.9, "timestamp": stale_ts,
+        })
+        result = self.aa.read_cached_observation("test_agent")
+        self.assertIsNone(result)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Phase 7: Proactive Observations — agents_worker (AGNT-07)
+# ══════════════════════════════════════════════════════════════
+
+class TestProactiveObservations(unittest.TestCase):
+    """Tests for Phase 7: proactive observations via agents_worker.py."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        # Add workers path
+        workers_path = str(Path(__file__).parent.parent / "workspace" / "runtime" / "workers")
+        _c_workers = "/home/tenazas/runtime/workers"
+        if Path(_c_workers).exists():
+            workers_path = _c_workers
+        if workers_path not in sys.path:
+            sys.path.insert(0, workers_path)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_proactive_agents_list_has_5(self):
+        """PROACTIVE_AGENTS has exactly 5 entries."""
+        import agents_worker
+        self.assertEqual(len(agents_worker.PROACTIVE_AGENTS), 5)
+        self.assertIn("agent_infra", agents_worker.PROACTIVE_AGENTS)
+        self.assertIn("agent_personal", agents_worker.PROACTIVE_AGENTS)
+        self.assertIn("agent_finance", agents_worker.PROACTIVE_AGENTS)
+        self.assertIn("agent_research", agents_worker.PROACTIVE_AGENTS)
+        self.assertIn("agent_self_improve", agents_worker.PROACTIVE_AGENTS)
+
+    def test_proactive_success_with_mock_agents(self):
+        """All 5 agents succeed -> all ok=True."""
+        import agents_worker
+        from agent_protocol import Observation
+
+        def make_mock_agent(name):
+            mock = MagicMock()
+            obs = Observation(agent_name=name, domain="test", summary="ok", confidence=0.8)
+            mock.handle = MagicMock(return_value=(obs, []))
+            return mock
+
+        mocks = {}
+        for name in agents_worker.PROACTIVE_AGENTS:
+            mocks[name] = make_mock_agent(name)
+
+        with patch("importlib.import_module", side_effect=lambda n: mocks.get(n, MagicMock())):
+            results = agents_worker._run_proactive_observations()
+
+        self.assertEqual(len(results), 5)
+        for name, info in results.items():
+            self.assertTrue(info["ok"], f"{name} should be ok")
+
+    def test_proactive_one_failure_others_continue(self):
+        """4 succeed, 1 raises -> 4 ok=True, 1 ok=False. Error isolation per D-10."""
+        import agents_worker
+        from agent_protocol import Observation
+
+        def make_mock_agent(name):
+            mock = MagicMock()
+            obs = Observation(agent_name=name, domain="test", summary="ok", confidence=0.8)
+            mock.handle = MagicMock(return_value=(obs, []))
+            return mock
+
+        def make_broken_agent():
+            mock = MagicMock()
+            mock.handle = MagicMock(side_effect=RuntimeError("agent crashed"))
+            return mock
+
+        mocks = {}
+        broken_name = agents_worker.PROACTIVE_AGENTS[2]  # finance
+        for name in agents_worker.PROACTIVE_AGENTS:
+            if name == broken_name:
+                mocks[name] = make_broken_agent()
+            else:
+                mocks[name] = make_mock_agent(name)
+
+        with patch("importlib.import_module", side_effect=lambda n: mocks.get(n, MagicMock())):
+            results = agents_worker._run_proactive_observations()
+
+        ok_count = sum(1 for v in results.values() if v.get("ok"))
+        fail_count = sum(1 for v in results.values() if not v.get("ok"))
+        self.assertEqual(ok_count, 4)
+        self.assertEqual(fail_count, 1)
+        self.assertFalse(results[broken_name]["ok"])
+        self.assertIn("error", results[broken_name])
+
+    def test_proactive_called_in_run(self):
+        """run() calls _run_proactive_observations and includes results."""
+        import agents_worker
+        mock_proactive = MagicMock(return_value={
+            "agent_infra": {"ok": True, "confidence": 0.9, "recs": 0}
+        })
+        with patch.object(agents_worker, '_run_proactive_observations', mock_proactive):
+            with patch.object(agents_worker, '_log'):
+                with patch("builtins.print"):
+                    # Mock the other imports that run() uses
+                    with patch.dict("sys.modules", {
+                        "runtime": MagicMock(),
+                        "runtime.skill_analytics": MagicMock(get_usage_stats=MagicMock(return_value={})),
+                        "runtime.skill_generator": MagicMock(generate_proposals=MagicMock(return_value=[])),
+                        "runtime.self_dev_engine": MagicMock(generate_proposals=MagicMock(return_value=[])),
+                    }):
+                        agents_worker.run()
+        mock_proactive.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
