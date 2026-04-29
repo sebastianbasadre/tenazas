@@ -95,7 +95,7 @@ def _observe_full(query: str) -> dict:
             "raw": {"results": [], "findings": []}}
 
 
-def handle(query: str):
+def handle(query: str, correlation_id: str = None):
     """Returns (Observation, list[Recommendation])."""
     q = query.lower()
     if any(k in q for k in ("rag", "knowledge", "knowledge base", "conocimiento")):
@@ -130,9 +130,9 @@ def handle(query: str):
     except Exception:
         pass  # Never crash on observation caching
     if recs:
-        _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "recs": len(recs)})
+        _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "recs": len(recs), "correlation_id": correlation_id})
     else:
-        _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "confidence": obs.confidence})
+        _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "confidence": obs.confidence, "correlation_id": correlation_id})
     return (obs, recs)
 
 
