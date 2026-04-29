@@ -45,8 +45,8 @@
   5. Each agent can declare its preferred LLM role (fast/reason/code/heavy) and the registry exposes it
 **Plans:** 3 plans
   Plans:
-  - [ ] 05-01-PLAN.md -- Protocol dataclasses + agent registry + tests
-  - [ ] 05-02-PLAN.md -- Locked state writes (fcntl + atomic) + tests
+  - [x] 05-01-PLAN.md -- Protocol dataclasses + agent registry + tests
+  - [x] 05-02-PLAN.md -- Locked state writes (fcntl + atomic) + tests
   - [ ] 05-03-PLAN.md -- Refactor 5 agents + coordinator delegation + integration tests
 
 ### Phase 6: Domain Agents
