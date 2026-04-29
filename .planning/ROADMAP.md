@@ -43,7 +43,11 @@
   3. An agent raising an exception does not crash the registry or affect other registered agents
   4. Two processes writing agent state concurrently never produce corrupted JSON (atomic writes + fcntl locking)
   5. Each agent can declare its preferred LLM role (fast/reason/code/heavy) and the registry exposes it
-**Plans**: TBD
+**Plans:** 3 plans
+  Plans:
+  - [ ] 05-01-PLAN.md -- Protocol dataclasses + agent registry + tests
+  - [ ] 05-02-PLAN.md -- Locked state writes (fcntl + atomic) + tests
+  - [ ] 05-03-PLAN.md -- Refactor 5 agents + coordinator delegation + integration tests
 
 ### Phase 6: Domain Agents
 **Goal**: Each domain has a dedicated agent that can observe queries and recommend actions within its expertise
@@ -99,7 +103,7 @@ Phases execute in numeric order: 5 -> 5.x -> 6 -> 6.x -> 7 -> 8 -> 9
 | 2. Config Centralization | v1.0 | 2/2 | Complete | 2026-04-28 |
 | 3. Orchestrator Decomposition | v1.0 | 3/3 | Complete | 2026-04-28 |
 | 4. Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-04-28 |
-| 5. Foundation & Contracts | v2.0 | 0/0 | Not started | - |
+| 5. Foundation & Contracts | v2.0 | 0/3 | Planned | - |
 | 6. Domain Agents | v2.0 | 0/0 | Not started | - |
 | 7. Arbitrator & Cross-Agent | v2.0 | 0/0 | Not started | - |
 | 8. Coordinator Rewrite | v2.0 | 0/0 | Not started | - |
