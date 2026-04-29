@@ -47,7 +47,7 @@
   Plans:
   - [x] 05-01-PLAN.md -- Protocol dataclasses + agent registry + tests
   - [x] 05-02-PLAN.md -- Locked state writes (fcntl + atomic) + tests
-  - [ ] 05-03-PLAN.md -- Refactor 5 agents + coordinator delegation + integration tests
+  - [x] 05-03-PLAN.md -- Refactor 5 agents + coordinator delegation + integration tests
 
 ### Phase 6: Domain Agents
 **Goal**: Each domain has a dedicated agent that can observe queries and recommend actions within its expertise
