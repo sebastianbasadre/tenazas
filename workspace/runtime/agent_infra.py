@@ -8,7 +8,8 @@ Reads snapshot, uses predictor + root_cause_engine, proposes via action_registry
 import json
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import now
+from runtime_utils import now, load_json, save_json
+from agent_protocol import Observation, Recommendation
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -20,6 +21,7 @@ LOG_FILE = BASE_DIR / "logs" / "agent_infra.log"
 OWNERSHIP = {"container", "containers", "gpu", "ram", "disk", "network", "vpn",
              "ollama", "docker", "gluetun", "infra", "homelab", "backend_offline"}
 BLOCKED_TARGETS = {"openclaw", "watchtower"}
+PREFERRED_ROLE = "fast"
 
 
 def _log(e):
@@ -28,15 +30,6 @@ def _log(e):
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
-
-def _load(p, d=None):
-    try:
-        with open(p) as f: return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError): return d if d is not None else {}
-
-def _save(p, data):
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with open(p, "w") as f: json.dump(data, f, indent=2, default=str)
 
 
 def owns(topic: str) -> bool:
@@ -75,27 +68,42 @@ def assess() -> dict:
     status["proposals"] = [p for p in status["proposals"]
                            if not any(t in p.get("action", "").lower() for t in BLOCKED_TARGETS)]
 
-    _save(STATUS_FILE, status)
+    save_json(str(STATUS_FILE), status)
     _log({"action": "assess", "health": status["health"], "proposals": len(status["proposals"])})
     return status
 
 
-def handle_query(query: str) -> str:
-    """Handle an infra-related query."""
+def handle(query: str):
+    """Returns (Observation, list[Recommendation])."""
     status = assess()
-    if status["health"] == "ok" and not status["issues"]:
-        return "Infra OK — todo verde."
-    parts = [f"Infra: {status['health']}"]
-    for issue in status["issues"][:3]:
-        parts.append(f"  ! {issue}")
-    for prop in status["proposals"][:2]:
-        parts.append(f"  → {prop['action']}")
-    return "\n".join(parts)
+    obs = Observation(
+        agent_name="infra",
+        domain="infrastructure",
+        summary=f"Infra: {status['health']}" + (f" - {', '.join(status['issues'][:3])}" if status.get("issues") else ""),
+        confidence=0.9 if status["health"] == "ok" else 0.6,
+        details=status,
+    )
+    recs = []
+    for p in status.get("proposals", []):
+        recs.append(Recommendation(
+            action=p.get("action", "investigate"),
+            target=p.get("target", ""),
+            risk_level=p.get("severity", "low"),
+            requires_approval=True,
+            rationale=p.get("reason", ""),
+        ))
+    return (obs, recs)
 
 
-def get_memory() -> dict: return _load(MEMORY_FILE, {"events": []})
+def handle_query(query: str) -> str:
+    """Backward-compat wrapper. Returns string summary."""
+    obs, recs = handle(query)
+    return obs.summary
+
+
+def get_memory() -> dict: return load_json(str(MEMORY_FILE), {"events": []})
 def save_memory_event(event: dict):
     mem = get_memory()
     mem["events"].append({**event, "ts": now().isoformat()})
     mem["events"] = mem["events"][-100:]
-    _save(MEMORY_FILE, mem)
+    save_json(str(MEMORY_FILE), mem)

@@ -13,6 +13,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from runtime_utils import now
+from agent_registry import register as _reg_register, list_agents as _reg_list, dispatch as _reg_dispatch, init_default_agents
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -33,6 +34,15 @@ MULTI_DOMAIN_QUERIES = [
     "como esta todo", "como va todo", "estado general", "resumen completo",
     "que deberia saber", "que paso hoy", "update", "dame el status",
 ]
+
+
+_registry_initialized = False
+
+def _ensure_registry():
+    global _registry_initialized
+    if not _registry_initialized:
+        init_default_agents()
+        _registry_initialized = True
 
 
 def _log(e):
@@ -82,6 +92,7 @@ def is_multi_domain(query: str) -> bool:
 
 def identify_agents(query: str) -> list:
     """Identify which agent(s) should handle this query."""
+    _ensure_registry()
     q = query.lower()
     matching = []
 
@@ -113,15 +124,26 @@ def route(query: str) -> dict:
                 "aggregated": None, "handled": False}
 
     responses = {}
-    for name in agents:
-        agent = _load_agent(name)
-        if agent and hasattr(agent, "handle_query"):
-            try:
-                resp = agent.handle_query(query)
-                if resp:
-                    responses[name] = resp
-            except Exception as e:
-                responses[name] = f"[{name} error: {str(e)[:50]}]"
+    # Try typed dispatch first (new protocol via registry)
+    _ensure_registry()
+    typed_results = _reg_dispatch(query)
+    for name, obs, recs in typed_results:
+        if obs:
+            responses[name] = obs.summary
+        else:
+            responses[name] = f"[{name}: no observation]"
+
+    # Fallback: agents not yet in registry or typed dispatch returned empty
+    if not typed_results:
+        for name in agents:
+            agent = _load_agent(name)
+            if agent and hasattr(agent, "handle_query"):
+                try:
+                    resp = agent.handle_query(query)
+                    if resp:
+                        responses[name] = resp
+                except Exception as e:
+                    responses[name] = f"[{name} error: {str(e)[:50]}]"
 
     # Aggregate if multiple agents responded
     aggregated = None
@@ -156,19 +178,14 @@ def _aggregate(responses: dict) -> str:
 
 
 def list_agents() -> list:
-    """List all agents with their status."""
-    agents = []
-    for name in AGENT_MODULES:
-        agent = _load_agent(name)
-        status = "loaded" if agent else "error"
-        agents.append({
-            "name": name,
-            "module": AGENT_MODULES[name],
-            "status": status,
-            "has_owns": hasattr(agent, "owns") if agent else False,
-            "has_handle": hasattr(agent, "handle_query") if agent else False,
-        })
-    return agents
+    """List all agents with their status via registry."""
+    _ensure_registry()
+    reg_agents = _reg_list()
+    for a in reg_agents:
+        a["module"] = AGENT_MODULES.get(a["name"], "")
+        a["has_owns"] = a["status"] == "healthy"
+        a["has_handle"] = a["status"] == "healthy"
+    return reg_agents
 
 
 def resolve_conflict(proposals: list) -> dict:

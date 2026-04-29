@@ -270,6 +270,7 @@ class TestCoordinator(unittest.TestCase):
         for a in agents:
             self.assertIn("name", a)
             self.assertIn("status", a)
+            self.assertIn("preferred_role", a)
 
     def test_no_match_returns_empty(self):
         import agent_coordinator as ac
@@ -328,6 +329,8 @@ class TestAgentSafety(unittest.TestCase):
                 mod = importlib.import_module(mod_name)
                 self.assertTrue(hasattr(mod, "owns"))
                 self.assertTrue(hasattr(mod, "handle_query"))
+                self.assertTrue(hasattr(mod, "handle"))
+                self.assertTrue(hasattr(mod, "PREFERRED_ROLE"))
             except Exception as e:
                 self.fail(f"{mod_name} failed to import: {e}")
 
@@ -697,6 +700,264 @@ class TestPreferredRole(unittest.TestCase):
         ok, errors = validate_agent_module(mock_mod)
         self.assertTrue(ok)
         self.assertEqual(errors, [])
+
+
+# ══════════════════════════════════════════════════════════════
+#  Locked State — locked_write_json and StateLock
+# ══════════════════════════════════════════════════════════════
+
+class TestLockedState(unittest.TestCase):
+    """Verify locked_write_json and StateLock from runtime_utils."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_locked_write_json_creates_file(self):
+        from runtime_utils import locked_write_json, load_json
+        path = os.path.join(self.tmpdir, "test.json")
+        locked_write_json(path, {"key": "val"})
+        self.assertTrue(os.path.exists(path))
+        self.assertEqual(load_json(path), {"key": "val"})
+
+    def test_locked_write_json_overwrites(self):
+        from runtime_utils import locked_write_json, load_json
+        path = os.path.join(self.tmpdir, "test.json")
+        locked_write_json(path, {"a": 1})
+        locked_write_json(path, {"b": 2})
+        self.assertEqual(load_json(path), {"b": 2})
+
+    def test_locked_write_json_creates_dirs(self):
+        from runtime_utils import locked_write_json, load_json
+        path = os.path.join(self.tmpdir, "sub", "deep", "test.json")
+        locked_write_json(path, {"nested": True})
+        self.assertTrue(os.path.exists(path))
+        self.assertEqual(load_json(path), {"nested": True})
+
+    def test_state_lock_context_manager(self):
+        from runtime_utils import StateLock, write_atomic, load_json
+        path = os.path.join(self.tmpdir, "locked.json")
+        with StateLock(path):
+            write_atomic(path, {"x": 1})
+        self.assertEqual(load_json(path), {"x": 1})
+
+    def test_state_lock_released_after_exit(self):
+        from runtime_utils import StateLock
+        path = os.path.join(self.tmpdir, "locked.json")
+        lock = StateLock(path)
+        with lock:
+            pass
+        self.assertIsNone(lock.fh)
+
+    def test_locked_write_json_propagates_error(self):
+        from runtime_utils import locked_write_json
+        path = os.path.join(self.tmpdir, "test.json")
+        with patch("runtime_utils.write_atomic", side_effect=IOError("disk full")):
+            with self.assertRaises(IOError):
+                locked_write_json(path, {"fail": True})
+
+    def test_has_fcntl_constant(self):
+        from runtime_utils import HAS_FCNTL
+        self.assertIsInstance(HAS_FCNTL, bool)
+
+    def test_state_lock_lock_file_created(self):
+        from runtime_utils import StateLock, HAS_FCNTL
+        if not HAS_FCNTL:
+            self.skipTest("fcntl not available on this platform")
+        path = os.path.join(self.tmpdir, "test.json")
+        with StateLock(path):
+            self.assertTrue(os.path.exists(path + ".lock"))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Agent Handle Protocol — typed handle() returns
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentHandleProtocol(unittest.TestCase):
+    """Verify each agent's handle() returns (Observation, list[Recommendation])."""
+
+    def test_infra_handle_returns_observation(self):
+        import agent_infra
+        mock_snap = MagicMock(return_value={"containers": {"running": 20, "total": 20, "stopped": 0, "unhealthy": 0}, "ollama": {"status": "online"}})
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(agent_infra)
+            result = agent_infra.handle("containers")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        from agent_protocol import Observation
+        self.assertIsInstance(result[0], Observation)
+        self.assertIsInstance(result[1], list)
+
+    def test_infra_handle_observation_fields(self):
+        import agent_infra
+        mock_snap = MagicMock(return_value={"containers": {"running": 20, "total": 20, "stopped": 0, "unhealthy": 0}, "ollama": {"status": "online"}})
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(agent_infra)
+            obs, recs = agent_infra.handle("containers")
+        self.assertEqual(obs.agent_name, "infra")
+        self.assertEqual(obs.domain, "infrastructure")
+        self.assertGreaterEqual(obs.confidence, 0.0)
+        self.assertLessEqual(obs.confidence, 1.0)
+
+    def test_infra_handle_query_backward_compat(self):
+        import agent_infra
+        mock_snap = MagicMock(return_value={"containers": {"running": 20, "total": 20, "stopped": 0, "unhealthy": 0}, "ollama": {"status": "online"}})
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(agent_infra)
+            result = agent_infra.handle_query("containers")
+        self.assertIsInstance(result, str)
+
+    def test_personal_handle_returns_tuple(self):
+        import agent_personal
+        with patch.dict("sys.modules", {"notification_poller": MagicMock(check_calendar=MagicMock(return_value=[]),
+                                                                          check_email=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(agent_personal)
+            result = agent_personal.handle("calendar")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        from agent_protocol import Observation
+        self.assertIsInstance(result[0], Observation)
+
+    def test_finance_handle_returns_tuple(self):
+        import agent_finance
+        with patch.dict("sys.modules", {"finance_daily": MagicMock(get_binance_pnl=MagicMock(return_value=None),
+                                                                     get_iol_portfolio=MagicMock(return_value=None))}):
+            import importlib
+            importlib.reload(agent_finance)
+            result = agent_finance.handle("binance")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        from agent_protocol import Observation
+        self.assertIsInstance(result[0], Observation)
+
+    def test_research_handle_returns_tuple(self):
+        import agent_research
+        with patch.dict("sys.modules", {"continuous_learning_loop": MagicMock(research=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(agent_research)
+            result = agent_research.handle("search query")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        from agent_protocol import Observation
+        self.assertIsInstance(result[0], Observation)
+
+    def test_self_improve_handle_returns_tuple(self):
+        import agent_self_improve
+        with patch.dict("sys.modules", {"improvement_candidates": MagicMock(list_candidates=MagicMock(return_value=[])),
+                                         "experiment_runner": MagicMock(list_active=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(agent_self_improve)
+            result = agent_self_improve.handle("benchmark")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        from agent_protocol import Observation
+        self.assertIsInstance(result[0], Observation)
+
+    def test_all_agents_have_preferred_role(self):
+        from agent_protocol import VALID_ROLES
+        for mod_name in ["agent_infra", "agent_personal", "agent_finance",
+                         "agent_research", "agent_self_improve"]:
+            import importlib
+            mod = importlib.import_module(mod_name)
+            self.assertTrue(hasattr(mod, "PREFERRED_ROLE"),
+                            f"{mod_name} missing PREFERRED_ROLE")
+            self.assertIn(mod.PREFERRED_ROLE, VALID_ROLES,
+                          f"{mod_name} has invalid PREFERRED_ROLE: {mod.PREFERRED_ROLE}")
+
+    def test_all_agents_handle_and_handle_query(self):
+        for mod_name in ["agent_infra", "agent_personal", "agent_finance",
+                         "agent_research", "agent_self_improve"]:
+            import importlib
+            mod = importlib.import_module(mod_name)
+            self.assertTrue(callable(getattr(mod, "handle", None)),
+                            f"{mod_name} missing callable handle()")
+            self.assertTrue(callable(getattr(mod, "handle_query", None)),
+                            f"{mod_name} missing callable handle_query()")
+
+    def test_coordinator_list_agents_has_role(self):
+        import agent_coordinator as ac
+        agents = ac.list_agents()
+        for a in agents:
+            self.assertIn("preferred_role", a,
+                          f"Agent {a.get('name', '?')} missing preferred_role in list_agents()")
+
+
+# ══════════════════════════════════════════════════════════════
+#  Registry Locked Writes — INTG-02 verification
+# ══════════════════════════════════════════════════════════════
+
+class TestRegistryLockedWrites(unittest.TestCase):
+    """Verify agent_registry uses locked_write_json for shared state."""
+
+    def test_registry_imports_locked_write(self):
+        import agent_registry
+        import inspect
+        src = inspect.getsource(agent_registry)
+        self.assertIn("locked_write_json", src)
+
+    def test_register_calls_locked_write(self):
+        import agent_registry
+        import importlib
+        importlib.reload(agent_registry)
+        orig_registry = agent_registry._registry.copy()
+        agent_registry._registry = {}
+        tmpdir = tempfile.mkdtemp()
+        orig_dir = agent_registry.AGENT_DIR
+        orig_file = agent_registry.REGISTRY_FILE
+        agent_registry.AGENT_DIR = Path(tmpdir) / "agents"
+        agent_registry.REGISTRY_FILE = agent_registry.AGENT_DIR / "agents_registry.json"
+
+        try:
+            mock_mod = MagicMock()
+            mock_mod.owns = MagicMock()
+            mock_mod.handle = MagicMock(return_value=(None, []))
+            mock_mod.PREFERRED_ROLE = "fast"
+            with patch.object(agent_registry.importlib, "import_module", return_value=mock_mod):
+                with patch.object(agent_registry, "locked_write_json") as mock_lwj:
+                    agent_registry.register("test_agent", "test_mod")
+                    mock_lwj.assert_called()
+        finally:
+            agent_registry._registry = orig_registry
+            agent_registry.AGENT_DIR = orig_dir
+            agent_registry.REGISTRY_FILE = orig_file
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_unregister_calls_locked_write(self):
+        import agent_registry
+        import importlib
+        importlib.reload(agent_registry)
+        orig_registry = agent_registry._registry.copy()
+        agent_registry._registry = {}
+        tmpdir = tempfile.mkdtemp()
+        orig_dir = agent_registry.AGENT_DIR
+        orig_file = agent_registry.REGISTRY_FILE
+        agent_registry.AGENT_DIR = Path(tmpdir) / "agents"
+        agent_registry.REGISTRY_FILE = agent_registry.AGENT_DIR / "agents_registry.json"
+
+        try:
+            mock_mod = MagicMock()
+            mock_mod.owns = MagicMock()
+            mock_mod.handle = MagicMock(return_value=(None, []))
+            mock_mod.PREFERRED_ROLE = "fast"
+            with patch.object(agent_registry.importlib, "import_module", return_value=mock_mod):
+                agent_registry.register("test_agent", "test_mod")
+            with patch.object(agent_registry, "locked_write_json") as mock_lwj:
+                agent_registry.unregister("test_agent")
+                mock_lwj.assert_called()
+        finally:
+            agent_registry._registry = orig_registry
+            agent_registry.AGENT_DIR = orig_dir
+            agent_registry.REGISTRY_FILE = orig_file
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":

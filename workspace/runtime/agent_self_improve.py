@@ -8,7 +8,8 @@ NEVER promotes to runtime direct — always staging.
 import json
 from datetime import datetime
 from pathlib import Path
-from runtime_utils import now
+from runtime_utils import now, load_json, save_json
+from agent_protocol import Observation, Recommendation
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -18,6 +19,7 @@ LOG_FILE = BASE_DIR / "logs" / "agent_self_improve.log"
 
 OWNERSHIP = {"improve", "benchmark", "error_mining", "experiment", "staging",
              "candidate", "self-evolve", "calibration", "learning"}
+PREFERRED_ROLE = "reason"
 
 
 def _log(e):
@@ -26,14 +28,6 @@ def _log(e):
     try:
         with open(LOG_FILE, "a") as f: f.write(json.dumps(e, default=str) + "\n")
     except OSError: pass
-def _load(p, d=None):
-    try:
-        with open(p) as f: return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError): return d if d is not None else {}
-def _save(p, data):
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with open(p, "w") as f: json.dump(data, f, indent=2, default=str)
-
 
 def owns(topic: str) -> bool:
     return any(k in topic.lower() for k in OWNERSHIP)
@@ -54,12 +48,26 @@ def assess() -> dict:
     return status
 
 
-def handle_query(query: str) -> str:
+def handle(query: str):
+    """Returns (Observation, list[Recommendation])."""
     status = assess()
-    parts = ["Self-Improve:"]
-    parts.append(f"  Candidates pendientes: {status['pending']}")
-    parts.append(f"  Experimentos activos: {status['experiments']}")
-    return "\n".join(parts)
+    pending = status.get("pending", 0)
+    experiments = status.get("experiments", 0)
+    obs = Observation(
+        agent_name="self_improve",
+        domain="self_improvement",
+        summary=f"Self-improve: {pending} pendientes, {experiments} experimentos" if pending or experiments else "Self-improve: sin propuestas",
+        confidence=0.75,
+        details=status,
+    )
+    recs = []
+    return (obs, recs)
+
+
+def handle_query(query: str) -> str:
+    """Backward-compat wrapper. Returns string summary."""
+    obs, recs = handle(query)
+    return obs.summary
 
 
 def run_daily():
@@ -80,9 +88,9 @@ def run_daily():
     return results
 
 
-def get_memory() -> dict: return _load(MEMORY_FILE, {"events": []})
+def get_memory() -> dict: return load_json(str(MEMORY_FILE), {"events": []})
 def save_memory_event(event: dict):
     mem = get_memory()
     mem["events"].append({**event, "ts": now().isoformat()})
     mem["events"] = mem["events"][-100:]
-    _save(MEMORY_FILE, mem)
+    save_json(str(MEMORY_FILE), mem)

@@ -19,7 +19,7 @@ import json
 import importlib
 from pathlib import Path
 
-from runtime_utils import load_json, save_json, now
+from runtime_utils import load_json, save_json, now, locked_write_json
 from agent_protocol import validate_agent_module, Observation
 
 
@@ -205,10 +205,10 @@ def _get_registry_snapshot() -> dict:
 
 
 def _persist_snapshot():
-    """Save registry snapshot to disk."""
+    """Save registry snapshot to disk (concurrent-safe via locked_write_json)."""
     try:
         AGENT_DIR.mkdir(parents=True, exist_ok=True)
-        save_json(str(REGISTRY_FILE), _get_registry_snapshot())
+        locked_write_json(str(REGISTRY_FILE), _get_registry_snapshot())
     except Exception:
         pass
 
