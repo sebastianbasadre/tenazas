@@ -960,5 +960,537 @@ class TestRegistryLockedWrites(unittest.TestCase):
             shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+# ══════════════════════════════════════════════════════════════
+#  Agent Infra Handle — query-responsive routing tests
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentInfraHandle(unittest.TestCase):
+    """Tests for agent_infra query-responsive handle()."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_infra as ai
+        self._orig_sf = ai.STATUS_FILE
+        self._orig_lf = ai.LOG_FILE
+        ai.STATUS_FILE = Path(self.tmpdir) / "status.json"
+        ai.LOG_FILE = Path(self.tmpdir) / "agent_infra.log"
+        self.ai = ai
+
+    def tearDown(self):
+        self.ai.STATUS_FILE = self._orig_sf
+        self.ai.LOG_FILE = self._orig_lf
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _mock_snapshot(self, containers=None, ollama=None, vpn=None, disk=None):
+        snap = {}
+        if containers is not None:
+            snap["containers"] = containers
+        else:
+            snap["containers"] = {"running": 20, "total": 20, "stopped": 0, "unhealthy": 0}
+        if ollama is not None:
+            snap["ollama"] = ollama
+        else:
+            snap["ollama"] = {"status": "online", "models": 3}
+        if vpn is not None:
+            snap["vpn"] = vpn
+        if disk is not None:
+            snap["disk"] = disk
+        return snap
+
+    def test_container_query_routes_to_containers(self):
+        snap = self._mock_snapshot(containers={"running": 18, "total": 20, "stopped": 2, "unhealthy": 0})
+        mock_snap = MagicMock(return_value=snap)
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            obs, recs = self.ai.handle("containers status")
+        from agent_protocol import Observation
+        self.assertIsInstance(obs, Observation)
+        self.assertIn("container", obs.summary.lower())
+
+    def test_gpu_query_routes_to_ollama(self):
+        snap = self._mock_snapshot(ollama={"status": "online", "models": 3})
+        mock_snap = MagicMock(return_value=snap)
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            obs, recs = self.ai.handle("gpu status")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("ollama" in summary_lower or "gpu" in summary_lower)
+
+    def test_vpn_query_routes_to_vpn(self):
+        snap = self._mock_snapshot(vpn={"status": "connected", "country": "ES"})
+        mock_snap = MagicMock(return_value=snap)
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            obs, recs = self.ai.handle("vpn leak check")
+        self.assertIn("vpn", obs.summary.lower())
+
+    def test_broad_query_uses_full_assess(self):
+        snap = self._mock_snapshot()
+        mock_snap = MagicMock(return_value=snap)
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            result = self.ai.handle("how is the homelab")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        self.assertGreater(result[0].confidence, 0)
+
+    def test_handle_returns_tuple(self):
+        snap = self._mock_snapshot()
+        mock_snap = MagicMock(return_value=snap)
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            result = self.ai.handle("test query")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_handle_returns_observation_and_list(self):
+        snap = self._mock_snapshot()
+        mock_snap = MagicMock(return_value=snap)
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            obs, recs = self.ai.handle("containers")
+        from agent_protocol import Observation
+        self.assertIsInstance(obs, Observation)
+        self.assertIsInstance(recs, list)
+
+    def test_container_issue_generates_recommendation(self):
+        snap = self._mock_snapshot(containers={"running": 18, "total": 20, "stopped": 2, "unhealthy": 0})
+        mock_snap = MagicMock(return_value=snap)
+        with patch.dict("sys.modules", {"homelab_snapshot": MagicMock(snapshot=mock_snap),
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            obs, recs = self.ai.handle("containers")
+        self.assertGreater(len(recs), 0)
+        self.assertTrue(recs[0].requires_approval)
+
+    def test_broken_module_returns_degraded(self):
+        mock_snap_mod = MagicMock()
+        mock_snap_mod.snapshot = MagicMock(side_effect=Exception("snapshot failed"))
+        with patch.dict("sys.modules", {"homelab_snapshot": mock_snap_mod,
+                                         "infra_predictor": MagicMock(predict_all=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.ai)
+            result = self.ai.handle("containers")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        obs, recs = result
+        self.assertLessEqual(obs.confidence, 0.5)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Agent Finance Handle — query-responsive routing tests
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentFinanceHandle(unittest.TestCase):
+    """Tests for agent_finance query-responsive handle()."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_finance as af
+        self._orig_lf = af.LOG_FILE
+        af.LOG_FILE = Path(self.tmpdir) / "agent_finance.log"
+        self.af = af
+
+    def tearDown(self):
+        self.af.LOG_FILE = self._orig_lf
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_binance_query_routes_to_binance(self):
+        mock_fd = MagicMock()
+        mock_fd.get_binance_pnl = MagicMock(return_value={"change_pct": 2.5, "price": 65000})
+        mock_fd.get_iol_portfolio = MagicMock(return_value=None)
+        with patch.dict("sys.modules", {"finance_daily": mock_fd}):
+            import importlib
+            importlib.reload(self.af)
+            obs, recs = self.af.handle("binance pnl")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("binance" in summary_lower or "btc" in summary_lower)
+
+    def test_iol_query_routes_to_iol(self):
+        mock_fd = MagicMock()
+        mock_fd.get_binance_pnl = MagicMock(return_value=None)
+        mock_fd.get_iol_portfolio = MagicMock(return_value={"total": 500000})
+        with patch.dict("sys.modules", {"finance_daily": mock_fd}):
+            import importlib
+            importlib.reload(self.af)
+            obs, recs = self.af.handle("iol portfolio")
+        self.assertIn("iol", obs.summary.lower())
+
+    def test_expense_query_routes_to_expenses(self):
+        mock_exp = MagicMock()
+        mock_exp.weekly_summary = MagicMock(return_value={"total": 45000, "count": 12, "top_category": "super"})
+        with patch.dict("sys.modules", {"expenses": mock_exp,
+                                         "finance_daily": MagicMock(get_binance_pnl=MagicMock(return_value=None),
+                                                                     get_iol_portfolio=MagicMock(return_value=None))}):
+            import importlib
+            importlib.reload(self.af)
+            obs, recs = self.af.handle("cuanto gaste")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("gasto" in summary_lower or "expense" in summary_lower)
+
+    def test_broad_query_uses_full(self):
+        mock_fd = MagicMock()
+        mock_fd.get_binance_pnl = MagicMock(return_value=None)
+        mock_fd.get_iol_portfolio = MagicMock(return_value=None)
+        with patch.dict("sys.modules", {"finance_daily": mock_fd}):
+            import importlib
+            importlib.reload(self.af)
+            result = self.af.handle("how are my finances")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_handle_returns_typed_tuple(self):
+        mock_fd = MagicMock()
+        mock_fd.get_binance_pnl = MagicMock(return_value=None)
+        mock_fd.get_iol_portfolio = MagicMock(return_value=None)
+        with patch.dict("sys.modules", {"finance_daily": mock_fd}):
+            import importlib
+            importlib.reload(self.af)
+            obs, recs = self.af.handle("test")
+        from agent_protocol import Observation
+        self.assertIsInstance(obs, Observation)
+        self.assertIsInstance(recs, list)
+
+    def test_alert_generates_recommendation(self):
+        mock_fd = MagicMock()
+        mock_fd.get_binance_pnl = MagicMock(return_value={"change_pct": 8.5, "price": 70000})
+        mock_fd.get_iol_portfolio = MagicMock(return_value=None)
+        with patch.dict("sys.modules", {"finance_daily": mock_fd}):
+            import importlib
+            importlib.reload(self.af)
+            obs, recs = self.af.handle("binance")
+        # High change_pct should generate issue -> recommendation
+        self.assertIsInstance(recs, list)
+        self.assertGreater(len(recs), 0)
+
+    def test_broken_binance_returns_degraded(self):
+        mock_fd = MagicMock()
+        mock_fd.get_binance_pnl = MagicMock(side_effect=Exception("API down"))
+        mock_fd.get_iol_portfolio = MagicMock(return_value=None)
+        with patch.dict("sys.modules", {"finance_daily": mock_fd}):
+            import importlib
+            importlib.reload(self.af)
+            obs, recs = self.af.handle("binance")
+        self.assertLessEqual(obs.confidence, 0.5)
+
+    def test_handle_always_returns_not_raises(self):
+        mock_fd = MagicMock()
+        mock_fd.get_binance_pnl = MagicMock(side_effect=Exception("fail"))
+        mock_fd.get_iol_portfolio = MagicMock(side_effect=Exception("fail"))
+        mock_exp = MagicMock()
+        mock_exp.weekly_summary = MagicMock(side_effect=Exception("fail"))
+        with patch.dict("sys.modules", {"finance_daily": mock_fd, "expenses": mock_exp}):
+            import importlib
+            importlib.reload(self.af)
+            # Should not raise even with all modules broken
+            result = self.af.handle("overview")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Agent Self-Improve Handle — query-responsive routing tests
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentSelfImproveHandle(unittest.TestCase):
+    """Tests for agent_self_improve query-responsive handle()."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_self_improve as asi
+        self._orig_lf = asi.LOG_FILE
+        asi.LOG_FILE = Path(self.tmpdir) / "agent_self_improve.log"
+        self.asi = asi
+
+    def tearDown(self):
+        self.asi.LOG_FILE = self._orig_lf
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_error_query_routes_to_errors(self):
+        mock_em = MagicMock()
+        mock_em.mine_all = MagicMock(return_value={"total_errors": 5, "categories": {"timeout": 3, "parse": 2}})
+        with patch.dict("sys.modules", {"error_mining": mock_em,
+                                         "improvement_candidates": MagicMock(list_candidates=MagicMock(return_value=[])),
+                                         "experiment_runner": MagicMock(list_active=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.asi)
+            obs, recs = self.asi.handle("error mining report")
+        self.assertIn("error", obs.summary.lower())
+
+    def test_proposal_query_routes_to_proposals(self):
+        mock_ic = MagicMock()
+        mock_ic.list_candidates = MagicMock(return_value=[{"id": 1}, {"id": 2}, {"id": 3}])
+        with patch.dict("sys.modules", {"improvement_candidates": mock_ic,
+                                         "error_mining": MagicMock(mine_all=MagicMock(return_value={})),
+                                         "experiment_runner": MagicMock(list_active=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.asi)
+            obs, recs = self.asi.handle("pending proposals")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("proposal" in summary_lower or "pending" in summary_lower)
+
+    def test_experiment_query_routes_to_experiments(self):
+        mock_er = MagicMock()
+        mock_er.list_active = MagicMock(return_value=[{"id": 1}])
+        with patch.dict("sys.modules", {"experiment_runner": mock_er,
+                                         "improvement_candidates": MagicMock(list_candidates=MagicMock(return_value=[])),
+                                         "error_mining": MagicMock(mine_all=MagicMock(return_value={}))}):
+            import importlib
+            importlib.reload(self.asi)
+            obs, recs = self.asi.handle("active experiments")
+        self.assertIn("experiment", obs.summary.lower())
+
+    def test_broad_query_uses_full(self):
+        with patch.dict("sys.modules", {"improvement_candidates": MagicMock(list_candidates=MagicMock(return_value=[])),
+                                         "experiment_runner": MagicMock(list_active=MagicMock(return_value=[])),
+                                         "error_mining": MagicMock(mine_all=MagicMock(return_value={}))}):
+            import importlib
+            importlib.reload(self.asi)
+            result = self.asi.handle("self improvement status")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_handle_returns_typed_tuple(self):
+        with patch.dict("sys.modules", {"improvement_candidates": MagicMock(list_candidates=MagicMock(return_value=[])),
+                                         "experiment_runner": MagicMock(list_active=MagicMock(return_value=[])),
+                                         "error_mining": MagicMock(mine_all=MagicMock(return_value={}))}):
+            import importlib
+            importlib.reload(self.asi)
+            obs, recs = self.asi.handle("test")
+        from agent_protocol import Observation
+        self.assertIsInstance(obs, Observation)
+        self.assertIsInstance(recs, list)
+
+    def test_broken_mining_returns_degraded(self):
+        mock_em = MagicMock()
+        mock_em.mine_all = MagicMock(side_effect=Exception("mining failed"))
+        with patch.dict("sys.modules", {"error_mining": mock_em,
+                                         "improvement_candidates": MagicMock(list_candidates=MagicMock(return_value=[])),
+                                         "experiment_runner": MagicMock(list_active=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.asi)
+            obs, recs = self.asi.handle("error mining")
+        self.assertLessEqual(obs.confidence, 0.5)
+
+    def test_recommendations_for_pending(self):
+        mock_ic = MagicMock()
+        mock_ic.list_candidates = MagicMock(return_value=[{"id": 1}, {"id": 2}])
+        with patch.dict("sys.modules", {"improvement_candidates": mock_ic,
+                                         "error_mining": MagicMock(mine_all=MagicMock(return_value={})),
+                                         "experiment_runner": MagicMock(list_active=MagicMock(return_value=[]))}):
+            import importlib
+            importlib.reload(self.asi)
+            obs, recs = self.asi.handle("proposals")
+        self.assertIsInstance(recs, list)
+        # With pending proposals, should have a recommendation
+        self.assertGreater(len(recs), 0)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Agent Personal Handle — query-responsive routing tests
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentPersonalHandle(unittest.TestCase):
+    """Tests for agent_personal query-responsive handle()."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_personal as ap
+        self._orig_lf = ap.LOG_FILE
+        ap.LOG_FILE = Path(self.tmpdir) / "agent_personal.log"
+        self.ap = ap
+
+    def tearDown(self):
+        self.ap.LOG_FILE = self._orig_lf
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_calendar_query_routes_to_calendar(self):
+        mock_np = MagicMock()
+        mock_np.check_calendar = MagicMock(return_value=[{"summary": "Meeting", "title": "Meeting"}])
+        mock_np.check_email = MagicMock(return_value=[])
+        with patch.dict("sys.modules", {"notification_poller": mock_np}):
+            import importlib
+            importlib.reload(self.ap)
+            obs, recs = self.ap.handle("calendar today")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("calendario" in summary_lower or "calendar" in summary_lower or "evento" in summary_lower)
+
+    def test_email_query_routes_to_email(self):
+        mock_np = MagicMock()
+        mock_np.check_calendar = MagicMock(return_value=[])
+        mock_np.check_email = MagicMock(return_value=[{"subject": "Test"}])
+        with patch.dict("sys.modules", {"notification_poller": mock_np}):
+            import importlib
+            importlib.reload(self.ap)
+            obs, recs = self.ap.handle("check my email")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("email" in summary_lower or "mail" in summary_lower or "mensaje" in summary_lower)
+
+    def test_smoking_query_routes_to_smoking(self):
+        mock_np = MagicMock()
+        mock_np.check_calendar = MagicMock(return_value=[])
+        mock_np.check_email = MagicMock(return_value=[])
+        with patch.dict("sys.modules", {"notification_poller": mock_np,
+                                         "smoking": MagicMock(get_stats=MagicMock(return_value={"today": 3, "week": 15, "total": 200}))}):
+            import importlib
+            importlib.reload(self.ap)
+            obs, recs = self.ap.handle("smoking stats")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("smoking" in summary_lower or "sin datos" in summary_lower)
+
+    def test_broad_query_uses_full(self):
+        mock_np = MagicMock()
+        mock_np.check_calendar = MagicMock(return_value=[])
+        mock_np.check_email = MagicMock(return_value=[])
+        with patch.dict("sys.modules", {"notification_poller": mock_np}):
+            import importlib
+            importlib.reload(self.ap)
+            result = self.ap.handle("what is going on")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_handle_returns_typed_tuple(self):
+        mock_np = MagicMock()
+        mock_np.check_calendar = MagicMock(return_value=[])
+        mock_np.check_email = MagicMock(return_value=[])
+        with patch.dict("sys.modules", {"notification_poller": mock_np}):
+            import importlib
+            importlib.reload(self.ap)
+            obs, recs = self.ap.handle("test")
+        from agent_protocol import Observation
+        self.assertIsInstance(obs, Observation)
+        self.assertIsInstance(recs, list)
+
+    def test_broken_calendar_returns_degraded(self):
+        mock_np = MagicMock()
+        mock_np.check_calendar = MagicMock(side_effect=Exception("calendar API fail"))
+        mock_np.check_email = MagicMock(return_value=[])
+        with patch.dict("sys.modules", {"notification_poller": mock_np}):
+            import importlib
+            importlib.reload(self.ap)
+            result = self.ap.handle("calendario")
+        self.assertIsInstance(result, tuple)
+        obs, recs = result
+        self.assertLessEqual(obs.confidence, 0.5)
+
+    def test_personal_rarely_has_recs(self):
+        mock_np = MagicMock()
+        mock_np.check_calendar = MagicMock(return_value=[])
+        mock_np.check_email = MagicMock(return_value=[])
+        with patch.dict("sys.modules", {"notification_poller": mock_np}):
+            import importlib
+            importlib.reload(self.ap)
+            obs, recs = self.ap.handle("any query")
+        # Personal domain typically returns empty recommendations
+        self.assertIsInstance(recs, list)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Agent Research Handle — query-responsive routing tests
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentResearchHandle(unittest.TestCase):
+    """Tests for agent_research query-responsive handle()."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import agent_research as ar
+        self._orig_lf = ar.LOG_FILE
+        self._orig_mf = ar.MEMORY_FILE
+        ar.LOG_FILE = Path(self.tmpdir) / "agent_research.log"
+        ar.MEMORY_FILE = Path(self.tmpdir) / "research_memory.json"
+        self.ar = ar
+
+    def tearDown(self):
+        self.ar.LOG_FILE = self._orig_lf
+        self.ar.MEMORY_FILE = self._orig_mf
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_rag_query_routes_to_rag(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = json.dumps({"results": [{"title": "VPN setup", "score": 0.8}]})
+        with patch("subprocess.run", return_value=mock_result):
+            obs, recs = self.ar.handle("rag query about vpn setup")
+        summary_lower = obs.summary.lower()
+        self.assertTrue("rag" in summary_lower or "result" in summary_lower)
+
+    def test_research_query_routes_to_searxng(self):
+        mock_cll = MagicMock()
+        mock_cll.research = MagicMock(return_value=[{"topic": "k8s", "detail": "found info"}])
+        with patch.dict("sys.modules", {"continuous_learning_loop": mock_cll}):
+            import importlib
+            importlib.reload(self.ar)
+            obs, recs = self.ar.handle("research kubernetes")
+        self.assertIn("research", obs.summary.lower())
+
+    def test_broad_query_uses_full(self):
+        # Both RAG and SearXNG return empty
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_cll = MagicMock()
+        mock_cll.research = MagicMock(return_value=[])
+        with patch("subprocess.run", return_value=mock_result):
+            with patch.dict("sys.modules", {"continuous_learning_loop": mock_cll}):
+                import importlib
+                importlib.reload(self.ar)
+                result = self.ar.handle("what do you know about docker")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_handle_returns_typed_tuple(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        with patch("subprocess.run", return_value=mock_result):
+            obs, recs = self.ar.handle("test query")
+        from agent_protocol import Observation
+        self.assertIsInstance(obs, Observation)
+        self.assertIsInstance(recs, list)
+
+    def test_research_generates_recommendations(self):
+        mock_cll = MagicMock()
+        mock_cll.research = MagicMock(return_value=[
+            {"topic": "k8s", "detail": "found useful info"},
+            {"topic": "docker", "detail": "optimization tips"},
+        ])
+        with patch.dict("sys.modules", {"continuous_learning_loop": mock_cll}):
+            import importlib
+            importlib.reload(self.ar)
+            obs, recs = self.ar.handle("research kubernetes")
+        self.assertIsInstance(recs, list)
+        if len(recs) > 0:
+            from agent_protocol import Recommendation
+            self.assertIsInstance(recs[0], Recommendation)
+
+    def test_broken_searxng_returns_degraded(self):
+        mock_cll = MagicMock()
+        mock_cll.research = MagicMock(side_effect=Exception("SearXNG down"))
+        with patch.dict("sys.modules", {"continuous_learning_loop": mock_cll}):
+            import importlib
+            importlib.reload(self.ar)
+            obs, recs = self.ar.handle("research something")
+        summary_lower = obs.summary.lower()
+        self.assertTrue(obs.confidence <= 0.5 or "no disponible" in summary_lower)
+
+    def test_preferred_role_is_reason(self):
+        import agent_research
+        self.assertEqual(agent_research.PREFERRED_ROLE, "reason")
+
+
 if __name__ == "__main__":
     unittest.main()
