@@ -6,7 +6,6 @@ Ownership: SearXNG, knowledge base, continuous learning.
 
 import json
 import subprocess
-from datetime import datetime
 from pathlib import Path
 from runtime_utils import now, load_json, save_json
 from agent_protocol import Observation, Recommendation
