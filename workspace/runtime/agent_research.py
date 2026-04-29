@@ -36,8 +36,8 @@ def owns(topic: str) -> bool:
 def _observe_rag(query: str) -> dict:
     """Query the RAG knowledge base (fast, local)."""
     try:
-        # Truncate query for safety (T-06-06 mitigation)
-        safe_query = query[:200]
+        # Truncate query and strip control characters for safety (T-06-06 mitigation)
+        safe_query = query[:200].replace('\x00', '').replace('\n', ' ').replace('\r', ' ')
         # Try subprocess call to RAG query.py
         result = subprocess.run(
             ["python3", "/home/tenazas/.openclaw/workspace/skills/rag/query.py",
