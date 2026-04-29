@@ -23,10 +23,43 @@ def _log(msg: str):
         f.write(f"{ts} {msg}\n")
 
 
+PROACTIVE_AGENTS = ["agent_infra", "agent_personal", "agent_finance", "agent_research", "agent_self_improve"]
+
+
+def _run_proactive_observations():
+    """Call handle("") on all 5 agents to pre-cache observations (D-10, D-11)."""
+    results = {}
+    for module_name in PROACTIVE_AGENTS:
+        try:
+            import importlib
+            agent = importlib.import_module(module_name)
+            obs, recs = agent.handle("")  # empty query -> full assessment (D-11)
+            results[module_name] = {
+                "ok": True,
+                "confidence": getattr(obs, "confidence", 0.0),
+                "recs": len(recs) if recs else 0,
+            }
+            _log(f"proactive: {module_name} confidence={obs.confidence:.2f} recs={len(recs) if recs else 0}")
+        except Exception as e:
+            results[module_name] = {"ok": False, "error": str(e)[:100]}
+            _log(f"proactive fail: {module_name} error={str(e)[:100]}")
+    return results
+
+
 def run():
     start = time.time()
     _log("agents_worker start")
     results = {}
+
+    # Proactive observations — cache for fast Telegram responses (D-10)
+    try:
+        proactive = _run_proactive_observations()
+        results["proactive_observations"] = {
+            "agents_ok": sum(1 for v in proactive.values() if v.get("ok")),
+            "agents_total": len(proactive),
+        }
+    except Exception as e:
+        results["proactive_observations"] = {"error": str(e)[:200]}
 
     # Skill analytics
     try:
