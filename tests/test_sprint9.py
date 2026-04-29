@@ -347,5 +347,357 @@ class TestAgentSafety(unittest.TestCase):
         self.assertIn("winner", result)
 
 
+# ══════════════════════════════════════════════════════════════
+#  Agent Protocol — typed contracts
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentProtocol(unittest.TestCase):
+
+    def test_observation_import(self):
+        from agent_protocol import Observation
+        self.assertTrue(Observation)
+
+    def test_recommendation_import(self):
+        from agent_protocol import Recommendation
+        self.assertTrue(Recommendation)
+
+    def test_observation_fields(self):
+        from agent_protocol import Observation
+        o = Observation("test", "infra", "ok", 0.8, {"key": "val"})
+        self.assertEqual(o.agent_name, "test")
+        self.assertEqual(o.domain, "infra")
+        self.assertEqual(o.summary, "ok")
+        self.assertEqual(o.confidence, 0.8)
+        self.assertEqual(o.details, {"key": "val"})
+        self.assertIsInstance(o.timestamp, str)
+        self.assertTrue(len(o.timestamp) > 10)
+
+    def test_observation_to_dict(self):
+        from agent_protocol import Observation
+        o = Observation("test", "infra", "ok", 0.8, {})
+        d = o.to_dict()
+        self.assertIsInstance(d, dict)
+        for key in ("agent_name", "domain", "summary", "confidence", "details", "timestamp"):
+            self.assertIn(key, d)
+
+    def test_observation_confidence_clamp_high(self):
+        from agent_protocol import Observation
+        o = Observation("test", "infra", "ok", 1.5, {})
+        self.assertEqual(o.confidence, 1.0)
+
+    def test_observation_confidence_clamp_low(self):
+        from agent_protocol import Observation
+        o = Observation("test", "infra", "ok", -0.5, {})
+        self.assertEqual(o.confidence, 0.0)
+
+    def test_observation_auto_timestamp(self):
+        from agent_protocol import Observation
+        o = Observation("test", "infra", "ok")
+        self.assertTrue(len(o.timestamp) > 10)
+
+    def test_recommendation_defaults(self):
+        from agent_protocol import Recommendation
+        r = Recommendation("restart", "sonarr")
+        self.assertEqual(r.risk_level, "low")
+        self.assertTrue(r.requires_approval)
+        self.assertEqual(r.rationale, "")
+
+    def test_recommendation_invalid_risk(self):
+        from agent_protocol import Recommendation
+        r = Recommendation("x", "y", risk_level="extreme")
+        self.assertEqual(r.risk_level, "low")
+
+    def test_recommendation_to_dict(self):
+        from agent_protocol import Recommendation
+        r = Recommendation("restart", "sonarr")
+        d = r.to_dict()
+        self.assertIsInstance(d, dict)
+        for key in ("action", "target", "risk_level", "requires_approval", "rationale"):
+            self.assertIn(key, d)
+
+    def test_valid_roles_constant(self):
+        from agent_protocol import VALID_ROLES
+        self.assertIn("fast", VALID_ROLES)
+        self.assertIn("reason", VALID_ROLES)
+
+    def test_valid_risk_levels_constant(self):
+        from agent_protocol import VALID_RISK_LEVELS
+        self.assertIn("critical", VALID_RISK_LEVELS)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Agent Registry — lifecycle management
+# ══════════════════════════════════════════════════════════════
+
+class TestAgentRegistry(unittest.TestCase):
+
+    def setUp(self):
+        import agent_registry
+        self._mod = agent_registry
+        self._orig_registry = agent_registry._registry.copy()
+        agent_registry._registry = {}
+        self._tmpdir = tempfile.mkdtemp()
+        self._orig_registry_file = agent_registry.REGISTRY_FILE
+        self._orig_agent_dir = agent_registry.AGENT_DIR
+        agent_registry.AGENT_DIR = Path(self._tmpdir) / "agents"
+        agent_registry.REGISTRY_FILE = agent_registry.AGENT_DIR / "agents_registry.json"
+
+    def tearDown(self):
+        self._mod._registry = self._orig_registry
+        self._mod.REGISTRY_FILE = self._orig_registry_file
+        self._mod.AGENT_DIR = self._orig_agent_dir
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _make_valid_module(self, owns_result=True, handle_result=None, role="fast"):
+        """Create a mock module that passes validation."""
+        from agent_protocol import Observation
+        if handle_result is None:
+            handle_result = (Observation("mock", "test", "ok", 0.9), [])
+        mock_mod = MagicMock()
+        mock_mod.owns = MagicMock(return_value=owns_result)
+        mock_mod.handle = MagicMock(return_value=handle_result)
+        mock_mod.PREFERRED_ROLE = role
+        return mock_mod
+
+    def test_register_valid_module(self):
+        mock_mod = self._make_valid_module()
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            result = self._mod.register("mock", "mock_agent")
+        self.assertTrue(result)
+        agents = self._mod.list_agents()
+        self.assertEqual(len(agents), 1)
+        self.assertEqual(agents[0]["name"], "mock")
+        self.assertEqual(agents[0]["status"], "healthy")
+
+    def test_register_invalid_module_missing_handle(self):
+        mock_mod = MagicMock(spec=[])
+        mock_mod.owns = MagicMock()
+        mock_mod.PREFERRED_ROLE = "fast"
+        # No handle attribute
+        delattr(mock_mod, "handle") if hasattr(mock_mod, "handle") else None
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            result = self._mod.register("bad", "bad_agent")
+        self.assertFalse(result)
+        agents = self._mod.list_agents()
+        self.assertEqual(agents[0]["status"], "invalid")
+
+    def test_register_import_error(self):
+        with patch.object(self._mod.importlib, "import_module", side_effect=ImportError("no such module")):
+            result = self._mod.register("ghost", "ghost_agent")
+        self.assertFalse(result)
+        agents = self._mod.list_agents()
+        self.assertEqual(agents[0]["status"], "import_error")
+
+    def test_unregister_existing(self):
+        mock_mod = self._make_valid_module()
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("mock", "mock_agent")
+        result = self._mod.unregister("mock")
+        self.assertTrue(result)
+        self.assertEqual(self._mod.list_agents(), [])
+
+    def test_unregister_nonexistent(self):
+        result = self._mod.unregister("ghost")
+        self.assertFalse(result)
+
+    def test_list_agents_empty(self):
+        self.assertEqual(self._mod.list_agents(), [])
+
+    def test_list_agents_structure(self):
+        mock_mod = self._make_valid_module()
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("mock", "mock_agent")
+        agents = self._mod.list_agents()
+        self.assertEqual(len(agents), 1)
+        for key in ("name", "status", "preferred_role", "failure_count"):
+            self.assertIn(key, agents[0])
+
+    def test_dispatch_no_match(self):
+        mock_mod = self._make_valid_module(owns_result=False)
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("mock", "mock_agent")
+        results = self._mod.dispatch("test query")
+        self.assertEqual(results, [])
+
+    def test_dispatch_matching(self):
+        from agent_protocol import Observation
+        obs = Observation("mock", "test", "found something", 0.9)
+        mock_mod = self._make_valid_module(owns_result=True, handle_result=(obs, []))
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("mock", "mock_agent")
+        results = self._mod.dispatch("test query")
+        self.assertEqual(len(results), 1)
+        name, result_obs, recs = results[0]
+        self.assertEqual(name, "mock")
+        self.assertIsNotNone(result_obs)
+
+    def test_get_agent_existing(self):
+        mock_mod = self._make_valid_module()
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("mock", "mock_agent")
+        agent = self._mod.get_agent("mock")
+        self.assertIsNotNone(agent)
+        self.assertEqual(agent["name"], "mock")
+
+    def test_get_agent_nonexistent(self):
+        self.assertIsNone(self._mod.get_agent("ghost"))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Error Isolation — broken agents don't crash others
+# ══════════════════════════════════════════════════════════════
+
+class TestErrorIsolation(unittest.TestCase):
+
+    def setUp(self):
+        import agent_registry
+        self._mod = agent_registry
+        self._orig_registry = agent_registry._registry.copy()
+        agent_registry._registry = {}
+        self._tmpdir = tempfile.mkdtemp()
+        self._orig_registry_file = agent_registry.REGISTRY_FILE
+        self._orig_agent_dir = agent_registry.AGENT_DIR
+        agent_registry.AGENT_DIR = Path(self._tmpdir) / "agents"
+        agent_registry.REGISTRY_FILE = agent_registry.AGENT_DIR / "agents_registry.json"
+
+    def tearDown(self):
+        self._mod._registry = self._orig_registry
+        self._mod.REGISTRY_FILE = self._orig_registry_file
+        self._mod.AGENT_DIR = self._orig_agent_dir
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_dispatch_exception_does_not_crash(self):
+        mock_mod = MagicMock()
+        mock_mod.owns = MagicMock(return_value=True)
+        mock_mod.handle = MagicMock(side_effect=RuntimeError("boom"))
+        mock_mod.PREFERRED_ROLE = "fast"
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("broken", "broken_agent")
+        # Should not raise
+        results = self._mod.dispatch("test")
+        self.assertEqual(len(results), 1)
+        name, obs, recs = results[0]
+        self.assertEqual(name, "broken")
+        self.assertIsNone(obs)
+        self.assertEqual(recs, [])
+
+    def test_failure_counter_increments(self):
+        mock_mod = MagicMock()
+        mock_mod.owns = MagicMock(return_value=True)
+        mock_mod.handle = MagicMock(side_effect=RuntimeError("boom"))
+        mock_mod.PREFERRED_ROLE = "fast"
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("broken", "broken_agent")
+        self._mod.dispatch("test1")
+        self._mod.dispatch("test2")
+        agents = self._mod.list_agents()
+        self.assertEqual(agents[0]["failure_count"], 2)
+
+    def test_healthy_agent_unaffected_by_broken(self):
+        from agent_protocol import Observation
+        # Broken agent
+        broken_mod = MagicMock()
+        broken_mod.owns = MagicMock(return_value=True)
+        broken_mod.handle = MagicMock(side_effect=RuntimeError("boom"))
+        broken_mod.PREFERRED_ROLE = "fast"
+        # Good agent
+        good_obs = Observation("good", "test", "ok", 0.9)
+        good_mod = MagicMock()
+        good_mod.owns = MagicMock(return_value=True)
+        good_mod.handle = MagicMock(return_value=(good_obs, []))
+        good_mod.PREFERRED_ROLE = "reason"
+
+        with patch.object(self._mod.importlib, "import_module", return_value=broken_mod):
+            self._mod.register("broken", "broken_agent")
+        with patch.object(self._mod.importlib, "import_module", return_value=good_mod):
+            self._mod.register("good", "good_agent")
+
+        results = self._mod.dispatch("test")
+        self.assertEqual(len(results), 2)
+        # Good agent should have valid observation
+        good_results = [r for r in results if r[0] == "good"]
+        self.assertEqual(len(good_results), 1)
+        self.assertIsNotNone(good_results[0][1])
+
+    def test_import_error_skipped_in_dispatch(self):
+        with patch.object(self._mod.importlib, "import_module", side_effect=ImportError("no")):
+            self._mod.register("bad", "bad_agent")
+        results = self._mod.dispatch("test")
+        self.assertEqual(results, [])
+
+    def test_invalid_module_skipped_in_dispatch(self):
+        # Module missing handle
+        mock_mod = MagicMock(spec=[])
+        mock_mod.owns = MagicMock()
+        mock_mod.PREFERRED_ROLE = "fast"
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("bad", "bad_agent")
+        results = self._mod.dispatch("test")
+        self.assertEqual(results, [])
+
+
+# ══════════════════════════════════════════════════════════════
+#  Preferred Role — exposed and validated
+# ══════════════════════════════════════════════════════════════
+
+class TestPreferredRole(unittest.TestCase):
+
+    def setUp(self):
+        import agent_registry
+        self._mod = agent_registry
+        self._orig_registry = agent_registry._registry.copy()
+        agent_registry._registry = {}
+        self._tmpdir = tempfile.mkdtemp()
+        self._orig_registry_file = agent_registry.REGISTRY_FILE
+        self._orig_agent_dir = agent_registry.AGENT_DIR
+        agent_registry.AGENT_DIR = Path(self._tmpdir) / "agents"
+        agent_registry.REGISTRY_FILE = agent_registry.AGENT_DIR / "agents_registry.json"
+
+    def tearDown(self):
+        self._mod._registry = self._orig_registry
+        self._mod.REGISTRY_FILE = self._orig_registry_file
+        self._mod.AGENT_DIR = self._orig_agent_dir
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_preferred_role_exposed(self):
+        mock_mod = MagicMock()
+        mock_mod.owns = MagicMock(return_value=True)
+        mock_mod.handle = MagicMock(return_value=(None, []))
+        mock_mod.PREFERRED_ROLE = "reason"
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            self._mod.register("mock", "mock_agent")
+        agents = self._mod.list_agents()
+        self.assertEqual(agents[0]["preferred_role"], "reason")
+
+    def test_invalid_role_rejected(self):
+        mock_mod = MagicMock()
+        mock_mod.owns = MagicMock(return_value=True)
+        mock_mod.handle = MagicMock(return_value=(None, []))
+        mock_mod.PREFERRED_ROLE = "invalid"
+        with patch.object(self._mod.importlib, "import_module", return_value=mock_mod):
+            result = self._mod.register("mock", "mock_agent")
+        self.assertFalse(result)
+
+    def test_validate_module_checks_role(self):
+        from agent_protocol import validate_agent_module
+        mock_mod = MagicMock()
+        mock_mod.owns = MagicMock()
+        mock_mod.handle = MagicMock()
+        mock_mod.PREFERRED_ROLE = "banana"
+        ok, errors = validate_agent_module(mock_mod)
+        self.assertFalse(ok)
+        self.assertTrue(any("invalid PREFERRED_ROLE" in e for e in errors))
+
+    def test_validate_module_passes_valid(self):
+        from agent_protocol import validate_agent_module
+        mock_mod = MagicMock()
+        mock_mod.owns = MagicMock()
+        mock_mod.handle = MagicMock()
+        mock_mod.PREFERRED_ROLE = "fast"
+        ok, errors = validate_agent_module(mock_mod)
+        self.assertTrue(ok)
+        self.assertEqual(errors, [])
+
+
 if __name__ == "__main__":
     unittest.main()
