@@ -1,554 +1,536 @@
-# Architecture Patterns
+# Architecture Patterns: Multi-Agent System Integration
 
-**Domain:** Python runtime refactoring (42+ modules, 2373-line god object)
+**Domain:** Multi-agent coordination layer for existing AI assistant
 **Researched:** 2026-04-28
-**Confidence:** HIGH (based on codebase analysis + standard Python packaging patterns)
+**Overall confidence:** HIGH (based on direct codebase analysis)
 
-## Recommended Architecture
-
-### Target: Domain-Organized Packages with Facade Preservation
-
-Split the flat `workspace/runtime/` directory into domain-scoped subpackages while preserving existing import paths via `__init__.py` re-exports. The orchestrator becomes a thin facade delegating to focused submodules.
-
-### Layer Diagram
+## Current Architecture (As-Is)
 
 ```
-Layer 0: Foundation (no internal deps)
-  config.py, state_io.py, logging_config.py
-
-Layer 1: Infrastructure (depends on Layer 0 only)
-  docker_wrapper.py, safety_guard.py, executors.py
-
-Layer 2: Models (depends on Layer 0 only)
-  models/router.py, models/guardrails.py, models/catalog.py, models/openrouter.py
-
-Layer 3: Routing & Orchestration (depends on Layers 0-2)
-  routing/classifier.py, routing/router.py, routing/skill_executor.py
-  routing/skill_parsers.py, routing/skill_handlers.py, routing/multitool.py
-
-Layer 4: Skills & Domains (depends on Layers 0-2, NOT on Layer 3)
-  devices/*, personal/ (finance, jobs, expenses, smoking)
-
-Layer 5: Autonomous & Learning (depends on Layers 0-2)
-  learning/ (idle_learning, dreaming, error_mining, improvement_candidates)
-  autofix/ (agent, tiers, sandbox, aider, ssh, telegram)
-
-Layer 6: Observability (depends on Layers 0-1)
-  observability/ (metrics_server, health_sweep, roi_tracker)
-
-Layer 7: Entry Points (depends on all layers)
-  runtime.py, telegram_router.py, worker_supervisor.py, startup.sh
+Telegram message
+  |
+  v
+telegram_router.py
+  |-- classify_intent() [3-tier: hybrid_router -> orchestrator.classify_query -> chat]
+  |-- INTERCEPTED_SKILLS set (weather, email, calendar, smart-home, etc.)
+  |
+  |-- skill match? -> execute_intercepted_skill() -> orchestrator.execute_skill()
+  |-- iol_broker?  -> _execute_iol() [subprocess to iol_handler_cli.py]
+  |-- chat/other?  -> Ollama /api/chat with SOUL.md context
+  |
+  v
+orchestrator.py (facade)
+  |-- classifier.py      -> classify_query() [regex + keyword scoring]
+  |-- skill_executor.py  -> execute_skill() [SKILL_MAP -> subprocess/handler]
+  |-- escalation.py      -> escalate() [knowledge->reasoning, etc.]
+  |-- routing_metrics.py -> counters, latency tracking
+  |
+  |-- route_query()         -> classify -> select_model -> pipeline
+  |-- route_and_execute()   -> classify -> if skill: execute; if complex: multi_agent_engine
+  |-- select_model()        -> V2 (model_router.route_by_role) -> V1 fallback
 ```
 
-**Critical rule:** Dependencies flow downward only. Layer 3 (routing) never imports from Layer 5 (learning). Layer 4 (skills) never imports from Layer 3 (routing). This fixes the current circular dependency where orchestrator.py lazily imports from multi_agent_engine.
+### Key Integration Points (Existing)
 
-### Target Directory Structure
+| Module | Entry Function | What It Does | Callers |
+|--------|---------------|--------------|---------|
+| `telegram_router.py` | `classify_intent()` | 3-tier classification | `_process_message()` |
+| `telegram_router.py` | `execute_intercepted_skill()` | Skill execution via orchestrator | `_process_message()` |
+| `orchestrator.py` | `route_and_execute()` | Classify + execute if skill | telegram_router, MCP bridge |
+| `orchestrator.py` | `classify_query()` | Re-export from classifier.py | telegram_router, bridge |
+| `orchestrator.py` | `execute_skill()` | Re-export from skill_executor.py | telegram_router, bridge |
+| `model_router.py` | `route_by_role()` | Hardware-aware model selection | orchestrator._select_model_v2 |
+| `agent_coordinator.py` | `route()` | Multi-domain agent routing | NOT currently wired in |
+| `agent_arbitrator.py` | `resolve()` | Conflict resolution | agent_coordinator only |
+
+### Existing Sprint 9 Agent Modules (Already Present)
+
+These modules exist but are **not wired into the main pipeline**:
+
+| Module | `owns()` Keywords | `assess()` | `handle_query()` | Status |
+|--------|-------------------|------------|-------------------|--------|
+| `agent_infra.py` | container, gpu, docker, vpn... | Yes (reads snapshot + predictor) | Yes | Standalone |
+| `agent_personal.py` | calendar, email, reminder... | Yes (checks calendar + email) | Yes | Standalone |
+| `agent_finance.py` | binance, iol, crypto, trading... | Yes (Binance PnL + IOL) | Yes | Standalone |
+| `agent_research.py` | research, rag, knowledge... | No | Yes (SearXNG) | Standalone |
+| `agent_self_improve.py` | N/A | N/A | N/A | Needs check |
+| `agent_coordinator.py` | Multi-domain triggers | N/A | `route()` aggregates | Standalone CLI |
+| `agent_arbitrator.py` | Priority-based resolution | N/A | `resolve()` | Called by coordinator |
+
+**Critical gap:** `agent_coordinator.route()` exists but `telegram_router.py` and `orchestrator.py` never call it. The agents are islands.
+
+---
+
+## Recommended Architecture (To-Be)
+
+### Design Principle: Coordinator as Smart Router, Not Replacement
+
+**Do NOT replace orchestrator.** Instead, insert `agent_coordinator` as a layer between `telegram_router` and `orchestrator`. The orchestrator's `classify_query()` and `execute_skill()` remain the execution engine. The coordinator decides *which agent(s) should observe/recommend*, while orchestrator handles *how to execute*.
+
+Rationale:
+- Orchestrator has 65+ tests, proven classification, skill execution, model selection
+- Replacing it means rewriting all callers (telegram_router, MCP bridge, hybrid_router)
+- The coordinator's job is domain-aware routing, not skill execution
+- Skills (weather, calendar, email) should remain deterministic -- agents add *advisory* capability
+
+### New Data Flow
 
 ```
-workspace/runtime/
-  __init__.py
-  config.py                    # NEW -- centralized IPs, ports, paths, env overrides
-  state_io.py                  # NEW -- atomic JSON read/write with file locking
-  logging_config.py            # NEW -- unified JSONL logger factory
-
-  routing/                     # SPLIT FROM orchestrator.py (2373 lines -> 6 files)
-    __init__.py                # facade: re-exports classify_query, route_and_execute, etc.
-    classifier.py              # classify_query() + CLASSIFICATION_RULES
-    router.py                  # route_query() + escalate() + select_model()
-    skill_executor.py          # execute_skill() + SKILL_MAP + dispatch
-    skill_parsers.py           # _parse_weather, _parse_calendar, _parse_infra, etc.
-    skill_handlers.py          # _handle_smart_home, _handle_email, _handle_tts, etc.
-    multitool.py               # route_and_execute_multitool, _call_multitool_model
-    metrics.py                 # _routing_metrics, get_routing_metrics, report_inference
-
-  models/                      # EXTRACTED FROM model_router.py (856 lines -> 4 files)
-    __init__.py                # re-exports route_by_role, classify_task, select_model
-    router.py                  # route_by_role, classify_task, detect_backends
-    guardrails.py              # apply_guardrails, record_heavy_usage, state persistence
-    catalog.py                 # MODEL_CATALOG, ROLE_MAP, get_model_info, list_models
-    openrouter.py              # call_openrouter, _is_openrouter_available
-
-  infra/                       # Event loop + infrastructure monitoring
-    __init__.py
-    runtime_loop.py            # main(), update_state, detect_events (was runtime.py)
-    executors.py               # existing executors.py
-    docker_wrapper.py          # existing (whitelist-enforced Docker subprocess)
-    safety_guard.py            # existing (central security validator)
-    diagnostics.py             # infra_diagnostics.py
-    patterns.py                # pattern detection extracted from runtime.py
-
-  devices/                     # EXISTING -- already well-structured, no change needed
-    __init__.py, hue_lights.py, samsung_tv.py, marantz_avr.py, etc.
-
-  personal/                    # GROUP existing standalone modules
-    __init__.py
-    finance.py, expenses.py, jobs.py, smoking.py
-
-  learning/                    # GROUP existing learning modules
-    __init__.py
-    idle_learning.py, dreaming.py, error_mining.py, improvement_candidates.py
-    daily_improvement.py, daily_brief.py, apply_improvements.py
-    dataset_builder.py, eval_runner.py, fine_tune_pipeline.py
-    # data/ subdirectory for proposals.json, learning_report.md, etc.
-
-  autofix/                     # GROUP existing autofix modules
-    __init__.py
-    agent.py, tiers.py, sandbox.py, aider.py, ssh.py, telegram.py, llm_check.py
-
-  observability/               # GROUP existing observability modules
-    __init__.py
-    metrics_server.py, health_sweep.py, roi_tracker.py, roi_report.py
-
-  # Backward-compat shims (Phase 2g -- can remove once all imports updated)
-  orchestrator.py              # from routing import *
-  model_router.py              # from models import *
+Telegram message
+  |
+  v
+telegram_router.py
+  |-- classify_intent() [unchanged]
+  |
+  |-- skill match? -> execute_intercepted_skill() [unchanged, fast path]
+  |                    \_ AFTER execution: notify_agents(query, skill_result)  [NEW, async]
+  |
+  |-- NOT skill? -> agent_coordinator.route_with_context(query, context) [NEW]
+  |                    |
+  |                    |-- identify_agents(query) [existing]
+  |                    |-- for each agent: agent.observe(query, context) [NEW method]
+  |                    |-- any recommendations? -> format + send to Telegram
+  |                    |-- conflicts? -> agent_arbitrator.resolve() [existing]
+  |                    |
+  |                    |-- falls through to orchestrator for LLM response
+  |                    \_ orchestrator.route_and_execute(query, context) [unchanged]
+  |
+  v
+response to user (LLM response + agent recommendations if any)
 ```
 
 ### Component Boundaries
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `config.py` | Single source of truth for IPs, ports, paths, feature flags | Every module reads from it; nothing writes to it |
-| `state_io.py` | Atomic JSON read/write, file locking, corruption detection | Every module that persists state |
-| `logging_config.py` | JSONL logger factory with rotation | Every module that logs |
-| `routing/classifier` | Map user text to category (skill:weather, chat, etc.) | telegram_router, routing/router |
-| `routing/router` | Select pipeline + model for a classified query | classifier, models/router |
-| `routing/skill_executor` | Execute deterministic skills | parsers, handlers, external subprocesses |
-| `routing/skill_handlers` | Parameterized skill logic (smart-home, email send, TTS) | devices/, external APIs |
-| `routing/skill_parsers` | Parse raw skill output into human-readable text | Pure functions, no deps |
-| `models/router` | Select optimal LLM backend by role + hardware constraints | Ollama endpoints, OpenRouter API |
-| `models/guardrails` | Rate-limit heavy model usage, cooldown enforcement | models/router (pre-inference gate) |
-| `infra/runtime_loop` | 5-min event detection and task dispatch | docker_wrapper, executors, state_io |
-| `devices/` | IoT device control (9 types) | External device APIs (REST, WebSocket) |
-| `personal/` | Finance, jobs, smoking tracking | state_io for persistence |
-| `learning/` | Analyze logs, generate proposals, memory consolidation | models/router for LLM calls, state_io |
-| `autofix/` | 3-tier self-repair with approval gates | Telegram API, models/router, docker_wrapper |
-| `observability/` | Prometheus metrics, health probes, ROI tracking | state_io, external endpoints |
-
-### Data Flow
-
-```
-User Message (Telegram)
-  |
-  v
-telegram_router.py --> routing.classifier.classify_query()
-  |                         |
-  |  skill match?           | no match
-  |  YES                    |
-  v                         v
-routing.skill_executor  --> routing.router.route_query()
-  |                              |
-  v                              v
-skill_handlers /            models.router.route_by_role()
-  skill_parsers /                |
-  devices/                       v
-  subprocess calls          Ollama / OpenRouter / Gemini
-  |                              |
-  v                              v
-Format + send response     <-----+
-
-Cron (5 min) --> infra/runtime_loop.py
-  --> executors.py (docker ps, nmap, ping)
-  --> detect events (compare prev vs curr state)
-  --> enqueue tasks (state_io.locked_update)
-  --> execute tasks (docker_wrapper for restarts)
-  --> append memory (state_io.write_json)
-  --> pattern detection (infra/patterns.py)
-  --> notify Telegram (if actions taken)
-```
-
-## How to Split orchestrator.py (2373 lines)
-
-The orchestrator currently contains 6 distinct responsibilities crammed into one file. Split by responsibility, not arbitrary line count.
-
-### Responsibility Map (Current Lines -> Target File)
-
-| Lines (approx) | Responsibility | Target File | Est. Lines |
-|-----------------|---------------|-------------|------------|
-| 1-50 | Imports, config, metrics globals | `routing/metrics.py` | ~50 |
-| 52-104 | V1 MODELS dict, CATEGORY_TO_ROLE | `models/catalog.py` | ~60 |
-| 105-142 | PIPELINES definition | `routing/router.py` | ~40 |
-| 144-465 | CLASSIFICATION_RULES + IOL_KEYWORDS + all skill patterns | `routing/classifier.py` | ~320 |
-| 466-479 | `_now()`, `_log()` helpers | `logging_config.py` | ~20 |
-| 480-572 | `classify_query()` | `routing/classifier.py` | ~90 |
-| 573-757 | `_select_model_v2()`, `select_model()` | `routing/router.py` | ~185 |
-| 758-875 | `get_pipeline()`, `route_query()` | `routing/router.py` | ~120 |
-| 876-1058 | `escalate()`, SKILL_MAP definition | `routing/router.py` + `routing/skill_executor.py` | ~180 |
-| 1060-1165 | `execute_skill()` | `routing/skill_executor.py` | ~105 |
-| 1167-1320 | `_parse_calendar()`, `_parse_weather()`, `_parse_infra()`, `_parse_proposals()` | `routing/skill_parsers.py` | ~155 |
-| 1322-2013 | All `_handle_*` functions (smart_home, tts, calendar, morning_greeting, email, reminders, model_trainer, expense, smoking, network_scanner) | `routing/skill_handlers.py` | ~690 |
-| 2018-2096 | `route_and_execute()` | `routing/__init__.py` (facade) | ~80 |
-| 2098-2260 | Multitool execution | `routing/multitool.py` | ~165 |
-| 2263-2373 | `_get_parameters()`, `_extract_signals()`, `report_inference()`, metrics helpers, `_build_flags_from_context()` | `routing/metrics.py` | ~110 |
-
-### Facade Pattern (Preserve Import Compatibility)
-
-```python
-# routing/__init__.py -- re-exports everything external code imports
-from .classifier import classify_query, CLASSIFICATION_RULES
-from .router import route_query, escalate, select_model, get_pipeline
-from .skill_executor import execute_skill, SKILL_MAP
-from .metrics import get_routing_metrics, reset_routing_metrics, report_inference
-from .multitool import route_and_execute_multitool
-
-def route_and_execute(query, context=None, available_backends=None):
-    """Thin facade: classify -> execute if skill, else route."""
-    classification = classify_query(query, context)
-    if classification.startswith("skill:"):
-        skill_result = execute_skill(classification, query)
-        route = route_query(query, context, available_backends)
-        route["classification"] = classification
-        route["executed"] = True
-        route["skill_result"] = skill_result
-        return route
-    route = route_query(query, context, available_backends)
-    route["executed"] = False
-    route["skill_result"] = None
-    return route
-```
-
-Then `orchestrator.py` becomes a backward-compat shim:
-
-```python
-# orchestrator.py -- backward compat, remove after all imports updated
-from routing import *  # noqa: F401,F403
-```
-
-This means `from orchestrator import classify_query` continues to work without changes to tests or callers. The 14 import sites found in codebase grep all continue working.
-
-## Config Centralization Pattern
-
-### Problem: 30+ Files with Hardcoded IPs
-
-Current state from codebase grep:
-- `http://192.168.2.6:11434` (HomeLab Ollama) appears in 15+ files, each with its own env var override
-- `192.168.2.2` (NAS) appears in 10+ files
-- `192.168.2.11` (Hue Bridge) in 5+ files
-- Each module independently does `OLLAMA_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")`
-
-### Solution: Single `config.py` Module
-
-```python
-# config.py -- Single source of truth for all infrastructure endpoints
-import os
-from pathlib import Path
-
-# Base paths
-BASE_DIR = Path(__file__).parent
-LOGS_DIR = BASE_DIR / "logs"
-STATE_DIR = BASE_DIR / "state"
-
-# Infrastructure endpoints (env var override -> sensible default)
-HOMELAB_IP = os.environ.get("HOMELAB_IP", "192.168.2.6")
-NAS_IP = os.environ.get("NAS_IP", "192.168.2.2")
-
-OLLAMA_GPU_URL = os.environ.get("OLLAMA_GPU_URL", f"http://{HOMELAB_IP}:11434")
-OLLAMA_NAS_URL = os.environ.get("OLLAMA_NAS_URL", "http://127.0.0.1:11434")
-CHROMADB_URL = os.environ.get("CHROMADB_URL", f"http://{NAS_IP}:8100")
-GLUETUN_PROXY = os.environ.get("GLUETUN_PROXY", f"http://{NAS_IP}:8888")
-HUE_BRIDGE_IP = os.environ.get("HUE_BRIDGE_IP", "192.168.2.11")
-DECO_IP = os.environ.get("DECO_IP", "192.168.2.30")
-
-PROMETHEUS_PORT = int(os.environ.get("PROMETHEUS_PORT", "9105"))
-NETWORK_EXPORTER_PORT = int(os.environ.get("NETWORK_EXPORTER_PORT", "9108"))
-
-# Telegram
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "1565794551")
-
-# Timeouts
-SKILL_TIMEOUT = int(os.environ.get("SKILL_TIMEOUT", "30"))
-RUNTIME_TIMEOUT = int(os.environ.get("RUNTIME_TIMEOUT", "120"))
-
-# Feature flags
-USE_ROUTER_V2 = os.environ.get("USE_ROUTER_V2", "true").lower() == "true"
-USE_FINETUNED_ROUTER = os.environ.get("USE_FINETUNED_ROUTER", "false").lower() == "true"
-
-# LAN
-LAN_SUBNET = os.environ.get("LAN_SUBNET", "192.168.2.0/24")
-
-# HomeLab SSH
-HOMELAB_SSH_USER = os.environ.get("HOMELAB_SSH_USER", "sbasadre")
-HOMELAB_SSH_TARGET = f"{HOMELAB_SSH_USER}@{HOMELAB_IP}"
-```
-
-**Why not `openclaw.json`?** The JSON config file contains secrets (bot tokens, API keys) and is mounted from `state/`. Infrastructure endpoints are not secrets and should be in committed code with env var overrides. `config.py` is testable and type-checkable. Secrets stay in `openclaw.json`.
-
-**Migration:** Replace one module at a time. Each changes from:
-```python
-OLLAMA_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")
-```
-to:
-```python
-from config import OLLAMA_GPU_URL
-```
-
-## Shared State Management
-
-### Problem: Naive JSON I/O Everywhere
-
-Pattern repeated in 40+ modules with zero atomicity:
-```python
-with open("state.json", "w") as f:
-    json.dump(data, f)
-```
-
-### Solution: `state_io.py` Module
-
-```python
-# state_io.py -- Atomic JSON persistence with file locking
-import json
-import os
-import tempfile
-from pathlib import Path
-
-def read_json(path, default=None):
-    """Read JSON file. Returns default on missing/corrupt. Never raises."""
-    try:
-        raw = Path(path).read_text()
-        return json.loads(raw)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return default if default is not None else {}
-
-def write_json(path, data, *, indent=None):
-    """Atomic write: tempfile in same dir -> fsync -> os.replace.
-
-    Safe against: crash mid-write, concurrent reads, disk full.
-    """
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(
-        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp",
-    )
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f, default=str, indent=indent)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, str(path))  # atomic on POSIX
-    except BaseException:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
-
-def locked_update(path, updater_fn, default=None):
-    """Read-modify-write with advisory file lock.
-
-    Usage:
-        def add_entry(data):
-            data.setdefault("entries", []).append(new_entry)
-            return data
-        locked_update("proposals.json", add_entry, default=[])
-    """
-    import fcntl  # Linux-only (container runs bookworm)
-    path = Path(path)
-    lock_path = path.with_suffix(path.suffix + ".lock")
-    lock_path.touch(exist_ok=True)
-    with open(lock_path, "r") as lock_fd:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
-        try:
-            data = read_json(path, default=default if default is not None else {})
-            data = updater_fn(data)
-            write_json(path, data)
-        finally:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-```
-
-**Platform note:** The container runs Linux (node:24-bookworm), so `fcntl.flock` works. Dev machine is Windows -- tests should mock the locking layer or run in Docker.
-
-### State File Migration Priority
-
-| File | Concurrent Writers | Bug Fixed | Priority |
-|------|--------------------|-----------|----------|
-| `learning/proposals.json` | cron + telegram + idle_learning | Race condition (CONCERNS.md) | HIGH |
-| `state.json` | runtime.py cron + telegram_router | Crash corruption (CONCERNS.md) | HIGH |
-| `pending_approvals.json` | telegram callbacks + cron | Duplicate execution (CONCERNS.md) | HIGH |
-| `guardrail_state.json` | model_router + orchestrator | No known bug but concurrent | MEDIUM |
-| `finance/transactions.json` | expenses.py + finance.py | User-triggered, low frequency | MEDIUM |
-| `memory_log.json` | runtime.py (single writer) | Already capped at 1000 | LOW |
-
-## Patterns to Follow
-
-### Pattern 1: Package with Facade (Import Path Preservation)
-
-**What:** Convert a module into a package by creating `dir/__init__.py` that re-exports the public API.
-**When:** Splitting a large module where external code imports specific functions.
-**Why:** Zero-breakage migration. 14 import sites for orchestrator keep working. Tests pass unchanged.
-
-### Pattern 2: Constructor Injection for Testability
-
-**What:** Pass dependencies (config values, logger, state_io functions) as parameters with defaults.
-**When:** Any module that needs isolated testing without monkeypatching globals.
-**Example:**
-```python
-def execute_skill(category, query, *, timeout=None, logger=None):
-    timeout = timeout or config.SKILL_TIMEOUT
-    logger = logger or get_logger("skill_executor")
-```
-**Why:** Tests inject mock dependencies. No framework needed. Python's default arguments are sufficient.
-
-### Pattern 3: Layered Dependency Direction (Downward Only)
-
-**What:** Higher layers depend on lower layers, never the reverse.
-**Current violation:** `orchestrator.py` line 2061 lazily imports `from multi_agent_engine import reason`. Learning module called from routing layer.
-**Fix:** `telegram_router.py` (Layer 7 entry point) decides whether to invoke multi-agent reasoning, not the routing layer.
-
-### Pattern 4: Atomic State Access
-
-**What:** Every state file read/write goes through `state_io.py`.
-**When:** Any module that touches a `.json` state file.
-**Why:** Fixes the 3 documented HIGH-priority bugs (race condition, crash corruption, duplicate execution).
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Direct json.dump() to Target File
-
-**What:** `open(path, "w") + json.dump(data, f)` with no atomic guarantee.
-**Why bad:** Process kill mid-write = truncated file = corrupted state = crash on next load.
-**Current scope:** 40+ modules use this pattern.
-**Instead:** Use `state_io.write_json()`.
-
-### Anti-Pattern 2: Module-Level Config Constants
-
-**What:** Each module defines `OLLAMA_URL = os.environ.get(...)` independently.
-**Why bad:** 15 modules each with same default, different env var names. Changing HomeLab IP requires editing 15+ files.
-**Instead:** Single `config.py`. All modules import from it.
-
-### Anti-Pattern 3: Lazy Imports to Avoid Circular Dependencies
-
-**What:** `from X import Y` inside function bodies.
-**Why bad:** Hides dependency cycles. Breaks IDE navigation. Performance cost per call.
-**Current violations:** orchestrator.py (3 lazy imports), classifier_v7.py (1), telegram_router.py (2).
-**Instead:** Fix the dependency direction. Extract shared constants into a shared module.
-
-### Anti-Pattern 4: Copy-Paste Utility Functions
-
-**What:** 20+ modules each define their own `_save_json()`, `_load_json()`, `_now()`, `_log()`.
-**Why bad:** When the pattern needs fixing (atomic writes), must fix in 20 places.
-**Instead:** Single `state_io.py` and `logging_config.py`.
-
-### Anti-Pattern 5: God Module with Mixed Responsibilities
-
-**What:** `orchestrator.py` doing classification + model selection + skill execution + response parsing + email state management + metrics tracking.
-**Why bad:** Every change risks breaking unrelated functionality. 2373 lines means nobody reads the whole file.
-**Instead:** One module, one responsibility.
-
-## Suggested Refactoring Order (Dependency-Aware)
-
-Order matters because of dependency chains. Refactor from the bottom (shared infrastructure) upward (domain logic).
-
-### Phase 1: Foundation (No Behavior Change)
-
-Create three new modules that have zero dependencies on existing code:
-
-**1a. `config.py`** -- Centralized config. All modules can start importing immediately.
-**1b. `state_io.py`** -- Atomic JSON helpers. Adopted module-by-module.
-**1c. `logging_config.py`** -- Standard JSONL logger factory.
-
-**Why first:** These provide infrastructure every subsequent step uses. Independently testable. Zero risk.
-
-### Phase 2: Extract Routing Package from orchestrator.py
-
-Split in this specific order (each step independently compilable):
-
-**2a.** `routing/classifier.py` -- CLASSIFICATION_RULES + classify_query(). Most self-contained piece, no outbound deps except config.
-**2b.** `routing/skill_parsers.py` -- All _parse_* functions. Pure functions, zero dependencies.
-**2c.** `routing/skill_handlers.py` -- All _handle_* functions. Depends on devices/ and subprocess.
-**2d.** `routing/skill_executor.py` -- execute_skill() + SKILL_MAP. Depends on parsers + handlers.
-**2e.** `routing/metrics.py` -- Metrics globals and helpers.
-**2f.** `routing/router.py` -- route_query() + escalate() + select_model(). Depends on classifier + models/.
-**2g.** `routing/multitool.py` -- Multitool execution path.
-**2h.** `routing/__init__.py` -- Facade with route_and_execute() + all re-exports.
-**2i.** Replace `orchestrator.py` body with `from routing import *`.
-
-**Why this order:** Each step introduces one file. After each step, all tests pass (facade ensures import compat). Step 2a has zero deps; each subsequent step depends only on files created in prior steps.
-
-### Phase 3: Adopt Atomic State I/O (Fix Documented Bugs)
-
-**3a.** `proposals.json` writes -> `state_io.locked_update()` (fixes race condition)
-**3b.** `state.json` writes -> `state_io.write_json()` (fixes crash corruption)
-**3c.** `pending_approvals.json` -> `state_io.locked_update()` (fixes duplicate execution)
-**3d.** Audit + migrate remaining JSON writes module-by-module.
-
-**Why after Phase 2:** The routing split is the biggest structural change. State I/O migration is surgical (one file per change). Better to do the risky structural work first.
-
-### Phase 4: Adopt Centralized Config
-
-**4a.** Migrate all `OLLAMA_URL` references (15+ files) to `from config import OLLAMA_GPU_URL`.
-**4b.** Migrate device IPs to config imports.
-**4c.** Migrate port numbers and timeouts.
-
-**Why:** Low risk, high reward. Each change is mechanical find-replace. One file at a time.
-
-### Phase 5: Group Remaining Modules into Subpackages
-
-**5a.** Move autofix_*.py into `autofix/` package (7 files).
-**5b.** Move learning modules into `learning/` package (add `__init__.py`).
-**5c.** Group observability modules into `observability/` package.
-**5d.** Group personal modules into `personal/` package.
-**5e.** Optionally split model_router.py (856 lines) into `models/` package.
-
-**Why last:** By this point, foundation (config, state_io) and the biggest file (orchestrator) are done. Grouping remaining modules is organizational, not bug-fixing.
-
-### Phase 6: Clean Up Dead Code
-
-**6a.** Delete `auto-heal.sh` after confirming not in DSM cron.
-**6b.** Remove legacy model entries.
-**6c.** Remove orphaned modules identified during prior phases.
-**6d.** Remove backward-compat shims (orchestrator.py, model_router.py) once all imports updated.
-
-### Dependency Graph (Build Order)
-
-```
-Phase 1 (foundation, independent):
-  config.py
-  state_io.py
-  logging_config.py
-
-Phase 2 (orchestrator split, sequential):
-  routing/classifier.py    <- config
-  routing/skill_parsers.py <- (nothing)
-  routing/skill_handlers.py <- config, devices/
-  routing/skill_executor.py <- parsers, handlers
-  routing/metrics.py       <- config
-  routing/router.py        <- classifier, models/, config
-  routing/multitool.py     <- config
-  routing/__init__.py      <- all above (facade)
-
-Phase 3 (state fixes, independent per file):
-  Each module: replace json.dump -> state_io.write_json
-
-Phase 4 (config adoption, independent per file):
-  Each module: replace OLLAMA_URL = ... -> from config import ...
-
-Phase 5 (packaging, independent per group):
-  autofix/*.py, learning/*.py, observability/*.py, personal/*.py
-```
-
-## Scalability Considerations
-
-| Concern | Current (1 user) | At 5 users | At production scale |
-|---------|-------------------|------------|---------------------|
-| JSON state files | Works with atomic writes | Race conditions manageable with fcntl | Switch to SQLite |
-| File locking (fcntl) | Sufficient | Sufficient (same container) | Need distributed locking |
-| Config module | Perfect | Perfect | Consider YAML/env-only config |
-| Orchestrator split | Needed now for maintainability | Needed now | Microservice boundary |
-
-This system serves one user (Sebas) on one NAS. The refactoring targets **maintainability and reliability**, not horizontal scalability. SQLite migration is explicitly out of scope per PROJECT.md.
-
-## Sources
-
-- [Refactoring Python Applications -- Real Python](https://realpython.com/python-refactoring/)
-- [Splitting a module into multiple files -- TestDriven.io](https://testdriven.io/tips/3660b476-7aaa-4f7b-af22-28aa00fc871e/)
-- [How to Refactor Complex Codebases -- freeCodeCamp](https://www.freecodecamp.org/news/how-to-refactor-complex-codebases)
-- [Python Dependency Injection Guide -- DataCamp](https://www.datacamp.com/tutorial/python-dependency-injection)
-- [DI in Python -- Dependency Injector docs](https://python-dependency-injector.ets-labs.org/introduction/di_in_python.html)
-- [Atomic file writes in Python](https://iifx.dev/en/articles/460341744/how-to-implement-atomic-file-operations-in-python-for-crash-safe-data-storage)
-- [Python os.replace atomicity](https://zetcode.com/python/os-replace/)
-- [Escape Python Script Hell with Modules](https://blog.inedo.com/python/modularization-and-packages)
-- Codebase analysis: `.planning/codebase/CONCERNS.md`, `ARCHITECTURE.md`, `STRUCTURE.md`
+| Component | Responsibility | New? | Communicates With |
+|-----------|---------------|------|-------------------|
+| `telegram_router.py` | Message intake, skill interception, response formatting | Modified (2 hooks) | coordinator, orchestrator |
+| `agent_coordinator.py` | Agent selection, observation dispatch, recommendation aggregation | **Rewritten** | all agents, arbitrator, orchestrator |
+| `agent_arbitrator.py` | Conflict resolution when agents disagree | Existing (minor changes) | coordinator |
+| `agent_infra.py` | Observe infra-related queries, recommend actions | Modified (add `observe()`) | coordinator, homelab_snapshot |
+| `agent_personal.py` | Observe personal queries, recommend actions | Modified (add `observe()`) | coordinator, calendar/email |
+| `agent_finance.py` | Observe finance queries, recommend actions | Modified (add `observe()`) | coordinator, IOL/Binance |
+| `agent_research.py` | Observe knowledge queries, suggest research | Modified (add `observe()`) | coordinator, RAG |
+| `agent_self_improve.py` | Observe patterns, suggest improvements | Modified (add `observe()`) | coordinator, learning |
+| `orchestrator.py` | Classification, skill execution, model selection | **Unchanged** | telegram_router, MCP bridge |
+| `agent_protocol.py` | Base protocol/interface for agents | **New** | all agents |
+| `agent_state.py` | Shared JSON state management (read/write) | **New** | coordinator, all agents |
 
 ---
 
-*Architecture research: 2026-04-28*
+## Detailed Design
+
+### 1. Agent Protocol (`agent_protocol.py`) -- NEW
+
+Define a consistent interface that all agents must implement:
+
+```python
+"""Agent Protocol -- Base interface for domain agents."""
+from dataclasses import dataclass, field
+from typing import Optional
+
+@dataclass
+class Observation:
+    """What an agent noticed about a query/event."""
+    agent: str              # "infra", "finance", etc.
+    relevance: float        # 0.0-1.0 how relevant this is to the agent
+    summary: str            # one-liner observation
+    recommendations: list   # list of Recommendation
+    context_additions: dict # extra context for the LLM (injected into prompt)
+
+@dataclass
+class Recommendation:
+    """A concrete action the agent suggests."""
+    action: str             # "restart sonarr", "check IOL balance"
+    reason: str             # why
+    severity: str           # "info", "warning", "critical"
+    requires_approval: bool # always True for this milestone
+    agent: str              # source agent
+    confidence: float       # 0.0-1.0
+
+# Required interface for all agents:
+# - owns(topic: str) -> bool           [existing]
+# - observe(query: str, context: dict) -> Observation | None  [NEW]
+# - assess() -> dict                   [existing]
+# - handle_query(query: str) -> str    [existing, for direct questions]
+```
+
+**Why dataclasses, not ABC:** The agents already exist with varied signatures. An ABC forces refactoring all at once. Dataclasses as return types let agents adopt incrementally -- return `Observation` from `observe()`, but keep existing methods working.
+
+### 2. Agent State (`agent_state.py`) -- NEW
+
+Centralized shared state for inter-agent communication:
+
+```python
+"""Agent State -- Shared JSON state for agent coordination."""
+
+STATE_FILE = STATE_DIR / "agents" / "shared_state.json"
+
+# Structure:
+# {
+#     "last_updated": "ISO timestamp",
+#     "agent_states": {
+#         "infra": {"health": "ok", "last_assess": "...", "active_issues": []},
+#         "finance": {"alerts": [], "last_assess": "..."},
+#         ...
+#     },
+#     "pending_recommendations": [
+#         {"id": "sha12", "agent": "infra", "action": "restart sonarr",
+#          "reason": "down 10 min", "severity": "warning",
+#          "status": "pending", "created": "..."}
+#     ],
+#     "recent_observations": [
+#         {"agent": "infra", "query": "...", "relevance": 0.8, "ts": "..."}
+#     ]
+# }
+
+# API:
+# get_agent_state(agent: str) -> dict
+# update_agent_state(agent: str, state: dict)
+# add_recommendation(rec: Recommendation) -> str  # returns ID
+# get_pending_recommendations(agent: str = None) -> list
+# mark_recommendation(rec_id: str, status: str, note: str = "")
+# get_recent_observations(limit: int = 20) -> list
+# add_observation(obs: Observation)
+```
+
+**Why a single JSON file, not per-agent files:** The agents already write to `state/agents/{name}_status.json`. The shared state is for cross-agent coordination only. Per-agent state stays in per-agent files (no change needed).
+
+### 3. Coordinator Rewrite (`agent_coordinator.py`) -- REWRITE
+
+Current coordinator is minimal (identifies agents, calls `handle_query`, concatenates strings). New coordinator must:
+
+```python
+def route_with_context(query: str, context: dict = None) -> dict:
+    """Main entry point. Called by telegram_router for non-skill queries.
+    
+    Flow:
+    1. Identify relevant agents (existing identify_agents())
+    2. For each: call agent.observe(query, context)
+    3. Collect observations with relevance > 0.3
+    4. If any recommendations: format for Telegram (observe+recommend only)
+    5. If conflicts: call arbitrator.resolve()
+    6. Return: {observations, recommendations, llm_context_additions, conflicts}
+    """
+
+def notify_agents(query: str, skill_result: dict):
+    """Called AFTER skill execution to let agents observe what happened.
+    
+    Non-blocking. Agents can update their state based on skill outputs.
+    E.g., finance agent notices an expense was logged.
+    """
+
+def periodic_assess() -> list:
+    """Called by cron/worker. Each agent runs assess(), results aggregated.
+    
+    Critical findings -> Telegram notification.
+    """
+```
+
+**Critical design decision:** `route_with_context()` does NOT replace the LLM call. It runs agents in parallel, collects observations, and returns them to telegram_router. The telegram_router then:
+1. Sends agent recommendations (if any) as a separate message or prefix
+2. Still sends the query to Ollama for the conversational response
+
+### 4. Telegram Router Modifications -- 2 HOOKS ONLY
+
+```python
+# In _process_message(), AFTER skill execution:
+# HOOK 1 (post-skill notification)
+if category in INTERCEPTED_SKILLS and skill_output:
+    try:
+        from agent_coordinator import notify_agents
+        notify_agents(text, {"skill": category, "output": skill_output[:500]})
+    except Exception:
+        pass  # never block on agent failure
+
+# In _process_message(), BEFORE LLM call (for non-skill queries):
+# HOOK 2 (pre-LLM observation)
+agent_context = {}
+try:
+    from agent_coordinator import route_with_context
+    coord_result = route_with_context(text, {"chat_id": chat_id})
+    if coord_result.get("recommendations"):
+        # Send recommendations as separate message
+        _send_agent_recommendations(token, chat_id, coord_result["recommendations"])
+    agent_context = coord_result.get("llm_context_additions", {})
+except Exception:
+    pass  # never block on agent failure
+
+# LLM call proceeds as normal, optionally with enriched context
+```
+
+**Zero-risk integration:** Both hooks are wrapped in `try/except` with `pass`. If agent system crashes, telegram_router works exactly as before.
+
+### 5. Worker Integration -- PERIODIC ASSESSMENT
+
+Add a new worker or extend `agents_worker`:
+
+```python
+# In workers/agents_worker.py (already exists):
+# Add periodic agent assessment
+from agent_coordinator import periodic_assess
+results = periodic_assess()
+# Critical findings -> Telegram alert (via existing notification path)
+```
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Coordinator Replaces Orchestrator
+**What:** Making coordinator the "main brain" that handles classification + execution
+**Why bad:** Orchestrator has 65+ tests, proven classification, skill execution engine. Rewriting breaks everything.
+**Instead:** Coordinator is an advisory layer. Orchestrator remains the execution engine.
+
+### Anti-Pattern 2: Agents Execute Actions Directly
+**What:** Agents calling `docker_wrapper.restart()` or `finance.add_from_text()` themselves
+**Why bad:** Bypasses safety_guard, approval gates, audit logging. Double-execution risk.
+**Instead:** Agents return `Recommendation` objects. Execution always goes through orchestrator + approval.
+
+### Anti-Pattern 3: Blocking Agent Calls in Telegram Router
+**What:** `route_with_context()` blocking the response indefinitely
+**Why bad:** If any agent is slow (LLM call, API timeout), user waits with no response
+**Instead:** Agent observation should have a hard timeout (5s max). Recommendations sent as separate message.
+
+### Anti-Pattern 4: Agents Talking to Each Other Directly
+**What:** `agent_infra` importing `agent_finance` to check portfolio when containers down
+**Why bad:** Circular imports, untestable, coupling nightmare
+**Instead:** All cross-agent communication goes through `agent_state.py` shared state file.
+
+### Anti-Pattern 5: Replacing classify_query with Agent Ownership
+**What:** Using `agent.owns()` as the primary classifier instead of orchestrator's regex rules
+**Why bad:** `owns()` is coarse (keyword matching). Orchestrator's classifier has scoring, context, multi-tier fallback.
+**Instead:** Orchestrator classifies. Coordinator uses classification result to select agents.
+
+---
+
+## Integration Points (Complete Map)
+
+### Files That Need Modification
+
+| File | Change | Risk | Lines Affected |
+|------|--------|------|----------------|
+| `telegram_router.py` | Add 2 hooks (post-skill notify, pre-LLM observe) | LOW | ~20 lines in `_process_message()` |
+| `agent_coordinator.py` | Rewrite with `route_with_context()`, `notify_agents()`, `periodic_assess()` | MEDIUM | Full rewrite (~200 lines) |
+| `agent_infra.py` | Add `observe()` method returning `Observation` | LOW | ~30 lines added |
+| `agent_personal.py` | Add `observe()` method returning `Observation` | LOW | ~30 lines added |
+| `agent_finance.py` | Add `observe()` method returning `Observation` | LOW | ~30 lines added |
+| `agent_research.py` | Add `observe()` method returning `Observation` | LOW | ~30 lines added |
+| `agent_self_improve.py` | Add `observe()` method returning `Observation` | LOW | ~30 lines added |
+| `agent_arbitrator.py` | Update `resolve()` to work with `Recommendation` dataclass | LOW | ~10 lines changed |
+| `workers/agents_worker.py` | Add `periodic_assess()` call | LOW | ~5 lines added |
+
+### Files That Must NOT Change
+
+| File | Reason |
+|------|--------|
+| `orchestrator.py` | Execution engine, 65+ tests, used by MCP bridge |
+| `classifier.py` | Classification rules, used by orchestrator + telegram_router |
+| `skill_executor.py` | Skill execution, SKILL_MAP, parsers |
+| `model_router.py` | Model selection, guardrails, VRAM management |
+| `escalation.py` | Escalation paths |
+| `routing_metrics.py` | Metrics collection |
+| `hybrid_router.py` | Multi-tier classification |
+| `docker_wrapper.py` | Safety layer for Docker operations |
+| `safety_guard.py` | Central safety validation |
+
+### New Files
+
+| File | Purpose | Dependencies |
+|------|---------|-------------|
+| `agent_protocol.py` | Dataclasses: Observation, Recommendation, CoordinatorResult | None (stdlib only) |
+| `agent_state.py` | Shared JSON state management | pathlib, json (stdlib) |
+
+---
+
+## Build Order (Minimizes Disruption)
+
+### Phase 1: Foundation (no behavioral change)
+1. **`agent_protocol.py`** -- Define dataclasses. No callers yet. Pure addition.
+2. **`agent_state.py`** -- Shared state management. No callers yet. Pure addition.
+3. **Tests for protocol + state** -- Unit tests for dataclass creation, state CRUD.
+
+*After Phase 1: System runs exactly as before. Two new files exist, unused.*
+
+### Phase 2: Agent Upgrade (backward compatible)
+4. **Add `observe()` to each agent** -- Returns `Observation` or `None`. Does NOT remove existing methods.
+   - `agent_infra.py` -- observe infra queries, check snapshot
+   - `agent_personal.py` -- observe personal queries, check calendar
+   - `agent_finance.py` -- observe finance queries, check alerts
+   - `agent_research.py` -- observe knowledge queries
+   - `agent_self_improve.py` -- observe patterns
+5. **Tests for each agent's `observe()`** -- Mock dependencies, verify Observation format.
+
+*After Phase 2: System runs exactly as before. Agents have new method, nobody calls it.*
+
+### Phase 3: Coordinator Rewrite (still isolated)
+6. **Rewrite `agent_coordinator.py`** with:
+   - `route_with_context(query, context)` -- calls `observe()` on relevant agents
+   - `notify_agents(query, skill_result)` -- post-execution notification
+   - `periodic_assess()` -- cron-driven assessment
+   - Keep backward-compatible `route()` and `identify_agents()` for existing tests
+7. **Tests for coordinator** -- Mock agents, verify routing, aggregation, conflict delegation.
+
+*After Phase 3: System runs exactly as before. Coordinator rewritten but not wired in.*
+
+### Phase 4: Wire Into Pipeline (behavioral change)
+8. **Modify `telegram_router.py`** -- Add 2 hooks:
+   - Post-skill: `notify_agents()` (fire-and-forget)
+   - Pre-LLM: `route_with_context()` (with timeout + try/except)
+9. **Modify `workers/agents_worker.py`** -- Add `periodic_assess()` call
+10. **Integration tests** -- End-to-end: message -> classification -> agent observation -> LLM response
+
+*After Phase 4: Multi-agent system is live. Agents observe and recommend. Everything approval-gated.*
+
+### Phase 5: Polish
+11. **Telegram formatting** -- Format agent recommendations nicely for Telegram
+12. **Prometheus metrics** -- `tenazas_agent_observations_total{agent}`, `tenazas_agent_recommendations_total{agent}`
+13. **Grafana dashboard update** -- Agent activity panel
+
+---
+
+## Data Flow Details
+
+### Scenario 1: User asks about weather (deterministic skill)
+
+```
+User: "como esta el clima"
+  -> telegram_router.classify_intent() -> "skill:weather"
+  -> execute_intercepted_skill() -> curl Open-Meteo -> "18C, despejado"
+  -> HOOK 1: notify_agents("como esta el clima", {skill: "skill:weather", output: "18C..."})
+      -> coordinator.notify_agents() -> [no agent cares about weather] -> noop
+  -> send "18C, despejado" to Telegram
+```
+
+No change in user experience. Agents silently notified.
+
+### Scenario 2: User asks about something multi-domain
+
+```
+User: "como esta todo"
+  -> telegram_router.classify_intent() -> "chat" (not a skill)
+  -> HOOK 2: route_with_context("como esta todo", {chat_id: "..."})
+      -> identify_agents() -> ["infra", "personal", "finance"]
+      -> agent_infra.observe() -> Observation(relevance=0.9, summary="all containers up")
+      -> agent_personal.observe() -> Observation(relevance=0.7, summary="2 events today")
+      -> agent_finance.observe() -> Observation(relevance=0.6, summary="BTC +2.3%")
+      -> no recommendations (everything normal) -> return observations
+  -> LLM call with enriched context: "Infra: all up. Calendar: 2 events. Markets: BTC +2.3%"
+  -> send LLM response to Telegram
+```
+
+User gets a richer response because LLM has agent context.
+
+### Scenario 3: Agent detects issue and recommends action
+
+```
+User: "que paso con sonarr"
+  -> telegram_router.classify_intent() -> "chat"
+  -> HOOK 2: route_with_context("que paso con sonarr", {chat_id: "..."})
+      -> identify_agents() -> ["infra"]
+      -> agent_infra.observe() -> Observation(
+            relevance=0.95,
+            summary="sonarr stopped 15 min ago",
+            recommendations=[Recommendation(
+                action="restart sonarr",
+                reason="container stopped, no crash loop detected",
+                severity="warning",
+                requires_approval=True  # ALWAYS
+            )]
+        )
+      -> send recommendation to Telegram: "Sonarr caido 15 min. Reinicio? [Aprobar] [Cancelar]"
+  -> LLM call proceeds for conversational response
+  -> Sebas taps [Aprobar] -> exec_approvals flow -> orchestrator.execute_skill()
+```
+
+### Scenario 4: Periodic assessment (cron)
+
+```
+workers/agents_worker.py runs every 5 min:
+  -> coordinator.periodic_assess()
+      -> agent_infra.assess() -> {health: "degraded", issues: ["gluetun stopped"]}
+      -> agent_finance.assess() -> {alerts: ["BTC -8%"]}
+      -> critical findings? -> send Telegram alert
+      -> update shared state
+```
+
+---
+
+## State File Structure
+
+### `state/agents/shared_state.json` (NEW)
+
+```json
+{
+    "schema_version": 1,
+    "last_updated": "2026-04-28T15:30:00-03:00",
+    "agent_states": {
+        "infra": {
+            "health": "ok",
+            "last_assess": "2026-04-28T15:25:00-03:00",
+            "active_issues": [],
+            "containers_up": 20
+        },
+        "finance": {
+            "last_assess": "2026-04-28T15:25:00-03:00",
+            "alerts": [],
+            "portfolio_value": 1500000
+        },
+        "personal": {
+            "last_assess": "2026-04-28T15:25:00-03:00",
+            "items": ["2 eventos hoy", "3 emails sin leer"]
+        }
+    },
+    "pending_recommendations": [],
+    "recent_observations": []
+}
+```
+
+Cap: 50 pending recommendations, 100 recent observations. Older entries pruned on write.
+
+### Existing State Files (Unchanged)
+
+| File | Used By | Keep? |
+|------|---------|-------|
+| `state/agents/infra_status.json` | agent_infra.assess() | Yes, internal to agent |
+| `state/agents/infra_memory.json` | agent_infra memory | Yes |
+| `state/agents/coordinator_log.json` | agent_coordinator route history | Yes |
+| `state/agents/conflicts.json` | agent_arbitrator | Yes |
+
+---
+
+## Scalability and Performance
+
+| Concern | Approach |
+|---------|----------|
+| Agent timeout | Each `observe()` has 5s hard timeout in coordinator |
+| Slow agent blocks response | `notify_agents()` is fire-and-forget (try/except with timeout) |
+| State file contention | Single writer (coordinator), multiple readers (agents). Atomic write via temp+rename. |
+| Agent crash | Each agent wrapped in try/except in coordinator. Crashed agent returns None. |
+| Too many recommendations | Coordinator filters: only relevance > 0.3, max 3 recommendations per response |
+| State file bloat | Capped collections: 50 pending, 100 observations. Pruned on every write. |
+
+---
+
+## Testing Strategy
+
+| Level | What | How |
+|-------|------|-----|
+| Unit | agent_protocol.py dataclasses | Direct instantiation, field validation |
+| Unit | agent_state.py CRUD | Mock filesystem, verify JSON structure |
+| Unit | Each agent's observe() | Mock dependencies (snapshot, calendar, IOL), verify Observation |
+| Unit | Coordinator routing | Mock agents, verify dispatch + aggregation |
+| Unit | Arbitrator with Recommendation objects | Existing tests + new dataclass inputs |
+| Integration | telegram_router hooks | Mock coordinator, verify hooks called, verify no-block on error |
+| Integration | Worker periodic_assess | Mock coordinator, verify cron integration |
+| E2E | Full message flow | Mock Telegram + agents, verify recommendations formatted |
+
+Estimated: ~40-50 new tests across 4-5 test files.
+
+---
+
+## Sources
+
+- Direct codebase analysis of all files referenced above
+- Existing Sprint 9 modules (`agent_*.py`, `agent_coordinator.py`, `agent_arbitrator.py`)
+- Existing test patterns from `tests/test_sprint9.py` (42 tests)
+- Orchestrator facade pattern from v1.0 refactor (`orchestrator.py` + submodules)

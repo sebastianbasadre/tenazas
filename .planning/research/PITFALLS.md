@@ -1,277 +1,239 @@
-# Domain Pitfalls
+# Domain Pitfalls: Adding Multi-Agent System to Tenazas
 
-**Domain:** Python runtime refactoring (42+ module monolith, production cron + Telegram bot)
+**Domain:** Multi-agent coordination layer for existing Python AI assistant
 **Researched:** 2026-04-28
-**Confidence:** HIGH (evidence from codebase analysis + verified Python documentation)
+**Overall confidence:** HIGH (based on codebase analysis + production multi-agent failure research)
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, production outages, or broken test suites.
+Mistakes that cause rewrites, broken routing, or production outages.
 
-### Pitfall 1: unittest.mock.patch() Paths Break When Modules Move
+### Pitfall 1: Routing Regression — Agents Break What the Orchestrator Already Does Well
 
-**What goes wrong:** Every `@patch("runtime.orchestrator.some_function")` in the test suite is a string literal tied to the current module path. When you split `orchestrator.py` into `skill_executor.py`, `escalation_engine.py`, etc., every patch target string becomes invalid. Tests pass with no errors (the mock silently patches a non-existent path), but the actual function is no longer mocked -- tests become unreliable or pass when they should fail.
+**What goes wrong:** The existing `classifier.py` + `skill_executor.py` + `telegram_router.py` chain handles 25+ skills deterministically with proven accuracy (tested across 900+ unit tests). Inserting an agent coordinator into this path introduces a new decision layer that can misroute queries the current system handles correctly. A "what's the weather" query that today hits `skill:weather` in 2ms via regex could get routed to `agent_personal` which calls `assess()` which calls `check_calendar()` before eventually falling back to the weather skill.
 
-**Why it happens:** Python's `unittest.mock.patch()` requires you to patch where an object is *looked up*, not where it is *defined*. When a function moves from `runtime.orchestrator` to `runtime.skill_executor`, but another module still does `from orchestrator import execute_skill`, the patch target depends on the *importing* module's namespace. This creates a fragile web of string-based references that no linter catches.
+**Why it happens:** The coordinator tries to be "smart" about routing instead of deferring to the existing proven classifier. The existing `orchestrator.route_and_execute()` is battle-tested; new agent routing is not.
 
-**Evidence in this codebase:**
-- `test_orchestrator.py` uses `from runtime import orchestrator as orch` (65 tests)
-- `test_daily_brief.py` has 20+ `@patch("runtime.daily_brief.gather_*")` decorators
-- `test_advanced.py` patches `runtime.multi_agent_engine._ollama_available`
-- `test_model_router.py` patches `runtime.model_router.subprocess.run` (93 tests)
-- Total: 700+ tests with string-based patch paths
-
-**Consequences:**
-- Silent test degradation (mocks stop working, tests still "pass")
-- False confidence in refactored code
-- Hours of debugging mock failures after module splits
+**Consequences:** Slower responses, incorrect skill dispatch, test regressions across 30+ test suites. Telegram users (Sebas) notice immediately because weather/lights/email answers degrade.
 
 **Prevention:**
-1. Before moving any function, grep all test files for `@patch("runtime.<old_module>` and update patch paths in the same commit
-2. Use `autospec=True` on all patches -- this raises `AttributeError` if the target function signature changed or doesn't exist
-3. Create a helper that maps old module paths to new ones during transition
-4. Run the full test suite after every module move (not just the module's own tests)
-5. Add a CI-like check: `grep -r '@patch.*orchestrator\.' tests/` to find stale references
+- Agents MUST be additive, not replacement. The coordinator should only activate for multi-domain queries (the existing `is_multi_domain()` check is correct). Single-domain queries go through `orchestrator.route_and_execute()` unchanged.
+- Add a regression test suite: take the top 100 queries from `telegram_router.log` and verify they route identically before/after agent integration.
+- Feature flag: `USE_AGENT_COORDINATOR = False` by default. Enable per-query-type, not globally.
+- Monitor: `routing_regression_total` counter in Prometheus. If routing changes >5% of traffic, alert.
 
-**Detection:** Tests pass but behavior is wrong. Run tests with `--verbose` and check that mocked functions are actually being called (add `mock.assert_called()` checks).
+**Detection:** Watch `orchestrator.log` for `route_changed: true` entries. Compare response latency histograms before/after.
 
-**Phase:** Must be addressed in the same phase as orchestrator split (Phase 1). Do NOT split modules and update tests in separate phases.
+**Phase:** Phase 1 (Foundation) must establish the bypass rule and regression test before any agent code runs in production.
 
-### Pitfall 2: Circular Imports After Module Splitting
+---
 
-**What goes wrong:** When you extract `skill_executor.py` from `orchestrator.py`, the new module needs orchestrator's `classify_query()`, and orchestrator needs `skill_executor.execute_skill()`. Python raises `ImportError` at module load time, and the entire runtime fails to start. The cron job crashes silently every 5 minutes.
+### Pitfall 2: JSON State File Contention — Agents Clobber Each Other's State
 
-**Why it happens:** A 2373-line god object can reference any internal function freely. The moment you split it, you create bidirectional dependencies that Python's import system cannot resolve at module level. This is the most common failure mode when splitting monoliths.
+**What goes wrong:** Every existing agent module (`agent_infra.py`, `agent_finance.py`, etc.) uses the same pattern: `_save(p, data)` which does `open(p, "w")` followed by `json.dump()`. No locking, no atomic writes. When the worker_supervisor runs agents_worker alongside learning_worker, two processes can write to the same state file simultaneously. Result: truncated JSON, empty files, or lost updates.
 
-**Evidence in this codebase:**
-- `orchestrator.py` contains both routing logic AND skill execution AND escalation
-- `route_and_execute()` calls classification, then execution, then escalation -- all currently in the same file
-- `model_router.py` already has 3 cross-references back to orchestrator patterns
-- `action_registry.py` imports from both `docker_wrapper` and `safety_guard` -- shows cross-cutting dependency patterns already exist
+**Why it happens:** The current system gets away with it because agents rarely run concurrently (sequential workers). But the multi-agent system design implies agents assessing state in parallel (coordinator calls multiple agents, each writes status). The `_save()` function does a non-atomic write: truncates file on open, then writes. A crash or concurrent write between truncation and completion yields corrupt JSON.
 
-**Consequences:**
-- `ImportError` at container startup
-- Cron job fails silently every 5 min (no Telegram, no monitoring)
-- Runtime completely down until fixed and container rebuilt
+**Consequences:** `json.JSONDecodeError` on next read. Agent loses its memory. Silent data loss (the `_load()` fallback returns empty dict, hiding the corruption).
 
 **Prevention:**
-1. Map the dependency graph BEFORE splitting: which functions call which, in which direction
-2. Extract a `types.py` or `interfaces.py` module for shared data classes and constants -- this breaks the cycle
-3. Use lazy imports (`import X` inside function body) for the less-frequent direction of the dependency
-4. Follow the "dependency inversion" rule: high-level orchestrator depends on abstractions, not on concrete skill executor
-5. Test imports in isolation: `python3 -c "import skill_executor"` before committing
+- Atomic writes: write to temp file, then `os.replace()` (atomic on POSIX/Linux, which the container uses). This is a 3-line fix to every `_save()`:
+  ```python
+  def _save(p, data):
+      p.parent.mkdir(parents=True, exist_ok=True)
+      tmp = p.with_suffix('.tmp')
+      with open(tmp, 'w') as f:
+          json.dump(data, f, indent=2, default=str)
+      os.replace(str(tmp), str(p))
+  ```
+- One state file per agent, NEVER shared. Each agent writes only to its own `agents/{name}_status.json`. The coordinator reads all, writes only to `agents/coordinator_log.json`.
+- If agents must share data: reader-only pattern. Agent A writes its file, Agent B reads it. Never two writers to one file.
 
-**Detection:** `ImportError` or `AttributeError: partially initialized module` at startup. The 5-min cron will fail silently unless you check container logs.
+**Detection:** Add a `_validate_json(path)` check after writes in debug mode. Log `state_corruption` events.
 
-**Phase:** Phase 1 (orchestrator split). Must be the first concern when planning the split.
+**Phase:** Phase 1 (Foundation) must fix `_save()` to atomic writes across ALL agent modules before enabling parallel execution.
 
-### Pitfall 3: Atomic Write Implementation Has Cross-Platform and Edge Case Traps
+---
 
-**What goes wrong:** The naive pattern (`write to temp file, os.rename to target`) has three hidden failure modes: (1) temp file on different filesystem than target, (2) `os.rename()` on Linux does NOT guarantee durability without `fsync()`, (3) on NAS filesystems (Btrfs/ext4 on Synology), rename semantics may differ from standard Linux.
+### Pitfall 3: The "Too Many Cooks" Problem — 5 Agents Produce Noise, Not Signal
 
-**Why it happens:** `os.rename()` is atomic (the directory entry swap) but not durable -- if power fails between `rename()` and the filesystem journal flush, the file can be empty or missing. The Synology DS923+ uses Btrfs, which has CoW semantics that interact differently with rename.
+**What goes wrong:** For a query like "como esta todo" (overview), the coordinator fans out to 5 agents. Each returns a status dict. The coordinator concatenates them into a wall of text: infra status + finance status + personal status + research status + self-improve status. The response is 500+ words when Sebas wants a 3-line summary.
 
-**Evidence in this codebase:**
-- 268 occurrences of `json.dump()` or `json.load()` across 84 files
-- `shared_memory.py` lines 49-52: naive `open(path, "w")` + `json.dump()`
-- `runtime.py` lines 88-91: basic `open/dump` with no atomic writes
-- Only `proposal_executor.py` uses `fcntl.flock()` -- the other 83 files have zero protection
-- CONCERNS.md documents state file corruption as HIGH priority bug
+**Why it happens:** Each agent optimizes for completeness within its domain. No agent knows what the others said. The coordinator does string concatenation, not synthesis. Research shows this is the "17x error trap" -- uncoordinated agents amplify noise rather than reducing it (Moran, 2025).
 
-**Consequences:**
-- Corrupted state files when watchdog kills process at 120s timeout mid-write
-- `json.JSONDecodeError` on next cron run, losing all state history
-- Lost proposal approvals, lost metrics, lost memory entries
+**Consequences:** Unusable Telegram responses (Telegram has a 4096 char limit). User ignores the system because responses are too long. Response time increases linearly with agent count (5x the LLM calls, 5x the API latency).
 
 **Prevention:**
-1. Implement `write_atomic(path, data)` in a single `file_utils.py` module
-2. Use `tempfile.NamedTemporaryFile(dir=path.parent, delete=False)` to guarantee same filesystem
-3. Call `f.flush()` then `os.fsync(f.fileno())` before close
-4. Use `os.replace()` (not `os.rename()`) -- `os.replace()` is guaranteed to overwrite atomically on both POSIX and Windows
-5. Add a JSON validation step on load: if `json.load()` fails, look for `.bak` file
-6. Keep one `.bak` copy: copy current file to `.bak` before replace
+- Response budget: Each agent gets max 100 chars for its summary. Coordinator enforces truncation.
+- Priority-based inclusion: Only include agents with actionable findings. "All clear" agents are omitted (a single "todo bien" suffices).
+- Single synthesizer: After collecting agent outputs, pass them through ONE summarization step (use `qwen2.5:7b` with "summarize these 5 status reports in 3 lines for a busy user").
+- The existing `daily_brief.py` already does this well -- study its pattern of section-by-section degradation and reuse it.
 
-**Detection:** `json.JSONDecodeError` in runtime logs. Monitor for zero-byte JSON files.
+**Detection:** Monitor response length distribution. If average Telegram response exceeds 500 chars for overview queries, the synthesis is failing.
 
-**Phase:** Phase 2 (concurrency safety). Must be implemented BEFORE adding file locking, because locking without atomic writes still corrupts on crash.
+**Phase:** Phase 2 (Agent Implementation) should include response budgets from day one. Do not defer to "polish" phase.
 
-### Pitfall 4: File Locking with fcntl.flock() Doesn't Work Across Processes the Way You Think
+---
 
-**What goes wrong:** `fcntl.flock()` is advisory, not mandatory -- any process that doesn't acquire the lock can still read/write the file freely. Since the cron job spawns a new Python process every 5 minutes, and `telegram_router.py` runs as a separate long-lived process, and `metrics_server.py` is yet another process, ALL three must use the same locking protocol. If even one module forgets, the lock is useless.
+### Pitfall 4: Over-Engineering Agent Boundaries for a Single-Maintainer Project
 
-**Why it happens:** `fcntl.flock()` locks are per-file-descriptor, not per-file. A new process opening the same file gets a new file descriptor and can acquire its own lock. The lock only works if all processes cooperate by acquiring before read/write. Also: flock locks are NOT inherited across `fork()` in all cases, and subprocess calls (which this codebase uses extensively) may not respect them.
+**What goes wrong:** The design splits into 5 domain agents + coordinator + arbitrator (7 new modules). Each agent has its own memory file, log file, status file, and assess/handle_query interface. For a project maintained by one person (Sebas), this creates 7 modules that must be kept in sync, 7 log files to monitor, and 7 state files to debug. When something breaks at 3AM, you're reading 7 log files instead of 1.
 
-**Evidence in this codebase:**
-- Only `proposal_executor.py` uses `fcntl.flock()` -- the other 83 JSON-writing modules don't
-- Three concurrent access patterns: cron (every 5 min), Telegram polling (continuous), metrics_server (persistent)
-- `api_call_counter.py` uses `threading.Lock()` which only protects within the same process
-- CONCERNS.md explicitly calls out: "lock scope is local to that module -- doesn't protect against external processes"
+**Why it happens:** Multi-agent patterns are designed for teams with dedicated ownership per agent. Solo maintainers don't get that benefit -- they own all 7 agents plus the coordinator plus the arbitrator.
 
-**Consequences:**
-- False sense of safety: adding locks to some modules while others bypass them
-- Intermittent data corruption that only manifests under load (hard to reproduce)
-- Double-execution of proposals (the documented race condition)
+**Consequences:** Maintenance burden grows sublinearly with features but superlinearly with module count. Agent boundaries become fuzzy over time (is "IOL portfolio performance" a finance query or an infra query when Ollama is needed for analysis?). The arbitrator handles <1% of queries but adds permanent complexity.
 
 **Prevention:**
-1. Create a single `file_lock.py` utility that ALL modules must use for JSON state access
-2. Enforce usage via code review: grep for bare `open(path, "w")` calls -- they should all go through the utility
-3. Lock granularity: one lock file per state file (e.g., `proposals.json.lock`), not one global lock
-4. Add timeout: `LOCK_EX | LOCK_NB` with retry loop and 5s timeout, fail loudly if can't acquire
-5. NEVER hold a lock across a network call (Ollama, Telegram API) -- read, release, compute, re-acquire, write
-6. Test with concurrent processes: spawn two Python processes writing to same file, verify no corruption
+- Start with 3 agents maximum: infra, personal, finance. Research and self-improve can be submodules of an "autonomous" agent.
+- The arbitrator should be a simple priority dict (already exists as `PRIORITY` in `agent_arbitrator.py`), not a full module. Inline it into the coordinator.
+- Merge research + self_improve into one agent. Their ownership sets barely overlap with others and they only run in background workers anyway.
+- Each agent must earn its existence: if an agent's `assess()` returns empty/trivial >90% of the time, merge it into its nearest neighbor.
 
-**Detection:** Enable lock acquisition logging. If a process waits >2s for a lock, log a warning. Monitor for `BlockingIOError` in logs.
+**Detection:** Track per-agent activation rate. If `agent_research` fires on <5% of coordinator queries, it doesn't justify a separate module.
 
-**Phase:** Phase 2 (concurrency safety). Must be implemented as a universal utility, not per-module.
+**Phase:** Phase 1 (Foundation) architecture decision. Commit to 3 agents. Add more only when the 3-agent system proves insufficient.
+
+---
 
 ## Moderate Pitfalls
 
-### Pitfall 5: sys.path Manipulation Creates Fragile Import Resolution
+### Pitfall 5: Agent Assess Latency Kills Telegram Response Time
 
-**What goes wrong:** Tests use `sys.path.insert(0, "/home/tenazas")` to find `runtime` modules. Some simulation tests insert THREE paths. When modules move to subdirectories (e.g., `runtime/routing/model_router.py`), the sys.path no longer resolves, and imports fail. Worse: if two modules with the same name exist at different path levels, Python loads the wrong one.
+**What goes wrong:** `agent_infra.assess()` calls `homelab_snapshot.snapshot()` which pings HomeLab GPU, checks containers, queries Ollama. This takes 2-5 seconds. `agent_finance.assess()` calls Binance API + IOL API. Another 2-3 seconds. Running 5 agents sequentially: 10-15 seconds. Running them in parallel with ThreadPoolExecutor: still 5 seconds (bottlenecked by slowest agent).
 
-**Why it happens:** The codebase has no proper Python package structure (no `setup.py`, no `pyproject.toml`). All imports rely on bare module names (`from orchestrator import ...`) resolved by sys.path manipulation. This works in the container (where CWD is `/home/tenazas/runtime`) but breaks when:
-- Tests run from a different directory
-- Modules move to subdirectories
-- Two files with the same name exist at different depths
-
-**Evidence:**
-- Tests use hardcoded `/home/tenazas` path (won't work on dev machine)
-- Simulation tests insert 3 different paths per file
-- `__init__.py` in runtime is nearly empty (just a comment)
-- Modules use bare imports (`from docker_wrapper import ...`) not package imports (`from runtime.docker_wrapper import ...`)
+**Why it happens:** The current design has `assess()` doing live queries every time. No caching layer. Each coordinator fan-out re-probes the entire infrastructure.
 
 **Prevention:**
-1. Do NOT introduce package-relative imports mid-refactor -- keep bare imports working
-2. If creating subdirectories (e.g., `runtime/routing/`), add `__init__.py` that re-exports public API
-3. Add a `conftest.py` or test bootstrap that sets up sys.path once, not per-file
-4. Test import resolution: `python3 -c "from runtime import orchestrator; print('ok')"` in container after every structural change
+- Cache assess results: Each agent's `assess()` result should be cached for 60-120 seconds (same pattern as `ollama-check.sh`'s 120s cache). The coordinator reads cached state, doesn't trigger live probes.
+- Separate the "observe" loop (background, every 5 min via worker) from the "respond" path (Telegram query, must be <3s). Agents write status to their JSON file during the observe loop. Coordinator reads files during respond path.
+- Hard timeout: Coordinator gives each agent 2s max. If `assess()` doesn't return, use last cached state.
 
-**Phase:** Phase 1 (module splitting). Must decide import strategy before moving any files.
+**Phase:** Phase 2 (Agent Implementation). Cache-first architecture must be established before Telegram integration.
 
-### Pitfall 6: Module-Level Side Effects Block Testing and Import
+---
 
-**What goes wrong:** Many modules compute paths, connect to services, or read config at module load time (top of file). When you import such a module in tests, the side effect fires immediately -- trying to connect to Ollama at 192.168.2.6, reading `/home/tenazas/.openclaw/openclaw.json`, etc. Tests fail on dev machines or in CI.
+### Pitfall 6: Ownership Overlap Creates Ambiguous Routing
 
-**Why it happens:** Python executes all module-level code at import time. Constants like `STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else ...` run during import. If the path check fails or config file is missing, the module crashes before any test runs.
+**What goes wrong:** "cuanto gaste en cloud" -- is this finance (expenses) or infra (OpenRouter usage)? "estado del portfolio" -- finance (IOL) or infra (Ollama model portfolio)? The existing `OWNERSHIP` sets in agents have keyword overlap. `agent_infra` owns "backend_offline" while `agent_finance` owns "portfolio" -- but "portfolio health when backend offline" touches both.
 
-**Evidence:**
-- 30+ modules define `BASE_DIR = Path(__file__).parent` and `STATE_DIR = Path("/home/tenazas/...")` at module level
-- `api_call_counter.py` hardcodes `STATE_DIR = Path("/home/tenazas/.openclaw/state")`
-- `approval_queue.py` reads `CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")` at import time
-- `apply_improvements.py` sets `OLLAMA_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")` at module level
+**Why it happens:** Keyword-based ownership (the current `owns()` method) is inherently ambiguous. Natural language doesn't respect module boundaries. The MAST taxonomy research shows specification problems (role ambiguity) cause 42% of multi-agent failures.
 
 **Prevention:**
-1. Move path resolution to functions or a centralized config module that can be mocked
-2. Use lazy initialization: `_config = None; def get_config(): global _config; if _config is None: _config = load(); return _config`
-3. For the config centralization phase, ensure the config module itself has no side effects -- just reads env vars and returns defaults
-4. Test all new modules with `python3 -c "import module_name"` on a machine without the container paths
+- Ownership tiebreaker: If multiple agents claim ownership, the coordinator picks ONE primary (highest priority for that query type) and passes context from secondary agents as read-only input.
+- Exclusive keywords: Each keyword belongs to exactly ONE agent. Remove duplicates from OWNERSHIP sets. "portfolio" = finance (always). "backend" = infra (always). Document the boundary in a shared OWNERSHIP_REGISTRY.
+- Test ownership exhaustively: For every keyword in every agent's OWNERSHIP set, assert no other agent claims it. The existing `test_sprint9.py` tests are a good start but need expansion.
 
-**Phase:** Phase 3 (config centralization). Must be addressed when creating the central config module.
+**Phase:** Phase 1 (Foundation) must define and test exclusive ownership before agents are connected.
 
-### Pitfall 7: Hardcoded IP Centralization Must Be Backward Compatible
+---
 
-**What goes wrong:** You create `runtime_config.py` with `OLLAMA_URL = os.environ.get("OLLAMA_GPU_URL", "http://192.168.2.6:11434")`. Now you need to update 30+ files to import from this module instead of defining their own constant. If you miss even one, that module still has the old hardcoded IP. If the IP changes, 29 files use the new config and 1 uses the old -- causing intermittent, hard-to-diagnose failures.
+### Pitfall 7: Testing Complexity Explosion
 
-**Why it happens:** Find-and-replace across 30+ files is error-prone. Some modules use `OLLAMA_URL`, others use `OLLAMA_GPU_URL`, others use `OLLAMA_ENDPOINT`. The variable names aren't consistent, so a simple grep misses variants.
+**What goes wrong:** The current test suite has 900+ tests across 30+ files. Adding 5 agents + coordinator + arbitrator means: unit tests per agent, integration tests for coordinator routing, arbitrator conflict tests, regression tests against existing routing, end-to-end tests through Telegram. The test matrix grows from N to N*M where M is the number of agent interaction paths.
 
-**Evidence:**
-- CONCERNS.md: "hardcoded IPs appear in 30+ files"
-- Variable names vary: `OLLAMA_URL`, `OLLAMA_GPU_URL`, `HOMELAB_URL`, bare string `"http://192.168.2.6:11434"`
-- Some modules use `os.environ.get()` with default, others hardcode directly
+**Why it happens:** Multi-agent systems have combinatorial interaction paths. Agent A's output feeds into Coordinator's decision which triggers Agent B's action -- each step is testable individually but the combinations explode.
 
 **Prevention:**
-1. First, grep for ALL IP patterns: `grep -rn "192\.168\.2\." workspace/runtime/` and create a complete inventory
-2. Create the config module and import it in ONE module first, verify it works, then migrate module-by-module
-3. After migration, add a linter check: `grep -rn "192\.168\.2\." --include="*.py" | grep -v runtime_config.py` should return zero results
-4. Add a startup validation: the config module checks connectivity to all endpoints and logs which ones are reachable
-5. Keep backward compatibility: if a module's old env var (`OLLAMA_GPU_URL`) is set, the config module should respect it
+- Contract testing: Each agent has a strict interface contract (assess() returns dict with required keys, handle_query() returns string). Test contracts, not internals. Mock agents in coordinator tests.
+- Snapshot testing for routing: Record coordinator routing decisions for 50 canonical queries. Assert they don't change across refactors.
+- Simulation tests (already exist in `tests/simulation/`): Extend with agent scenarios. Don't unit-test every agent interaction -- simulate realistic 1-hour windows.
+- Testing pyramid: 70% unit (per-agent, mocked), 20% integration (coordinator + real agents), 10% e2e (Telegram dry-run).
 
-**Phase:** Phase 3 (config centralization). Inventory must be complete before starting migration.
+**Phase:** Phase 1 must establish contract interfaces and test patterns. Each subsequent phase adds tests for its agents.
 
-### Pitfall 8: Removing Dead Code Breaks Dynamic/Lazy Imports
+---
 
-**What goes wrong:** You identify `auto-heal.sh` and legacy model references as dead code and delete them. But some module does `try: from legacy_router import X; except ImportError: use_default()` -- the ImportError path was never tested because the module existed. Now the fallback path runs and has a bug, changing runtime behavior.
+### Pitfall 8: Circular Import Hell
 
-**Why it happens:** Python's dynamic nature means imports can happen at runtime in try/except blocks, `importlib.import_module()` calls, or string-based references. Static analysis (grep for `import`) misses these.
+**What goes wrong:** `agent_infra` imports `homelab_snapshot` which imports `model_router` which imports `orchestrator` which (in the new design) imports `agent_coordinator` which imports `agent_infra`. Python raises `ImportError` or returns partially-initialized modules.
 
-**Evidence:**
-- `test_daily_brief.py` explicitly tests `side_effect=ImportError` for `runtime.finance`, `runtime.expenses`, `runtime.jobs` -- showing that ImportError fallbacks are a pattern in this codebase
-- Multiple modules use `try: import X; except ImportError:` for optional dependencies
-- `finetuned_router.py` has keyword fallback when model import fails
+**Why it happens:** The existing codebase already has defensive `try/except ImportError` blocks everywhere (orchestrator.py lines 14-37). Adding agent modules that reference existing infrastructure modules creates new import cycles. The lazy import pattern (`importlib.import_module` in `agent_coordinator.py` line 62) mitigates but doesn't eliminate this.
 
 **Prevention:**
-1. Before deleting any module, grep for its name in ALL files (not just `import` statements): `grep -rn "module_name" .`
-2. Search for string references too: `grep -rn "'module_name'" .` and `grep -rn '"module_name"' .`
-3. Delete one module at a time, run full test suite, verify no behavior change
-4. Mark as deprecated first (add `warnings.warn("deprecated", DeprecationWarning)` at top), run for one cron cycle, check logs
+- Agents must NEVER import the coordinator or orchestrator. Data flows one way: coordinator reads agent output, agents don't call coordinator.
+- Use the existing lazy import pattern (`_load_agent()`) consistently. Don't add top-level imports between agent modules.
+- Shared utilities go in `runtime_utils.py` or `runtime_config.py` (already the pattern). Never in agent modules.
+- Test: Add a CI check that imports each agent module in isolation (`python -c "import agent_infra"`) without the full runtime on sys.path.
 
-**Phase:** Phase 4 (dead code removal). Must be incremental, not bulk deletion.
+**Phase:** Phase 1 (Foundation) import architecture. Enforce with automated check.
+
+---
 
 ## Minor Pitfalls
 
-### Pitfall 9: JSON State Files Need Schema Validation After Refactor
+### Pitfall 9: Log File Proliferation
 
-**What goes wrong:** You add a `version` field to state files or change the structure of `proposals.json`. The new code writes format v2, but old state files on disk are format v1. The next read fails or silently drops fields.
+**What goes wrong:** Each agent creates its own log file (`logs/agent_infra.log`, `logs/agent_finance.log`, etc.). Combined with existing logs (orchestrator.log, model_router.log, telegram_router.log, runtime.log), the system generates 10+ log files. Debugging a single user query requires correlating entries across 5+ files.
 
-**Prevention:**
-1. Always handle both old and new formats in the reader: `if "version" not in data: migrate(data)`
-2. Never delete fields in the first release -- deprecate, then remove in next cycle
-3. Add `_migrate_state(data)` functions that upgrade v1 to v2 on read
+**Prevention:** Add a correlation ID (query_id) to all log entries in a single request path. Use the existing `_log()` pattern but include a shared `qid` field. Alternatively, log agent decisions to the coordinator log with agent name as a field, not to separate files.
 
-**Phase:** Phase 2 (atomic writes). Schema changes happen when adding file versioning.
+**Phase:** Phase 2, as part of agent implementation.
 
-### Pitfall 10: Logging Format Changes Break Log Parsers
+---
 
-**What goes wrong:** You standardize logging to consistent JSON, but `metrics_server.py` parses `telegram_handler.log` with specific field expectations. Changing log format breaks downstream metric collection.
+### Pitfall 10: Arbitrator Adds Latency for Rare Events
 
-**Prevention:**
-1. Inventory all log parsers before changing any log format
-2. Change log format and parsers in the same commit
-3. Add a log format version field: `{"_v": 2, ...}`
+**What goes wrong:** The arbitrator checks for conflicts on every multi-agent query, but conflicts occur <1% of the time. The conflict detection (hash computation, file read of conflicts.json, priority comparison) adds 5-10ms per query for a feature that almost never triggers.
 
-**Phase:** Phase 5 (logging standardization). Must audit all log consumers first.
+**Prevention:** Only invoke arbitrator when coordinator detects >1 agent proposing actions on the same resource. Skip entirely for read-only assess queries. The existing `POSTPONE_SECONDS = 300` and `MAX_POSTPONE_COUNT = 3` are reasonable but should only run when there's an actual conflict.
 
-### Pitfall 11: Test Isolation Assumptions Break with Shared State Files
+**Phase:** Phase 3 (Integration). Inline conflict resolution into coordinator rather than separate module.
 
-**What goes wrong:** Tests use `tempfile.mkdtemp()` for isolation but patch module-level constants (`ce.DIAGNOSTICS_LOG = Path(self.tmpdir) / "diagnostics.log"`). If a test forgets to restore the original in `tearDown()`, subsequent tests in the same process write to the wrong path.
+---
 
-**Prevention:**
-1. Use `unittest.mock.patch.object()` instead of direct attribute assignment -- it auto-restores
-2. Add a test that verifies all module-level paths are restored after each test class
-3. Prefer dependency injection (pass paths as args) over module-level constants in new code
+### Pitfall 11: Feature Flag Debt
 
-**Phase:** Ongoing during all phases. Review test tearDown when touching test files.
+**What goes wrong:** The system already has `USE_ROUTER_V2`, `tenazas.use_finetuned_router`, and will need `USE_AGENT_COORDINATOR`. Each flag creates a testing matrix (V2 on/off x finetuned on/off x agents on/off = 8 configurations). Not all combinations are tested.
+
+**Prevention:** Deprecate old flags when new system is stable. Don't accumulate more than 2 active feature flags. Set a deadline: if agents aren't enabled within 4 weeks, remove the code.
+
+**Phase:** Phase 4 (Hardening). Clean up feature flags after agent system is proven.
+
+---
 
 ## Phase-Specific Warnings
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| Orchestrator split | Circular imports between router, executor, escalation | Map dependency graph first; extract shared types module |
-| Orchestrator split | 65+ test patch paths become invalid | Update patches in same commit as module move; use autospec=True |
-| Orchestrator split | sys.path resolution breaks for new submodules | Keep flat structure initially; add __init__.py re-exports if using subdirs |
-| Atomic writes | os.rename() not durable without fsync() on Btrfs (Synology) | Always fsync() before os.replace(); use same-directory temp files |
-| Atomic writes | JSON schema changes break existing state files | Add migration functions; handle both old and new formats |
-| File locking | Advisory locks ignored by non-participating processes | Single file_lock.py utility; grep-enforce no bare open("w") calls |
-| File locking | Lock held across network calls causes deadlock/timeout | Release lock before any HTTP/API call; re-acquire for write |
-| Config centralization | Incomplete migration leaves stale hardcoded IPs | Automated grep check post-migration; IP inventory before starting |
-| Config centralization | Module-level side effects fire at import time | Lazy initialization pattern; test imports on dev machine |
-| Dead code removal | Dynamic imports or try/except fallbacks break silently | Full-text grep (not just import grep); delete one at a time |
-| Logging standardization | Log format changes break metrics_server parsers | Audit log consumers first; change format + parser together |
+| Foundation (agent contracts) | Over-specifying agent interfaces too early | Start with `assess() -> dict` and `handle_query(str) -> str`. Evolve from there. |
+| Foundation (state files) | Not fixing atomic writes before enabling agents | Fix `_save()` in ALL 9 agent modules to use `os.replace()` pattern. |
+| Agent Implementation | Making agents too independent (each re-discovers system state) | Agents read shared `homelab_snapshot` output, don't probe independently. |
+| Agent Implementation | Response budget not enforced | Hard-code 100-char limit in agent `assess()` summary field. |
+| Coordinator Integration | Replacing orchestrator.py routing instead of augmenting | `is_multi_domain()` is the ONLY entry point to agents. Single-domain stays on orchestrator. |
+| Coordinator Integration | Not preserving Telegram response time SLA (<3s) | Cache agent assess results. Coordinator reads files, doesn't trigger probes. |
+| Arbitrator Integration | Building a complex conflict resolution engine | Start with priority dict inline in coordinator. Extract to module only if conflicts are frequent. |
+| Testing and Hardening | Trying to test all agent combinations | Contract testing + snapshot routing tests. Not combinatorial coverage. |
+| Telegram Integration | Breaking existing `telegram_router.py` skill interception | Agents never touch Telegram directly. Coordinator output goes through existing response path. |
+| Production Rollout | Enabling all agents at once | Roll out one agent at a time: infra first, then personal, then finance. Each gets a week of monitoring. |
+
+## Integration-Specific Pitfalls (THIS System)
+
+These are pitfalls unique to Tenazas's architecture, not generic multi-agent advice.
+
+### The Telegram Router Is Already an Agent
+
+The `telegram_router.py` already classifies intents, executes skills deterministically, and falls back to LLM. Adding a "coordinator" risks duplicating this logic. The coordinator must sit BEHIND telegram_router's skill interception, not replace it.
+
+### The Worker Supervisor Creates Hidden Concurrency
+
+`worker_supervisor.py` runs 5 workers sequentially with individual timeouts. If agents are triggered from `agents_worker`, they run in the same process. But if the coordinator is called from `telegram_router.py` (a different process), state files are shared between the worker process and the Telegram process. This is the primary contention vector.
+
+### Model Router Guardrails Apply to Agent LLM Calls
+
+Each agent that calls an LLM (for synthesis, analysis) goes through `model_router.py`. The guardrails (cooldown 120s, max 3 heavy/10min) are GLOBAL, not per-agent. Five agents each requesting `qwen2.5:32b` will hit guardrails immediately. Agents should use `fast` role by default, reserving `reason`/`heavy` only for the coordinator's synthesis step.
+
+### The 5-Minute Cron Loop Is the Natural Agent Heartbeat
+
+Don't invent a new scheduling mechanism. The existing `runtime.py` -> `worker_supervisor.py` -> `agents_worker.py` loop already runs every 5 minutes. Agent `assess()` runs there. Telegram queries read cached results. This separation (background observe vs. foreground respond) is the architecture's biggest strength -- don't break it by making agents do live probes on Telegram queries.
+
+### Existing Approval Flow Must Not Be Duplicated
+
+`exec_approvals.py` already handles Telegram inline keyboard approvals. Agents that propose actions must feed into the EXISTING approval queue, not create agent-specific approval flows. One approval system, multiple producers.
 
 ## Sources
 
-- Codebase analysis: `workspace/runtime/` (84 Python files, 268 JSON I/O occurrences)
-- `.planning/codebase/CONCERNS.md` (current bug inventory)
-- `.planning/codebase/TESTING.md` (test patterns and mock usage)
-- [Python unittest.mock.patch documentation](https://docs.python.org/3/library/unittest.mock.html)
-- [Python Circular Import: Causes and Fixes (DataCamp)](https://www.datacamp.com/tutorial/python-circular-import)
-- [Avoiding Circular Imports in Python (Brex Engineering)](https://medium.com/brexeng/avoiding-circular-imports-in-python-7c35ec8145ed)
-- [Atomic File Writing in Python (BSWEN)](https://docs.bswen.com/blog/2026-04-04-atomic-file-writing-python/)
-- [python-atomicwrites documentation](https://python-atomicwrites.readthedocs.io/)
-- [fcntl.flock() usage patterns (GitHub Gist)](https://gist.github.com/jirihnidek/430d45c54311661b47fb45a3a7846537)
-- [unittest.mock.patch compatibility issue (CPython #117860)](https://github.com/python/cpython/issues/117860)
-
----
-
-*Pitfalls analysis: 2026-04-28*
+- [Why Multi-Agent LLM Systems Fail (Augment Code)](https://www.augmentcode.com/guides/why-multi-agent-llm-systems-fail-and-how-to-fix-them) -- MAST taxonomy: 42% specification, 37% coordination, 21% verification failures
+- [17x Error Trap (Towards Data Science)](https://towardsdatascience.com/why-your-multi-agent-system-is-failing-escaping-the-17x-error-trap-of-the-bag-of-agents/) -- Error amplification in uncoordinated agent systems
+- [Multi-Agent Architecture Patterns (TrueFoundry)](https://www.truefoundry.com/blog/multi-agent-architecture) -- State management as first failure point in production
+- [AI Agent Orchestration Patterns (Microsoft Azure)](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns) -- Registry + Router + State Store + Supervisor pattern
+- Codebase analysis: `agent_coordinator.py`, `agent_arbitrator.py`, `agent_infra.py`, `agent_finance.py`, `agent_personal.py`, `orchestrator.py`, `telegram_router.py`, `worker_supervisor.py`, `skill_executor.py`, `classifier.py`

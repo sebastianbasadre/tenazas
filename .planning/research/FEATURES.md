@@ -1,115 +1,109 @@
 # Feature Landscape
 
-**Domain:** Python codebase refactor (42+ module runtime layer)
+**Domain:** Multi-agent system for personal AI assistant (Tenazas)
 **Researched:** 2026-04-28
+
+## Current State Assessment
+
+Sprint 9 of the B+A Roadmap created 7 agent modules (`agent_infra.py`, `agent_personal.py`, `agent_finance.py`, `agent_research.py`, `agent_self_improve.py`, `agent_coordinator.py`, `agent_arbitrator.py`) plus 42 tests. However, these modules are **not integrated** into the actual request path -- `telegram_router.py` and `orchestrator.py` have zero references to `agent_coordinator` or `multi_domain`. The agents are thin wrappers (60-80 lines each) with basic `owns()` keyword matching and `handle_query()` that calls existing modules.
+
+The gap: the *scaffolding* exists but the agents don't actually route queries, share context, observe each other's actions, or provide value beyond what the monolithic orchestrator already does.
 
 ## Table Stakes
 
-Features that are baseline expectations for a clean refactor. Missing any of these means the refactor is incomplete.
+Features users expect from a multi-agent system. Without these, the agents are decorative wrappers around the existing orchestrator.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Atomic file I/O (`write_atomic()`) | 20+ modules each define their own `_save_json()` doing naive `open(path, "w")` + `json.dump()`. Crash mid-write = corrupted state. This is the #1 reliability bug. | Low | `tempfile.NamedTemporaryFile` + `os.replace()` is ~15 lines. Single module, imported everywhere. |
-| File locking for concurrent access | Cron (5 min), Telegram polling, and background threads all write to same JSON files with zero coordination. Lost updates and double-execution are known bugs. | Medium | `fcntl.flock()` wrapper. Must handle stale locks (timeout). Linux-only is fine (runs in Docker). |
-| Centralized config module | 268 occurrences of hardcoded IPs across 65 files. `192.168.2.6` appears in 20+ modules. Any IP change requires editing 30 files. | Medium | Single `runtime_config.py` loading from `openclaw.json` with env var overrides. Every module imports from it. |
-| Orchestrator decomposition | `orchestrator.py` is 2373 lines containing routing V1/V2/V3, skill execution, escalation, and 50+ helpers in one file. Untestable as a unit. | High | Split into: `skill_executor.py`, `escalation.py`, `classifier.py`. Orchestrator becomes ~800 line coordinator. Requires updating all imports. |
-| Dead code removal | `auto-heal.sh` (deprecated), legacy model entries, orphaned modules. Dead code creates confusion about what's actually running. | Low | Audit + delete. Verify nothing references removed code. |
-| Standardized error handling | 5 different error handling patterns coexist. Some modules swallow exceptions silently, others raise, others return empty dicts. No consistency. | Medium | Define 3 patterns: (1) I/O operations return default on failure + log, (2) validation raises ValueError, (3) subprocess uses timeout + capture. Document which pattern applies where. |
-| Standardized logging | Each module rolls its own `_log()` function writing JSONL. Fields vary: some use `ts`, others `timestamp`. Some log to `logs/`, others to module directory. | Medium | Single `runtime_logger.py` with `get_logger(module_name)` returning a structured JSONL writer. Mandatory fields: `ts`, `module`, `action`, `ok`. |
-| Validated JSON on load | No module validates JSON structure on load. Corrupted file = crash or silent wrong behavior. | Low | `load_json_safe(path, schema=None, default=...)` that catches `JSONDecodeError`, validates expected keys, returns default on failure. |
-| Remove duplicate utility functions | `_save_json()` is copy-pasted in 20+ modules. `_now()` appears in 15+. `_load_json()` in 10+. Each is 3-5 lines, identical. | Low | Extract to `runtime_utils.py`: `save_json()`, `load_json()`, `now_iso()`, `ensure_dir()`. |
-| Test coverage for critical untested modules | `proposal_executor.py` (executes user-approved actions), `telegram_router.py` (input parsing), `action_budget.py` (spending limits) have zero tests. | High | Priority: proposal_executor > telegram_router > action_budget > auto_training_pipeline > agent_coordinator. |
+| Feature | Why Expected | Complexity | Dependencies | Notes |
+|---------|--------------|------------|--------------|-------|
+| Orchestrator integration | Agents are useless if `telegram_router.py` never calls them. The coordinator must be wired into the main request path as an alternative to monolithic skill routing for multi-domain queries. | Medium | `telegram_router.py`, `orchestrator.py`, `agent_coordinator.py` | Feature flag to enable/disable. Monolithic path stays as fallback. Only activate for queries matching 2+ agent domains. |
+| Reliable agent ownership boundaries | Current `owns()` uses flat keyword sets with overlap (e.g., "learning" matches both `research` and `self_improve`). Ambiguous ownership causes silent drops or double-handling. | Medium | All 5 agent modules | Define exclusive keyword sets OR use a scoring approach where coordinator picks the highest-confidence agent. Add conflict detection at classification time, not just execution time. |
+| Structured agent response contract | Agents return raw strings today. Coordinator can't tell success from failure, can't merge structured data, can't present partial results gracefully. | Low | All 5 agent modules, `agent_coordinator.py` | Define a `dataclass` or `TypedDict`: `{agent, status, data, text, confidence, latency_ms}`. All agents must return this shape. |
+| Aggregation logic for multi-agent responses | Current `_aggregate()` is `"\n\n".join(parts)` -- literal string concatenation. Useless for structured data, duplicate detection, or coherent summaries. | Medium | `agent_coordinator.py`, response_composer pattern from `response_composer.py` | Use the existing `response_composer.py` pattern: structured data in, composed text out. Don't concatenate -- compose. |
+| Agent-level error isolation | If `agent_finance` crashes, the entire coordinator response fails today (generic error string). Each agent must fail independently without poisoning the aggregate. | Low | `agent_coordinator.py` | Try/except per agent with timeout. Already partially done but the error handling returns a string that gets mixed into the response. Should return structured error state. |
+| Per-agent timeout enforcement | Agents call external APIs (IOL, Binance, Google Calendar, Ollama). A slow agent blocks the entire coordinator response. | Low | `agent_coordinator.py` | Use `concurrent.futures.ThreadPoolExecutor` with per-agent timeout (5s default, 15s for research). Already used by `health_sweep.py` as a pattern. |
+| Agent observability / decision trace | Without logging which agents handled a query, what they returned, and how long they took, debugging multi-agent behavior is impossible. | Low | `agent_coordinator.py`, existing `decision_trace.py` module | Log to `logs/agent_coordinator.log` (JSONL): `{query, agents_matched, agents_executed, responses, latency_per_agent, aggregation_method}`. Feed existing Prometheus metrics. |
+| Fallback to monolithic path | When agents fail or produce low-confidence results, the system must degrade gracefully to the existing orchestrator skill routing. Users should never see worse results because agents exist. | Low | `telegram_router.py`, `orchestrator.py` | If coordinator returns `handled=False` or all agents error, fall through to `route_and_execute()`. This is the safety net. |
 
 ## Differentiators
 
-Features that go beyond basic cleanup. Not expected in a minimal refactor, but significantly improve the codebase quality and long-term maintainability.
+Features that make the multi-agent system genuinely better than the monolithic orchestrator. Not expected in MVP, but deliver real value.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Typed return contracts | Currently all functions return `dict` with ad-hoc keys. Adding `TypedDict` or `dataclass` for return types makes the API self-documenting and catches key typos at development time. | Medium | Use `dataclass` for returns like `RouteResult`, `SkillResult`, `HealthProbe`. No runtime cost. Python 3.10+ `dataclass(slots=True)` for memory efficiency. |
-| Module dependency graph enforcement | Current imports are a web: any module can import any other. No layering. Circular import risk grows with each change. | Medium | Define layers: `core` (config, utils, logging) -> `infra` (docker, health) -> `routing` (orchestrator, model_router) -> `skills` (individual skill modules) -> `autonomous` (learning, agents). Enforce via import linting or convention. |
-| Graceful degradation contracts | The "never block on errors" policy exists informally. Making it explicit per-module (what degrades, what the fallback is, what gets logged) catches silent failures. | Low | Document in each module's docstring: `Degrades: [what happens on failure]`. Add `DEGRADATION_MODE` constant per module. |
-| Config validation on startup | Currently if an IP is wrong or a service is down, it fails at first use (could be 5 min into runtime). Fail-fast on startup catches misconfig immediately. | Low | `runtime_config.validate()` at startup: check all endpoints reachable, all required env vars present, all JSON state files parseable. |
-| Rate limiting for Telegram input | No rate limiting on incoming messages. Spam could DOS the backend (every message triggers skill detection + potential LLM call). | Low | Simple sliding window: max 10 messages/min per chat_id. Already identified in CONCERNS.md. |
-| Structured error taxonomy | Currently errors are strings. A taxonomy (`BackendOfflineError`, `ConfigError`, `StateCorruptionError`) enables different handling per error type instead of catching `Exception`. | Medium | Define 5-8 error classes in `runtime_errors.py`. Gradually adopt in modules. Don't boil the ocean -- start with orchestrator and model_router. |
-| Integration test harness | 700+ unit tests exist but no integration tests that verify the full cron cycle: `runtime.py` -> detect events -> enqueue tasks -> execute -> notify. | High | Docker-based test that runs one full runtime cycle with mocked Docker socket and Ollama endpoint. Verifies end-to-end flow. |
-| Log rotation built into logger | `log_rotation.py` exists as separate module. Building rotation into the standard logger (max 5MB, 5 backups) means modules don't need to remember to configure it. | Low | Use `logging.handlers.RotatingFileHandler` inside `runtime_logger.py`. |
+| Feature | Value Proposition | Complexity | Dependencies | Notes |
+|---------|-------------------|------------|--------------|-------|
+| Cross-agent context sharing | When `agent_infra` detects Ollama offline and `agent_personal` gets a calendar query that needs LLM summarization, the personal agent should know the LLM is degraded and adjust its response (e.g., return raw data instead of summarized). | High | `shared_memory.py` (working memory type), all agents | Use existing `shared_memory.py` working memory. Each agent writes its assessment status; others read before acting. The "world model" pattern already exists in `world_model.py`. |
+| Proactive agent coordination | Instead of only responding to queries, agents should proactively detect situations. E.g., `agent_infra` detects disk at 90% + `agent_finance` sees backup job failed = coordinated alert to Sebas with full context. | High | `runtime.py` event loop, all agents, `agent_coordinator.py` | Wire into the 5-min runtime loop. Each agent runs `assess()` (already implemented), coordinator checks for cross-domain correlations. |
+| Agent memory with learning | Each agent remembers past interactions and improves. `agent_finance` learns Sebas always asks about BTC on Monday mornings. `agent_personal` learns meeting prep is needed 15 min before calendar events. | High | `operational_memory.py` per agent, `preference_learning.py` | `operational_memory.py` already supports domain-keyed facts. Extend to per-agent domains. `preference_learning.py` from Sprint 4 already tracks approval patterns. |
+| Parallel agent execution | For multi-domain queries ("como esta todo"), run all relevant agents in parallel instead of sequentially. Reduces response time from sum-of-latencies to max-of-latencies. | Medium | `agent_coordinator.py` | `ThreadPoolExecutor` with agent-specific timeouts. Already proven pattern in `health_sweep.py` (25 parallel probes). |
+| Agent-specific model routing | Different agents benefit from different LLM models. `agent_research` needs reasoning (deepseek-r1), `agent_infra` needs fast JSON parsing (qwen2.5:7b), `agent_self_improve` needs deep analysis (qwen2.5:32b). | Medium | `model_router.py` V2 role system | Map agents to roles: infra=fast, personal=fast, finance=fast, research=reason, self_improve=heavy. Use existing `route_by_role()`. |
+| Coordinator as Telegram-visible layer | Surface which agents handled a query in the Telegram response. "Infra: 20 containers up. Finance: BTC +2.3%. Personal: 2 meetings today." gives Sebas transparency into who answered what. | Low | `telegram_router.py`, `agent_coordinator.py` | Format each agent's response with a header. Users appreciate knowing the system's reasoning structure. |
+| Conflict resolution with escalation | When agents disagree (e.g., infra wants to restart a container but personal says Sebas is in a meeting), the arbitrator resolves or escalates to Telegram approval. | Medium | `agent_arbitrator.py`, `exec_approvals.py` | `agent_arbitrator.py` already has priority logic and postpone mechanics. Wire it into the proposal execution path. |
+| Agent performance dashboard | Per-agent metrics in Grafana: response latency, error rate, queries handled, ownership accuracy. | Low | `metrics_server.py`, Grafana | Prometheus gauges: `tenazas_agent_{name}_queries_total`, `tenazas_agent_{name}_errors_total`, `tenazas_agent_{name}_latency_seconds`. One Grafana dashboard. |
 
 ## Anti-Features
 
-Features to explicitly NOT build during this refactor. Each has a specific reason.
+Features to explicitly NOT build. These are common multi-agent mistakes that would hurt Tenazas.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| SQLite migration for JSON state | Scope creep. Atomic writes + file locking solve the corruption problem at current scale (~1000 entries max). SQLite adds a dependency, migration risk, and changes every test that mocks file I/O. | Implement `write_atomic()` + `FileLock`. Revisit SQLite only if scale exceeds 10K entries per file. |
-| Type hints everywhere | 42+ modules with zero type hints. Adding them all at once is weeks of work that doesn't fix any bug. | Add `TypedDict`/`dataclass` only for public API return types in refactored modules. Don't retrofit existing working code. |
-| Abstract base classes for modules | Over-engineering. The modules are scripts, not a framework. ABCs add inheritance complexity without benefit when there's one implementation per interface. | Use duck typing + convention. Document expected function signatures in module docstrings. |
-| Plugin/extension system | The codebase is maintained by one person (Sebas + Claude). A plugin architecture adds indirection for zero users. | Keep direct imports. New skills follow the existing SKILL.md + script pattern. |
-| Async/await rewrite | The runtime is cron-based (5 min cycle). There's no event loop benefit. `ThreadPoolExecutor` already handles parallel health probes. Async would require rewriting every I/O call. | Keep synchronous. Reduce `health_sweep.py` thread count from 25 to 8 for the NAS CPU. |
-| Custom ORM or data layer | JSON files work. Adding a data abstraction layer between modules and their 3-5 line save/load operations is over-abstraction. | Use `runtime_utils.save_json()` / `load_json()` with atomic writes. That's the "data layer". |
-| Comprehensive docstrings | The codebase convention is comments-explain-why, not docstrings-on-everything. Forcing docstrings on 500+ functions is make-work. | Add docstrings only to public API functions in newly refactored modules. Existing working code keeps its current comments. |
-| CI/CD pipeline | There's no GitHub Actions, no automated testing on push. Adding CI is a separate initiative. The refactor should make the codebase CI-ready but not build the pipeline. | Ensure all tests can run via `run_tests.sh`. Document how to run tests. CI comes later. |
-| Centralized state manager (Redux-style) | A single state object that all modules read/write through would require rewriting every module's state management. Massive scope for a refactor. | Keep per-module state files. Fix them with atomic writes + locking. |
+| Agent-to-agent direct communication | Agents calling each other creates a spaghetti graph. With 5 agents, that's 20 possible communication paths. Debugging becomes impossible. The "Bag of Agents" anti-pattern amplifies errors 17x per research. | All communication goes through the coordinator. Agents read shared state but never call each other's `handle_query()`. |
+| LLM-based routing to agents | Using an LLM to decide which agent handles a query adds 2-5s latency and costs tokens for every message. The orchestrator already has deterministic classification that works. | Keep keyword/regex classification for agent ownership. Only use LLM for ambiguous queries that no agent claims. |
+| Per-agent LLM personalities | Each agent having its own system prompt and LLM conversation creates context explosion and inconsistent responses. Tokens multiply by agent count. | Agents return structured data. A single response composer (existing `response_composer.py`) formats the final answer. Only one LLM call if humanization is needed. |
+| Autonomous agent actions without approval | Agents should NEVER auto-execute destructive actions (restarts, trades, emails). The existing approval flow is critical safety infrastructure. | All proposals go through `exec_approvals.py` Telegram buttons. Agents propose, Sebas approves. Same as today. |
+| Complex negotiation protocols | Academic multi-agent papers describe voting, auction, and consensus mechanisms. Overkill for 5 agents on a personal NAS with one user. | Simple priority ordering (already in `agent_arbitrator.py`) + escalation to human. No voting needed. |
+| Agent spawning / dynamic agent creation | Some frameworks allow agents to create sub-agents dynamically. This is uncontrollable complexity for a personal assistant. | Fixed set of 5 agents. New capabilities go into existing agents or are added as new fixed agents via code changes. |
+| Shared mutable state between agents | Agents writing to each other's state files creates race conditions and invisible coupling. The existing codebase already has file contention issues. | Read-only shared context (world model, shared memory). Each agent writes only to its own state directory (`state/agents/{name}/`). Coordinator aggregates. |
 
 ## Feature Dependencies
 
 ```
-runtime_utils.py (save_json, load_json, now_iso)
-  -> write_atomic() (temp file + rename)
-     -> FileLock wrapper (fcntl.flock)
-        -> All modules that write state files
+Structured agent response contract
+  -> Aggregation logic (needs structured data to aggregate)
+  -> Agent-level error isolation (needs structured error state)
+  -> Coordinator as Telegram-visible layer (needs per-agent responses)
 
-runtime_config.py (centralized IPs, ports, paths)
-  -> Config validation on startup
-  -> Every module that currently hardcodes IPs
+Orchestrator integration
+  -> Fallback to monolithic path (needs integration point to fall back from)
+  -> Per-agent timeout enforcement (only matters when agents are in request path)
 
-runtime_logger.py (structured JSONL logging)
-  -> Log rotation built-in
-  -> Every module that currently defines _log()
+Agent observability
+  -> Agent performance dashboard (needs metrics to display)
 
-runtime_errors.py (error taxonomy)
-  -> Standardized error handling patterns
-  -> orchestrator decomposition (uses typed errors)
+Cross-agent context sharing
+  -> Proactive agent coordination (needs shared state to correlate)
 
-orchestrator.py decomposition
-  -> skill_executor.py (extracted)
-  -> classifier.py (extracted)
-  -> escalation.py (extracted)
-  -> Requires: runtime_config.py, runtime_logger.py (to avoid re-importing old patterns)
-
-Test coverage for critical modules
-  -> Requires: orchestrator decomposition (smaller units are testable)
-  -> Requires: runtime_config.py (tests can mock config instead of patching constants)
+Reliable ownership boundaries
+  -> Agent-specific model routing (routing depends on knowing which agent handles)
 ```
-
-## Dependency Order (Build Sequence)
-
-1. **Foundation:** `runtime_utils.py` + `write_atomic()` + `FileLock` -- everything else depends on safe I/O
-2. **Config:** `runtime_config.py` -- unblocks removing hardcoded IPs from all modules
-3. **Logging:** `runtime_logger.py` -- unblocks replacing per-module `_log()` functions
-4. **Errors:** `runtime_errors.py` -- optional but useful before orchestrator split
-5. **Decomposition:** Split `orchestrator.py` -- the largest single change
-6. **Cleanup:** Dead code removal, duplicate function removal -- safe after foundation in place
-7. **Testing:** Add tests for critical untested modules -- easier after decomposition
-8. **Polish:** Typed returns, config validation, rate limiting -- differentiators after table stakes done
 
 ## MVP Recommendation
 
-Prioritize:
-1. **Atomic writes + file locking** -- fixes the #1 production bug (state corruption) with ~50 lines of code
-2. **Centralized config** -- eliminates 268 hardcoded IP occurrences, makes testing possible
-3. **Utility extraction** -- removes 20+ duplicate `_save_json()` definitions, immediate code reduction
-4. **Orchestrator decomposition** -- the biggest maintainability win, enables testing the routing logic
+Prioritize (Phase 1 -- make agents actually work):
+1. **Structured agent response contract** -- Foundation for everything else. Without this, no reliable aggregation, error handling, or observability. Low complexity, high leverage.
+2. **Orchestrator integration** -- Wire coordinator into telegram_router.py behind a feature flag. Without this, agents are dead code.
+3. **Agent-level error isolation + timeout** -- Safety net. Without these, one slow API call breaks the whole system.
+4. **Reliable ownership boundaries** -- Fix the keyword overlap problem. Use scoring instead of flat sets.
+5. **Fallback to monolithic path** -- Safety guarantee that agents can never make things worse.
+
+Prioritize (Phase 2 -- make agents valuable):
+6. **Aggregation logic** -- Replace string concatenation with structured composition.
+7. **Agent observability** -- Log everything for debugging and learning.
+8. **Parallel agent execution** -- Performance improvement for multi-domain queries.
+9. **Agent-specific model routing** -- Each agent uses the optimal LLM.
 
 Defer:
-- **Typed returns**: valuable but not urgent. Add incrementally as modules are touched.
-- **Integration test harness**: important but high effort. Unit tests cover the critical paths today.
-- **Error taxonomy**: nice-to-have. Current graceful degradation works; taxonomy improves debugging but doesn't fix bugs.
-- **Module dependency enforcement**: convention-based is fine for a single-maintainer project. Formal enforcement is overhead.
+- **Cross-agent context sharing**: High complexity, needs the basics working first. Also depends on shared_memory.py being reliable under concurrent access (the refactor milestone addresses this).
+- **Proactive agent coordination**: Requires cross-agent context + runtime loop integration. Phase 3 at earliest.
+- **Agent memory with learning**: Nice to have but not blocking. The system works without per-agent learning.
+- **Conflict resolution with escalation**: Edge case until agents actually propose conflicting actions simultaneously, which requires proactive coordination.
 
 ## Sources
 
-- `.planning/codebase/CONCERNS.md` -- tech debt analysis (2026-04-28)
-- `.planning/codebase/CONVENTIONS.md` -- current coding patterns (2026-04-28)
-- `.planning/PROJECT.md` -- project scope and constraints (2026-04-28)
-- Direct codebase analysis: `grep` across `workspace/runtime/*.py` confirming 20+ duplicate `_save_json()`, 268 hardcoded IP occurrences across 65 files
+- [Azure AI Agent Design Patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns)
+- [Multi-Agent Coordination Patterns (Tacnode)](https://tacnode.io/post/multi-agent-architecture)
+- [Choosing the Right Multi-Agent Architecture (LangChain)](https://blog.langchain.com/choosing-the-right-multi-agent-architecture/)
+- [Why Your Multi-Agent System is Failing: The 17x Error Trap (TDS)](https://towardsdatascience.com/why-your-multi-agent-system-is-failing-escaping-the-17x-error-trap-of-the-bag-of-agents/)
+- [Anti-Pattern: Multi-Agent Overkill](https://www.agentpatterns.tech/en/anti-patterns/multi-agent-overkill)
+- [Multi-Agent Workflows That Don't Fail (GitHub Blog)](https://github.blog/ai-and-ml/generative-ai/multi-agent-workflows-often-fail-heres-how-to-engineer-ones-that-dont/)
+- [Agent Observability Best Practices (Microsoft Azure)](https://azure.microsoft.com/en-us/blog/agent-factory-top-5-agent-observability-best-practices-for-reliable-ai/)
+- [Agent Anti-Patterns: Architectural Pitfalls (Medium)](https://achan2013.medium.com/ai-agent-anti-patterns-part-1-architectural-pitfalls-that-break-enterprise-agents-before-they-32d211dded43)
+- [Simon Willison: Agentic Engineering Anti-Patterns](https://simonwillison.net/guides/agentic-engineering-patterns/anti-patterns/)

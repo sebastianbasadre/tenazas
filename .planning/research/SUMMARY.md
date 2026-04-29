@@ -1,177 +1,171 @@
 # Project Research Summary
 
-**Project:** Tenazas Runtime Refactor
-**Domain:** Python runtime refactoring (42+ module brownfield, production cron + Telegram bot)
+**Project:** Tenazas v2.0 Multi-Agent System
+**Domain:** Multi-agent coordination layer for existing Python AI assistant
 **Researched:** 2026-04-28
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Tenazas is a 42+ module Python runtime running as a cron-based infrastructure assistant inside a Docker container on a Synology NAS. The codebase has grown organically to include routing, skill execution, IoT control, personal finance, and autonomous learning -- all with a 2373-line god object (orchestrator.py) at its center. The primary problems are structural: 268 hardcoded IP occurrences across 65 files, 84 files doing naive json.dump() without atomicity (causing documented state corruption bugs), and zero dependency layering (any module imports any other). This is a textbook brownfield refactor: the system works in production, so the goal is reliability and maintainability without breaking the 700+ test suite or the 5-minute cron loop.
+Tenazas already has 7 Sprint 9 agent modules (5 domain agents + coordinator + arbitrator) with 42 tests, but they are dead code -- `telegram_router.py` and `orchestrator.py` never call them. The existing monolithic orchestrator handles 25+ skills deterministically with 900+ tests. The multi-agent system should be built as an **advisory layer on top of the orchestrator**, not as a replacement. Agents observe queries, recommend actions, and enrich LLM context. Execution stays with the proven orchestrator + skill engine. All agent actions require Telegram approval.
 
-The recommended approach is a strict bottom-up refactor in 6 phases. All four research tracks converge on the same ordering: foundation first (atomic I/O, centralized config, standardized logging), then decompose the orchestrator into a routing/ package with facade preservation, then adopt the new primitives across the 84 files doing unsafe I/O, then centralize config references, then group remaining modules into domain packages, and finally clean dead code. The critical insight is that the orchestrator split (the most visible change) must NOT come first -- it depends on having config and state_io available so the extracted modules use the new patterns from day one.
+The recommended approach uses zero new dependencies (stdlib only: `dataclasses`, `concurrent.futures`, `fcntl`, `enum`). The key new modules are `agent_protocol.py` (typed interfaces), `agent_state.py` (file-locked shared state), and a rewritten `agent_coordinator.py` that plugs into `telegram_router.py` via two try/except-wrapped hooks. The coordinator activates only for multi-domain queries; single-domain queries bypass agents entirely. ThreadPoolExecutor provides parallel agent execution (proven pattern from `health_sweep.py`).
 
-The top risks are (1) breaking 700+ tests that use string-based mock.patch() paths when modules move, (2) circular imports when splitting the god object, and (3) incomplete config migration leaving orphaned hardcoded IPs. All three are preventable with discipline: update patch paths in the same commit as module moves, map the dependency graph before splitting, and run automated grep checks after each config migration batch. The stdlib-only constraint (no new pip dependencies in the container) is easily satisfied -- os.replace(), fcntl.flock(), dataclasses, and ast cover every tool need.
-
+The top risks are: routing regression (agents breaking what the orchestrator already handles well), JSON state file corruption under concurrent access, and response noise (5 agents producing a wall of text instead of a 3-line summary). All three are mitigated by specific architectural decisions: agents are additive-only behind a feature flag, atomic writes with `fcntl` locks before parallel execution, and response budgets enforced at the coordinator level. The system should start with 3 agents (infra, personal, finance) and add more only when justified by activation rates.
 ## Key Findings
 
 ### Recommended Stack
 
-The entire refactoring toolset lives within Python standard library. No new container dependencies are required. Dev-only tooling (Ruff for linting) runs on the Windows machine, never in Docker.
+No new external dependencies. The entire multi-agent system is built on Python stdlib plus existing runtime utilities (`write_atomic`, `load_json` from `runtime_utils.py`). ThreadPoolExecutor replaces the need for asyncio or message queues. File-based coordination with `fcntl` advisory locks replaces the need for Redis or SQLite.
 
-**Core technologies:**
-- **os.replace() + tempfile**: Atomic file writes -- same-filesystem temp file, fsync, atomic rename. Fixes the #1 production bug (state corruption on crash).
-- **fcntl.flock()**: Advisory cross-process file locking -- sufficient when all writers cooperate (cron, Telegram polling, metrics_server). Linux-only, but container is Linux.
-- **dataclasses (frozen)**: Typed, immutable config structures with __post_init__ validation. Already partially used in runtime_config.py. No pydantic needed.
-- **ast module**: Static import analysis for building the dependency graph before splitting modules. 30-line script, no external tools.
-- **Ruff (dev-only)**: Linting and formatting, 10-100x faster than pylint. Catches import/unused/style issues critical during refactoring.
+**Core new modules:**
+- `agent_protocol.py`: Typed interfaces (`Observation`, `Recommendation` dataclasses) -- eliminates inconsistent dict returns across agents
+- `agent_state.py`: File-locked shared state management -- provides atomic read-modify-write for cross-agent coordination
+- `coordination.py` (or inline in coordinator): ThreadPoolExecutor-based parallel agent dispatch with per-agent timeouts
+- `conflict_resolver.py` (or inline in coordinator): Weighted priority resolution, can start as a simple priority dict
+
+**What NOT to add:** CrewAI/LangGraph (massive dependency for 5 agents), asyncio rewrite (42+ sync modules), Redis/SQLite for state (overkill for 5 agents), message queues (same machine), Pydantic (not in existing deps).
 
 ### Expected Features
 
 **Must have (table stakes):**
-- Atomic file I/O (write_atomic()) -- fixes documented state corruption
-- File locking for concurrent JSON access (cron + Telegram + metrics all write same files)
-- Centralized config module -- eliminates 268 hardcoded IP occurrences
-- Orchestrator decomposition (2373 lines into 6-8 focused modules)
-- Dead code removal (deprecated auto-heal.sh, legacy model entries)
-- Standardized error handling (5 different patterns today)
-- Standardized JSONL logging (each module rolls its own)
-- Utility function deduplication (_save_json() copy-pasted 20+ times)
+- Orchestrator integration via feature flag (agents are dead code without it)
+- Structured agent response contract (dataclass, not raw strings)
+- Agent-level error isolation with per-agent timeouts (5s default, 15s research)
+- Reliable ownership boundaries (exclusive keywords, no overlap)
+- Fallback to monolithic path (agents can never make things worse)
+- Agent observability with JSONL logging and correlation IDs
 
 **Should have (differentiators):**
-- Typed return contracts (dataclass for RouteResult, SkillResult)
-- Module dependency graph enforcement (layered imports)
-- Config validation on startup (fail-fast on misconfig)
-- Integration test harness (full cron cycle end-to-end)
-- Structured error taxonomy (BackendOfflineError, ConfigError)
+- Parallel agent execution for multi-domain queries (ThreadPoolExecutor)
+- Aggregation logic using response_composer pattern (not string concatenation)
+- Agent-specific model routing (infra=fast, research=reason, self_improve=heavy)
+- Coordinator as Telegram-visible layer (per-agent headers in responses)
+- Prometheus metrics per agent (queries, errors, latency)
 
 **Defer (v2+):**
-- SQLite migration for JSON state (current scale is fine)
-- Type hints everywhere (add incrementally, not bulk)
-- Async/await rewrite (cron-based, no event loop benefit)
-- Plugin/extension system (single maintainer, zero users)
-- CI/CD pipeline (make CI-ready, build pipeline later)
+- Cross-agent context sharing (needs basics working first)
+- Proactive agent coordination (needs cross-agent context + runtime loop integration)
+- Agent memory with learning (nice-to-have, not blocking)
+- Complex conflict resolution with escalation (edge case until proactive coordination exists)
+
+**Anti-features (never build):**
+- Agent-to-agent direct communication (spaghetti graph, 20 possible paths for 5 agents)
+- LLM-based routing to agents (2-5s latency for something regex handles in 2ms)
+- Per-agent LLM personalities (context explosion, inconsistent responses)
+- Autonomous agent actions without approval (breaks existing safety infrastructure)
+- Agent spawning / dynamic creation (uncontrollable complexity)
 
 ### Architecture Approach
 
-The target is domain-organized packages with facade preservation. The flat workspace/runtime/ directory gets split into layered subpackages (config.py, state_io.py, logging_config.py at Layer 0; routing/ at Layer 3; devices/, personal/, learning/, autofix/, observability/ as domain packages). Dependencies flow strictly downward. The orchestrator becomes a backward-compat shim (from routing import *) so all 14 existing import sites and 700+ tests continue working without changes until explicitly migrated.
+The coordinator sits between `telegram_router.py` and `orchestrator.py` as an advisory layer. Two hooks in telegram_router: (1) post-skill notification to agents (fire-and-forget), (2) pre-LLM observation for non-skill queries (with timeout + try/except). The orchestrator, classifier, skill executor, model router, and all safety modules remain **completely unchanged**. Agent `assess()` runs in the 5-minute cron loop (background); Telegram queries read cached results (foreground). This separation is the architecture biggest strength.
 
 **Major components:**
-1. **config.py** -- Single source of truth for IPs, ports, paths, feature flags. Env var overrides.
-2. **state_io.py** -- Atomic JSON read/write with file locking. write_json(), read_json(), locked_update().
-3. **logging_config.py** -- JSONL logger factory with built-in rotation.
-4. **routing/ package** -- Extracted from orchestrator.py: classifier, router, skill_executor, skill_parsers, skill_handlers, multitool, metrics. Facade re-exports everything.
-5. **models/ package** -- Extracted from model_router.py (856 lines): router, guardrails, catalog, openrouter.
-6. **Domain packages** -- autofix/, learning/, observability/, personal/ grouping existing modules with __init__.py re-exports.
+1. `agent_protocol.py` -- Typed interfaces: `Observation`, `Recommendation` dataclasses defining the contract
+2. `agent_state.py` -- Shared JSON state with `fcntl` file locking for cross-process safety
+3. `agent_coordinator.py` (rewrite) -- Route queries to relevant agents, dispatch observe/assess, aggregate results, delegate conflicts to arbitrator
+4. 5 domain agents (modified) -- Each gains an `observe()` method returning `Observation | None`
+5. `agent_arbitrator.py` (minor update) -- Updated to work with `Recommendation` dataclass instead of raw dicts
 
 ### Critical Pitfalls
 
-1. **Mock patch paths break when modules move** -- 700+ tests use string-based patch decorators targeting runtime.orchestrator.X. When functions move to routing/skill_executor.py, patches silently stop working (tests pass but mocks are inactive). Prevention: update patch paths in the SAME commit as module moves; use autospec=True everywhere.
+1. **Routing regression** -- Agents misroute queries the orchestrator handles correctly. Prevent: agents activate ONLY for multi-domain queries via `is_multi_domain()` check. Single-domain queries bypass agents entirely. Add regression test suite with top 100 real queries from logs.
 
-2. **Circular imports after splitting the god object** -- route_and_execute() calls classification, execution, and escalation (all currently in one file). Splitting creates bidirectional dependencies that crash at import time. Prevention: map the dependency graph first; extract shared types into a neutral module; follow strict downward-only dependency flow.
+2. **JSON state file corruption** -- Non-atomic `_save()` in all agent modules causes truncated JSON under concurrent access. Prevent: fix ALL `_save()` to atomic writes (`os.replace()` pattern) before enabling parallel execution. This is a Phase 1 prerequisite.
 
-3. **Atomic write edge cases on Synology Btrfs** -- os.rename() is not durable without fsync(); temp file must be on the same filesystem as target. Prevention: use tempfile.NamedTemporaryFile(dir=path.parent) + os.fsync() + os.replace().
+3. **Response noise (17x error trap)** -- 5 agents produce 500+ words when user wants 3 lines. Prevent: 100-char response budget per agent, priority-based inclusion (omit all-clear agents), single synthesizer pass. Study `daily_brief.py` pattern.
 
-4. **Advisory file locking is all-or-nothing** -- fcntl.flock() only works if ALL processes cooperate. Currently only 1 of 84 JSON-writing modules uses locking. Prevention: single state_io.py utility that ALL modules must use; grep-enforce no bare open(path, w).
+4. **Over-engineering for solo maintainer** -- 7 new modules with 7 log files and 7 state files is too much for one person. Prevent: start with 3 agents (infra, personal, finance). Merge research + self_improve. Inline arbitrator into coordinator.
 
-5. **Incomplete config migration leaves orphaned IPs** -- Variable names vary (OLLAMA_URL, OLLAMA_GPU_URL, HOMELAB_URL, bare strings). Simple grep misses variants. Prevention: build complete IP inventory first; automated grep check post-migration; migrate one module at a time.
+5. **Assess latency kills Telegram response time** -- Live probes during Telegram queries add 5-15s. Prevent: cache-first architecture. Agents write status in background cron loop, coordinator reads cached files during Telegram queries. Hard 2s timeout per agent.
 
 ## Implications for Roadmap
 
-### Phase 1: Foundation Layer
-**Rationale:** Every subsequent phase depends on having atomic I/O, centralized config, and standardized logging available. These three modules have zero dependencies on existing code and zero risk of breaking anything.
-**Delivers:** config.py, state_io.py, logging_config.py -- the infrastructure primitives.
-**Addresses:** Atomic file I/O, centralized config module, standardized logging (table stakes).
-**Avoids:** Module-level side effects (Pitfall 6) by designing config with lazy initialization from day one.
+### Phase 1: Foundation and Contracts
+**Rationale:** Everything depends on typed interfaces and safe state management. Without these, parallel execution corrupts data and agents return inconsistent structures.
+**Delivers:** `agent_protocol.py` with Observation/Recommendation dataclasses, `agent_state.py` with file-locked state management, atomic `_save()` fix across all agent modules, exclusive ownership registry, regression test baseline from production logs.
+**Addresses:** Structured response contract, reliable ownership boundaries, error isolation foundation.
+**Avoids:** JSON state corruption (Pitfall 2), ownership overlap (Pitfall 6), circular imports (Pitfall 8).
 
-### Phase 2: Orchestrator Decomposition
-**Rationale:** The 2373-line god object is the biggest single blocker to maintainability and testability. Must happen while the codebase is still familiar and before other modules start depending on foundation primitives.
-**Delivers:** routing/ package (classifier, router, skill_executor, skill_parsers, skill_handlers, multitool, metrics) + backward-compat orchestrator.py shim.
-**Addresses:** Orchestrator decomposition, utility function deduplication (table stakes).
-**Avoids:** Circular imports (Pitfall 2) via strict layer ordering; mock patch breakage (Pitfall 1) by updating test paths in same commits as module moves.
+### Phase 2: Agent Upgrade (Backward Compatible)
+**Rationale:** Agents need the `observe()` method before the coordinator can call them. This phase modifies existing agents without wiring them in -- zero behavioral change.
+**Delivers:** `observe()` method on each agent returning typed `Observation`, cached `assess()` results (60-120s TTL), response budget enforcement (100 chars), unit tests per agent with mocked dependencies.
+**Addresses:** Agent-level error isolation, per-agent timeout, cache-first architecture.
+**Avoids:** Assess latency (Pitfall 5), response noise (Pitfall 3), over-engineering (Pitfall 4 -- start with 3 agents only: infra, personal, finance).
 
-### Phase 3: Atomic State Adoption
-**Rationale:** With state_io.py available from Phase 1, now migrate the 84 files doing naive JSON I/O. Prioritize the 3 files with documented race conditions.
-**Delivers:** All state file writes go through state_io.write_json() or state_io.locked_update(). Fixes documented corruption and race condition bugs.
-**Addresses:** File locking, validated JSON on load, standardized error handling (table stakes).
-**Avoids:** Advisory lock gaps (Pitfall 4) by enforcing ALL modules use the same utility.
+### Phase 3: Coordinator Rewrite
+**Rationale:** The coordinator is the central hub. It must be rewritten with the new typed interfaces before wiring into Telegram. Can be built and tested in isolation.
+**Delivers:** Rewritten `agent_coordinator.py` with `route_with_context()`, `notify_agents()`, `periodic_assess()`. Parallel execution via ThreadPoolExecutor. Conflict delegation to arbitrator. Backward-compatible `route()` preserved for existing tests.
+**Addresses:** Aggregation logic, parallel execution, coordination strategies.
+**Avoids:** Routing regression (Pitfall 1 -- only activates for multi-domain queries), blocking calls (Pitfall 5 -- hard timeouts).
 
-### Phase 4: Config Centralization
-**Rationale:** Mechanical find-replace across 65 files. Low risk per change, high cumulative value. Requires the config module from Phase 1 to exist.
-**Delivers:** Zero hardcoded IPs remaining in runtime code. All endpoints configurable via env vars.
-**Addresses:** Centralized config (table stakes), config validation on startup (differentiator).
-**Avoids:** Incomplete migration (Pitfall 7) via automated grep checks and complete IP inventory.
+### Phase 4: Pipeline Integration (Behavioral Change)
+**Rationale:** This is the only phase that changes user-visible behavior. Must come after foundation, agents, and coordinator are all tested.
+**Delivers:** Two hooks in `telegram_router.py` (post-skill notify, pre-LLM observe), worker integration for periodic assessment, feature flag `USE_AGENT_COORDINATOR`, integration tests, end-to-end message flow.
+**Addresses:** Orchestrator integration, fallback to monolithic path, Telegram-visible agent layer.
+**Avoids:** Routing regression (feature flag, regression tests), breaking Telegram response SLA (try/except wrapping, cached state reads).
 
-### Phase 5: Domain Packaging
-**Rationale:** Group related modules into subpackages for organizational clarity. By this point the foundation and biggest structural changes are done.
-**Delivers:** autofix/, learning/, observability/, personal/, models/ packages with __init__.py facades.
-**Addresses:** Module dependency graph enforcement (differentiator).
-**Avoids:** sys.path breakage (Pitfall 5) by using __init__.py re-exports.
-
-### Phase 6: Dead Code and Polish
-**Rationale:** Safe to remove dead code only after all structural changes are done and tests confirm nothing references removed modules.
-**Delivers:** Clean codebase: no deprecated scripts, no duplicate utilities, no backward-compat shims. Optionally add typed returns and error taxonomy.
-**Addresses:** Dead code removal (table stakes), typed return contracts, structured error taxonomy (differentiators).
-**Avoids:** Dynamic import breakage (Pitfall 8) by deleting one module at a time with full test verification.
+### Phase 5: Observability and Hardening
+**Rationale:** Production monitoring and polish after the system is live.
+**Delivers:** Prometheus metrics per agent, Grafana dashboard, JSONL logging with correlation IDs, response length monitoring, feature flag cleanup, one-at-a-time agent rollout (infra first, then personal, then finance).
+**Addresses:** Agent observability, performance dashboard, feature flag debt.
+**Avoids:** Log proliferation (Pitfall 9 -- correlation IDs), testing complexity (Pitfall 7 -- contract + snapshot tests).
 
 ### Phase Ordering Rationale
 
-- Foundation before decomposition: The orchestrator split creates 6-8 new files. Those files should use state_io.write_json() and from config import X from day one, not inherit the old patterns.
-- Decomposition before state adoption: The orchestrator split is the highest-risk structural change. Do it while the codebase is still familiar. State I/O migration is surgical (one file per commit) and lower risk.
-- Config centralization after state adoption: Config changes are mechanical and low-risk. Doing them after the state fixes means fewer files are being touched concurrently.
-- Domain packaging after individual modules are clean: Moving files into packages is purely organizational. It should not change any behavior, only directory structure.
-- Dead code last: Removing code before structural changes risks removing something that turns out to be needed. Remove after everything else is stable.
+- **Foundation first** because atomic writes and typed contracts are prerequisites for every subsequent phase. Parallel execution without atomic writes corrupts state (Pitfall 2).
+- **Agent upgrade before coordinator** because the coordinator calls `observe()` on agents -- agents must have this method first. Backward-compatible: system works exactly as before.
+- **Coordinator before integration** because the coordinator must be fully tested in isolation before being wired into the production Telegram path. Testing in isolation is cheap; debugging in production is expensive.
+- **Integration as a distinct phase** because this is the only phase with user-visible impact. Isolating it makes rollback trivial (disable feature flag).
+- **Observability last** because metrics and dashboards are only useful once the system is live and generating data.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 2 (Orchestrator Decomposition):** The 2373-line split requires a precise dependency graph and line-by-line responsibility map. The ARCHITECTURE.md provides the map, but actual implementation will need per-function verification. Recommend /gsd-research-phase to validate the split plan against actual import analysis.
-- **Phase 3 (Atomic State Adoption):** The Synology Btrfs behavior with os.replace() + fsync() needs validation in the actual container. Recommend a smoke test early in the phase.
+- **Phase 3 (Coordinator Rewrite):** Strategy selection heuristic (sequential vs parallel vs pipeline) needs tuning with real query patterns. Research actual multi-domain query frequency from `telegram_router.log`.
+- **Phase 4 (Pipeline Integration):** Telegram response time impact needs benchmarking. The 2-hook integration pattern is simple but latency at the 95th percentile needs measurement.
 
 Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation):** Well-documented stdlib patterns. The STACK.md provides complete implementation code.
-- **Phase 4 (Config Centralization):** Mechanical find-replace. No ambiguity.
-- **Phase 5 (Domain Packaging):** Standard Python package-with-facade pattern.
-- **Phase 6 (Dead Code):** Standard deletion + test verification.
+- **Phase 1 (Foundation):** Dataclass contracts, fcntl file locking, atomic writes -- all well-documented stdlib patterns with existing codebase precedent.
+- **Phase 2 (Agent Upgrade):** Adding methods to existing modules with mocked tests -- standard refactoring.
+- **Phase 5 (Observability):** Prometheus + Grafana -- identical pattern to existing dashboards (tenazas-runtime, tenazas-agent, tenazas-roi).
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | 100% stdlib for runtime; patterns verified against Python docs. Ruff is dev-only. |
-| Features | HIGH | Derived from direct codebase analysis (grep counts, line counts). No speculation. |
-| Architecture | HIGH | Layer diagram based on actual import analysis. Split map based on line-by-line orchestrator audit. |
-| Pitfalls | HIGH | Every pitfall has evidence from the actual codebase (specific files, line numbers, grep counts). |
+| Stack | HIGH | All recommendations use Python stdlib. No new dependencies. Patterns proven in existing codebase (ThreadPoolExecutor in health_sweep.py, fcntl via runtime lockfile, dataclasses in policy_engine.py). |
+| Features | HIGH | Feature landscape derived from direct codebase analysis + 8 external sources on multi-agent patterns. Anti-features backed by specific failure research (17x error trap, MAST taxonomy). |
+| Architecture | HIGH | Architecture directly analyzed from existing code. Integration points identified by reading actual module source. Sprint 9 modules examined line by line. |
+| Pitfalls | HIGH | Pitfalls grounded in codebase-specific analysis (actual _save() implementation, actual import chains, actual cron structure) plus production failure research (MAST: 42% specification, 37% coordination failures). |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Btrfs atomicity verification:** os.replace() is POSIX-atomic, but Synology Btrfs CoW behavior under power failure is not fully documented. Validate with a simple test in the container during Phase 3.
-- **Test suite runtime after refactor:** 700+ tests currently run in ~2 minutes. Moving modules into packages may slow import resolution. Monitor test execution time.
-- **model_router.py split timing:** At 856 lines, this is the second-largest module. The architecture research suggests splitting it into models/ package in Phase 5, but it could be done in Phase 2 alongside the orchestrator split. Decision depends on whether the orchestrator split alone is already too large for one phase.
-- **Import strategy for dev machine vs container:** Tests use sys.path.insert(0, /home/tenazas) which only works in the container. The refactor should not make this worse but does not fix it either. A proper conftest.py or pyproject.toml is a future improvement.
+- **Multi-domain query frequency:** Unknown what percentage of actual Telegram queries would trigger the coordinator. Need to analyze `telegram_router.log` to validate that multi-agent routing serves a meaningful portion of traffic. If <5%, the system may not justify its complexity.
+- **Agent activation rates:** No data on how often each agent `owns()` would fire on real traffic. Risk of building 5 agents when 2-3 cover 95% of use cases. Mitigation: start with 3, measure, expand.
+- **Response time budget:** Unknown actual latency of cached `assess()` reads + coordinator aggregation. Assumed <200ms but needs benchmarking. If >500ms, the pre-LLM hook degrades Telegram UX.
+- **Model router guardrail interaction:** Five agents each requesting LLM calls could exhaust the global heavy model guardrail (max 3 heavy/10min). Agents must default to `fast` role. Needs explicit testing.
+- **Worker supervisor concurrency:** Telegram process and worker process both accessing agent state files is the primary contention vector. The atomic write fix (Phase 1) should handle this, but needs stress testing.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Direct codebase analysis: workspace/runtime/ (84 Python files, 158 total modules)
-- .planning/codebase/CONCERNS.md -- documented bugs and tech debt
-- .planning/codebase/CONVENTIONS.md -- current coding patterns
-- .planning/PROJECT.md -- project scope and constraints
-
-### Secondary (HIGH confidence)
-- Python os.replace() documentation (https://docs.python.org/3/library/os.html#os.replace)
-- Python fcntl module documentation (https://docs.python.org/3/library/fcntl.html)
-- Python dataclasses documentation (https://docs.python.org/3/library/dataclasses.html)
-- Python unittest.mock.patch documentation (https://docs.python.org/3/library/unittest.mock.html)
-- Ruff - Astral (https://astral.sh/ruff)
+- Direct codebase analysis of all 7 Sprint 9 agent modules, orchestrator.py, telegram_router.py, worker_supervisor.py, classifier.py, skill_executor.py
+- Existing test suite analysis: test_sprint9.py (42 tests), test_orchestrator.py (65 tests)
+- Existing patterns: health_sweep.py (ThreadPoolExecutor), runtime.py (lockfile), policy_engine.py (dataclasses)
 
 ### Secondary (MEDIUM confidence)
-- Python Circular Import: Causes and Fixes -- DataCamp
-- Atomic File Writing in Python -- BSWEN
-- Refactoring Python Applications -- Real Python
-- Splitting a module into multiple files -- TestDriven.io
+- [MAST taxonomy (Augment Code)](https://www.augmentcode.com/guides/why-multi-agent-llm-systems-fail-and-how-to-fix-them) -- 42% specification, 37% coordination, 21% verification failures
+- [17x Error Trap (Towards Data Science)](https://towardsdatascience.com/why-your-multi-agent-system-is-failing-escaping-the-17x-error-trap-of-the-bag-of-agents/) -- Error amplification in uncoordinated agents
+- [Azure AI Agent Design Patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns) -- Registry + Router + State Store + Supervisor pattern
+- [LangChain Multi-Agent Architecture Guide](https://blog.langchain.com/choosing-the-right-multi-agent-architecture/) -- Sequential/hierarchical patterns
+- [GitHub Blog: Multi-Agent Workflows](https://github.blog/ai-and-ml/generative-ai/multi-agent-workflows-often-fail-heres-how-to-engineer-ones-that-dont/) -- Engineering reliability
+
+### Tertiary (LOW confidence)
+- [Weighted voting for multi-agent AI](https://medium.com/@edoardo.schepis/patterns-for-democratic-multi-agent-ai-voting-based-council-part-2-implementation-2992c3e7c2be) -- Weighted voting pattern (not recommended for 5-agent system, referenced for completeness)
+- [Agent Anti-Patterns (Medium)](https://achan2013.medium.com/ai-agent-anti-patterns-part-1-architectural-pitfalls-that-break-enterprise-agents-before-they-32d211dded43) -- Enterprise-focused, partially applicable
 
 ---
 *Research completed: 2026-04-28*
