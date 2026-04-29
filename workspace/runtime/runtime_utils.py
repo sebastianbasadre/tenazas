@@ -13,6 +13,12 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
+
 
 # -- JSON I/O --
 
@@ -70,3 +76,46 @@ def write_atomic(path, data):
             except OSError:
                 pass
         raise
+
+
+# -- File Locking --
+
+
+class StateLock:
+    """Advisory file lock for agent state. Context manager.
+
+    Uses fcntl.flock() on Linux. Falls back to no-op on Windows.
+    Combine with write_atomic() for crash-safe locked writes.
+    """
+
+    def __init__(self, path):
+        self.path = Path(path)
+        self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        self.fh = None
+
+    def __enter__(self):
+        if HAS_FCNTL:
+            self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+            self.fh = open(self.lock_path, "a+")
+            fcntl.flock(self.fh.fileno(), fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        if self.fh:
+            try:
+                fcntl.flock(self.fh.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            self.fh.close()
+            self.fh = None
+        return False
+
+
+def locked_write_json(path, data):
+    """Write JSON with advisory file lock (Linux) or atomic-only (Windows).
+
+    Uses fcntl.flock() for mutual exclusion + write_atomic() for crash safety.
+    Safe for concurrent cron + worker_supervisor access.
+    """
+    with StateLock(path):
+        write_atomic(path, data)
