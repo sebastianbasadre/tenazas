@@ -81,7 +81,7 @@ def _observe_iol():
         total = iol.get("total", 0)
         pnl = iol.get("pnl_day", iol.get("pnl", 0))
         issues = []
-        if abs(pnl) > 0:
+        if total > 0 and abs(pnl) > IOL_ALERT_THRESHOLD * total:
             issues.append(f"IOL P&L dia: ${pnl:,.0f}")
         summary = f"IOL: ${total:,.0f} total"
         return {"summary": summary, "confidence": 0.8, "sub": "iol", "issues": issues, "raw": iol}
