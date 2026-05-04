@@ -18,8 +18,8 @@ No CONTEXT.md exists for Phase 9.
 | ID | Description | Research Support |
 |----|-------------|------------------|
 | INTG-01 | Wire coordinator into `telegram_router.py` as the new routing entry point | `workspace/runtime/agent_coordinator.py` already exists and routes queries; `telegram_router.py` is the integration seam |
-| INTG-03 | Feature flag `USE_AGENT_COORDINATOR` for enable/disable without code changes | Existing config-centralization patterns favor `runtime_config.py` or env-first config reads |
-| INTG-04 | Prometheus metrics per agent (latency, success rate, query count) + Grafana dashboard | Current stack already exports metrics on `:9105`, `:9106`, `:9107`, `:9108`, `:9109`; Phase 9 should extend this pattern, not invent a new exporter |
+| INTG-03 | Feature flag `USE_AGENT_COORDINATOR` for enable/disable without code changes | Existing config-centralization patterns favor `runtime_config.py` or env-first config reads; no such flag exists yet |
+| INTG-04 | Prometheus metrics per agent (latency, success rate, query count) + Grafana dashboard | Current stack already exports metrics on `:9105`, `:9106`, `:9107`, `:9108`, `:9109`; `metrics_server.py` already owns `:9105`, so Phase 9 should extend that path, not invent a new exporter |
 | TEST-01 | Unit tests for every new module | Existing suites already cover coordinator and correlation IDs; add targeted unit tests for flag/wiring/metrics helpers |
 | TEST-02 | Integration tests for full pipeline | Existing repo uses mocked end-to-end Python tests; Phase 9 should test router -> coordinator -> agent -> skill path with dependency patching |
 | TEST-03 | Regression tests ensuring routing preserved | Existing routing/classifier behavior can be snapshotted with focused regression fixtures |
@@ -35,7 +35,19 @@ The safest implementation is an adapter rollout, not a rewrite. Keep `telegram_r
 
 The largest risk is fragmented observability: there is already rich metrics infrastructure, but no single per-agent metric family for query count, latency, and outcome. If Phase 9 adds metrics in ad hoc locations, Grafana and regression debugging will get worse, not better. The right move is a single small `agent_metrics.py` helper or equivalent centralized instrumentation called from coordinator entry/exit points and agent execution wrappers.
 
+One planning caveat is verified from the local repo: the planning metadata is stale. `.planning/ROADMAP.md` and `.planning/STATE.md` still describe Phase 8 as not started/current, but the codebase already contains `agent_coordinator.py` plus Phase 8-style tests. For Phase 9, direct code inspection is more trustworthy than status docs when deciding what remains.
+
 **Primary recommendation:** Treat Phase 9 as three deliverables in order: `(1)` feature-flag router integration, `(2)` centralized per-agent metrics emission, `(3)` router/coordinator integration + regression tests. Do not refactor core coordinator logic again in this phase.
+
+---
+
+## Current Verified Implementation State
+
+- `telegram_router.py` has no current `agent_coordinator` hook; free-text traffic still goes to deterministic skill intercepts or direct LLM fallback.
+- `agent_coordinator.py` already implements claimant detection, `first_wins` / `parallel` / `skill_fallback` strategies, aggregation, and correlation-ID logging.
+- `runtime_config.py` centralizes runtime settings, but there is no `USE_AGENT_COORDINATOR` helper or equivalent feature flag yet.
+- `metrics_server.py` already owns the Prometheus scrape endpoint on `:9105` and is driven by shared state plus log parsing; Phase 9 should extend this pipeline instead of starting a second coordinator-specific exporter.
+- Existing tests cover coordinator behavior and correlation IDs, but not router flag integration, exported coordinator metrics, or router/coordinator parity.
 
 ---
 
@@ -70,7 +82,7 @@ The largest risk is fragmented observability: there is already rich metrics infr
 | `runtime_config.py` | local | Feature-flag/config resolution | Add `USE_AGENT_COORDINATOR` here or equivalent helper |
 | `agent_coordinator.py` | local | New routing path | Enabled path only |
 | `telegram_router.py` | local | Telegram ingress and response formatting | Flag gate belongs here |
-| `metrics_server.py` | local | Existing Prometheus endpoint `:9105` | Export aggregated coordinator/agent metrics here or through shared state |
+| `metrics_server.py` | local | Existing Prometheus endpoint `:9105` | Export aggregated coordinator/agent metrics here or through shared state/log parsing, not a second HTTP server |
 | `grafana-*.json` | repo assets | Dashboard provisioning | Reuse existing JSON-managed dashboard workflow |
 
 **Installation:** No new external packages are required if Phase 9 extends the current observability stack.
@@ -135,6 +147,8 @@ coordinator_fallback_total{source="skill_executor|llm_needed"}
 ```
 
 **Why this is the right pattern:** Low cardinality, one place to maintain, and no need to duplicate instrumentation logic across five agents.
+
+**Implementation note from current code:** `metrics_server.py` is a polling exporter. The cleanest fit is to persist coordinator/agent metric state or parse coordinator logs, rather than calling `start_http_server()` from coordinator code.
 
 ### Pattern 3: Mocked Integration Tests Instead of Live Telegram
 
@@ -244,6 +258,7 @@ self.assertIn("correlation_id", params,
 - All five agents accept `correlation_id`.
 - There is already direct test coverage for correlation IDs and coordinator behavior.
 - Prometheus/Grafana infrastructure already exists and is repo-managed.
+- `telegram_router.py` still does not call the coordinator, so this phase remains a real integration step rather than a docs-only cleanup.
 
 ### What Phase 9 actually needs
 1. Router integration behind `USE_AGENT_COORDINATOR`.
@@ -261,6 +276,7 @@ self.assertIn("correlation_id", params,
 ### Confidence notes
 - HIGH confidence that no new dependency is needed.
 - HIGH confidence that Telegram integration should be adapter-style, not rewrite-style.
+- HIGH confidence that coordinator metrics should plug into the existing `metrics_server.py` pipeline instead of introducing a new exporter process.
 - MEDIUM confidence on exact Grafana JSON file to extend, because multiple finance/runtime dashboards exist and Phase 9 should choose one intentionally rather than append everywhere.
 
 ---
