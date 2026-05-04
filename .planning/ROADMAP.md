@@ -105,6 +105,11 @@
   3. Unit tests exist for every new module (protocol, state, coordinator, arbitrator, 5 agents) with mocked dependencies
   4. Integration tests verify the full pipeline: Telegram message in, coordinator routes, agent observes, skill executes, response sent back
   5. Regression tests confirm that the top query patterns routed correctly before v2.0 still route correctly after
+**Plans:** 3 plans
+  Plans:
+  - [ ] 09-01-PLAN.md -- Feature flag helper + Telegram router coordinator adapter
+  - [ ] 09-02-PLAN.md -- Coordinator metrics export + Grafana dashboard panels
+  - [ ] 09-03-PLAN.md -- Full pipeline integration + routing regression tests
 
 ## Progress
 
