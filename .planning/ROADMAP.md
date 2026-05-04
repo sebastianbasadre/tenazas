@@ -28,8 +28,8 @@
 - [x] **Phase 5: Foundation & Contracts** - Typed agent protocol, registry, shared state with file locking *(3/3 plans, completed 2026-04-29)*
 - [x] **Phase 6: Domain Agents** - 5 specialized agents implementing observe/recommend contract *(3/3 plans, completed 2026-04-29)*
 - [x] **Phase 7: Arbitrator & Cross-Agent** - Conflict resolution, cross-agent context, proactive observations *(3/3 plans, completed 2026-04-29)*
-- [ ] **Phase 8: Coordinator Rewrite** - Central routing brain replacing orchestrator as entry point
-- [ ] **Phase 9: Pipeline Integration & Testing** - Wire into Telegram, feature flag, metrics, full test coverage
+- [x] **Phase 8: Coordinator Rewrite** - Central routing brain replacing orchestrator as entry point *(2/2 plans, completed 2026-04-29)*
+- [x] **Phase 9: Pipeline Integration & Testing** - Wire into Telegram, feature flag, metrics, full test coverage *(3/3 plans, completed 2026-05-04)*
 
 ## Phase Details
 
@@ -92,8 +92,8 @@
   4. Every query passing through the coordinator carries a correlation ID traceable through coordinator, agent, and skill execution logs
 **Plans:** 2 plans
   Plans:
-  - [ ] 08-01-PLAN.md -- Add correlation_id kwarg to handle() in all 5 agents
-  - [ ] 08-02-PLAN.md -- Rewrite agent_coordinator.py + TestCoordinatorRewrite tests
+  - [x] 08-01-PLAN.md -- Add correlation_id kwarg to handle() in all 5 agents
+  - [x] 08-02-PLAN.md -- Rewrite agent_coordinator.py + TestCoordinatorRewrite tests
 
 ### Phase 9: Pipeline Integration & Testing
 **Goal**: The multi-agent system is live in Telegram behind a feature flag with full observability and test coverage
@@ -107,9 +107,9 @@
   5. Regression tests confirm that the top query patterns routed correctly before v2.0 still route correctly after
 **Plans:** 3 plans
   Plans:
-  - [ ] 09-01-PLAN.md -- Feature flag helper + Telegram router coordinator adapter
-  - [ ] 09-02-PLAN.md -- Coordinator metrics export + Grafana dashboard panels
-  - [ ] 09-03-PLAN.md -- Full pipeline integration + routing regression tests
+  - [x] 09-01-PLAN.md -- Feature flag helper + Telegram router coordinator adapter
+  - [x] 09-02-PLAN.md -- Coordinator metrics export + Grafana dashboard panels
+  - [x] 09-03-PLAN.md -- Full pipeline integration + routing regression tests
 
 ## Progress
 
@@ -125,5 +125,5 @@ Phases execute in numeric order: 5 -> 5.x -> 6 -> 6.x -> 7 -> 8 -> 9
 | 5. Foundation & Contracts | v2.0 | 3/3 | Complete | 2026-04-29 |
 | 6. Domain Agents | v2.0 | 3/3 | Complete | 2026-04-29 |
 | 7. Arbitrator & Cross-Agent | v2.0 | 3/3 | Complete | 2026-04-29 |
-| 8. Coordinator Rewrite | v2.0 | 0/2 | Not started | - |
-| 9. Pipeline Integration & Testing | v2.0 | 0/0 | Not started | - |
+| 8. Coordinator Rewrite | v2.0 | 2/2 | Complete | 2026-04-29 |
+| 9. Pipeline Integration & Testing | v2.0 | 3/3 | Complete | 2026-05-04 |

@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Every query reaches the right domain agent, gets an expert-level response, and any recommended action flows through Telegram approval.
-**Current focus:** Phase 8 — Coordinator Rewrite
+**Current focus:** Milestone complete — Phase 9 executed
 
 ## Current Position
 
-Phase: 8 of 9 (Coordinator Rewrite)
-Plan: 0 of 2 in current phase
-Status: Ready to execute
-Last activity: 2026-04-29 — Phase 8 planned (2 plans, 2 waves, verified)
+Phase: 9 of 9 (Pipeline Integration & Testing)
+Plan: 3 of 3 in current phase
+Status: Complete
+Last activity: 2026-05-04 — Phase 9 executed (feature flag, metrics export, integration and regression tests)
 
-Progress: [████████████████████████████████████░░░░░] 75% (v1.0: 9/9 plans, v2.0: 9/? plans)
+Progress: [████████████████████████████████████████] 100% (v1.0: 9/9 plans, v2.0: 14/14 plans)
 
 ## Performance Metrics
 
-**Velocity (v1.0):**
-- Total plans completed: 9
+**Velocity (v2.0):**
+- Total plans completed: 14
 - Average duration: 10.1 min
 - Total execution time: 1.52 hours
 
@@ -49,11 +49,11 @@ None.
 
 ### Blockers/Concerns
 
-- Pre-existing test failures (31 suites) from v1.0 import path changes need a future maintenance pass
-- Research recommends starting with 3 agents (infra, personal, finance) and adding others only when justified by activation rates
+- Pre-existing test failures outside the Phase 9 scoped suite still need a separate maintenance pass
+- Phase 9 rollout remains gated by `USE_AGENT_COORDINATOR`; enabling in production should follow observed metrics
 
 ## Session Continuity
 
-Last session: 2026-04-28
-Stopped at: Phase 5 complete, ready to plan Phase 6
-Resume file: .planning/ROADMAP.md (Phase 6: Domain Agents)
+Last session: 2026-05-04
+Stopped at: Phase 9 complete
+Resume file: .planning/ROADMAP.md (Phase 9: Pipeline Integration & Testing)
