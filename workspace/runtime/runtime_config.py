@@ -49,6 +49,23 @@ def get_default_telegram_chat_id(config: dict | None = None) -> str:
     return ""
 
 
+def use_agent_coordinator(config: dict | None = None) -> bool:
+    """Return whether Telegram free-text queries should use agent_coordinator."""
+    raw = os.environ.get("USE_AGENT_COORDINATOR", "").strip()
+    if not raw:
+        raw = get_telegram_settings(config).get("useAgentCoordinator", "")
+
+    if isinstance(raw, bool):
+        return raw
+
+    text = str(raw).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off", ""}:
+        return False
+    return False
+
+
 def get_hue_api_key(config: dict | None = None) -> str:
     key = os.environ.get("HUE_API_KEY", "").strip()
     if key:

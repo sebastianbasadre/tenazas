@@ -10,10 +10,12 @@ Usage:
 """
 
 import json
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout, as_completed
 from pathlib import Path
 
+from agent_metrics import record_agent_result, record_route_result
 from runtime_utils import now
 
 BASE_DIR = Path(__file__).parent
@@ -103,13 +105,16 @@ def _get_claimants(query: str) -> list:
 
 def _run_single(name: str, query: str, correlation_id: str) -> dict:
     """Direct call to one agent. No threading overhead."""
+    started = time.perf_counter()
     try:
         agent = _load_agent(name)
         if agent is None or not hasattr(agent, "handle"):
             return {}
         obs, recs = agent.handle(query, correlation_id=correlation_id)
+        record_agent_result(name, time.perf_counter() - started, "ok")
         return {name: (obs, recs)}
     except Exception as e:
+        record_agent_result(name, time.perf_counter() - started, "error")
         _log(
             {
                 "action": "agent_error",
@@ -134,15 +139,19 @@ def _run_parallel(claimants: list, query: str, correlation_id: str) -> dict:
             pool.submit(mod.handle, query, correlation_id=correlation_id): name
             for name, mod in callable_agents.items()
         }
+        started = {future: time.perf_counter() for future in futures}
         try:
             for future in as_completed(futures, timeout=31):
                 name = futures[future]
                 try:
                     obs, recs = future.result(timeout=30)
+                    record_agent_result(name, time.perf_counter() - started[future], "ok")
                     results[name] = (obs, recs)
                 except FutureTimeout:
+                    record_agent_result(name, time.perf_counter() - started[future], "timeout")
                     _log({"action": "agent_timeout", "agent": name, "correlation_id": correlation_id})
                 except Exception as e:
+                    record_agent_result(name, time.perf_counter() - started[future], "error")
                     _log(
                         {
                             "action": "agent_error",
@@ -152,6 +161,11 @@ def _run_parallel(claimants: list, query: str, correlation_id: str) -> dict:
                         }
                     )
         except FutureTimeout:
+            for future, name in futures.items():
+                if future.done():
+                    continue
+                record_agent_result(name, time.perf_counter() - started[future], "timeout")
+                _log({"action": "agent_timeout", "agent": name, "correlation_id": correlation_id})
             _log(
                 {
                     "action": "parallel_timeout",
@@ -249,6 +263,7 @@ def route(query: str) -> dict:
                 "elapsed": elapsed,
             }
         )
+        record_route_result(strategy, result.get("handled", False), result.get("source"))
         _save_coord_log({**payload, "ts": now().isoformat()})
         return payload
 
@@ -301,6 +316,7 @@ def route(query: str) -> dict:
             "elapsed": elapsed,
         }
     )
+    record_route_result(strategy, bool(aggregated))
     _save_coord_log({**payload, "ts": now().isoformat()})
     return payload
 

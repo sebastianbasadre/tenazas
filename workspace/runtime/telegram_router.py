@@ -38,6 +38,7 @@ try:
         get_default_telegram_chat_id,
         get_telegram_bot_token,
         load_config,
+        use_agent_coordinator,
     )
 except ImportError:
     from runtime_config import (
@@ -47,6 +48,7 @@ except ImportError:
         get_default_telegram_chat_id,
         get_telegram_bot_token,
         load_config,
+        use_agent_coordinator,
     )
 
 # ── Paths ──────────────────────────────────────────────────────────
@@ -985,6 +987,39 @@ def handle_non_skill(text: str, chat_id: str = CHAT_ID) -> str:
     return "No pude conectar con el modelo. Ollama offline?"
 
 
+def _route_free_text_query(text: str, chat_id: str = CHAT_ID) -> dict:
+    """Route free-text non-skill traffic via coordinator or legacy LLM path."""
+    if not use_agent_coordinator(_load_config()):
+        return {
+            "response": handle_non_skill(text, chat_id=chat_id),
+            "used_coordinator": False,
+            "route_path": "llm_chat",
+        }
+
+    try:
+        import agent_coordinator
+
+        result = agent_coordinator.route(text)
+        aggregated = result.get("aggregated")
+        if result.get("handled") and aggregated:
+            return {
+                "response": aggregated,
+                "used_coordinator": True,
+                "route_path": "agent_coordinator",
+                "strategy": result.get("strategy", "unknown"),
+                "correlation_id": result.get("correlation_id", ""),
+                "source": result.get("source"),
+            }
+    except Exception as e:
+        _log({"action": "coordinator_error", "error": str(e)[:200], "text": text[:80]})
+
+    return {
+        "response": handle_non_skill(text, chat_id=chat_id),
+        "used_coordinator": False,
+        "route_path": "llm_chat",
+    }
+
+
 # ── Main Polling Loop ──────────────────────────────────────────────
 
 def poll_loop():
@@ -1321,19 +1356,32 @@ def _process_update(token: str, update: dict, allowed: set):
         _log({"action": "delegating_to_llm", "category": category, "text": text[:80]})
         send_typing(token, chat_id)
 
-        response = handle_non_skill(text, chat_id=chat_id)
+        route_info = _route_free_text_query(text, chat_id=chat_id)
+        response = route_info["response"]
         _latency = int((_time.perf_counter() - _t0) * 1000)
 
-        _log({"action": "llm_response", "category": category,
-              "response_len": len(response)})
+        if route_info.get("used_coordinator"):
+            _log({"action": "coordinator_response", "category": category,
+                  "response_len": len(response),
+                  "strategy": route_info.get("strategy"),
+                  "correlation_id": route_info.get("correlation_id")})
+        else:
+            _log({"action": "llm_response", "category": category,
+                  "response_len": len(response)})
 
         # Observability: structured log
         try:
             from obs import log_router_decision
-            log_router_decision(
-                query=text, route="chat_free", path="llm_chat",
-                skill=None, guardrail_hit=False, used_llm=True,
-                latency_ms=_latency, success=bool(response), chat_id=chat_id)
+            if route_info.get("used_coordinator"):
+                log_router_decision(
+                    query=text, route="agent_coordinator", path=route_info.get("strategy", "unknown"),
+                    skill=None, guardrail_hit=False, used_llm=False,
+                    latency_ms=_latency, success=bool(response), chat_id=chat_id)
+            else:
+                log_router_decision(
+                    query=text, route="chat_free", path="llm_chat",
+                    skill=None, guardrail_hit=False, used_llm=True,
+                    latency_ms=_latency, success=bool(response), chat_id=chat_id)
         except Exception:
             pass
 

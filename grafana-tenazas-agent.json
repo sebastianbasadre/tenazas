@@ -1408,6 +1408,220 @@
           "colorMode": "value",
           "textMode": "auto"
         }
+      },
+      {
+        "id": 105,
+        "title": "Coordinator Rollout",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 34
+        },
+        "collapsed": false
+      },
+      {
+        "id": 50,
+        "title": "Agent Queries",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 0,
+          "y": 35
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_agent_queries_total",
+            "legendFormat": "{{agent}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "lineWidth": 2,
+              "showPoints": "auto"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 51,
+        "title": "Agent Latency",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 12,
+          "y": 35
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_agent_latency_seconds",
+            "legendFormat": "{{agent}} last",
+            "refId": "A"
+          },
+          {
+            "expr": "tenazas_agent_latency_avg_seconds",
+            "legendFormat": "{{agent}} avg",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2,
+              "showPoints": "auto"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 52,
+        "title": "Agent Outcomes",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 0,
+          "y": 42
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_agent_outcomes_total",
+            "legendFormat": "{{agent}} {{outcome}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
+      },
+      {
+        "id": 53,
+        "title": "Coordinator Strategies",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 7,
+          "w": 6,
+          "x": 12,
+          "y": 42
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_coordinator_routes_total",
+            "legendFormat": "{{strategy}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
+      },
+      {
+        "id": 54,
+        "title": "Coordinator Fallbacks",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 7,
+          "w": 6,
+          "x": 18,
+          "y": 42
+        },
+        "datasource": {
+          "uid": "afhjgavdgav40d",
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "tenazas_coordinator_fallback_total",
+            "legendFormat": "{{source}}",
+            "refId": "A"
+          },
+          {
+            "expr": "tenazas_coordinator_handled_total",
+            "legendFormat": "{{handled}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          },
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
       }
     ],
     "schemaVersion": 39,

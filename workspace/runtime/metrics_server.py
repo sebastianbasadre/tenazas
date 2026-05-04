@@ -35,12 +35,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 BASE_DIR = Path(__file__).parent
 METRICS_STATE_FILE = BASE_DIR / "logs" / "metrics_state.json"
 LOGS_DIR = BASE_DIR / "logs"
+AGENT_METRICS_STATE_FILE = LOGS_DIR / "agent_metrics_state.json"
 POLL_INTERVAL = 5  # seconds
 
 # Slower collection intervals (in seconds)
 OLLAMA_CHECK_INTERVAL = 60
 IOL_CHECK_INTERVAL = 300  # 5 min
 LOG_PARSE_INTERVAL = 30
+USD_ARS_API_TIMEOUT = 10
 
 # Ollama GPU endpoint (configurable)
 OLLAMA_GPU_TIMEOUT = 5
@@ -204,6 +206,15 @@ if PROM_AVAILABLE:
     G_RECONCILER_BIN_DIFF = Gauge("tenazas_reconciler_binance_diff_pct", "Binance total divergence %")
     G_RECONCILER_IOL_DIFF = Gauge("tenazas_reconciler_iol_diff_pct", "IOL total divergence %")
     G_RECONCILER_LAST_RUN = Gauge("tenazas_reconciler_last_run_ts", "Last reconciliation timestamp")
+
+    # ── Coordinator / Agent Routing ───────────────────────────
+    G_AGENT_QUERIES = Gauge("tenazas_agent_queries_total", "Total coordinator-routed agent queries", ["agent"])
+    G_AGENT_LATENCY_LAST = Gauge("tenazas_agent_latency_seconds", "Last agent latency in seconds", ["agent"])
+    G_AGENT_LATENCY_AVG = Gauge("tenazas_agent_latency_avg_seconds", "Average agent latency in seconds", ["agent"])
+    G_AGENT_OUTCOMES = Gauge("tenazas_agent_outcomes_total", "Agent outcomes by type", ["agent", "outcome"])
+    G_COORD_ROUTES = Gauge("tenazas_coordinator_routes_total", "Coordinator routes by strategy", ["strategy"])
+    G_COORD_FALLBACKS = Gauge("tenazas_coordinator_fallback_total", "Coordinator fallbacks by source", ["source"])
+    G_COORD_HANDLED = Gauge("tenazas_coordinator_handled_total", "Coordinator handled vs unhandled totals", ["handled"])
 
 
 def update_from_file():
@@ -413,21 +424,41 @@ def collect_iol_metrics():
         account = get_account_state()
         cuentas = account.get("cuentas", [])
         total_pesos = float(account.get("totalEnPesos", 0) or 0)
+        ars_total_native = 0.0
+        usd_total_native = 0.0
+        for cuenta in cuentas:
+            moneda = str(cuenta.get("moneda", "")).lower()
+            total = float(cuenta.get("total", 0) or 0)
+            if moneda == "dolar_estadounidense":
+                usd_total_native += total
+            else:
+                ars_total_native += total
 
         portfolio = get_portfolio("argentina")
         activos = portfolio.get("activos", [])
         invertido = sum(float(a.get("valorizado", 0) or 0) for a in activos)
+        implied_rate = 0.0
+        if total_pesos > 0 and usd_total_native > 0:
+            implied_rate = max((total_pesos - ars_total_native) / usd_total_native, 0.0)
 
-        # P&L = sum of (valorizado - cantidad * ppc) for each activo
-        pnl = 0
+        # Daily P&L in ARS equivalent
+        pnl_day_ars = 0.0
         for a in activos:
             valorizado = float(a.get("valorizado", 0) or 0)
             cantidad = float(a.get("cantidad", 0) or 0)
-            ppc = float(a.get("ppc", 0) or 0)
-            pnl += valorizado - (cantidad * ppc)
+            puntos = float(a.get("puntosVariacion", 0) or 0)
+            variacion = float(a.get("variacionDiaria", 0) or 0)
+            moneda = str(a.get("titulo", {}).get("moneda", "")).lower()
+            day_pnl = puntos * cantidad if puntos else (
+                valorizado * (variacion / 100.0) if variacion else 0.0
+            )
+            if moneda == "dolar_estadounidense":
+                pnl_day_ars += day_pnl * implied_rate if implied_rate > 0 else 0.0
+            else:
+                pnl_day_ars += day_pnl
 
         G_IOL_PORTFOLIO_ARS.set(round(total_pesos if total_pesos else invertido, 2))
-        G_IOL_PORTFOLIO_PNL.set(round(pnl, 2))
+        G_IOL_PORTFOLIO_PNL.set(round(pnl_day_ars, 2))
         G_IOL_LAST_SUCCESS.set(time.time())
     except Exception as e:
         G_IOL_ERRORS.inc()
@@ -886,6 +917,42 @@ def update_roi_metrics():
         log.warning("ROI metrics update failed: %s", e)
 
 
+def update_agent_metrics():
+    """Read agent_metrics_state.json and update Prometheus gauges."""
+    if not PROM_AVAILABLE:
+        return
+    try:
+        if not AGENT_METRICS_STATE_FILE.exists():
+            return
+        data = json.loads(AGENT_METRICS_STATE_FILE.read_text())
+        per_agent = data.get("per_agent", {})
+        coord = data.get("coordinator", {})
+
+        G_AGENT_QUERIES._metrics.clear()
+        G_AGENT_LATENCY_LAST._metrics.clear()
+        G_AGENT_LATENCY_AVG._metrics.clear()
+        G_AGENT_OUTCOMES._metrics.clear()
+        G_COORD_ROUTES._metrics.clear()
+        G_COORD_FALLBACKS._metrics.clear()
+        G_COORD_HANDLED._metrics.clear()
+
+        for agent, info in per_agent.items():
+            G_AGENT_QUERIES.labels(agent=agent).set(info.get("queries_total", 0))
+            G_AGENT_LATENCY_LAST.labels(agent=agent).set(info.get("latency_last", 0))
+            G_AGENT_LATENCY_AVG.labels(agent=agent).set(info.get("latency_avg", 0))
+            for outcome, count in info.get("outcomes", {}).items():
+                G_AGENT_OUTCOMES.labels(agent=agent, outcome=outcome).set(count)
+
+        for strategy, count in coord.get("routes", {}).items():
+            G_COORD_ROUTES.labels(strategy=strategy).set(count)
+        for source, count in coord.get("fallbacks", {}).items():
+            G_COORD_FALLBACKS.labels(source=source).set(count)
+        for handled, count in coord.get("handled", {}).items():
+            G_COORD_HANDLED.labels(handled=handled).set(count)
+    except Exception as e:
+        log.warning("Agent metrics update failed: %s", e)
+
+
 # ── Main Loop ──────────────────────────────────────────────────
 
 
@@ -946,6 +1013,7 @@ if __name__ == "__main__":
         update_device_discovery_metrics()
         update_ba_metrics()
         update_roi_metrics()
+        update_agent_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:
