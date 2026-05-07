@@ -181,20 +181,20 @@ class TestModelSelection(unittest.TestCase):
 
     def test_chat_selects_local_model(self):
         model = orch.select_model("chat")
-        self.assertEqual(model["id"], "ollama/qwen2.5:7b")
+        self.assertEqual(model["id"], "ollama/qwen3:8b")
 
     def test_infra_selects_qwen_7b(self):
         model = orch.select_model("infrastructure_issue")
-        self.assertEqual(model["id"], "ollama/qwen2.5:7b")
+        self.assertEqual(model["id"], "ollama/qwen3:8b")
 
     def test_reasoning_selects_deepseek_via_v2(self):
         model = orch.select_model("complex_reasoning")
-        # V2 routes complex_reasoning → reason role → deepseek-r1:14b
-        self.assertEqual(model["id"], "ollama/deepseek-r1:14b")
+        # V2 routes complex_reasoning → reason role → compact local reasoner
+        self.assertEqual(model["id"], "ollama/qwen3:8b")
 
     def test_diagnostic_selects_qwen_7b(self):
         model = orch.select_model("diagnostic_request")
-        self.assertEqual(model["id"], "ollama/qwen2.5:7b")
+        self.assertEqual(model["id"], "ollama/qwen3:8b")
 
     def test_fallback_when_gpu_offline(self):
         """When local GPU is offline, fall back to cloud."""
@@ -430,7 +430,7 @@ class TestRouterV2Integration(unittest.TestCase):
         mock_detect.return_value = _mock_v2_backends()
         result = orch.route_query("hola buenas")
         self.assertEqual(result["classification"], "chat")
-        self.assertEqual(result["model"]["id"], "ollama/qwen2.5:7b")
+        self.assertEqual(result["model"]["id"], "ollama/qwen3:8b")
         self.assertIn("router_v2", result)
         self.assertEqual(result["router_v2"]["role"], "fast")
 
@@ -440,7 +440,7 @@ class TestRouterV2Integration(unittest.TestCase):
         mock_detect.return_value = _mock_v2_backends()
         result = orch.route_query("analiza el rendimiento del stack y compara con la semana pasada")
         self.assertEqual(result["classification"], "complex_reasoning")
-        self.assertEqual(result["model"]["id"], "ollama/deepseek-r1:14b")
+        self.assertEqual(result["model"]["id"], "ollama/qwen3:8b")
         self.assertEqual(result["router_v2"]["role"], "reason")
 
     @patch("runtime.model_router.detect_backends")
@@ -451,7 +451,7 @@ class TestRouterV2Integration(unittest.TestCase):
         result = orch.route_query("refactor this function for me")
         # classify_query sees "refactor" but may classify as chat/automation
         # V2 classify_task sees code keywords → code role → coder model
-        self.assertEqual(result["model"]["id"], "ollama/qwen2.5-coder:14b")
+        self.assertEqual(result["model"]["id"], "ollama/qwen3:8b")
         self.assertEqual(result["router_v2"]["role"], "code")
 
     @patch("runtime.model_router.detect_backends")
@@ -460,7 +460,7 @@ class TestRouterV2Integration(unittest.TestCase):
         mock_detect.return_value = _mock_v2_backends()
         context = {"has_image": True}
         result = orch.route_query("que es esto", context)
-        self.assertEqual(result["model"]["id"], "ollama/qwen2.5vl:7b")
+        self.assertEqual(result["model"]["id"], "ollama/qwen3:8b")
         self.assertEqual(result["router_v2"]["role"], "vision")
 
     @patch("runtime.model_router.detect_backends")
@@ -469,7 +469,7 @@ class TestRouterV2Integration(unittest.TestCase):
         mock_detect.return_value = _mock_v2_backends()
         context = {"critical": True}
         result = orch.route_query("ejecuta esto", context)
-        self.assertEqual(result["model"]["id"], "ollama/qwen2.5:32b")
+        self.assertEqual(result["model"]["id"], "ollama/qwen3:8b")
         self.assertEqual(result["router_v2"]["role"], "heavy")
 
     @patch("runtime.model_router.detect_backends")
@@ -601,9 +601,9 @@ class TestRouterV2Escalation(unittest.TestCase):
         mock_detect.return_value = _mock_v2_backends()
         original = orch.route_query("como funciona el proxy")
         escalated = orch.escalate(original, "low_confidence")
-        # Escalated to complex_reasoning → reason role → deepseek
+        # Escalated to complex_reasoning → compact local reasoner
         self.assertEqual(escalated["classification"], "complex_reasoning")
-        self.assertEqual(escalated["model"]["id"], "ollama/deepseek-r1:14b")
+        self.assertEqual(escalated["model"]["id"], "ollama/qwen3:8b")
 
 
 class TestBuildFlagsFromContext(unittest.TestCase):

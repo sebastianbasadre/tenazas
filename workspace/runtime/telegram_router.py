@@ -373,6 +373,7 @@ INTERCEPTED_SKILLS = {
     "iol_broker",
     "skill:model-trainer",
     "skill:expense",
+    "agent:finance",
 }
 
 # Additional keyword patterns for email that the orchestrator might miss.
@@ -429,6 +430,16 @@ def classify_intent(text: str) -> str:
         _log({"action": "classified", "category": "iol_broker",
               "text": text[:80], "tier": "iol_keywords"})
         return "iol_broker"
+
+    # Tier 0: Finance keywords for short/direct Binance queries.
+    _FINANCE_QUICK_RE = re.compile(
+        r"\b(binance|btc|bitcoin|crypto|criptos?|eth|ethereum|pnl)\b",
+        re.IGNORECASE,
+    )
+    if _FINANCE_QUICK_RE.search(text):
+        _log({"action": "classified", "category": "agent:finance",
+              "text": text[:80], "tier": "finance_keywords"})
+        return "agent:finance"
 
     # Tier 1: Use finetuned_router (Gemma 12B → finetuned v8 → keyword)
     try:
@@ -505,6 +516,39 @@ def should_intercept(text: str) -> tuple[bool, str]:
     return category in INTERCEPTED_SKILLS, category
 
 
+def _prefer_coordinator_over_intercept(text: str, intercept: bool, category: str) -> bool:
+    """Allow mixed-domain free text to bypass deterministic skill intercepts.
+
+    Pure skill queries should keep the fast deterministic path. If the
+    coordinator flag is enabled and the query clearly belongs to multiple
+    agent domains, prefer the coordinator path so aggregation can happen.
+    """
+    if not intercept:
+        return False
+    if category not in {"skill:infra-monitor", "iol_broker", "skill:expense"}:
+        return False
+    try:
+        if not use_agent_coordinator(_load_config()):
+            return False
+    except Exception:
+        return False
+    try:
+        from agent_coordinator import identify_agents
+        claimants = identify_agents(text)
+    except Exception as e:
+        _log({"action": "coordinator_bypass_error", "error": str(e), "text": text[:80]})
+        return False
+    if len(claimants) > 1:
+        _log({
+            "action": "intercept_bypassed_for_coordinator",
+            "category": category,
+            "agents": claimants,
+            "text": text[:80],
+        })
+        return True
+    return False
+
+
 # ── Skill Execution ────────────────────────────────────────────────
 
 def _execute_iol(text: str) -> str:
@@ -539,6 +583,16 @@ def execute_intercepted_skill(text: str, category: str = None) -> tuple[str, str
         _log({"action": "iol_execute", "text": text[:80]})
         result = _execute_iol(text)
         return result, result
+
+    if category == "agent:finance":
+        _log({"action": "finance_execute", "text": text[:80]})
+        try:
+            import agent_finance
+            result = agent_finance.handle_query(text)
+            return result, result
+        except Exception as e:
+            msg = f"Error finanzas: {e}"
+            return msg, ""
 
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
     from orchestrator import execute_skill
@@ -690,7 +744,9 @@ def _humanize_response(query: str, raw_output: str, category: str) -> str:
 
 # Ollama endpoint for non-skill messages
 OLLAMA_NAS_URL = _OLLAMA_NAS_URL
-LLM_MODEL = "qwen3:8b"
+# Router V2 chooses the model dynamically. This is only the last-resort fallback
+# when the router cannot provide a selection, so keep it on an installed model.
+LLM_MODEL = os.environ.get("TENAZAS_TELEGRAM_FALLBACK_MODEL", "qwen3:8b").strip() or "qwen3:8b"
 LLM_TIMEOUT = 60
 
 
@@ -1256,6 +1312,8 @@ def _process_update(token: str, update: dict, allowed: set):
     else:
         # Classify
         intercept, category = should_intercept(text)
+        if _prefer_coordinator_over_intercept(text, intercept, category):
+            intercept = False
 
     import time as _time
     _t0 = _time.perf_counter()

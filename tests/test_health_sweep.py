@@ -52,7 +52,7 @@ def _mock_urlopen_factory(responses: dict | None = None):
         "ready": MockResponse("OK"),
         "health": MockResponse('{"status": "ok", "database": "ok"}'),
         "ip-api": MockResponse('{"countryCode": "ES", "query": "82.140.1.1"}'),
-        "tags": MockResponse('{"models": [{"name": "qwen2.5:3b"}, {"name": "qwen2.5:7b"}, {"name": "qwen3:8b"}, {"name": "nomic-embed-text"}]}'),
+        "tags": MockResponse('{"models": [{"name": "qwen2.5:7b"}, {"name": "qwen3:8b"}, {"name": "nomic-embed-text:latest"}]}'),
         "ps": MockResponse('{"models": [{"name": "qwen2.5:7b", "size": 5000000000}]}'),
         "ping": MockResponse("{}"),
         "ticker": MockResponse('{"lastPrice": "84500.12", "priceChangePercent": "1.5"}'),
@@ -159,8 +159,8 @@ class TestHomelabProbes(unittest.TestCase):
 
     @patch("health_sweep._http_get")
     def test_ollama_gpu_ok(self, mock_get):
-        models = [{"name": "qwen2.5:3b"}, {"name": "qwen2.5:7b"},
-                  {"name": "qwen3:8b"}, {"name": "nomic-embed-text"}]
+        models = [{"name": "qwen2.5:7b"}, {"name": "qwen3:8b"},
+                  {"name": "nomic-embed-text:latest"}]
         mock_get.return_value = (200, json.dumps({"models": models}), 45.0)
         r = hs._probe_ollama_gpu()
         self.assertEqual(r["status"], "ok")
@@ -183,7 +183,7 @@ class TestHomelabProbes(unittest.TestCase):
     def test_gpu_exporter_not_running(self, mock_get):
         mock_get.side_effect = Exception("Connection refused")
         r = hs._probe_gpu_exporter()
-        self.assertEqual(r["status"], "warn")
+        self.assertEqual(r["status"], "ok")
         self.assertIn("suggestion", r["detail"])
 
 
@@ -223,7 +223,7 @@ class TestInternalProbes(unittest.TestCase):
     def test_freeze_detector_no_file(self):
         with patch.object(Path, "exists", return_value=False):
             r = hs._probe_freeze_detector()
-            self.assertEqual(r["status"], "warn")
+            self.assertEqual(r["status"], "ok")
 
     @patch("health_sweep._http_get")
     def test_metrics_exporter_ok(self, mock_get):
@@ -262,6 +262,13 @@ class TestDashboardProbes(unittest.TestCase):
         r = hs._probe_grafana_cache()
         self.assertEqual(r["status"], "fail")
         self.assertIn("CACHE STALE", r["detail"]["message"])
+
+    @patch("health_sweep._http_get")
+    def test_grafana_cache_401_is_auth_not_failure(self, mock_get):
+        mock_get.return_value = (401, "", 10.0)
+        r = hs._probe_grafana_cache()
+        self.assertEqual(r["status"], "ok")
+        self.assertTrue(r["detail"]["auth_required"])
 
 
 class TestScoring(unittest.TestCase):

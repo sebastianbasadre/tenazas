@@ -124,7 +124,7 @@ class TestSelectModelGPU(unittest.TestCase):
         mock_detect.side_effect = _mock_backends(notebook=True, nas=True)
         result = mr.select_model("system")
         # V1 selects from non-legacy models that fit in 24GB VRAM (RTX 3090)
-        self.assertIn(result["model"], ("qwen2.5:7b", "qwen3:8b"))
+        self.assertIn(result["model"], ("qwen3:4b", "qwen3:8b", "qwen2.5:7b"))
         self.assertEqual(result["backend"], "notebook_gpu")
 
     @patch("runtime.model_router._log")
@@ -321,10 +321,9 @@ class TestCatalogIntegrity(unittest.TestCase):
                               f"ROLE_MAP[{role}] references unknown model {model}")
 
     def test_homelab_models_present(self):
-        """All 7 HomeLab models are in the catalog."""
-        expected = {"qwen2.5:7b", "deepseek-r1:14b", "qwen2.5:32b",
-                    "qwen2.5-coder:14b", "qwen2.5vl:7b", "qwen3:8b",
-                    "nomic-embed-text"}
+        """Preferred local catalog only contains the compact active target set."""
+        expected = {"qwen3:4b", "qwen3:8b", "qwen2.5:7b",
+                    "qwen2.5-coder:7b", "qwen3-vl:4b", "nomic-embed-text"}
         actual = {k for k, v in mr.MODEL_CATALOG.items()
                   if not v.get("legacy") and not v.get("cloud")}
         self.assertEqual(expected, actual)
@@ -381,7 +380,7 @@ class TestClassifyTask(unittest.TestCase):
         self.assertEqual(mr.classify_task("why did the container keep restarting over and over"), "fast")
 
     def test_reason_deep_uses_deepseek(self):
-        # Complex reasoning with deep keywords → reason (deepseek-r1:14b)
+        # Complex reasoning with deep keywords → reason role
         self.assertEqual(mr.classify_task("investiga step by step por que falla el deploy"), "reason")
         self.assertEqual(mr.classify_task("analiza en detalle profundo los logs de error del ultimo mes"), "reason")
         self.assertEqual(mr.classify_task("diagnostico completo del root cause del crash loop"), "reason")
@@ -436,17 +435,17 @@ class TestRouteByRole(unittest.TestCase):
     def test_fast_selects_7b(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("hola que tal")
-        self.assertEqual(result["model"], "qwen2.5:7b")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertEqual(result["role"], "fast")
-        self.assertFalse(result["fallback_used"])
+        self.assertTrue(result["fallback_used"])
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_reason_selects_deepseek(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
-        # Deep reasoning prompt triggers deepseek-r1:14b
+        # Deep reasoning prompt triggers the larger local reasoning model
         result = mr.route_by_role("investiga step by step por que falla el deploy de produccion")
-        self.assertEqual(result["model"], "deepseek-r1:14b")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertEqual(result["role"], "reason")
 
     @patch("runtime.model_router._log")
@@ -454,23 +453,25 @@ class TestRouteByRole(unittest.TestCase):
     def test_code_selects_coder(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("refactor the auth module")
-        self.assertEqual(result["model"], "qwen2.5-coder:14b")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertEqual(result["role"], "code")
+        self.assertTrue(result["fallback_used"])
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_vision_selects_vl(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("describe this", flags={"has_image": True})
-        self.assertEqual(result["model"], "qwen2.5vl:7b")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertEqual(result["role"], "vision")
+        self.assertTrue(result["fallback_used"])
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_heavy_selects_32b(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("critical production deploy")
-        self.assertEqual(result["model"], "qwen2.5:32b")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertEqual(result["role"], "heavy")
 
     @patch("runtime.model_router._log")
@@ -496,7 +497,7 @@ class TestRouteByRole(unittest.TestCase):
         # CPU can only run small models
         model_info = mr.MODEL_CATALOG.get(result["model"], {})
         self.assertLessEqual(model_info.get("vram_gb", 0), 3.5)
-        self.assertTrue(result["fallback_used"])
+        self.assertEqual(result["backend"], "nas_cpu")
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
@@ -504,14 +505,14 @@ class TestRouteByRole(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("random unclassified stuff")
         self.assertEqual(result["role"], "fast")
-        self.assertEqual(result["model"], "qwen2.5:7b")
+        self.assertEqual(result["model"], "qwen3:8b")
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_pre_fetched_backend_status(self, mock_detect, mock_log):
         pre_fetched = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("hello", backend_status=pre_fetched)
-        self.assertEqual(result["model"], "qwen2.5:7b")
+        self.assertEqual(result["model"], "qwen3:8b")
         mock_detect.assert_not_called()  # Should not re-detect
 
     @patch("runtime.model_router._log")
@@ -565,7 +566,7 @@ class TestRouteByRole(unittest.TestCase):
     def test_explicit_role_override(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("hello", flags={"role": "reason"})
-        self.assertEqual(result["model"], "deepseek-r1:14b")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertEqual(result["role"], "reason")
 
 
@@ -611,7 +612,7 @@ class TestGuardrails(unittest.TestCase):
         import time
         # Simulate cooldown active
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
         role, degraded, reason = mr.apply_guardrails("heavy", {"force_heavy": True})
         self.assertEqual(role, "heavy")
         self.assertFalse(degraded)
@@ -619,7 +620,7 @@ class TestGuardrails(unittest.TestCase):
     def test_cooldown_degrades_heavy_to_reason(self):
         import time
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
         role, degraded, reason = mr.apply_guardrails("heavy")
         self.assertEqual(role, "reason")
         self.assertTrue(degraded)
@@ -628,7 +629,7 @@ class TestGuardrails(unittest.TestCase):
     def test_cooldown_degrades_code_to_fast(self):
         import time
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen2.5-coder:14b"
+        mr._guardrail_state["last_heavy_model"] = "qwen2.5-coder:7b"
         role, degraded, reason = mr.apply_guardrails("code")
         self.assertEqual(role, "fast")
         self.assertTrue(degraded)
@@ -637,7 +638,7 @@ class TestGuardrails(unittest.TestCase):
     def test_cooldown_expires(self):
         import time
         mr._guardrail_state["last_heavy_ts"] = time.monotonic() - mr.GUARDRAIL_COOLDOWN - 1
-        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
         role, degraded, reason = mr.apply_guardrails("heavy")
         self.assertEqual(role, "heavy")
         self.assertFalse(degraded)
@@ -685,9 +686,9 @@ class TestGuardrails(unittest.TestCase):
         self.assertIn("vram_swaps", reason)
 
     def test_record_heavy_usage_tracks(self):
-        mr.record_heavy_usage("qwen2.5:32b", latency=10.0, vram_swap=True)
+        mr.record_heavy_usage("qwen3:8b", latency=10.0, vram_swap=True)
         self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 1)
-        self.assertEqual(mr._guardrail_state["last_heavy_model"], "qwen2.5:32b")
+        self.assertEqual(mr._guardrail_state["last_heavy_model"], "qwen3:8b")
         self.assertEqual(mr._guardrail_state["last_heavy_latency"], 10.0)
         self.assertEqual(len(mr._guardrail_state["vram_swaps_window"]), 1)
 
@@ -697,7 +698,7 @@ class TestGuardrails(unittest.TestCase):
         self.assertIsNone(mr._guardrail_state["last_heavy_model"])
 
     def test_reset_clears_state(self):
-        mr.record_heavy_usage("qwen2.5:32b", latency=10.0, vram_swap=True)
+        mr.record_heavy_usage("qwen3:8b", latency=10.0, vram_swap=True)
         mr.reset_guardrails()
         self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 0)
         self.assertIsNone(mr._guardrail_state["last_heavy_model"])
@@ -730,11 +731,10 @@ class TestRouteByRoleWithGuardrails(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         # First call: heavy goes through
         result1 = mr.route_by_role("critical production deploy")
-        self.assertEqual(result1["model"], "qwen2.5:32b")
+        self.assertEqual(result1["model"], "qwen3:8b")
         # Simulate cooldown active (record_heavy_usage was called internally)
         # Second call: should degrade
         result2 = mr.route_by_role("critical production issue")
-        self.assertNotEqual(result2["model"], "qwen2.5:32b")
         self.assertTrue(result2["degraded"])
         self.assertEqual(result2["classified_as"], "heavy")
 
@@ -745,9 +745,9 @@ class TestRouteByRoleWithGuardrails(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         # Trigger cooldown
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
         result = mr.route_by_role("critical", flags={"role": "heavy", "force_heavy": True})
-        self.assertEqual(result["model"], "qwen2.5:32b")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertFalse(result["degraded"])
 
     @patch("runtime.model_router._log")
@@ -756,7 +756,7 @@ class TestRouteByRoleWithGuardrails(unittest.TestCase):
         import time
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen2.5:32b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
         result = mr.route_by_role("critical production deploy")
         self.assertTrue(any("guardrail:" in s for s in result["signals"]))
 

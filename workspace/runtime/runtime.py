@@ -631,7 +631,9 @@ def _build_notification(events: list, results: list, curr: dict) -> str | None:
     # Notify on ollama down even without restart actions
     ollama = curr.get("ollama_notebook", {})
     if not ollama.get("ok"):
-        lines.append("[info] Notebook Ollama offline — Cloud/NAS CPU mode")
+        ollama_nas = curr.get("ollama_nas", {})
+        fallback_mode = "Cloud/NAS CPU mode" if ollama_nas.get("ok") else "Cloud mode"
+        lines.append(f"[info] Notebook Ollama offline — {fallback_mode}")
 
     if not lines:
         return None

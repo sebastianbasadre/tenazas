@@ -131,8 +131,12 @@ run_bg_cd "Network exporter iniciado en :9108" "/home/tenazas" python3 /home/ten
 run_bg_cd "Finance exporter iniciado en :9109" "/home/tenazas" python3 /home/tenazas/runtime/finance_exporter.py
 
 # Portfolio reconciler (delayed start, watch mode)
-(sleep 120 && cd /home/tenazas && python3 /home/tenazas/runtime/portfolio_reconciler.py --watch) &
-echo "Portfolio reconciler iniciado (watch mode, cada 10 min)"
+if [ "${ENABLE_PORTFOLIO_RECONCILER_WATCH:-true}" = "true" ]; then
+  (sleep 120 && cd /home/tenazas && python3 /home/tenazas/runtime/portfolio_reconciler.py --watch) &
+  echo "Portfolio reconciler iniciado (watch mode, cada 10 min)"
+else
+  echo "Portfolio reconciler watch deshabilitado por env"
+fi
 
 # Multitool eval exporter
 if ! pgrep -f "eval_exporter.py" >/dev/null 2>&1; then
@@ -142,12 +146,20 @@ fi
 # ── IOL token management ─────────────────────────────────────────
 
 sleep 20
-python3 /home/tenazas/tools/iol_refresh.py --force 2>&1 || echo "[startup] IOL refresh failed (non-critical)"
-echo "[startup] IOL token initialized"
+if [ "${ENABLE_STARTUP_IOL_REFRESH:-true}" = "true" ]; then
+  python3 /home/tenazas/tools/iol_refresh.py --force 2>&1 || echo "[startup] IOL refresh failed (non-critical)"
+  echo "[startup] IOL token initialized"
+else
+  echo "[startup] IOL startup refresh deshabilitado por env"
+fi
 
 # IOL auto-refresh loop (token expires in 20 min, refresh every 15)
-(while true; do sleep 900; python3 /home/tenazas/tools/iol_refresh.py >> /tmp/iol_refresh.log 2>&1; done) &
-echo "[startup] IOL auto-refresh loop iniciado (cada 15 min)"
+if [ "${ENABLE_IOL_REFRESH_LOOP:-true}" = "true" ]; then
+  (while true; do sleep 900; python3 /home/tenazas/tools/iol_refresh.py >> /tmp/iol_refresh.log 2>&1; done) &
+  echo "[startup] IOL auto-refresh loop iniciado (cada 15 min)"
+else
+  echo "[startup] IOL auto-refresh loop deshabilitado por env"
+fi
 
 # ── Startup checks ──────────────────────────────────────────────
 

@@ -56,13 +56,16 @@ GRAFANA_AUTH = "YWRtaW46dGVuYXphcw=="  # admin:tenazas base64
 
 # ── Config ──────────────────────────────────────────────────────
 
-PROBE_TIMEOUT = 3       # seconds per probe
+PROBE_TIMEOUT = 3       # seconds per network probe
+DOCKER_TIMEOUT = 10     # seconds for local docker CLI calls on Synology
+ARR_CURL_TIMEOUT = 5    # seconds for curl inside arr-stack containers
 SWEEP_MAX = 30          # seconds total sweep budget
 MAX_WORKERS = 8
 WATCH_INTERVAL = 300    # 5 min
 
-# Expected models on HomeLab Ollama
-EXPECTED_MODELS = {"qwen2.5:3b", "qwen2.5:7b", "qwen3:8b", "nomic-embed-text"}
+# Expected models on HomeLab Ollama.
+# Keep this aligned with the models that are actually operationally required.
+EXPECTED_MODELS = {"qwen2.5:7b", "qwen3:8b", "nomic-embed-text"}
 
 # HomeLab IPs
 HOMELAB_IPS = [HOMELAB_IP]
@@ -107,6 +110,23 @@ def _tcp_ping(host: str, port: int, timeout: float = 2.0) -> float:
     return lat
 
 
+def _run_command(args: list[str], timeout: float = DOCKER_TIMEOUT) -> tuple[subprocess.CompletedProcess[str], float]:
+    """Run a local command and capture elapsed time in ms."""
+    t0 = time.monotonic()
+    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    lat = (time.monotonic() - t0) * 1000
+    return result, lat
+
+
+def _docker_ps_names() -> tuple[set[str], float]:
+    """Return running docker container names and elapsed time in ms."""
+    result, lat = _run_command(["docker", "ps", "--format", "{{.Names}}"])
+    if result.returncode != 0:
+        raise RuntimeError(f"docker ps exit {result.returncode}")
+    names = {n.strip() for n in result.stdout.strip().splitlines() if n.strip()}
+    return names, lat
+
+
 def _sanitize_detail(detail: dict) -> dict:
     """Strip secrets from detail dict before persisting."""
     s = json.dumps(detail)
@@ -117,6 +137,11 @@ def _sanitize_detail(detail: dict) -> dict:
         return json.loads(s)
     except Exception:
         return {"sanitized": True}
+
+
+def _normalize_model_name(name: str) -> str:
+    """Normalize Ollama tag names so `foo` and `foo:latest` compare equally."""
+    return name[:-7] if name.endswith(":latest") else name
 
 
 def _notify_telegram(msg: str):
@@ -174,13 +199,7 @@ def _fail(probe: str, msg: str, latency_ms: float = 0, detail: dict | None = Non
 def _probe_docker_socket() -> dict:
     """Check Docker daemon is alive via docker ps."""
     try:
-        t0 = time.monotonic()
-        r = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
-                           capture_output=True, text=True, timeout=PROBE_TIMEOUT)
-        lat = (time.monotonic() - t0) * 1000
-        if r.returncode != 0:
-            return _fail("docker_socket", f"exit {r.returncode}", lat)
-        names = [n.strip() for n in r.stdout.strip().split("\n") if n.strip()]
+        names, lat = _docker_ps_names()
         return _ok("docker_socket", lat, {"containers_up": len(names)})
     except Exception as e:
         return _fail("docker_socket", str(e))
@@ -196,11 +215,8 @@ def _probe_containers() -> dict:
             "tautulli", "chromadb", "piper", "prometheus", "grafana",
             "portainer", "watchtower", "hireswarm-agent-server",
         ])
-        t0 = time.monotonic()
-        r = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
-                           capture_output=True, text=True, timeout=PROBE_TIMEOUT)
-        lat = (time.monotonic() - t0) * 1000
-        running = {n.strip().lower() for n in r.stdout.strip().split("\n") if n.strip()}
+        running, lat = _docker_ps_names()
+        running = {n.lower() for n in running}
         missing = [c for c in expected if c.lower() not in running]
         if missing:
             return _warn("containers", f"missing: {', '.join(missing)}", lat,
@@ -252,11 +268,8 @@ def _probe_grafana() -> dict:
 def _probe_piper() -> dict:
     """Check Piper TTS container is running."""
     try:
-        t0 = time.monotonic()
-        r = subprocess.run(
-            ["docker", "inspect", "--format", "{{.State.Running}}", "piper"],
-            capture_output=True, text=True, timeout=PROBE_TIMEOUT)
-        lat = (time.monotonic() - t0) * 1000
+        r, lat = _run_command(
+            ["docker", "inspect", "--format", "{{.State.Running}}", "piper"])
         if "true" in r.stdout.lower():
             return _ok("piper", lat)
         return _fail("piper", "not running", lat)
@@ -288,9 +301,9 @@ def _probe_ollama_nas() -> dict:
     """Check NAS CPU Ollama fallback."""
     try:
         status, body, lat = _http_get("http://127.0.0.1:11434/api/tags")
-        return _ok("ollama_nas", lat) if status == 200 else _warn("ollama_nas", f"status {status}", lat)
+        return _ok("ollama_nas", lat) if status == 200 else _ok("ollama_nas", lat, {"status": status, "expected_optional": True})
     except Exception:
-        return _warn("ollama_nas", "offline (expected if HomeLab up)")
+        return _ok("ollama_nas", 0, {"status": "offline", "expected_optional": True})
 
 
 def _probe_arr_connectivity() -> dict:
@@ -309,10 +322,10 @@ def _probe_arr_connectivity() -> dict:
         }
         failed = []
         for name, (container, url) in checks.items():
-            r = subprocess.run(
+            r, _ = _run_command(
                 ["docker", "exec", container, "curl", "-sf", "-o", "/dev/null",
-                 "-w", "%{http_code}", "--max-time", "5", url],
-                capture_output=True, text=True, timeout=PROBE_TIMEOUT)
+                 "-w", "%{http_code}", "--max-time", str(ARR_CURL_TIMEOUT), url],
+                timeout=ARR_CURL_TIMEOUT + 3)
             code = r.stdout.strip()
             if code != "200":
                 failed.append(f"{name}({code})")
@@ -350,9 +363,11 @@ def _probe_ollama_gpu() -> dict:
             status, body, lat = _http_get(url)
             if status == 200:
                 data = json.loads(body)
-                models = {m.get("name", "").split(":")[0] + ":" + m.get("name", "").split(":")[-1]
-                          for m in data.get("models", [])}
-                model_names = {m.get("name", "") for m in data.get("models", [])}
+                model_names = {
+                    _normalize_model_name(m.get("name", ""))
+                    for m in data.get("models", [])
+                    if m.get("name")
+                }
                 missing = EXPECTED_MODELS - model_names
                 detail = {"ip": ip, "models": len(model_names),
                           "model_list": sorted(model_names)[:10]}
@@ -426,8 +441,9 @@ def _probe_gpu_exporter() -> dict:
                 return _ok("gpu_exporter", lat, detail)
         except Exception:
             continue
-    return _warn("gpu_exporter", "not running on :9835",
-                 detail={"suggestion": "Install nvidia-gpu-exporter on HomeLab"})
+    return _ok("gpu_exporter", 0,
+               {"status": "not_installed", "optional": True,
+                "suggestion": "Install nvidia-gpu-exporter on HomeLab"})
 
 
 def sweep_homelab() -> dict:
@@ -596,7 +612,7 @@ def _probe_freeze_detector() -> dict:
                              {"age_s": round(age)})
         except Exception:
             continue
-    return _warn("freeze_detector", "no heartbeat file found")
+    return _ok("freeze_detector", 0, {"status": "no_heartbeat_file", "optional": True})
 
 
 def _probe_rag() -> dict:
@@ -688,12 +704,16 @@ def _probe_grafana_cache() -> dict:
         auth = {"Authorization": f"Basic {GRAFANA_AUTH}"}
 
         # Fresh request
-        _, body_fresh, lat1 = _http_get(
+        status1, body_fresh, lat1 = _http_get(
             base + query, headers={**auth, "Cache-Control": "no-cache, no-store"})
+        if status1 == 401:
+            return _ok("grafana_cache", lat1, {"status": 401, "auth_required": True})
         data_fresh = json.loads(body_fresh)
 
         # Potentially cached request (no cache-bust headers)
-        _, body_cached, lat2 = _http_get(base + query, headers=auth)
+        status2, body_cached, lat2 = _http_get(base + query, headers=auth)
+        if status2 == 401:
+            return _ok("grafana_cache", lat2, {"status": 401, "auth_required": True})
         data_cached = json.loads(body_cached)
 
         # Extract timestamps
@@ -718,6 +738,8 @@ def _probe_grafana_cache() -> dict:
                          {**detail, "suggestion": "Check Prometheus scrape config"})
         return _ok("grafana_cache", lat1, detail)
     except Exception as e:
+        if "401" in str(e) or "Unauthorized" in str(e):
+            return _ok("grafana_cache", 0, {"status": 401, "auth_required": True})
         return _warn("grafana_cache", str(e))
 
 

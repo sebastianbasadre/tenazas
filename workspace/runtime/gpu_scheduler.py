@@ -4,9 +4,9 @@ gpu_scheduler.py
 Manages which models stay loaded in RTX 3090 VRAM (24GB).
 
 Rules:
-  - gemma3:12b (~8GB) — always in VRAM (primary classifier)
-  - qwen3:8b (~5GB) — keep if space allows (telegram chat LLM)
-  - tenazas-qwen25-7b-v8 (~11GB) — load on demand only
+  - qwen3:8b (~5GB) — current always-hot local chat/reasoning model
+  - qwen3:4b (~2.5GB) — preferred future small default when installed
+  - qwen2.5-coder:7b (~4.7GB) — load on demand for code-heavy work
   - If VRAM < 2GB free → unload least recently used
 
 Keepalive: dummy 1-token request every 4 min to prevent Ollama auto-unload (5 min timeout).
@@ -19,7 +19,9 @@ Usage:
 
 import argparse
 import json
+import os
 import time
+from pathlib import Path
 from urllib.request import Request, urlopen
 
 try:
@@ -30,21 +32,49 @@ except ImportError:
 OLLAMA_URL = OLLAMA_GPU_URL
 TOTAL_VRAM = 24 * 1024**3  # 24GB in bytes
 MIN_FREE_VRAM = 2 * 1024**3  # 2GB minimum free
+BASE_DIR = Path(__file__).parent
+LOCKFILE = "/tmp/tenazas_gpu_keepalive.lock"
+STALE_LOCK_SECONDS = 600  # 10 minutes
+LOG_FILE = BASE_DIR / "logs" / "gpu_scheduler.log"
 
 # Priority order: higher = more important to keep in VRAM
 PRIORITY = {
-    "gemma3:12b": 100,       # primary classifier — always loaded
-    "qwen3:8b": 80,          # telegram chat LLM + humanization
-    "qwen2.5:3b": 60,        # multi-agent, self-evolve, learn
-    "tenazas-qwen25-7b-v8": 40,  # finetuned fallback — on demand
+    "qwen3:8b": 100,         # current default chat/reasoning model
+    "qwen3:4b": 90,          # preferred small default once installed
+    "qwen2.5-coder:7b": 70,  # smaller dedicated code model
+    "qwen3-vl:4b": 50,       # smaller vision model
     "nomic-embed-text": 30,  # RAG embeddings — on demand
 }
 
 # Models that should always be in VRAM
-ALWAYS_LOADED = ["gemma3:12b"]
+ALWAYS_LOADED = ["qwen3:8b"]
 
-# Models to keepalive (top priority)
-KEEPALIVE_MODELS = ["gemma3:12b", "qwen3:8b"]
+# Models to keepalive. qwen3:4b is optional until it is actually installed.
+KEEPALIVE_MODELS = ["qwen3:4b", "qwen3:8b"]
+
+
+def log(msg: str):
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a") as f:
+        f.write(f"{ts} {msg}\n")
+
+
+def acquire_lock() -> bool:
+    if os.path.exists(LOCKFILE):
+        age = time.time() - os.path.getmtime(LOCKFILE)
+        if age < STALE_LOCK_SECONDS:
+            log(f"locked (age={int(age)}s), skipping")
+            return False
+        log(f"stale lock (age={int(age)}s), removing")
+        os.remove(LOCKFILE)
+    Path(LOCKFILE).touch()
+    return True
+
+
+def release_lock():
+    if os.path.exists(LOCKFILE):
+        os.remove(LOCKFILE)
 
 
 def _api(endpoint: str, data: dict = None, timeout: int = 10) -> dict:
@@ -181,7 +211,7 @@ def run_keepalive():
             keepalive(name)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="GPU VRAM scheduler")
     parser.add_argument("--status", action="store_true", help="Show VRAM state")
     parser.add_argument("--optimize", action="store_true", help="Apply scheduling rules")
@@ -190,9 +220,22 @@ if __name__ == "__main__":
 
     if args.status:
         print_status()
-    elif args.optimize:
-        optimize()
-    elif args.keepalive:
-        run_keepalive()
-    else:
-        parser.print_help()
+        return
+
+    if args.optimize or args.keepalive:
+        if not acquire_lock():
+            return
+        try:
+            if args.optimize:
+                optimize()
+            elif args.keepalive:
+                run_keepalive()
+        finally:
+            release_lock()
+        return
+
+    parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

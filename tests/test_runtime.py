@@ -492,6 +492,25 @@ class TestBuildNotification(unittest.TestCase):
         msg = rt._build_notification([], [], curr)
         self.assertIn("Notebook Ollama offline", msg)
 
+    def test_message_uses_cloud_mode_when_nas_ollama_offline(self):
+        curr = {
+            "ts": "2026-03-29T15:00:00-03:00",
+            "ollama_notebook": {"ok": False},
+            "ollama_nas": {"ok": False},
+        }
+        msg = rt._build_notification([], [], curr)
+        self.assertIn("Cloud mode", msg)
+        self.assertNotIn("Cloud/NAS CPU mode", msg)
+
+    def test_message_uses_cloud_nas_cpu_mode_when_nas_ollama_online(self):
+        curr = {
+            "ts": "2026-03-29T15:00:00-03:00",
+            "ollama_notebook": {"ok": False},
+            "ollama_nas": {"ok": True},
+        }
+        msg = rt._build_notification([], [], curr)
+        self.assertIn("Cloud/NAS CPU mode", msg)
+
 
 class TestPatternEngine(unittest.TestCase):
     """Pattern detection and triggering."""

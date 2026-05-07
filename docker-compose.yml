@@ -10,6 +10,9 @@ services:
     environment:
       - TZ=${TZ:-America/Buenos_Aires}
       - NODE_OPTIONS=${NODE_OPTIONS:---dns-result-order=ipv4first}
+      - ENABLE_PORTFOLIO_RECONCILER_WATCH=${ENABLE_PORTFOLIO_RECONCILER_WATCH:-true}
+      - ENABLE_IOL_REFRESH_LOOP=${ENABLE_IOL_REFRESH_LOOP:-true}
+      - ENABLE_STARTUP_IOL_REFRESH=${ENABLE_STARTUP_IOL_REFRESH:-true}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
       - OLLAMA_API_BASE=${OLLAMA_API_BASE}
       - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD}
@@ -83,6 +86,27 @@ services:
     environment:
       - TZ=America/Buenos_Aires
       - SEARXNG_BASE_URL=http://192.168.2.2:8890/
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - TZ=${TZ:-America/Buenos_Aires}
+      - N8N_HOST=${N8N_HOST:-192.168.2.2}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://192.168.2.2:5678}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://192.168.2.2:5678/}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
+      - N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED:-true}
+      - GENERIC_TIMEZONE=${TZ:-America/Buenos_Aires}
+    volumes:
+      - ./n8n/data:/home/node/.n8n
+      - ./scripts:/workspace/scripts:ro
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   prometheus_data:
