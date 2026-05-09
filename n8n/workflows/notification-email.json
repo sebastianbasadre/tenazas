@@ -1,0 +1,58 @@
+{
+  "name": "OpenClaw Notification Email",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/10 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "f7d7b020-b7c1-4cf1-9962-f71b4f3171d1",
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "/workspace/scripts/notification_email_cron.sh"
+      },
+      "id": "8035273f-cd6d-41ce-ad58-45b5440f1cbd",
+      "name": "Run Email Poller",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Email Poller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "35ed4e33-54c2-48b6-b8fc-409f0f3459a0",
+  "triggerCount": 0,
+  "tags": []
+}

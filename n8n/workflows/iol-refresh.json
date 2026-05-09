@@ -1,0 +1,58 @@
+{
+  "name": "OpenClaw IOL Refresh",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/10 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "0e5d6408-9071-41f7-9f0b-41704506ae72",
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "/workspace/scripts/iol_refresh_cron.sh"
+      },
+      "id": "91937cd4-8077-4916-980b-8d8c4d7f73a4",
+      "name": "Run IOL Refresh",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run IOL Refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "72146c4c-91c7-4bd0-a8bc-9dcf6430ad12",
+  "triggerCount": 0,
+  "tags": []
+}

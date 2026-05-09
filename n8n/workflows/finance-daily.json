@@ -1,0 +1,58 @@
+{
+  "name": "OpenClaw Finance Daily",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 11 * * *"
+            }
+          ]
+        }
+      },
+      "id": "dd0fd121-8d66-43c3-8c83-c2e47d9775d7",
+      "name": "Daily 11:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "/workspace/scripts/finance_daily_cron.sh"
+      },
+      "id": "06555c8d-8f35-432e-8f5f-c3ec7940d244",
+      "name": "Run Finance Daily",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 11:00": {
+      "main": [
+        [
+          {
+            "node": "Run Finance Daily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "d88cb3a5-d208-40d2-b55e-ebeb9c3d677f",
+  "triggerCount": 0,
+  "tags": []
+}

@@ -19,11 +19,17 @@ Move scheduling, recurring ops, and host-level recovery out of the monolith.
 - `Prometheus/Grafana`: observability only
 - `DSM Task Scheduler`: temporary fallback only, then remove
 
+## Execution State
+
+- Phase A is the active production path.
+- Phase B remains prepared in-repo but disabled by default on the NAS.
+- `n8n` stays behind a Compose profile until the host proves stable again.
+
 ## Two-Week Cutover
 
 ### Week 1
 
-1. Start `n8n` from `docker-compose.yml`.
+1. Keep DSM + wrappers as the production scheduler.
 2. Move existing DSM jobs to one-shot wrappers:
    - `health_sweep_cron.sh`
    - `gpu_keepalive_cron.sh`
@@ -39,20 +45,23 @@ Move scheduling, recurring ops, and host-level recovery out of the monolith.
 
 ### Week 2
 
-1. Disable internal loops with env flags:
+1. Start `n8n` explicitly with the migration profile:
+   - `docker compose --profile migration up -d n8n`
+2. Import and validate workflows one by one before publishing any schedule.
+3. Disable internal loops with env flags:
    - `ENABLE_PORTFOLIO_RECONCILER_WATCH=false`
    - `ENABLE_IOL_REFRESH_LOOP=false`
    - optionally `ENABLE_STARTUP_IOL_REFRESH=false` after cron is stable
-2. Remove DSM schedules for migrated jobs.
-3. Let `n8n` own retries, timeout handling, and notification fan-out.
-4. Re-audit alerts and cut any remaining host-side `docker exec` cron entries.
+4. Remove DSM schedules only after the matching `n8n` workflow is stable.
+5. Let `n8n` own retries, timeout handling, and notification fan-out.
+6. Re-audit alerts and cut any remaining host-side `docker exec` cron entries.
 
 ## Job Map
 
 | Domain | Current source | New runner | Schedule |
 |---|---|---|---|
 | GPU keepalive | DSM | `scripts/gpu_keepalive_cron.sh` | every 4 min |
-| Health sweep | DSM | `scripts/health_sweep_cron.sh` | every 5 min |
+| Health sweep | DSM | `scripts/health_sweep_cron.sh` | hourly |
 | Autofix pass | DSM | `scripts/autofix_agent_cron.sh` | every 10-15 min |
 | Proposal executor | DSM | `scripts/proposal_executor_cron.sh` | every 10-15 min |
 | Portfolio reconciler | startup watch loop | `scripts/portfolio_reconciler_cron.sh` | every 10 min |
@@ -75,7 +84,8 @@ If `n8n` is unstable:
 
 1. Re-enable env flags in `docker-compose.yml` or `.env`.
 2. Re-run `docker compose up -d openclaw`.
-3. Restore the previous DSM task to the corresponding wrapper.
+3. Stop `n8n` with `docker compose --profile migration stop n8n`.
+4. Restore the previous DSM task to the corresponding wrapper.
 
 ## Not In Scope Yet
 

@@ -1,0 +1,58 @@
+{
+  "name": "OpenClaw Proposal Executor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "fa283896-41cb-40a1-9529-76793770a08a",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "/workspace/scripts/proposal_executor_cron.sh"
+      },
+      "id": "f3f91a9d-a992-41c0-91dd-f6f6cc2097c5",
+      "name": "Run Proposal Executor",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Proposal Executor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "e1544d84-6c4b-4d5a-a744-9aa183f39743",
+  "triggerCount": 0,
+  "tags": []
+}

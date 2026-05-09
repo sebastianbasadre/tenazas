@@ -1,0 +1,58 @@
+{
+  "name": "OpenClaw Health Sweep",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "b4052810-5834-4bf2-a7a4-a3489f54b7e7",
+      "name": "Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "/workspace/scripts/health_sweep_cron.sh"
+      },
+      "id": "3b68921a-b1bb-447f-9e79-f48d35a1d0a3",
+      "name": "Run Health Sweep",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Hourly": {
+      "main": [
+        [
+          {
+            "node": "Run Health Sweep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "6f8bbd76-91b8-42be-9e9a-15d6b4c04765",
+  "triggerCount": 0,
+  "tags": []
+}

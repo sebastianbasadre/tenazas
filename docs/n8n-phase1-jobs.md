@@ -6,6 +6,12 @@ Phase 1 moves operational scheduling out of the `openclaw` container without rew
 
 `n8n` should call host-side wrapper scripts, not Python modules directly.
 
+Current posture:
+
+- Production path: DSM + wrappers
+- `n8n` path: prepared, manual, disabled by default
+- Activation command: `docker compose --profile migration up -d n8n`
+
 ## Wrappers
 
 | Job | Wrapper | Timeout |
@@ -37,7 +43,7 @@ Command example:
 
 ## Recommended Schedules
 
-- Health sweep: `*/5 * * * *`
+- Health sweep: `0 * * * *`
 - GPU keepalive: `*/4 * * * *`
 - Autofix agent: `*/15 * * * *`
 - Proposal executor: `*/15 * * * *`
@@ -68,3 +74,13 @@ docker exec openclaw python3 /home/tenazas/runtime/health_sweep.py --no-telegram
 docker exec openclaw python3 /home/tenazas/runtime/portfolio_reconciler.py --json
 docker exec openclaw python3 /home/tenazas/tools/iol_refresh.py --status
 ```
+
+Do not publish all workflows in one batch on the NAS again. Activate low-risk workflows first:
+
+1. `finance_daily`
+2. `notification_calendar`
+3. `notification_email`
+4. `portfolio_reconciler`
+5. `iol_refresh`
+
+Keep `health_sweep`, `autofix_agent`, and any self-heal workflow for the final step.

@@ -1,0 +1,58 @@
+{
+  "name": "OpenClaw GPU Keepalive",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/4 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "ba0d8207-32d8-4392-aa53-94556f406780",
+      "name": "Every 4 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "/workspace/scripts/gpu_keepalive_cron.sh"
+      },
+      "id": "042b89cd-a847-42f1-93e0-97e2f0f68c15",
+      "name": "Run GPU Keepalive",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 4 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run GPU Keepalive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "996178d7-d740-4a5c-8d60-e4abf865c2e8",
+  "triggerCount": 0,
+  "tags": []
+}

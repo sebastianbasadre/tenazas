@@ -1,0 +1,58 @@
+{
+  "name": "OpenClaw Notification Calendar",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "0e957280-c241-45fb-8b4d-3e59b832d410",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "/workspace/scripts/notification_calendar_cron.sh"
+      },
+      "id": "55f0a347-6111-4e8e-bc02-0327c5638cb4",
+      "name": "Run Calendar Poller",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Calendar Poller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "05687af5-cd9f-4cf9-b59b-d1b044db38fe",
+  "triggerCount": 0,
+  "tags": []
+}

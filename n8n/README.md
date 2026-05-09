@@ -1,12 +1,14 @@
 # n8n Runtime
 
-This directory stores `n8n` persistent data after `docker compose up -d n8n`.
+This directory stores `n8n` persistent data after `docker compose --profile migration up -d n8n`.
 
 Phase 1 usage:
 
 - Use `n8n` only as scheduler/orchestrator
 - Call wrapper scripts from `/workspace/scripts`
 - Do not move Telegram routing or orchestrator logic here yet
+- Keep `n8n` disabled in production by default
+- Activate workflows gradually, not in one publish batch
 
 First cutover jobs:
 
