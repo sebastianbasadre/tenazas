@@ -1,5 +1,6 @@
 {
   "name": "OpenClaw Notification Email",
+  "id": "4eOK7ZfIkE5dFiti",
   "nodes": [
     {
       "parameters": {
@@ -23,12 +24,25 @@
     },
     {
       "parameters": {
-        "command": "/workspace/scripts/notification_email_cron.sh"
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/notification_email'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
       },
       "id": "8035273f-cd6d-41ce-ad58-45b5440f1cbd",
       "name": "Run Email Poller",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         560,
         300

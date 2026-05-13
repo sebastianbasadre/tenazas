@@ -1,5 +1,6 @@
 {
   "name": "OpenClaw Finance Daily",
+  "id": "NRXi5U70nx3PBMNU",
   "nodes": [
     {
       "parameters": {
@@ -23,12 +24,25 @@
     },
     {
       "parameters": {
-        "command": "/workspace/scripts/finance_daily_cron.sh"
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/finance_daily'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
       },
       "id": "06555c8d-8f35-432e-8f5f-c3ec7940d244",
       "name": "Run Finance Daily",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         560,
         300

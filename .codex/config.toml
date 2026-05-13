@@ -1,0 +1,43 @@
+[agents.gsd-project-researcher]
+description = "GSD role: project researcher."
+config_file = "./agents/gsd-project-researcher.toml"
+
+[agents.gsd-research-synthesizer]
+description = "GSD role: research synthesizer."
+config_file = "./agents/gsd-research-synthesizer.toml"
+
+[agents.gsd-roadmapper]
+description = "GSD role: roadmap planning."
+config_file = "./agents/gsd-roadmapper.toml"
+
+[agents.gsd-phase-researcher]
+description = "GSD role: phase research."
+config_file = "./agents/gsd-phase-researcher.toml"
+
+[agents.gsd-planner]
+description = "GSD role: phase planning."
+config_file = "./agents/gsd-planner.toml"
+
+[agents.gsd-plan-checker]
+description = "GSD role: plan verification."
+config_file = "./agents/gsd-plan-checker.toml"
+
+[agents.gsd-executor]
+description = "GSD role: plan execution."
+config_file = "./agents/gsd-executor.toml"
+
+[agents.gsd-verifier]
+description = "GSD role: execution verification."
+config_file = "./agents/gsd-verifier.toml"
+
+[agents.gsd-debugger]
+description = "GSD role: debugging."
+config_file = "./agents/gsd-debugger.toml"
+
+[agents.gsd-integration-checker]
+description = "GSD role: integration verification."
+config_file = "./agents/gsd-integration-checker.toml"
+
+[agents.gsd-codebase-mapper]
+description = "GSD role: codebase mapping."
+config_file = "./agents/gsd-codebase-mapper.toml"

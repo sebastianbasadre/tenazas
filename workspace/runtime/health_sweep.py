@@ -514,9 +514,24 @@ def _probe_iol() -> dict:
 
 
 def _probe_gemini() -> dict:
-    """Dummy call to Gemini to check quota/reachability."""
+    """Legacy Gemini check.
+
+    Gemini is no longer treated as an operational dependency by default.
+    Keep the probe available for operators who explicitly want it, but
+    downgrade missing keys/quota exhaustion to optional info so it does not
+    pollute the health signal when Kimi/OpenRouter or local Ollama are the
+    intended cloud/local paths.
+    """
     try:
         cfg = _load_config()
+        enabled = str(
+            os.environ.get("TENAZAS_ENABLE_GEMINI_HEALTHCHECK",
+                           cfg.get("enable_gemini_healthcheck", "false"))
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        if not enabled:
+            return _ok("gemini", 0, {"status": "disabled", "optional": True,
+                                     "provider": "gemini"})
+
         # Try tenazas.json first for Gemini key
         _tcfg_path = Path("/home/tenazas/.openclaw/tenazas.json") if _IN_CONTAINER else BASE_DIR.parent / "state" / "tenazas.json"
         api_key = ""
@@ -528,7 +543,8 @@ def _probe_gemini() -> dict:
         if not api_key:
             api_key = os.environ.get("GOOGLE_API_KEY", "")
         if not api_key:
-            return _warn("gemini", "no API key configured")
+            return _ok("gemini", 0, {"status": "no_api_key", "optional": True,
+                                     "provider": "gemini"})
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
         payload = json.dumps({
@@ -543,11 +559,14 @@ def _probe_gemini() -> dict:
         data = json.loads(resp.read())
         if "candidates" in data:
             return _ok("gemini", lat)
-        return _warn("gemini", "no candidates in response", lat)
+        return _ok("gemini", lat, {"status": "unexpected_response",
+                                   "optional": True, "provider": "gemini"})
     except URLError as e:
         msg = str(e)
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
-            return _warn("gemini", "quota exhausted", detail={"suggestion": "Wait or check billing"})
+            return _ok("gemini", 0, {"status": "quota_exhausted", "optional": True,
+                                     "provider": "gemini",
+                                     "suggestion": "Wait or check billing"})
         return _fail("gemini", msg)
     except Exception as e:
         return _fail("gemini", str(e))

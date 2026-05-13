@@ -30,6 +30,7 @@ AGENT_MODULES = {
     "finance": "agent_finance",
     "research": "agent_research",
     "self_improve": "agent_self_improve",
+    "security": "agent_security",
 }
 
 DOMAIN_EMOJI = {
@@ -38,6 +39,7 @@ DOMAIN_EMOJI = {
     "finance": "💰",
     "research": "🔍",
     "self_improve": "🔧",
+    "security": "🔐",
 }
 
 

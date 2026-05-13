@@ -51,6 +51,24 @@ class TestPhase9Regression(unittest.TestCase):
         self.assertTrue(result["used_coordinator"])
         self.assertEqual(result["strategy"], "parallel")
 
+    def test_mixed_domain_skill_intercept_is_bypassed_for_coordinator(self):
+        import telegram_router as tr
+        update = {"message": {"chat": {"id": "1"}, "text": "como va mi portofolio y si hay alertas de infra"}}
+        fake = {"handled": True, "aggregated": "📡 Infra: ok\n💰 Finance: ok", "strategy": "parallel", "correlation_id": "abcd1234"}
+        fake_agent = type("M", (), {"identify_agents": staticmethod(lambda _q: ["infra", "finance"])})
+        with patch.object(tr, "_get_allowed_chat_ids", return_value={"1"}):
+            with patch.object(tr, "_append_history"):
+                with patch.object(tr, "send_typing"):
+                    with patch.object(tr, "should_intercept", return_value=(True, "skill:infra-monitor")):
+                        with patch.object(tr, "use_agent_coordinator", return_value=True):
+                            with patch.object(tr, "_load_config", return_value={}):
+                                with patch.dict("sys.modules", {"agent_coordinator": fake_agent}):
+                                    with patch.object(tr, "_route_free_text_query", return_value={**fake, "response": fake["aggregated"], "used_coordinator": True}):
+                                        with patch.object(tr, "send_message") as mock_send:
+                                            tr._process_update("token", update, {"1"})
+        mock_send.assert_called_once()
+        self.assertIn("Finance", mock_send.call_args.args[2])
+
     def test_nonsense_query_safely_falls_back_when_flag_on(self):
         import telegram_router as tr
         fake = {"handled": False, "aggregated": None, "strategy": "skill_fallback", "source": "llm_needed"}

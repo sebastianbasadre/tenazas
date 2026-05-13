@@ -17,6 +17,7 @@ STATUS_FILE = AGENT_DIR / "finance_status.json"
 LOG_FILE = BASE_DIR / "logs" / "agent_finance.log"
 
 OWNERSHIP = {"finance", "binance", "iol", "crypto", "btc", "portfolio",
+             "portafolio", "portofolio",
              "market", "trading", "investment", "dolar", "pnl"}
 BTC_ALERT_THRESHOLD = 0.05  # 5%
 IOL_ALERT_THRESHOLD = 0.03  # 3%
@@ -59,12 +60,20 @@ def _observe_binance():
         pnl = get_binance_pnl()
         if not pnl:
             return {"summary": "Binance: sin datos", "confidence": 0.5, "sub": "binance", "issues": [], "raw": {}}
-        change = pnl.get("change_pct", 0)
-        price = pnl.get("price", 0)
+        assets = pnl.get("assets", []) or []
+        btc = next((a for a in assets if str(a.get("asset", "")).upper() == "BTC"), {})
+        change = btc.get("change_pct", pnl.get("change_pct", 0))
+        price = btc.get("price", pnl.get("price", 0))
+        total = pnl.get("total_usd", 0)
         issues = []
         if abs(change) > BTC_ALERT_THRESHOLD * 100:
             issues.append(f"BTC: {change:+.1f}% cambio significativo")
-        summary = f"Binance: BTC ${price:,.0f}" if price else "Binance: BTC"
+        if price:
+            summary = f"Binance: BTC ${price:,.0f}"
+        elif total:
+            summary = f"Binance: ${total:,.0f}"
+        else:
+            summary = "Binance: BTC"
         if change:
             summary += f" ({change:+.1f}%)"
         return {"summary": summary, "confidence": 0.8, "sub": "binance", "issues": issues, "raw": pnl}
@@ -79,12 +88,15 @@ def _observe_iol():
         iol = get_iol_portfolio()
         if not iol:
             return {"summary": "IOL: sin datos", "confidence": 0.5, "sub": "iol", "issues": [], "raw": {}}
-        total = iol.get("total", 0)
-        pnl = iol.get("pnl_day", iol.get("pnl", 0))
+        total = iol.get("total_ars", iol.get("total", 0))
+        pnl = iol.get("pnl_day_ars", iol.get("pnl_day", iol.get("pnl", 0)))
+        currency = str(iol.get("portfolio_currency") or "ARS").upper()
+        prefix = "US$" if currency == "USD" else "$"
+        suffix = "" if currency == "USD" else f" {currency}"
         issues = []
         if total > 0 and abs(pnl) > IOL_ALERT_THRESHOLD * total:
-            issues.append(f"IOL P&L dia: ${pnl:,.0f}")
-        summary = f"IOL: ${total:,.0f} total"
+            issues.append(f"IOL P&L dia: {prefix}{pnl:,.0f}")
+        summary = f"IOL: {prefix}{total:,.0f}{suffix} total"
         return {"summary": summary, "confidence": 0.8, "sub": "iol", "issues": issues, "raw": iol}
     except Exception as e:
         return {"summary": f"IOL: error ({str(e)[:80]})", "confidence": 0.3, "sub": "iol", "issues": [str(e)[:100]], "raw": {}}
@@ -165,7 +177,7 @@ def handle(query: str, correlation_id: str = None):
     q = query.lower()
     if any(k in q for k in ("binance", "btc", "crypto", "bitcoin")):
         data = _observe_binance()
-    elif any(k in q for k in ("iol", "portafolio", "portfolio", "acciones", "cedears", "invertido")):
+    elif any(k in q for k in ("iol", "portafolio", "portofolio", "portfolio", "acciones", "cedears", "invertido")):
         data = _observe_iol()
     elif any(k in q for k in ("gasto", "gasté", "expense", "cuánto", "cuanto")):
         data = _observe_expenses()

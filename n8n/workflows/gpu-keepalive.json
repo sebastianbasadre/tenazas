@@ -1,5 +1,6 @@
 {
   "name": "OpenClaw GPU Keepalive",
+  "id": "XWotFVUjNb81AaH7",
   "nodes": [
     {
       "parameters": {
@@ -23,12 +24,25 @@
     },
     {
       "parameters": {
-        "command": "/workspace/scripts/gpu_keepalive_cron.sh"
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/gpu_keepalive'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 90000
+        }
       },
       "id": "042b89cd-a847-42f1-93e0-97e2f0f68c15",
       "name": "Run GPU Keepalive",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         560,
         300

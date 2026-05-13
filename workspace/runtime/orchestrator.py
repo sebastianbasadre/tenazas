@@ -38,10 +38,6 @@ except ImportError:
 _CLASSIFICATION_RULES = CLASSIFICATION_RULES  # Legacy alias
 
 MODELS = {
-    "gemini_flash": {"id": "google/gemini-2.5-flash", "alias": "fast", "tier": "cloud",
-                     "strengths": ["chat", "knowledge", "fast_response"]},
-    "gemini_pro": {"id": "google/gemini-2.5-pro", "alias": "reasoning", "tier": "cloud",
-                   "strengths": ["complex_reasoning", "analysis"]},
     "qwen_7b": {"id": "ollama/qwen3:8b", "alias": "local-heavy", "tier": "local_gpu",
                 "strengths": ["reasoning", "diagnostics", "analysis"]},
     "qwen_3b": {"id": "ollama/qwen2.5:3b", "alias": "local-fast", "tier": "local_gpu",
@@ -51,6 +47,10 @@ MODELS = {
     "openrouter_kimi": {"id": "openrouter/moonshotai/kimi-k2", "alias": "cloud-openrouter",
                         "tier": "cloud_openrouter",
                         "strengths": ["general", "reasoning", "analysis", "complex", "code"]},
+    "gemini_flash": {"id": "google/gemini-2.5-flash", "alias": "fast", "tier": "cloud_legacy",
+                     "strengths": ["chat", "knowledge", "fast_response"]},
+    "gemini_pro": {"id": "google/gemini-2.5-pro", "alias": "reasoning", "tier": "cloud_legacy",
+                   "strengths": ["complex_reasoning", "analysis"]},
 }
 
 CATEGORY_TO_ROLE = {
@@ -85,6 +85,10 @@ def _log(entry: dict):
 
 def _is_openrouter_available() -> bool:
     return bool(os.environ.get("OPENROUTER_API_KEY", ""))
+
+
+def _is_gemini_available() -> bool:
+    return bool(os.environ.get("GOOGLE_API_KEY", ""))
 
 _PARAMS = {"chat": {"temperature": 0.7, "max_tokens": 512},
            "knowledge_query": {"temperature": 0.3, "max_tokens": 1024},
@@ -186,7 +190,8 @@ def select_model(category: str, available_backends: dict | None = None,
     if available_backends is None:
         available_backends = {
             "local_gpu": True, "local_cpu": True,
-            "cloud_openrouter": _is_openrouter_available(), "cloud": True,
+            "cloud_openrouter": _is_openrouter_available(),
+            "cloud_legacy": _is_gemini_available(),
         }
 
     pipeline = PIPELINES.get(category, PIPELINES["chat"])
@@ -198,17 +203,17 @@ def select_model(category: str, available_backends: dict | None = None,
         return model
 
     fallback_chains = {
-        "chat": ["openrouter_kimi", "gemini_flash", "qwen_3b", "phi4"],
-        "knowledge_query": ["openrouter_kimi", "gemini_flash", "qwen_7b", "qwen_3b"],
+        "chat": ["openrouter_kimi", "qwen_3b", "phi4", "gemini_flash"],
+        "knowledge_query": ["openrouter_kimi", "qwen_7b", "qwen_3b", "gemini_flash"],
         "infrastructure_issue": ["qwen_7b", "qwen_3b", "openrouter_kimi", "gemini_flash"],
         "automation_command": ["qwen_3b", "qwen_7b", "openrouter_kimi", "gemini_flash"],
         "diagnostic_request": ["qwen_7b", "qwen_3b", "openrouter_kimi", "gemini_flash"],
-        "complex_reasoning": ["gemini_pro", "qwen_7b", "openrouter_kimi", "gemini_flash"],
+        "complex_reasoning": ["openrouter_kimi", "qwen_7b", "gemini_pro", "gemini_flash"],
     }
     for model_key in fallback_chains.get(category, ["gemini_flash"]):
         model = MODELS.get(model_key)
         if model and available_backends.get(model["tier"], False):
-            is_cloud = model["tier"] == "cloud"
+            is_cloud = model["tier"] in {"cloud_openrouter", "cloud_legacy"}
             _record_metrics(role=CATEGORY_TO_ROLE.get(category, "fast"),
                             model=model["id"], backend=model["tier"],
                             v2_used=False, cloud_fallback=is_cloud)
@@ -229,12 +234,15 @@ def select_model(category: str, available_backends: dict | None = None,
                         v2_used=False, cloud_fallback=True)
         return MODELS["openrouter_kimi"]
 
-    _log({"type": "cloud_fallback", "reason": "all backends offline -- last resort to Gemini cloud",
-          "category": category, "model": MODELS["gemini_flash"]["id"]})
-    _record_metrics(role=CATEGORY_TO_ROLE.get(category, "fast"),
-                    model=MODELS["gemini_flash"]["id"], backend="cloud",
-                    v2_used=False, cloud_fallback=True)
-    return MODELS["gemini_flash"]
+    if _is_gemini_available():
+        _log({"type": "cloud_fallback", "reason": "all preferred backends offline -- last resort to Gemini cloud",
+              "category": category, "model": MODELS["gemini_flash"]["id"]})
+        _record_metrics(role=CATEGORY_TO_ROLE.get(category, "fast"),
+                        model=MODELS["gemini_flash"]["id"], backend="cloud_legacy",
+                        v2_used=False, cloud_fallback=True)
+        return MODELS["gemini_flash"]
+
+    return MODELS["phi4"]
 
 
 def get_pipeline(category: str) -> dict:

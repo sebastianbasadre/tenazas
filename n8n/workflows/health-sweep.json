@@ -1,5 +1,6 @@
 {
   "name": "OpenClaw Health Sweep",
+  "id": "YjGeG1qWvjrCRWii",
   "nodes": [
     {
       "parameters": {
@@ -23,12 +24,25 @@
     },
     {
       "parameters": {
-        "command": "/workspace/scripts/health_sweep_cron.sh"
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/health_sweep'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 240000
+        }
       },
       "id": "3b68921a-b1bb-447f-9e79-f48d35a1d0a3",
       "name": "Run Health Sweep",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         560,
         300

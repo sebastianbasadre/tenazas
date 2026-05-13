@@ -1,5 +1,6 @@
 {
   "name": "OpenClaw Notification Calendar",
+  "id": "hhs7D1IjBJJ7Bzhf",
   "nodes": [
     {
       "parameters": {
@@ -23,12 +24,25 @@
     },
     {
       "parameters": {
-        "command": "/workspace/scripts/notification_calendar_cron.sh"
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/notification_calendar'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 90000
+        }
       },
       "id": "55f0a347-6111-4e8e-bc02-0327c5638cb4",
       "name": "Run Calendar Poller",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         560,
         300

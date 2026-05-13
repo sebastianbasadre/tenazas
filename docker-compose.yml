@@ -15,6 +15,9 @@ services:
       - ENABLE_PORTFOLIO_RECONCILER_WATCH=${ENABLE_PORTFOLIO_RECONCILER_WATCH:-true}
       - ENABLE_IOL_REFRESH_LOOP=${ENABLE_IOL_REFRESH_LOOP:-true}
       - ENABLE_STARTUP_IOL_REFRESH=${ENABLE_STARTUP_IOL_REFRESH:-true}
+      - TENAZAS_JOB_RUNNER_HOST=${TENAZAS_JOB_RUNNER_HOST:-0.0.0.0}
+      - TENAZAS_JOB_RUNNER_PORT=${TENAZAS_JOB_RUNNER_PORT:-18891}
+      - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:-tenazas-local-job-runner}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
       - OLLAMA_API_BASE=${OLLAMA_API_BASE}
       - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD}
@@ -90,13 +93,15 @@ services:
       - SEARXNG_BASE_URL=http://192.168.2.2:8890/
 
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:2.19.5
     container_name: n8n
     profiles:
       - migration
     restart: unless-stopped
     group_add:
       - "${HOST_DOCKER_GID:-65536}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "5678:5678"
     environment:
@@ -107,14 +112,17 @@ services:
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://192.168.2.2:5678}
       - WEBHOOK_URL=${WEBHOOK_URL:-http://192.168.2.2:5678/}
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
-      - N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED:-true}
       - GENERIC_TIMEZONE=${TZ:-America/Buenos_Aires}
+      - TENAZAS_JOB_RUNNER_BASE_URL=${TENAZAS_JOB_RUNNER_BASE_URL:-http://host.docker.internal:18891}
+      - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:-tenazas-local-job-runner}
     volumes:
       - ./n8n/data:/home/node/.n8n
       - ./scripts:/workspace/scripts:ro
       - ./n8n/workflows:/workspace/workflows:ro
       - ./n8n/import-workflows.sh:/workspace/import-workflows.sh:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
 
 volumes:
   prometheus_data:

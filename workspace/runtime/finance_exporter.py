@@ -91,6 +91,8 @@ if PROM_AVAILABLE:
     # IOL totals
     G_IOL_TOTAL = Gauge("tenazas_iol_portfolio_ars", "IOL portfolio total ARS")
     G_IOL_PNL = Gauge("tenazas_iol_pnl_day_ars", "IOL PNL del dia ARS")
+    G_IOL_TOTAL_USD = Gauge("tenazas_iol_portfolio_usd_native", "IOL portfolio total USD nativo")
+    G_IOL_PNL_USD = Gauge("tenazas_iol_pnl_day_usd_native", "IOL PNL del dia USD nativo")
 
     # IOL cash balances
     G_IOL_CASH_ARS = Gauge("tenazas_iol_cash_ars", "IOL cash disponible ARS")
@@ -112,6 +114,10 @@ if PROM_AVAILABLE:
                                  "Variacion diaria % de cada posicion IOL", ["symbol", "type"])
     G_IOL_POS_PNL_DAY = Gauge("tenazas_iol_position_pnl_day_ars",
                               "PNL diario ARS de cada posicion IOL", ["symbol", "type"])
+    G_IOL_POS_VALUE_NATIVE = Gauge("tenazas_iol_position_value_native",
+                                   "Valor nativo de cada posicion IOL", ["symbol", "type", "currency"])
+    G_IOL_POS_PNL_DAY_NATIVE = Gauge("tenazas_iol_position_pnl_day_native",
+                                     "PNL diario nativo de cada posicion IOL", ["symbol", "type", "currency"])
 
     # Binance portfolio
     G_BIN_TOTAL = Gauge("tenazas_binance_total_usd", "Binance portfolio total USD")
@@ -401,6 +407,42 @@ _last_total_pnl_usd: float = 0
 
 # ── Data fetchers ─────────────────────────────────────────────
 
+def _normalize_iol_change_pct(variacion: float, puntos: float, precio: float) -> float:
+    """Normalize IOL daily change to percentage points."""
+    try:
+        variacion = float(variacion or 0)
+        puntos = float(puntos or 0)
+        precio = float(precio or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if not variacion:
+        return 0.0
+    if not puntos or precio <= 0:
+        return variacion
+
+    move_as_pct = abs(precio * (variacion / 100.0))
+    move_as_fraction = abs(precio * variacion)
+    if abs(move_as_fraction - abs(puntos)) < abs(move_as_pct - abs(puntos)):
+        return variacion * 100.0
+    return variacion
+
+
+def _normalize_iol_currency(raw_currency: str | None) -> str:
+    value = str(raw_currency or "").strip().lower()
+    if value in {"dolar_estadounidense", "usd", "dolar"}:
+        return "USD"
+    if value in {"peso_argentino", "ars", "peso"}:
+        return "ARS"
+    return value.upper() if value else "ARS"
+
+
+def _safe_float(value) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
 def _binance_signed_get(endpoint: str, api_key: str, secret: str,
                         extra_params: dict | None = None) -> dict | list | None:
     """Helper for signed Binance API GET requests."""
@@ -583,7 +625,7 @@ def fetch_btc_dominance() -> float | None:
         return None
 
 
-def fetch_iol_live() -> dict | None:
+def fetch_iol_live(usd_ars_rate: float | None = None) -> dict | None:
     """Fetch IOL portfolio live via iol_client, fallback to snapshot."""
     # Try live API first
     try:
@@ -592,42 +634,64 @@ def fetch_iol_live() -> dict | None:
         client = IOLClient()
         portfolio = client.get("/api/v2/portafolio/argentina")
         if portfolio and portfolio.get("activos"):
-            total = 0
-            pnl_day = 0
+            total_ars_equiv = 0.0
+            total_usd_native = 0.0
+            total_ars_native = 0.0
+            pnl_day_ars_equiv = 0.0
+            pnl_day_usd_native = 0.0
+            pnl_day_ars_native = 0.0
             positions = []
             for a in portfolio["activos"]:
                 titulo = a.get("titulo", {})
                 cantidad = a.get("cantidad", 0)
                 precio = a.get("ultimoPrecio", 0)
-                variacion = a.get("variacionDiaria", 0)
                 puntos = a.get("puntosVariacion", 0)
+                variacion = _normalize_iol_change_pct(a.get("variacionDiaria", 0), puntos, precio)
                 valor = a.get("valorizado", cantidad * precio)
                 ppc = a.get("ppc", 0)
                 gain_pct = a.get("gananciaPorcentaje", 0)
                 asset_type = titulo.get("tipo", "")
-                total += valor
+                currency = _normalize_iol_currency(titulo.get("moneda"))
                 day_pnl = puntos * cantidad if puntos else (
                     valor * (variacion / 100) if variacion else 0)
-                pnl_day += day_pnl
+                if currency == "USD":
+                    total_usd_native += valor
+                    pnl_day_usd_native += day_pnl
+                    value_ars_equiv = valor * usd_ars_rate if usd_ars_rate and usd_ars_rate > 0 else 0.0
+                    pnl_day_ars = day_pnl * usd_ars_rate if usd_ars_rate and usd_ars_rate > 0 else 0.0
+                else:
+                    total_ars_native += valor
+                    pnl_day_ars_native += day_pnl
+                    value_ars_equiv = valor
+                    pnl_day_ars = day_pnl
+                total_ars_equiv += value_ars_equiv
+                pnl_day_ars_equiv += pnl_day_ars
                 positions.append({
                     "symbol": titulo.get("simbolo", "?"),
                     "name": titulo.get("descripcion", "?")[:30],
                     "type": asset_type,
+                    "currency": currency,
                     "quantity": cantidad,
                     "price": precio,
                     "ppc": ppc,
                     "value": round(valor, 2),
+                    "value_ars_equiv": round(value_ars_equiv, 2),
                     "gain_pct": round(gain_pct, 2),
                     "change_pct": round(variacion, 2),
                     "pnl_day": round(day_pnl, 2),
+                    "pnl_day_ars": round(pnl_day_ars, 2),
                 })
             # Fetch cash balances from estado de cuenta
             # Use 'saldo' (total balance) not 'disponible' (available after holds)
             # because 'comprometido' funds (pending settlement) are still real money
             cash = {"ars": 0, "usd": 0, "usd_eeuu": 0}
+            account_total_ars = 0.0
+            account_total_usd = 0.0
+            implied_usd_ars_rate = 0.0
             try:
                 estado = client.get("/api/v2/estadocuenta")
                 if estado and "cuentas" in estado:
+                    account_total_ars = _safe_float(estado.get("totalEnPesos", 0))
                     for c in estado["cuentas"]:
                         tipo = c.get("tipo", "")
                         saldo = c.get("saldo", 0)
@@ -635,14 +699,36 @@ def fetch_iol_live() -> dict | None:
                             cash["ars"] = saldo
                         elif tipo == "inversion_Argentina_Dolares":
                             cash["usd"] = saldo
+                            account_total_usd += _safe_float(c.get("total", 0))
                         elif tipo == "inversion_Estados_Unidos_Dolares":
                             cash["usd_eeuu"] = saldo
+                            account_total_usd += _safe_float(c.get("total", 0))
+                    if account_total_ars > 0 and account_total_usd > 0:
+                        implied_usd_ars_rate = max(
+                            (account_total_ars - _safe_float(cash.get("ars", 0))) / account_total_usd,
+                            0.0,
+                        )
             except Exception as e:
                 log.warning("IOL estado de cuenta failed: %s", e)
 
+            if implied_usd_ars_rate > 0:
+                total_ars_equiv = total_ars_native
+                pnl_day_ars_equiv = pnl_day_ars_native
+                for p in positions:
+                    if p.get("currency") == "USD":
+                        p["value_ars_equiv"] = round(p.get("value", 0) * implied_usd_ars_rate, 2)
+                        p["pnl_day_ars"] = round(p.get("pnl_day", 0) * implied_usd_ars_rate, 2)
+                    total_ars_equiv += p.get("value_ars_equiv", 0)
+                    pnl_day_ars_equiv += p.get("pnl_day_ars", 0)
+
             return {
-                "total_ars": round(total, 2),
-                "pnl_day_ars": round(pnl_day, 2),
+                "total_ars": round(account_total_ars or total_ars_equiv, 2),
+                "total_usd_native": round(account_total_usd or total_usd_native, 2),
+                "total_ars_native": round(total_ars_native, 2),
+                "pnl_day_ars_native": round(pnl_day_ars_native, 2),
+                "pnl_day_ars": round(pnl_day_ars_equiv, 2),
+                "pnl_day_usd_native": round(pnl_day_usd_native, 2),
+                "ars_equiv_rate": round(implied_usd_ars_rate or _safe_float(usd_ars_rate), 4),
                 "positions": positions,
                 "cash": cash,
             }
@@ -696,32 +782,42 @@ def update_metrics():
     if not PROM_AVAILABLE:
         return
 
+    usd_ars = fetch_usd_ars_rate()
+    if usd_ars:
+        _last_usd_ars = usd_ars
+        G_USD_ARS_RATE.set(usd_ars)
+
     # ── IOL (live API, snapshot fallback) ────────────────────
-    iol = fetch_iol_live()
+    iol = fetch_iol_live(_last_usd_ars)
     if iol:
         _last_iol = iol
         G_IOL_TOTAL.set(iol.get("total_ars", 0))
         G_IOL_PNL.set(iol.get("pnl_day_ars", 0))
+        G_IOL_TOTAL_USD.set(iol.get("total_usd_native", 0))
+        G_IOL_PNL_USD.set(iol.get("pnl_day_usd_native", 0))
         G_FETCH_TS.labels(source="iol").set(time.time())
         for p in iol.get("positions", []):
             sym = p["symbol"]
             atype = p.get("type", "")
-            G_IOL_POS_VALUE.labels(symbol=sym, type=atype).set(p["value"])
+            currency = p.get("currency", "ARS")
+            G_IOL_POS_VALUE.labels(symbol=sym, type=atype).set(p.get("value_ars_equiv", p["value"]))
             G_IOL_POS_QTY.labels(symbol=sym, type=atype).set(p.get("quantity", 0))
             G_IOL_POS_PRICE.labels(symbol=sym, type=atype).set(p.get("price", 0))
             G_IOL_POS_PPC.labels(symbol=sym, type=atype).set(p.get("ppc", 0))
             G_IOL_POS_GAIN_PCT.labels(symbol=sym, type=atype).set(p.get("gain_pct", 0))
             G_IOL_POS_CHANGE_DAY.labels(symbol=sym, type=atype).set(p.get("change_pct", 0))
-            G_IOL_POS_PNL_DAY.labels(symbol=sym, type=atype).set(p.get("pnl_day", 0))
+            G_IOL_POS_PNL_DAY.labels(symbol=sym, type=atype).set(p.get("pnl_day_ars", p.get("pnl_day", 0)))
+            G_IOL_POS_VALUE_NATIVE.labels(symbol=sym, type=atype, currency=currency).set(p.get("value", 0))
+            G_IOL_POS_PNL_DAY_NATIVE.labels(symbol=sym, type=atype, currency=currency).set(p.get("pnl_day", 0))
         # Cash balances
         cash = iol.get("cash", {})
         G_IOL_CASH_ARS.set(cash.get("ars", 0))
         G_IOL_CASH_USD.set(cash.get("usd", 0))
         G_IOL_CASH_USD_EEUU.set(cash.get("usd_eeuu", 0))
 
-        log.info("IOL updated: $%.0f ARS (%+.0f PNL, %d positions, cash ARS=%.0f USD=%.2f)",
-                 iol["total_ars"], iol["pnl_day_ars"], len(iol.get("positions", [])),
-                 cash.get("ars", 0), cash.get("usd", 0))
+        log.info("IOL updated: $%.0f ARS eq / US$%.2f native (%+.0f ARS day PNL, %d positions, cash ARS=%.0f USD=%.2f)",
+                 iol["total_ars"], iol.get("total_usd_native", 0), iol["pnl_day_ars"],
+                 len(iol.get("positions", [])), cash.get("ars", 0), cash.get("usd", 0))
     else:
         _fetch_errors["iol"] += 1
         G_FETCH_ERRORS.labels(source="iol").set(_fetch_errors["iol"])
@@ -792,15 +888,12 @@ def update_metrics():
         G_PAPER_TRADES.set(paper["total_trades"])
 
     # ── Phase 1: USD/ARS, ATH, drawdown, combined total ──────
-    usd_ars = fetch_usd_ars_rate()
-    if usd_ars:
-        _last_usd_ars = usd_ars
-        G_USD_ARS_RATE.set(usd_ars)
-
     ath = _load_ath_state()
     binance_usd = binance["total_usd"] if binance else 0
     iol_ars = iol.get("total_ars", 0) if iol else 0
-    iol_usd = (iol_ars / _last_usd_ars) if _last_usd_ars > 0 else 0
+    iol_usd = (
+        iol.get("total_usd_native", 0) + ((iol.get("total_ars_native", 0) / _last_usd_ars) if _last_usd_ars > 0 else 0)
+    ) if iol else 0
     combined_usd = binance_usd + iol_usd
 
     if binance_usd > ath.get("binance_ath_usd", 0):
@@ -816,7 +909,9 @@ def update_metrics():
     G_PORTFOLIO_TOTAL_USD.set(round(combined_usd, 2))
 
     _last_total_pnl_usd = (binance["pnl_usd"] if binance else 0) + (
-        (iol.get("pnl_day_ars", 0) / _last_usd_ars) if iol and _last_usd_ars > 0 else 0)
+        iol.get("pnl_day_usd_native", 0) + ((iol.get("pnl_day_ars_native", 0) / _last_usd_ars) if _last_usd_ars > 0 else 0)
+        if iol else 0
+    )
 
     # ── Phase 2: Unified positions ────────────────────────────
     try:
@@ -867,8 +962,8 @@ def update_metrics():
 if __name__ == "__main__":
     if "--status" in sys.argv:
         b = fetch_binance()
-        iol = fetch_iol_live()
-        usd_ars = fetch_usd_ars_rate()
+        usd_ars = fetch_usd_ars_rate() or 0
+        iol = fetch_iol_live(usd_ars)
         ath = _load_ath_state()
 
         print("\n== Binance ==")
@@ -884,9 +979,21 @@ if __name__ == "__main__":
         print("\n== IOL ==")
         if iol:
             dd_iol = _calc_drawdown(iol["total_ars"], ath.get("iol_ath_ars", 0))
-            print(f"Total: ${iol['total_ars']:,.0f} ARS  PNL: ${iol['pnl_day_ars']:+,.0f}  DD: {dd_iol:.1f}%")
+            print(
+                f"Total: ${iol['total_ars']:,.0f} ARS eq"
+                f" / US${iol.get('total_usd_native', 0):,.2f} native"
+                f"  PNL: ${iol['pnl_day_ars']:+,.0f} ARS eq"
+                f" / US${iol.get('pnl_day_usd_native', 0):+,.2f} native"
+                f"  DD: {dd_iol:.1f}%"
+            )
             for p in iol.get("positions", []):
-                print(f"  {p['symbol']:10s} ${p['value']:>10,.0f} ARS  {p.get('change_pct', 0):+.2f}%")
+                currency = p.get("currency", "ARS")
+                value_native = p.get("value", 0)
+                value_eq = p.get("value_ars_equiv", value_native)
+                print(
+                    f"  {p['symbol']:10s} {currency} {value_native:>10,.2f}"
+                    f"  (ARS eq {value_eq:>10,.0f})  {p.get('change_pct', 0):+.2f}%"
+                )
         else:
             print("  (no data)")
 
@@ -910,8 +1017,8 @@ if __name__ == "__main__":
 
     if "--positions" in sys.argv:
         b = fetch_binance()
-        iol = fetch_iol_live()
         usd_ars = fetch_usd_ars_rate() or 0
+        iol = fetch_iol_live(usd_ars)
         try:
             from finance_positions import build_unified_positions, format_positions_table
             positions = build_unified_positions(b, iol, usd_ars)

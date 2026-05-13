@@ -13,6 +13,11 @@ def _normalize_iol_symbol(symbol: str) -> str:
     return re.sub(r'\s*(48hs|24hs|CI)\s*$', '', symbol, flags=re.IGNORECASE).strip()
 
 
+def _normalize_currency(raw_currency: str | None) -> str:
+    value = str(raw_currency or "").strip().upper()
+    return value or "ARS"
+
+
 def build_unified_positions(binance: dict | None, iol: dict | None,
                             usd_ars_rate: float) -> list[dict]:
     """Build unified position list from Binance + IOL data."""
@@ -47,10 +52,15 @@ def build_unified_positions(binance: dict | None, iol: dict | None,
     # IOL positions
     if iol and usd_ars_rate > 0:
         for p in iol.get("positions", []):
-            val_ars = p.get("value", 0)
-            val_usd = round(val_ars / usd_ars_rate, 2)
-            pnl_ars = p.get("pnl_day", 0)
-            pnl_usd = round(pnl_ars / usd_ars_rate, 2)
+            currency = _normalize_currency(p.get("currency"))
+            val_native = p.get("value", 0)
+            pnl_native = p.get("pnl_day", 0)
+            if currency == "USD":
+                val_usd = round(val_native, 2)
+                pnl_usd = round(pnl_native, 2)
+            else:
+                val_usd = round(val_native / usd_ars_rate, 2)
+                pnl_usd = round(pnl_native / usd_ars_rate, 2)
             total_usd += val_usd
             positions.append({
                 "symbol": _normalize_iol_symbol(p.get("symbol", "?")),
@@ -58,7 +68,7 @@ def build_unified_positions(binance: dict | None, iol: dict | None,
                 "qty": p.get("quantity", 0),
                 "price": p.get("price", 0),
                 "value_usd": val_usd,
-                "currency": "ARS",
+                "currency": currency,
                 "pnl_day_usd": pnl_usd,
                 "change_pct": p.get("change_pct", 0),
                 "allocation_pct": 0,

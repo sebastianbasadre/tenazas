@@ -24,8 +24,11 @@ Move scheduling, recurring ops, and host-level recovery out of the monolith.
 - Phase A is the active production path.
 - Phase B remains prepared in-repo but disabled by default on the NAS.
 - `n8n` stays behind a Compose profile until the host proves stable again.
+- Exact cutover steps live in `docs/n8n-cutover-runbook.md`.
 
 ## Two-Week Cutover
+
+Task-by-task DSM commands and toggles live in `docs/dsm-task-checklist.md`.
 
 ### Week 1
 

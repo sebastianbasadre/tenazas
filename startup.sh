@@ -120,6 +120,7 @@ fi
 
 run_bg_cd "Metrics server iniciado en :9105" "/home/tenazas" python3 /home/tenazas/runtime/metrics_server.py
 run_bg_cd "Model failover monitor iniciado" "/home/tenazas" python3 /home/tenazas/runtime/model_failover.py
+run_bg_cd "Job runner iniciado en :18891" "/home/tenazas" python3 /home/tenazas/runtime/job_runner.py
 run_bg "API metrics exporter iniciado en :9106" python3 -c "from runtime.api_call_counter import start_exporter; start_exporter(); import time; [time.sleep(3600) for _ in iter(int, 1)]"
 
 # Telegram router with auto-restart watchdog

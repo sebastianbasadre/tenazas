@@ -216,6 +216,12 @@ class TestAPIProbes(unittest.TestCase):
         r = hs._probe_iol()
         self.assertEqual(r["status"], "fail")
 
+    def test_gemini_disabled_by_default(self):
+        r = hs._probe_gemini()
+        self.assertEqual(r["status"], "ok")
+        self.assertTrue(r["detail"]["optional"])
+        self.assertEqual(r["detail"]["status"], "disabled")
+
 
 class TestInternalProbes(unittest.TestCase):
     """Test internal service probes."""

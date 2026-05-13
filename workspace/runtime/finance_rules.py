@@ -196,8 +196,9 @@ if __name__ == "__main__":
         positions = build_unified_positions(b, iol, rate)
         ath = _load_ath_state()
         dd = _calc_drawdown(b["total_usd"] if b else 0, ath.get("binance_ath_usd", 0))
-        pnl = (b["pnl_usd"] if b else 0) + (
-            (iol.get("pnl_day_ars", 0) / rate) if iol and rate > 0 else 0)
+        pnl = (b["pnl_usd"] if b else 0) + (iol.get("pnl_day_usd_native", 0) if iol else 0)
+        if iol and rate > 0:
+            pnl += iol.get("pnl_day_ars_native", 0) / rate
 
         if "--test" in sys.argv:
             test_id = sys.argv[sys.argv.index("--test") + 1] if len(sys.argv) > sys.argv.index("--test") + 1 else None
