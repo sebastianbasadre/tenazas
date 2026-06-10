@@ -30,7 +30,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 try:
@@ -213,7 +213,7 @@ def _probe_containers() -> dict:
             "openclaw", "gluetun", "qbittorrent", "sonarr", "radarr",
             "lidarr", "prowlarr", "sabnzbd", "seerr", "requestrr",
             "tautulli", "chromadb", "piper", "prometheus", "grafana",
-            "portainer", "watchtower", "hireswarm-agent-server",
+            "portainer", "watchtower",
         ])
         running, lat = _docker_ps_names()
         running = {n.lower() for n in running}
@@ -503,12 +503,18 @@ def _probe_binance_ticker() -> dict:
 def _probe_iol() -> dict:
     try:
         status, body, lat = _http_get("https://api.invertironline.com/", timeout=PROBE_TIMEOUT)
-        # 401 = auth required but API reachable, 200 = also fine
-        if status in (200, 401):
+        # 401/403 = auth/resource denied but API reachable, 200 = also fine.
+        if status in (200, 401, 403):
             return _ok("iol_api", lat, {"status": status})
         if status >= 500:
             return _fail("iol_api", f"server error {status}", lat)
         return _ok("iol_api", lat, {"status": status})
+    except HTTPError as e:
+        if e.code in (401, 403):
+            return _ok("iol_api", 0, {"status": e.code, "auth_required": True})
+        if e.code >= 500:
+            return _fail("iol_api", f"server error {e.code}", 0)
+        return _ok("iol_api", 0, {"status": e.code})
     except Exception as e:
         return _fail("iol_api", str(e))
 
@@ -966,13 +972,34 @@ _SECTION_LABELS = {
 
 _STATUS_ICONS = {"ok": "✅", "warn": "⚠️", "fail": "🔴"}
 
+TELEGRAM_SUPPRESSED_PROBES = {
+    "binance_ping",
+    "binance_ticker",
+    "iol_api",
+}
+
+
+def _filter_telegram_sections(sections: list[dict]) -> list[dict]:
+    """Remove private finance probes from Telegram heartbeat output."""
+    filtered = []
+    for section in sections:
+        results = [
+            r for r in section.get("results", [])
+            if r.get("probe") not in TELEGRAM_SUPPRESSED_PROBES
+        ]
+        if results:
+            filtered.append({**section, "results": results})
+    return filtered
+
 
 def format_telegram(sections: list[dict], overall: int) -> str:
     """Format sweep results as Telegram message."""
     now = datetime.now().strftime("%d/%m %H:%M")
     lines = [f"🧠 *Tenazas Health Sweep — {now}*", ""]
+    display_sections = _filter_telegram_sections(sections)
+    display_overall = _score_overall(display_sections)
 
-    for s in sections:
+    for s in display_sections:
         label = _SECTION_LABELS.get(s["section"], s["section"])
         results = s["results"]
         ok = sum(1 for r in results if r["status"] == "ok")
@@ -1013,10 +1040,10 @@ def format_telegram(sections: list[dict], overall: int) -> str:
     prev = _get_previous_score()
     delta = ""
     if prev is not None:
-        diff = overall - prev
+        diff = display_overall - prev
         if diff != 0:
             delta = f" ({'↑' if diff > 0 else '↓'} {abs(diff)} vs anterior)"
-    lines.append(f"Score: {overall}/100{delta}")
+    lines.append(f"Score: {display_overall}/100{delta}")
 
     return "\n".join(lines)
 

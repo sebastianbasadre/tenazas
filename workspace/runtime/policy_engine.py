@@ -35,6 +35,11 @@ from action_registry import (
 )
 from safety_guard import validate_action
 
+try:
+    import autonomy_contracts
+except ImportError:
+    from . import autonomy_contracts
+
 RUNTIME = Path(__file__).parent
 LOG_PATH = RUNTIME / "logs" / "policy_engine.log"
 COOLDOWN_STATE_PATH = RUNTIME / "policy_cooldown_state.json"
@@ -52,6 +57,8 @@ class PolicyDecision:
     reason: str
     cooldown_remaining: int = 0  # seconds until cooldown expires
     confidence: float = 0.0
+    agent: str = ""
+    autonomy_reason: str = ""
 
 
 def _log(entry: dict):
@@ -84,7 +91,7 @@ def _check_cooldown(action_name: str, target: str) -> int:
     return remaining
 
 
-def record_execution(action_name: str, target: str = ""):
+def record_execution(action_name: str, target: str = "", agent: str = ""):
     """Record that an action was executed (for cooldown tracking)."""
     state = _load_cooldowns()
     key = f"{action_name}:{target}" if target else action_name
@@ -93,12 +100,15 @@ def record_execution(action_name: str, target: str = ""):
     cutoff = time.time() - 86400
     state = {k: v for k, v in state.items() if v > cutoff}
     _save_cooldowns(state)
+    if agent:
+        autonomy_contracts.record_action(agent, action_name, target)
 
 
 # ── Core evaluation ─────────────────────────────────────────────
 
 def evaluate(action_name: str, target: str = "",
-             confidence: float = 0.0, context: str = "") -> PolicyDecision:
+             confidence: float = 0.0, context: str = "",
+             agent: str = "") -> PolicyDecision:
     """Evaluate whether an action should execute, need approval, or be blocked.
 
     Args:
@@ -106,6 +116,8 @@ def evaluate(action_name: str, target: str = "",
         target: target of the action (container name, model, etc.)
         confidence: detection confidence (0-1), affects MEDIUM risk decisions
         context: human-readable context for logging
+        agent: optional caller identity. When supplied, per-agent autonomy
+            contracts gate execution before risk policy allows auto-run.
 
     Returns:
         PolicyDecision with execute_now=True if safe to proceed immediately.
@@ -121,11 +133,34 @@ def evaluate(action_name: str, target: str = "",
             risk_level=registry_check["risk_level"],
             reason=registry_check["reason"],
             confidence=confidence,
+            agent=agent,
         )
         _log_decision(decision, context)
         return decision
 
-    # Step 2: Map docker actions for safety_guard validation
+    # Step 2: If the caller identified itself as an autonomous agent, enforce
+    # its contract before allowing execution. This is deliberately stricter
+    # than the general action registry.
+    if agent:
+        autonomy = autonomy_contracts.evaluate(
+            agent, action_name, target, confidence, context
+        )
+        if not autonomy.execute_now:
+            decision = PolicyDecision(
+                action_name=action_name, target=target,
+                allowed=autonomy.allowed,
+                execute_now=False,
+                requires_approval=autonomy.requires_approval,
+                risk_level=registry_check["risk_level"],
+                reason=autonomy.reason,
+                confidence=confidence,
+                agent=agent,
+                autonomy_reason=autonomy.reason,
+            )
+            _log_decision(decision, context)
+            return decision
+
+    # Step 3: Map docker actions for safety_guard validation
     sg_action = _map_to_safety_guard_action(action_name)
     if sg_action:
         sg_result = validate_action(sg_action, target, context)
@@ -137,19 +172,20 @@ def evaluate(action_name: str, target: str = "",
                 risk_level=RISK_HIGH,
                 reason=f"safety_guard blocked: {sg_result['reason']}",
                 confidence=confidence,
+                agent=agent,
             )
             _log_decision(decision, context)
             return decision
 
-    # Step 3: Get risk level from registry
+    # Step 4: Get risk level from registry
     action_def = get_action(action_name)
     risk = action_def["risk_level"] if action_def else RISK_HIGH
     requires_approval = action_def["requires_approval"] if action_def else True
 
-    # Step 4: Check cooldown
+    # Step 5: Check cooldown
     cooldown_remaining = _check_cooldown(action_name, target)
 
-    # Step 5: Apply risk policy
+    # Step 6: Apply risk policy
     if risk == RISK_SAFE:
         execute_now = True
         reason = "SAFE action — auto-execute"
@@ -183,6 +219,7 @@ def evaluate(action_name: str, target: str = "",
         risk_level=risk, reason=reason,
         cooldown_remaining=cooldown_remaining,
         confidence=confidence,
+        agent=agent,
     )
     _log_decision(decision, context)
     return decision
@@ -218,6 +255,7 @@ def evaluate_incident(incident: dict) -> PolicyDecision:
     target = rec.get("target", "")
     confidence = incident.get("confidence", 0.0)
     context = incident.get("title", "")
+    agent = incident.get("agent", "") or incident.get("source_agent", "")
 
     if not action_name:
         return PolicyDecision(
@@ -229,4 +267,4 @@ def evaluate_incident(incident: dict) -> PolicyDecision:
             confidence=confidence,
         )
 
-    return evaluate(action_name, target, confidence, context)
+    return evaluate(action_name, target, confidence, context, agent=agent)

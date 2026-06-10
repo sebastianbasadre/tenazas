@@ -389,7 +389,7 @@ class InMemorySandbox:
         for root, _, files in os.walk(self.repo_root):
             for name in files:
                 abs_p = os.path.join(root, name)
-                rel = os.path.relpath(abs_p, self.repo_root)
+                rel = os.path.relpath(abs_p, self.repo_root).replace(os.sep, "/")
                 try:
                     with open(abs_p, "r", encoding="utf-8") as f:
                         self.main[rel] = f.read()

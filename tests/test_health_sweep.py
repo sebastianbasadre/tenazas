@@ -370,6 +370,22 @@ class TestFormatTelegram(unittest.TestCase):
         self.assertIn("🔴", msg)
         self.assertIn("Check HomeLab power", msg)
 
+    def test_format_suppresses_finance_api_probes(self):
+        sections = [
+            {"section": "apis", "results": [
+                hs._fail("binance_ping", "blocked"),
+                hs._fail("binance_ticker", "blocked"),
+                hs._fail("iol_api", "server error"),
+                hs._ok("telegram_bot"),
+                hs._ok("openmeteo"),
+            ]},
+        ]
+        msg = hs.format_telegram(sections, 0)
+        self.assertNotIn("binance", msg.lower())
+        self.assertNotIn("iol", msg.lower())
+        self.assertIn("APIs externas (2/2)", msg)
+        self.assertIn("Score: 100/100", msg)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
