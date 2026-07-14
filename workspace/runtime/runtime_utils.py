@@ -26,7 +26,7 @@ except ImportError:
 def load_json(path, default=None):
     """Load JSON file, return default on missing/corrupt."""
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return default if default is not None else {}
@@ -36,7 +36,7 @@ def save_json(path, data):
     """Save data as JSON with indent=2. Creates parent dirs."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False, default=str)
 
 
@@ -63,7 +63,7 @@ def write_atomic(path, data):
     tmp_fd = None
     try:
         tmp_fd = tempfile.NamedTemporaryFile(
-            mode="w", dir=path.parent, suffix=".tmp", delete=False
+            mode="w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
         )
         json.dump(data, tmp_fd, indent=2, ensure_ascii=False, default=str)
         tmp_fd.close()

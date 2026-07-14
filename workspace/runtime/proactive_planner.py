@@ -16,9 +16,9 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 
 RUNTIME = Path(__file__).parent
 QUEUE_PATH = RUNTIME / "task_queue.json"
@@ -152,14 +152,22 @@ def _check_goals() -> list:
     """Check homelab goals and generate suggestions for failing ones."""
     tasks = []
     try:
-        from homelab_goals import get_failing_goals
-        failing = get_failing_goals()
+        from homelab_goals import evaluate_all, get_failing_goals
+        try:
+            goals = evaluate_all()
+            failing = [g for g in goals if g.get("status") in ("fail", "warn")]
+            failing.sort(key=lambda g: g.get("priority", 99))
+        except Exception:
+            failing = get_failing_goals()
         for g in failing:
+            evidence = g.get("evidence", "")
+            if "[WinError " in evidence:
+                continue
             tasks.append({
                 "type": "goal",
                 "priority": "high" if g["status"] == "fail" else "medium",
                 "action": f"fix_{g['id']}",
-                "detail": f"Goal P{g['priority']} {g['desc']}: {g.get('evidence', '')}",
+                "detail": f"Goal P{g['priority']} {g['desc']}: {evidence}",
                 "goal_id": g["id"],
             })
     except Exception:

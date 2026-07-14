@@ -1,0 +1,127 @@
+{
+  "updatedAt": "2026-05-11T00:29:20.816Z",
+  "createdAt": "2026-05-10T17:37:27.695Z",
+  "id": "hhs7D1IjBJJ7Bzhf",
+  "name": "OpenClaw Notification Calendar",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "0e957280-c241-45fb-8b4d-3e59b832d410",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        272,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/notification_calendar'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "55f0a347-6111-4e8e-bc02-0327c5638cb4",
+      "name": "Run Calendar Poller",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        304
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Calendar Poller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Every 15 Minutes": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {
+    "Every 15 Minutes": [
+      {
+        "json": {
+          "timestamp": "2026-05-10T21:15:00.010-03:00",
+          "Readable date": "May 10th 2026, 9:15:00 pm",
+          "Readable time": "9:15:00 pm",
+          "Day of week": "Sunday",
+          "Year": "2026",
+          "Month": "May",
+          "Day of month": "10",
+          "Hour": "21",
+          "Minute": "15",
+          "Second": "00",
+          "Timezone": "America/Buenos_Aires (UTC-03:00)"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "versionId": "2f864de5-eabd-41bf-b2e5-4dca192a3154",
+  "activeVersionId": null,
+  "versionCounter": 8,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-10T17:37:27.697Z",
+      "createdAt": "2026-05-10T17:37:27.697Z",
+      "role": "workflow:owner",
+      "workflowId": "hhs7D1IjBJJ7Bzhf",
+      "projectId": "NbYUjzZgSJqGobV2",
+      "project": {
+        "updatedAt": "2026-05-10T18:50:45.992Z",
+        "createdAt": "2026-05-10T17:35:55.379Z",
+        "id": "NbYUjzZgSJqGobV2",
+        "name": "Sebastian Basadre <sebastian.basadre@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "7ccf0425-ef08-40dc-b871-2224f910b000"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

@@ -11,8 +11,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,9 +33,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("job_runner")
 
-HOST = os.getenv("TENAZAS_JOB_RUNNER_HOST", "0.0.0.0")
+HOST = os.getenv("TENAZAS_JOB_RUNNER_HOST", "127.0.0.1")
 PORT = int(os.getenv("TENAZAS_JOB_RUNNER_PORT", "18891"))
 TOKEN = os.getenv("TENAZAS_JOB_RUNNER_TOKEN", "")
+INSECURE_DEFAULT_TOKENS = {"", "tenazas-local-job-runner", "change-me", "replace-me"}
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "TenazasJobRunner/1.0"
 
     def _send(self, status: int, payload: dict) -> None:
+        payload.setdefault("request_id", getattr(self, "request_id", ""))
         body = _json_bytes(payload)
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -141,19 +145,20 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _authorized(self) -> bool:
-        if not TOKEN:
+        if TOKEN in INSECURE_DEFAULT_TOKENS:
             self._send(
                 HTTPStatus.SERVICE_UNAVAILABLE,
-                {"ok": False, "error": "TENAZAS_JOB_RUNNER_TOKEN not configured"},
+                {"ok": False, "error": "TENAZAS_JOB_RUNNER_TOKEN not securely configured"},
             )
             return False
         provided = self.headers.get("X-Tenazas-Job-Token", "")
-        if provided != TOKEN:
+        if not secrets.compare_digest(provided, TOKEN):
             self._send(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return False
         return True
 
     def do_GET(self) -> None:
+        self.request_id = self.headers.get("X-Request-Id", str(uuid.uuid4()))
         parsed = urlparse(self.path)
         if parsed.path == "/health":
             self._send(
@@ -168,6 +173,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
 
     def do_POST(self) -> None:
+        self.request_id = self.headers.get("X-Request-Id", str(uuid.uuid4()))
         parsed = urlparse(self.path)
         if not parsed.path.startswith("/run/"):
             self._send(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
@@ -176,6 +182,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         job_name = parsed.path.rsplit("/", 1)[-1]
+        log.info("request_id=%s job=%s remote=%s", self.request_id, job_name, self.client_address[0])
         try:
             result = run_job(job_name)
         except KeyError:
@@ -190,6 +197,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    if TOKEN in INSECURE_DEFAULT_TOKENS:
+        raise SystemExit("TENAZAS_JOB_RUNNER_TOKEN must be set to a non-default secret")
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     log.info("job_runner listening on %s:%s jobs=%s", HOST, PORT, ",".join(sorted(JOBS.keys())))
     server.serve_forever()

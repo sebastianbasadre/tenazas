@@ -5,7 +5,10 @@ $StartupScript = Join-Path $StartupDir "start-ollama.ps1"
 $StartupBat = Join-Path $StartupDir "start-ollama.bat"
 $StartupFolder = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup"
 $OllamaExe = "ollama"
+$OllamaHost = "0.0.0.0:11434"
+$WarmModel = "gemma3:12b"
 $Models = @(
+    "gemma3:12b",
     "qwen3:8b",
     "qwen2.5:7b",
     "nomic-embed-text"
@@ -21,6 +24,8 @@ function Test-OllamaEndpoint {
 }
 
 function Ensure-OllamaServe {
+    $env:OLLAMA_HOST = $OllamaHost
+    setx OLLAMA_HOST $OllamaHost | Out-Null
     if (-not (Test-OllamaEndpoint)) {
         Start-Process -FilePath $OllamaExe -ArgumentList "serve" -WindowStyle Hidden
         Start-Sleep -Seconds 5
@@ -45,16 +50,17 @@ function Pull-MissingModels {
 
 function Warm-Models {
     $body = @{
-        model = "qwen3:8b"
+        model = $WarmModel
         prompt = "ok"
         stream = $false
+        keep_alive = "1h"
         options = @{ num_predict = 1 }
     } | ConvertTo-Json -Depth 4
     try {
         Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/generate" `
             -Method Post -ContentType "application/json" -Body $body -TimeoutSec 30 | Out-Null
     } catch {
-        Write-Warning "No pude precargar qwen3:8b: $($_.Exception.Message)"
+        Write-Warning "No pude precargar ${WarmModel}: $($_.Exception.Message)"
     }
 }
 
@@ -63,13 +69,16 @@ function Install-StartupShortcut {
 
     @'
 $ErrorActionPreference = "Stop"
+$env:OLLAMA_HOST = "0.0.0.0:11434"
+setx OLLAMA_HOST "0.0.0.0:11434" | Out-Null
 Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
 Start-Sleep -Seconds 5
 try {
   $body = @{
-    model = "qwen3:8b"
+    model = "gemma3:12b"
     prompt = "ok"
     stream = $false
+    keep_alive = "1h"
     options = @{ num_predict = 1 }
   } | ConvertTo-Json -Depth 4
   Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/generate" -Method Post -ContentType "application/json" -Body $body -TimeoutSec 30 | Out-Null
@@ -89,4 +98,5 @@ Install-StartupShortcut
 
 Write-Host "Ollama listo."
 Write-Host "Modelos objetivo: $($Models -join ', ')"
+Write-Host "Modelo precargado: $WarmModel"
 Write-Host "Autostart instalado en: $StartupFolder\start-ollama.bat"

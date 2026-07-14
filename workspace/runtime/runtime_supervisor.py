@@ -16,11 +16,14 @@ import subprocess
 import time
 from pathlib import Path
 
-LOCKFILE = "/tmp/tenazas_runtime.lock"
-RUNTIME_SCRIPT = "/home/tenazas/runtime/runtime.py"
+LOCKFILE = os.environ.get("TENAZAS_RUNTIME_LOCKFILE", "/tmp/tenazas_runtime.lock")
+RUNTIME_SCRIPT = os.environ.get("TENAZAS_RUNTIME_SCRIPT", "/home/tenazas/runtime/runtime.py")
 MAX_RUNTIME_SECONDS = 120   # 2 minutos (matches runtime GLOBAL_TIMEOUT_SECONDS)
 STALE_LOCK_SECONDS = 600    # 10 minutos
-LOGFILE = "/home/tenazas/runtime/logs/runtime_supervisor.log"
+LOGFILE = os.environ.get(
+    "TENAZAS_RUNTIME_SUPERVISOR_LOG",
+    "/home/tenazas/runtime/logs/runtime_supervisor.log",
+)
 
 
 def log(msg):
@@ -39,15 +42,21 @@ def acquire_lock():
             return False
 
         log(f"stale lock detected (age={int(age)}s), removing")
-        os.remove(LOCKFILE)
+        try:
+            Path(LOCKFILE).unlink()
+        except FileNotFoundError:
+            pass
 
-    Path(LOCKFILE).touch()
+    Path(LOCKFILE).write_text(str(os.getpid()))
     return True
 
 
 def release_lock():
     if os.path.exists(LOCKFILE):
-        os.remove(LOCKFILE)
+        try:
+            Path(LOCKFILE).unlink()
+        except FileNotFoundError:
+            pass
 
 
 def run_runtime():

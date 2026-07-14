@@ -23,7 +23,7 @@ from pathlib import Path
 
 ALLOWED_TOOLS = {
     "weather", "email", "calendar", "infra-monitor", "network-scanner",
-    "arr-monitor", "self-evolve", "reminders", "smart-home-on",
+    "security-monitor", "arr-monitor", "self-evolve", "reminders", "smart-home-on",
     "smart-home-off", "smart-home-cinema", "tts",
 }
 
@@ -31,7 +31,7 @@ SYSTEM_MSG = (
     "You are a deterministic tool classifier. "
     "Output ONLY valid XML. Never output text. "
     "Allowed tools: weather, email, calendar, infra-monitor, network-scanner, "
-    "arr-monitor, self-evolve, reminders, smart-home-on, smart-home-off, "
+    "security-monitor, arr-monitor, self-evolve, reminders, smart-home-on, smart-home-off, "
     "smart-home-cinema, tts. "
     "If no tools apply return <tools></tools>"
 )
@@ -254,6 +254,17 @@ def main():
         report_to="none",
         max_grad_norm=1.0,
     )
+    # Compatibility for TRL/Transformers version skew: some TRL releases still
+    # call TrainingArguments.to_dict() and then pop the legacy
+    # push_to_hub_token key even when hub uploads are disabled.
+    original_to_dict = training_args.to_dict
+
+    def _to_dict_with_legacy_hub_token():
+        data = original_to_dict()
+        data.setdefault("push_to_hub_token", None)
+        return data
+
+    training_args.to_dict = _to_dict_with_legacy_hub_token
 
     trainer = SFTTrainer(
         model=model,

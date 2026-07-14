@@ -1,0 +1,276 @@
+{
+  "panels": [
+    {
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.6
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "(tenazas_training_f1_before) or on() vector(0)",
+          "legendFormat": "F1 Before"
+        }
+      ],
+      "title": "F1 Before (baseline)",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.6
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "(tenazas_training_f1_after) or on() vector(0)",
+          "legendFormat": "F1 After"
+        }
+      ],
+      "title": "F1 After (finetuned)",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "yellow",
+                  "text": "No"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "Yes"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "(tenazas_training_swapped) or on() vector(0)",
+          "legendFormat": "Swapped"
+        }
+      ],
+      "title": "Model Swapped",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "(tenazas_training_runs_total) or on() vector(0)",
+          "legendFormat": "Runs"
+        }
+      ],
+      "title": "Total Training Runs",
+      "type": "stat"
+    },
+    {
+      "description": "F1 score over time. Green = after training, orange = before training.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "pointSize": 6,
+            "showPoints": "always",
+            "spanNulls": true
+          },
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "F1 Before (baseline)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "F1 After (finetuned)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "(tenazas_training_f1_before) or on() vector(0)",
+          "legendFormat": "F1 Before (baseline)"
+        },
+        {
+          "expr": "(tenazas_training_f1_after) or on() vector(0)",
+          "legendFormat": "F1 After (finetuned)"
+        }
+      ],
+      "title": "F1 Evolution — Baseline vs Finetuned",
+      "type": "timeseries"
+    },
+    {
+      "description": "Difference between F1 after and before. Positive = model improved.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "always"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 0.02
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "(tenazas_training_f1_after - tenazas_training_f1_before) or on() vector(0)",
+          "legendFormat": "F1 Delta"
+        }
+      ],
+      "title": "F1 Improvement (delta)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "tags": [
+    "tenazas",
+    "training",
+    "ml"
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timezone": "America/Argentina/Buenos_Aires",
+  "title": "Tenazas Auto Training",
+  "uid": "tenazas-training",
+  "editable": true
+}

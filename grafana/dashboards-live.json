@@ -1,0 +1,102 @@
+{
+  "source": "http://192.168.2.2:3000",
+  "count": 16,
+  "dashboards": [
+    {
+      "uid": "portfolio-total",
+      "title": "Portfolio Total",
+      "file": "dashboards/portfolio-total.json",
+      "url": "/d/portfolio-total/portfolio-total"
+    },
+    {
+      "uid": "tenazas-agent-ops",
+      "title": "Tenazas Agent Ops",
+      "file": "dashboards/tenazas-agent-ops.json",
+      "url": "/d/tenazas-agent-ops/tenazas-agent-ops"
+    },
+    {
+      "uid": "tenazas-app",
+      "title": "Tenazas App — Servicios y Pipeline",
+      "file": "dashboards/tenazas-app.json",
+      "url": "/d/tenazas-app/tenazas-app-e28094-servicios-y-pipeline"
+    },
+    {
+      "uid": "tenazas-training",
+      "title": "Tenazas Auto Training",
+      "file": "dashboards/tenazas-training.json",
+      "url": "/d/tenazas-training/tenazas-auto-training"
+    },
+    {
+      "uid": "tenazas-binance",
+      "title": "Tenazas Binance",
+      "file": "dashboards/tenazas-binance.json",
+      "url": "/d/tenazas-binance/tenazas-binance"
+    },
+    {
+      "uid": "tenazas-home",
+      "title": "Tenazas Control Tower",
+      "file": "dashboards/tenazas-home.json",
+      "url": "/d/tenazas-home/tenazas-control-tower"
+    },
+    {
+      "uid": "tenazas-finance",
+      "title": "Tenazas Finance",
+      "file": "dashboards/tenazas-finance.json",
+      "url": "/d/tenazas-finance/tenazas-finance"
+    },
+    {
+      "uid": "tenazas-homelab",
+      "title": "Tenazas HomeLab",
+      "file": "dashboards/tenazas-homelab.json",
+      "url": "/d/tenazas-homelab/tenazas-homelab"
+    },
+    {
+      "uid": "tenazas-infra",
+      "title": "Tenazas Infra — NAS + HomeLab",
+      "file": "dashboards/tenazas-infra.json",
+      "url": "/d/tenazas-infra/tenazas-infra-e28094-nas-2b-homelab"
+    },
+    {
+      "uid": "tenazas-device-discovery",
+      "title": "Tenazas Network",
+      "file": "dashboards/tenazas-device-discovery.json",
+      "url": "/d/tenazas-device-discovery/tenazas-network"
+    },
+    {
+      "uid": "tenazas-portfolio",
+      "title": "Tenazas Portfolio",
+      "file": "dashboards/tenazas-portfolio.json",
+      "url": "/d/tenazas-portfolio/tenazas-portfolio"
+    },
+    {
+      "uid": "tenazas-roi",
+      "title": "Tenazas ROI Dashboard",
+      "file": "dashboards/tenazas-roi.json",
+      "url": "/d/tenazas-roi/tenazas-roi-dashboard"
+    },
+    {
+      "uid": "tenazas-runtime",
+      "title": "Tenazas Runtime",
+      "file": "dashboards/tenazas-runtime.json",
+      "url": "/d/tenazas-runtime/tenazas-runtime"
+    },
+    {
+      "uid": "tenazas-self-evolve",
+      "title": "Tenazas Self-Evolve",
+      "file": "dashboards/tenazas-self-evolve.json",
+      "url": "/d/tenazas-self-evolve/tenazas-self-evolve"
+    },
+    {
+      "uid": "tenazas-smoking",
+      "title": "Tenazas Smoking Tracker",
+      "file": "dashboards/tenazas-smoking.json",
+      "url": "/d/tenazas-smoking/tenazas-smoking-tracker"
+    },
+    {
+      "uid": "tenazas-multitool-eval",
+      "title": "Tenazas — Multitool Eval",
+      "file": "dashboards/tenazas-multitool-eval.json",
+      "url": "/d/tenazas-multitool-eval/tenazas-e28094-multitool-eval"
+    }
+  ]
+}

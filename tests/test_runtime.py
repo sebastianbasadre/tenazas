@@ -6,6 +6,7 @@ Corre: python3 tests/test_runtime.py
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -476,6 +477,15 @@ class TestTelegramNotify(unittest.TestCase):
 class TestBuildNotification(unittest.TestCase):
     """Notification message formatting."""
 
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_ollama_notify_state = rt.OLLAMA_NOTIFY_STATE_FILE
+        rt.OLLAMA_NOTIFY_STATE_FILE = Path(self.tmpdir) / "ollama_notify_state.json"
+
+    def tearDown(self):
+        rt.OLLAMA_NOTIFY_STATE_FILE = self._orig_ollama_notify_state
+        shutil.rmtree(self.tmpdir)
+
     def test_no_message_when_nothing_happened(self):
         curr = {"ts": "2026-03-29T15:00:00-03:00", "ollama_notebook": {"ok": True}}
         self.assertIsNone(rt._build_notification([], [], curr))
@@ -489,7 +499,8 @@ class TestBuildNotification(unittest.TestCase):
 
     def test_message_includes_ollama_offline(self):
         curr = {"ts": "2026-03-29T15:00:00-03:00", "ollama_notebook": {"ok": False}}
-        msg = rt._build_notification([], [], curr)
+        events = [{"type": "ollama_notebook_down", "ts": curr["ts"]}]
+        msg = rt._build_notification(events, [], curr)
         self.assertIn("Notebook Ollama offline", msg)
 
     def test_message_uses_cloud_mode_when_nas_ollama_offline(self):
@@ -498,7 +509,8 @@ class TestBuildNotification(unittest.TestCase):
             "ollama_notebook": {"ok": False},
             "ollama_nas": {"ok": False},
         }
-        msg = rt._build_notification([], [], curr)
+        events = [{"type": "ollama_notebook_down", "ts": curr["ts"]}]
+        msg = rt._build_notification(events, [], curr)
         self.assertIn("Cloud mode", msg)
         self.assertNotIn("Cloud/NAS CPU mode", msg)
 
@@ -508,8 +520,26 @@ class TestBuildNotification(unittest.TestCase):
             "ollama_notebook": {"ok": False},
             "ollama_nas": {"ok": True},
         }
-        msg = rt._build_notification([], [], curr)
+        events = [{"type": "ollama_notebook_down", "ts": curr["ts"]}]
+        msg = rt._build_notification(events, [], curr)
         self.assertIn("Cloud/NAS CPU mode", msg)
+
+    def test_ollama_offline_notification_is_deduped(self):
+        curr = {"ts": "2026-03-29T15:00:00-03:00", "ollama_notebook": {"ok": False}}
+        events = [{"type": "ollama_notebook_down", "ts": curr["ts"]}]
+        self.assertIsNotNone(rt._build_notification(events, [], curr))
+
+        curr2 = {"ts": "2026-03-29T15:05:00-03:00", "ollama_notebook": {"ok": False}}
+        self.assertIsNone(rt._build_notification([], [], curr2))
+
+    def test_ollama_offline_reminder_after_cooldown(self):
+        curr = {"ts": "2026-03-29T15:00:00-03:00", "ollama_notebook": {"ok": False}}
+        events = [{"type": "ollama_notebook_down", "ts": curr["ts"]}]
+        self.assertIsNotNone(rt._build_notification(events, [], curr))
+
+        curr2 = {"ts": "2026-03-29T21:01:00-03:00", "ollama_notebook": {"ok": False}}
+        msg = rt._build_notification([], [], curr2)
+        self.assertIn("Notebook Ollama offline", msg)
 
 
 class TestPatternEngine(unittest.TestCase):

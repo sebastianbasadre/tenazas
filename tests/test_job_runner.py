@@ -42,6 +42,7 @@ class _HandlerHarness:
         self.sent_headers = []
         self.body = b""
         self.wfile = self
+        self.client_address = ("127.0.0.1", 12345)
         self._send = job_runner.Handler._send.__get__(self, _HandlerHarness)
         self._authorized = job_runner.Handler._authorized.__get__(self, _HandlerHarness)
 
@@ -75,7 +76,16 @@ class JobRunnerHandlerTests(unittest.TestCase):
         with patch.object(job_runner, "TOKEN", ""):
             job_runner.Handler.do_POST(harness)
         self.assertEqual(harness.status, HTTPStatus.SERVICE_UNAVAILABLE)
-        self.assertIn(b"TENAZAS_JOB_RUNNER_TOKEN not configured", harness.body)
+        self.assertIn(b"TENAZAS_JOB_RUNNER_TOKEN not securely configured", harness.body)
+
+    def test_post_rejects_default_token(self):
+        harness = _HandlerHarness(
+            "/run/finance_daily",
+            headers={"X-Tenazas-Job-Token": "tenazas-local-job-runner"},
+        )
+        with patch.object(job_runner, "TOKEN", "tenazas-local-job-runner"):
+            job_runner.Handler.do_POST(harness)
+        self.assertEqual(harness.status, HTTPStatus.SERVICE_UNAVAILABLE)
 
     def test_post_rejects_invalid_token(self):
         harness = _HandlerHarness(

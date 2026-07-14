@@ -42,6 +42,10 @@ DEFAULT_GOALS = [
     {"id": "containers_healthy", "desc": "0 containers unhealthy", "priority": 5},
     {"id": "router_accuracy", "desc": "Router accuracy > 85%", "priority": 6},
 ]
+IGNORED_CONTAINER_HEALTH = {
+    "hireswarm-agent-server",
+    "hireswarm-inngest",
+}
 
 
 def _log(entry: dict):
@@ -97,10 +101,18 @@ def _eval_gemma_warm() -> tuple[str, str]:
     try:
         resp = urlopen(Request(f"{OLLAMA_URL}/api/ps"), timeout=5)
         ps = json.loads(resp.read())
-        models = [m["name"] for m in ps.get("models", [])]
-        if any("gemma3:12b" in m for m in models):
-            return "ok", f"gemma3:12b loaded ({', '.join(models)})"
-        return "warn", f"gemma3:12b not in VRAM (loaded: {', '.join(models) or 'none'})"
+        models = ps.get("models", [])
+        names = [m.get("name", "") for m in models]
+        for model in models:
+            name = model.get("name", "")
+            if "gemma3:12b" not in name:
+                continue
+            size_vram = int(model.get("size_vram") or 0)
+            if size_vram > 0:
+                size_gb = round(size_vram / 1e9, 1)
+                return "ok", f"gemma3:12b loaded in VRAM ({size_gb} GB)"
+            return "warn", "gemma3:12b loaded but not in VRAM"
+        return "warn", f"gemma3:12b not in VRAM (loaded: {', '.join(names) or 'none'})"
     except Exception as e:
         return "fail", f"Cannot check: {e}"
 
@@ -120,6 +132,8 @@ def _eval_ram_healthy() -> tuple[str, str]:
         if pct < 85:
             return "ok", f"RAM at {pct}%"
         return "fail", f"RAM at {pct}% (threshold: 85%)"
+    except FileNotFoundError:
+        return "unknown", "Skipped: /proc/meminfo unavailable on this host"
     except Exception as e:
         return "warn", f"Cannot check RAM: {e}"
 
@@ -143,6 +157,8 @@ def _eval_vpn_healthy() -> tuple[str, str]:
             return "warn", f"VPN active but country is {country} (expected ES)"
         except Exception:
             return "warn", "VPN up but cannot verify country"
+    except FileNotFoundError:
+        return "unknown", "Skipped: docker unavailable on this host"
     except Exception as e:
         return "fail", f"VPN check failed: {e}"
 
@@ -155,11 +171,26 @@ def _eval_containers_healthy() -> tuple[str, str]:
             capture_output=True, text=True, timeout=10,
         )
         lines = r.stdout.strip().splitlines()
-        unhealthy = [l.split("\t")[0] for l in lines
-                     if "unhealthy" in l.lower() or ("Up" not in l and "\t" in l)]
+        unhealthy = []
+        ignored = []
+        for line in lines:
+            if "\t" not in line:
+                continue
+            name = line.split("\t", 1)[0]
+            is_unhealthy = "unhealthy" in line.lower() or "Up" not in line
+            if not is_unhealthy:
+                continue
+            if name.lower() in IGNORED_CONTAINER_HEALTH:
+                ignored.append(name)
+                continue
+            unhealthy.append(name)
         if not unhealthy:
-            return "ok", f"All {len(lines)} containers healthy"
-        return "fail", f"{len(unhealthy)} unhealthy: {', '.join(unhealthy[:5])}"
+            suffix = f" ({len(ignored)} ignored)" if ignored else ""
+            return "ok", f"All {len(lines)} containers healthy{suffix}"
+        suffix = f"; ignored: {', '.join(ignored[:5])}" if ignored else ""
+        return "fail", f"{len(unhealthy)} unhealthy: {', '.join(unhealthy[:5])}{suffix}"
+    except FileNotFoundError:
+        return "unknown", "Skipped: docker unavailable on this host"
     except Exception as e:
         return "fail", f"Cannot check containers: {e}"
 

@@ -65,12 +65,12 @@ BACKENDS = {
 
 MODEL_CATALOG = {
     # ── Preferred small local models ──
-    "qwen3:4b": {
+    "qwen3-fast:4b": {
         "params": "4B", "vram_gb": 2.5, "use": "general_small",
         "capabilities": ["general", "reasoning", "analysis", "fast", "system", "json", "logs"],
         "role": "fast",
     },
-    "qwen3:8b": {
+    "qwen3-fast:8b": {
         "params": "8B", "vram_gb": 5.2, "use": "reasoning_small",
         "capabilities": ["general", "reasoning", "analysis", "fast", "system", "json", "logs"],
         "role": "reason",
@@ -134,11 +134,11 @@ TASK_REQUIREMENTS = {
 # Each role has an ordered fallback chain: primary → alternatives
 
 ROLE_MAP = {
-    "fast":   ["qwen3:4b", "qwen3:8b", "qwen2.5:7b"],
-    "reason": ["qwen3:8b", "qwen3:4b", "qwen2.5:7b"],
-    "heavy":  ["qwen3:8b", "qwen3:4b", "qwen2.5:7b"],
-    "code":   ["qwen2.5-coder:7b", "qwen3:8b", "qwen2.5:7b"],
-    "vision": ["qwen3-vl:4b", "qwen3:8b", "qwen2.5:7b"],
+    "fast":   ["qwen3-fast:8b", "qwen2.5:7b", "qwen3-fast:4b"],
+    "reason": ["qwen3-fast:8b", "qwen3-fast:4b", "qwen2.5:7b"],
+    "heavy":  ["qwen3-fast:8b", "qwen3-fast:4b", "qwen2.5:7b"],
+    "code":   ["qwen2.5-coder:7b", "qwen3-fast:8b", "qwen2.5:7b"],
+    "vision": ["qwen3-vl:4b", "qwen3-fast:8b", "qwen2.5:7b"],
     "embed":  ["nomic-embed-text"],
     "cloud":  ["moonshotai/kimi-k2", "google/gemini-flash-1.5"],
 }
@@ -148,7 +148,7 @@ DEFAULT_ROLE = "fast"
 
 # Models that are expensive to load/run (large parameter count, high VRAM usage)
 # On RTX 3090 (24GB) all fit in VRAM, but 32b still takes significant load time
-HEAVY_MODELS = {"qwen3:8b", "qwen2.5-coder:7b"}
+HEAVY_MODELS = {"qwen3-fast:8b", "qwen2.5-coder:7b"}
 
 # ── V2: Guardrails ─────────────────────────────────────────────
 # Prevents overuse of heavy models when the system is under load.
@@ -782,7 +782,7 @@ def route_by_role(
     # Walk the chain — on GPU, all models work (Ollama offloads)
     # On CPU, chain is already filtered above
     if chosen not in MODEL_CATALOG:
-        chosen = chain[0] if chain else "qwen3:4b"
+        chosen = chain[0] if chain else "qwen3-fast:4b"
 
     primary = ROLE_MAP.get(raw_role, [None])[0]
     if chosen != primary:

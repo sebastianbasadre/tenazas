@@ -7,9 +7,6 @@ Exports:
   tenazas_iol_portfolio_ars              — IOL portfolio total ARS
   tenazas_iol_pnl_day_ars               — IOL PNL del dia ARS
   tenazas_binance_total_usd             — Binance portfolio total USD
-  tenazas_binance_pnl_day_usd           — Binance PNL del dia USD
-  tenazas_binance_pnl_day_pct           — Binance PNL del dia %
-
   # Per asset (label: asset)
   tenazas_binance_asset_balance_usd     — valor USD de cada asset
   tenazas_binance_asset_qty             — cantidad de cada asset
@@ -41,6 +38,7 @@ import hmac
 import json
 import logging
 import math
+import os
 import sys
 import time
 import urllib.request
@@ -78,6 +76,10 @@ OPENCLAW_CONFIG = (Path("/home/tenazas/.openclaw/openclaw.json")
                    else BASE_DIR.parent.parent / "state" / "openclaw.json")
 CHAT_ID = "1565794551"
 PNL_NOTIFY_INTERVAL = 3600  # 1 hour
+ENABLE_FINANCE_EXPORTER_TELEGRAM = (
+    os.getenv("ENABLE_FINANCE_EXPORTER_TELEGRAM", "false").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
 
 # ── Prometheus setup ──────────────────────────────────────────
 
@@ -121,9 +123,6 @@ if PROM_AVAILABLE:
 
     # Binance portfolio
     G_BIN_TOTAL = Gauge("tenazas_binance_total_usd", "Binance portfolio total USD")
-    G_BIN_PNL = Gauge("tenazas_binance_pnl_day_usd", "Binance PNL del dia USD")
-    G_BIN_PNL_PCT = Gauge("tenazas_binance_pnl_day_pct", "Binance PNL del dia pct")
-
     # Per-asset (labeled with wallet)
     G_ASSET_BAL = Gauge("tenazas_binance_asset_balance_usd",
                         "Valor USD de cada asset", ["asset", "wallet"])
@@ -233,18 +232,14 @@ def _send_telegram(text: str):
         log.warning("Telegram send failed: %s", e)
 
 
-def _format_hourly_pnl(binance: dict, btc_price: float, fear_greed: int | None) -> str:
-    """Format hourly Binance PNL message for Telegram."""
+def _format_hourly_binance(binance: dict, btc_price: float, fear_greed: int | None) -> str:
+    """Format hourly Binance balance message for Telegram."""
     now = datetime.now().astimezone()
-    lines = [f"*Binance PNL* — {now.strftime('%H:%M')}"]
+    lines = [f"*Binance* — {now.strftime('%H:%M')}"]
 
     total = binance["total_usd"]
-    pnl = binance["pnl_usd"]
-    pnl_pct = binance["pnl_pct"]
-    emoji = "🟢" if pnl >= 0 else "🔴"
 
     lines.append(f"Portfolio: *${total:,.2f}*")
-    lines.append(f"PNL 24h: {emoji} ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
 
     if btc_price > 0:
         lines.append(f"BTC: ${btc_price:,.0f}")
@@ -265,9 +260,11 @@ def _format_hourly_pnl(binance: dict, btc_price: float, fear_greed: int | None) 
     return "\n".join(lines)
 
 
-def _maybe_send_hourly_pnl(binance: dict | None):
-    """Send hourly PNL notification if a new hour has started."""
+def _maybe_send_hourly_binance(binance: dict | None):
+    """Send hourly Binance balance notification if a new hour has started."""
     global _last_pnl_notify_hour
+    if not ENABLE_FINANCE_EXPORTER_TELEGRAM:
+        return
     if not binance:
         return
     now = datetime.now().astimezone()
@@ -282,10 +279,10 @@ def _maybe_send_hourly_pnl(binance: dict | None):
             btc_price = a["price"]
             break
     fg = fetch_fear_greed()
-    msg = _format_hourly_pnl(binance, btc_price, fg)
+    msg = _format_hourly_binance(binance, btc_price, fg)
     _send_telegram(msg)
-    log.info("Hourly PNL sent (hour=%d, total=$%.2f, pnl=$%.2f)",
-             current_hour, binance["total_usd"], binance["pnl_usd"])
+    log.info("Hourly Binance balance sent (hour=%d, total=$%.2f)",
+             current_hour, binance["total_usd"])
 
 
 # ── Phase 1: ATH & drawdown ──────────────────────────────────
@@ -536,7 +533,7 @@ def fetch_binance() -> dict | None:
                    "wallets": v} for k, v in wallets.items()]
 
         if not assets:
-            return {"assets": [], "total_usd": 0, "pnl_usd": 0, "pnl_pct": 0}
+            return {"assets": [], "total_usd": 0}
 
         # 24h tickers for prices and changes
         raw2 = _http_get("https://api.binance.com/api/v3/ticker/24hr",
@@ -546,7 +543,6 @@ def fetch_binance() -> dict | None:
         tickers = {t["symbol"]: t for t in json.loads(raw2)}
 
         total_usd = 0.0
-        total_pnl = 0.0
         details = []
         stables = {"USDT", "USDC", "BUSD", "FDUSD", "DAI"}
 
@@ -575,9 +571,7 @@ def fetch_binance() -> dict | None:
             if value < 1.0:
                 continue  # Skip dust (< $1)
 
-            pnl = value * (change_pct / 100) / (1 + change_pct / 100)
             total_usd += value
-            total_pnl += pnl
             details.append({
                 "asset": sym, "qty": a["total"], "price": price,
                 "value_usd": round(value, 2),
@@ -586,13 +580,10 @@ def fetch_binance() -> dict | None:
             })
 
         details.sort(key=lambda x: -x.get("value_usd", 0))
-        pnl_pct = (total_pnl / (total_usd - total_pnl) * 100) if total_usd > total_pnl else 0
 
         return {
             "assets": details,
             "total_usd": round(total_usd, 2),
-            "pnl_usd": round(total_pnl, 2),
-            "pnl_pct": round(pnl_pct, 2),
             "_wallets": {k: dict(v) for k, v in wallets.items()},
         }
 
@@ -827,8 +818,6 @@ def update_metrics():
     if binance:
         _last_binance = binance
         G_BIN_TOTAL.set(binance["total_usd"])
-        G_BIN_PNL.set(binance["pnl_usd"])
-        G_BIN_PNL_PCT.set(binance["pnl_pct"])
         G_FETCH_TS.labels(source="binance").set(time.time())
 
         current_assets = set()
@@ -858,11 +847,10 @@ def update_metrics():
                 pass
         _prev_assets = current_assets
 
-        log.info("Binance updated: $%.2f (%+.2f USD, %+.2f%%)",
-                 binance["total_usd"], binance["pnl_usd"], binance["pnl_pct"])
+        log.info("Binance updated: $%.2f", binance["total_usd"])
 
-        # Hourly PNL notification
-        _maybe_send_hourly_pnl(binance)
+        # Hourly balance notification
+        _maybe_send_hourly_binance(binance)
     else:
         _fetch_errors["binance"] += 1
         G_FETCH_ERRORS.labels(source="binance").set(_fetch_errors["binance"])
@@ -908,7 +896,7 @@ def update_metrics():
     G_IOL_DRAWDOWN.set(iol_drawdown)
     G_PORTFOLIO_TOTAL_USD.set(round(combined_usd, 2))
 
-    _last_total_pnl_usd = (binance["pnl_usd"] if binance else 0) + (
+    _last_total_pnl_usd = (
         iol.get("pnl_day_usd_native", 0) + ((iol.get("pnl_day_ars_native", 0) / _last_usd_ars) if _last_usd_ars > 0 else 0)
         if iol else 0
     )
@@ -969,7 +957,7 @@ if __name__ == "__main__":
         print("\n== Binance ==")
         if b:
             dd = _calc_drawdown(b["total_usd"], ath.get("binance_ath_usd", 0))
-            print(f"Total: ${b['total_usd']:,.2f}  PNL: ${b['pnl_usd']:+,.2f} ({b['pnl_pct']:+.2f}%)  DD: {dd:.1f}%")
+            print(f"Total: ${b['total_usd']:,.2f}  DD: {dd:.1f}%")
             for a in b["assets"][:10]:
                 alloc = (a["value_usd"] / b["total_usd"] * 100) if b["total_usd"] > 0 else 0
                 print(f"  {a['asset']:6s} ${a['value_usd']:>9,.2f}  {alloc:5.1f}%  24h={a['change_24h_pct']:+.2f}%")
@@ -1060,7 +1048,7 @@ if __name__ == "__main__":
         print("\n== Binance ==")
         b = fetch_binance()
         if b:
-            print(f"Total: ${b['total_usd']:,.2f}  PNL: ${b['pnl_usd']:+,.2f} ({b['pnl_pct']:+.2f}%)")
+            print(f"Total: ${b['total_usd']:,.2f}")
             for a in b["assets"][:10]:
                 print(f"  {a['asset']:6s} qty={a['qty']:.6f}  "
                       f"price=${a['price']:,.2f}  "

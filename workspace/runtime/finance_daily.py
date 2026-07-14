@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 finance_daily.py
-Daily finance summary: Binance PNL + IOL portfolio → Telegram.
+Daily finance summary: Binance balance + IOL portfolio → Telegram.
 
 Binance: requires tenazas.binance_api_key + binance_secret in openclaw.json
 IOL: reuses existing iol_client.py with bearer token auth
@@ -120,7 +120,7 @@ def _binance_sign(params: dict, secret: str) -> str:
 
 
 def get_binance_pnl(test: bool = False) -> dict | None:
-    """Get Binance account balance + 24h PNL."""
+    """Get Binance account balance and asset trend data."""
     # Try env vars first, then tenazas.json fallback
     api_key = os.environ.get("BINANCE_API_KEY", "")
     secret = os.environ.get("BINANCE_SECRET", "")
@@ -174,7 +174,7 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                 assets.append({"asset": b["asset"], "total": total})
 
         if not assets:
-            return {"assets": [], "total_usd": 0, "pnl_usd": 0}
+            return {"assets": [], "total_usd": 0}
 
         # Get 24h tickers only for assets we hold (avoid huge /ticker/24hr response)
         symbols_needed = [a["asset"] + "USDT" for a in assets
@@ -189,7 +189,6 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                 pass
 
         total_usd = 0
-        total_pnl = 0
         asset_details = []
 
         for a in assets:
@@ -199,16 +198,13 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                 price = float(ticker.get("lastPrice", 0))
                 change_pct = float(ticker.get("priceChangePercent", 0))
                 value = a["total"] * price
-                pnl = value * (change_pct / 100) / (1 + change_pct / 100)
                 total_usd += value
-                total_pnl += pnl
                 asset_details.append({
                     "asset": a["asset"],
                     "amount": a["total"],
                     "price": price,
                     "value_usd": round(value, 2),
                     "change_pct": round(change_pct, 2),
-                    "pnl_usd": round(pnl, 2),
                 })
             elif a["asset"] in ("USDT", "USDC", "BUSD"):
                 total_usd += a["total"]
@@ -217,7 +213,6 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                     "amount": a["total"],
                     "value_usd": round(a["total"], 2),
                     "change_pct": 0,
-                    "pnl_usd": 0,
                 })
 
         # Sort by value
@@ -226,7 +221,6 @@ def get_binance_pnl(test: bool = False) -> dict | None:
         return {
             "assets": asset_details,
             "total_usd": round(total_usd, 2),
-            "pnl_usd": round(total_pnl, 2),
         }
 
     except Exception as e:
@@ -325,10 +319,7 @@ def format_daily(binance: dict | None, iol: dict | None) -> str:
     lines = ["Finance daily — " + today, ""]
 
     if binance:
-        pnl = binance["pnl_usd"]
-        icon = "👍" if pnl >= 0 else "👎"
-        pnl_sign = "+" if pnl >= 0 else ""
-        lines.append(f"{icon} Binance: ${binance['total_usd']:,.0f} | PNL hoy: {pnl_sign}${pnl:,.0f}")
+        lines.append(f"Binance: ${binance['total_usd']:,.0f}")
         for a in binance["assets"][:5]:
             if a["value_usd"] > 10:
                 t = _trend_icon(a["change_pct"])
@@ -373,7 +364,6 @@ def _build_snapshot(date_str: str, binance: dict | None, iol: dict | None, sourc
         "source": source,
         "binance": {
             "total_usd": binance["total_usd"],
-            "pnl_usd": binance["pnl_usd"],
             "assets": binance["assets"],
         } if binance else None,
         "iol": {

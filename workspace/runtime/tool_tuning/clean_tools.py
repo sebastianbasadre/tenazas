@@ -2,7 +2,7 @@
 """
 clean_tools.py — Normalize tool names across all JSONL datasets.
 
-Enforces strict 12-tool allowlist. Rewrites assistant XML to canonical form.
+Enforces strict tool allowlist. Rewrites assistant XML to canonical form.
 """
 
 import json
@@ -12,6 +12,7 @@ from pathlib import Path
 
 ALLOWED_TOOLS = {
     "weather", "email", "calendar", "infra-monitor", "network-scanner",
+    "security-monitor",
     "arr-monitor", "self-evolve", "reminders", "smart-home-on",
     "smart-home-off", "smart-home-cinema", "tts",
 }

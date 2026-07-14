@@ -101,7 +101,7 @@ For DSM wrapper parity, the host-side scripts now support two modes:
 OPENCLAW_JOB_MODE=direct
 OPENCLAW_JOB_MODE=runner
 OPENCLAW_JOB_RUNNER_URL=http://127.0.0.1:18891
-OPENCLAW_JOB_RUNNER_TOKEN=tenazas-local-job-runner
+OPENCLAW_JOB_RUNNER_TOKEN=<same random value as TENAZAS_JOB_RUNNER_TOKEN in .env>
 ```
 
 Use `direct` during initial rollout, then switch DSM tasks to `runner` job-by-job when you want both schedulers using the same authenticated endpoint.

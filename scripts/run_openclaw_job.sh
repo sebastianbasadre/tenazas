@@ -14,7 +14,7 @@ shift 3
 MAX=10485760
 MODE="${OPENCLAW_JOB_MODE:-direct}"
 RUNNER_URL="${OPENCLAW_JOB_RUNNER_URL:-http://127.0.0.1:18891}"
-RUNNER_TOKEN="${OPENCLAW_JOB_RUNNER_TOKEN:-tenazas-local-job-runner}"
+RUNNER_TOKEN="${OPENCLAW_JOB_RUNNER_TOKEN:-}"
 
 if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG")" -gt "$MAX" ]; then
   [ -f "${LOG}.1" ] && mv "${LOG}.1" "${LOG}.2"
@@ -24,6 +24,12 @@ fi
 echo "=== $(date -Iseconds) ===" >> "$LOG"
 
 if [ "$MODE" = "runner" ]; then
+  if [ -z "$RUNNER_TOKEN" ]; then
+    echo "OPENCLAW_JOB_RUNNER_TOKEN is required in runner mode" >> "$LOG"
+    echo "exit_code=78" >> "$LOG"
+    echo "" >> "$LOG"
+    exit 0
+  fi
   CURL_BIN="$(command -v curl || true)"
   if [ -z "$CURL_BIN" ]; then
     echo "curl not found; cannot use runner mode" >> "$LOG"

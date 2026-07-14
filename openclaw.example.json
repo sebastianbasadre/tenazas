@@ -1,0 +1,20 @@
+{
+  "channels": {
+    "telegram": {
+      "botToken": "replace-with-telegram-bot-token",
+      "allowFrom": [
+        "replace-with-chat-id"
+      ],
+      "useAgentCoordinator": false
+    }
+  },
+  "hue": {
+    "apiKey": "replace-with-hue-api-key"
+  },
+  "devices": {},
+  "iol": {
+    "username": "",
+    "password": "",
+    "refresh_token": ""
+  }
+}

@@ -13,6 +13,32 @@ sys.path.insert(0, str(RUNTIME))
 
 
 class TestPhase9Regression(unittest.TestCase):
+    def test_job_search_query_bypasses_generic_tool_router(self):
+        import telegram_router as tr
+
+        text = "buscame trabajo de Product Manager remoto"
+        with patch.dict("sys.modules", {"finetuned_router": None}):
+            intercept, category = tr.should_intercept(text)
+        self.assertTrue(intercept)
+        self.assertEqual(category, "agent:job_search")
+
+    def test_job_search_intercept_executes_job_agent(self):
+        import telegram_router as tr
+
+        observation = type("Observation", (), {"summary": "Jobs: 3 nuevas"})()
+        fake_agent = type(
+            "JobAgent",
+            (),
+            {"handle": staticmethod(lambda _text: (observation, []))},
+        )
+        with patch.dict("sys.modules", {"agent_job_search": fake_agent}):
+            formatted, raw = tr.execute_intercepted_skill(
+                "buscame trabajo de Product Manager remoto",
+                category="agent:job_search",
+            )
+        self.assertEqual(formatted, "Jobs: 3 nuevas")
+        self.assertEqual(raw, "")
+
     def test_skill_queries_remain_skill_intercepts(self):
         import telegram_router as tr
         cases = [

@@ -9,6 +9,8 @@ Endpoint esperado: `http://192.168.2.6:11434`
 Abrí PowerShell en el HomeLab y corré:
 
 ```powershell
+$env:OLLAMA_HOST = "0.0.0.0:11434"
+setx OLLAMA_HOST "0.0.0.0:11434"
 ollama serve
 ```
 
@@ -31,6 +33,7 @@ curl http://192.168.2.6:11434/api/tags
 Para el set local actual:
 
 ```powershell
+ollama pull gemma3:12b
 ollama pull qwen3:8b
 ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
@@ -49,9 +52,10 @@ Precarga rápida del modelo principal:
 
 ```powershell
 $body = @{
-  model = "qwen3:8b"
+  model = "gemma3:12b"
   prompt = "ok"
   stream = $false
+  keep_alive = "1h"
   options = @{ num_predict = 1 }
 } | ConvertTo-Json -Depth 4
 
@@ -76,9 +80,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\homelab-ollama-startup.ps1
 
 Eso hace:
 
+- configura `OLLAMA_HOST=0.0.0.0:11434`
 - levanta `ollama serve` si no está arriba
-- hace `pull` de `qwen3:8b`, `qwen2.5:7b`, `nomic-embed-text` si faltan
-- precarga `qwen3:8b`
+- hace `pull` de `gemma3:12b`, `qwen3:8b`, `qwen2.5:7b`, `nomic-embed-text` si faltan
+- precarga `gemma3:12b`
 - instala `start-ollama.bat` en la carpeta Startup del usuario
 
 ## Verificación final

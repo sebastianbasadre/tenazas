@@ -5,7 +5,7 @@ build_multitool_dataset.py — Generate SFT dataset for multitool finetuning.
 Generates JSONL with single-tool, multi-tool, no-tool, and ambiguous examples.
 All in Spanish rioplatense, matching Tenazas' voice.
 
-Target: ~800 examples balanced across 12 tools + negatives.
+Target: ~800 examples balanced across 13 tools + negatives.
 
 Usage:
     python3 build_multitool_dataset.py                    # stdout
@@ -22,7 +22,7 @@ SYSTEM_MSG = "Respond only with valid XML tool calls."
 
 ALLOWED_TOOLS = {
     "weather", "email", "calendar", "infra-monitor", "network-scanner",
-    "arr-monitor", "self-evolve", "reminders", "smart-home-on",
+    "security-monitor", "arr-monitor", "self-evolve", "reminders", "smart-home-on",
     "smart-home-off", "smart-home-cinema", "tts",
 }
 
@@ -251,6 +251,39 @@ NETWORK_SCANNER = [
     "qué hay en el segmento de red",
     "hosts nuevos en la LAN",
     "fijate si hay intrusos en la red",
+]
+
+SECURITY_MONITOR = [
+    "revisar seguridad y puertos",
+    "auditá la seguridad del homelab",
+    "cómo está la seguridad del NAS",
+    "hay servicios expuestos",
+    "revisá puertos expuestos",
+    "chequeá superficies admin",
+    "auditoría de seguridad",
+    "security check",
+    "estado de seguridad",
+    "revisá grafana portainer n8n",
+    "hay paneles admin abiertos",
+    "chequeá ssh y puertos",
+    "revisá credenciales expuestas",
+    "fijate si hay algo inseguro",
+    "auditar servicios publicados",
+    "hay puertos peligrosos",
+    "revisar firewall del homelab",
+    "seguridad del homelab",
+    "revisá admin panels",
+    "hay algo expuesto en la LAN",
+    "auditar portainer",
+    "auditar grafana",
+    "auditar n8n",
+    "revisá servicios sensibles",
+    "chequeá riesgo de seguridad",
+    "security posture",
+    "revisar superficie de ataque",
+    "qué tan seguro está el homelab",
+    "hay telnet o rdp abierto",
+    "revisar servicios vulnerables",
 ]
 
 ARR_MONITOR = [
@@ -600,6 +633,16 @@ MULTI_TOOL = [
     ("scan de red y estado de infra", ["network-scanner", "infra-monitor"]),
     ("red y containers", ["network-scanner", "infra-monitor"]),
 
+    # security-monitor + infra/network (8)
+    ("seguridad y estado de infra", ["security-monitor", "infra-monitor"]),
+    ("revisá seguridad y containers", ["security-monitor", "infra-monitor"]),
+    ("puertos expuestos y docker status", ["security-monitor", "infra-monitor"]),
+    ("seguridad y red", ["security-monitor", "network-scanner"]),
+    ("auditá homelab y escaneá la red", ["security-monitor", "network-scanner"]),
+    ("servicios expuestos y dispositivos", ["security-monitor", "network-scanner"]),
+    ("revisá firewall y estado del sistema", ["security-monitor", "infra-monitor"]),
+    ("seguridad, red y containers", ["security-monitor", "network-scanner", "infra-monitor"]),
+
     # smart-home-cinema + weather (3)
     ("poné modo cine y decime el clima", ["smart-home-cinema", "weather"]),
     ("modo cinema y temperatura", ["smart-home-cinema", "weather"]),
@@ -778,7 +821,9 @@ NEGATIVES = [
     # Greetings
     "hola",
     "buen día",
+    "buen dia",
     "buenos días",
+    "buenos dias",
     "buenas tardes",
     "buenas noches",
     "cómo estás",
@@ -787,6 +832,7 @@ NEGATIVES = [
     "qué onda",
     "todo bien",
     "buen día, cómo andás",
+    "buen dia como andas",
     "hola Tenazas",
     "hola, qué tal",
     "buenas, cómo va",
@@ -973,6 +1019,7 @@ def generate_dataset() -> list[dict]:
         (CALENDAR, "calendar"),
         (INFRA_MONITOR, "infra-monitor"),
         (NETWORK_SCANNER, "network-scanner"),
+        (SECURITY_MONITOR, "security-monitor"),
         (ARR_MONITOR, "arr-monitor"),
         (SELF_EVOLVE, "self-evolve"),
         (REMINDERS, "reminders"),

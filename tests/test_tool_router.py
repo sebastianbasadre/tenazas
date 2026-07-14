@@ -17,10 +17,26 @@ import json
 import sys
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-sys.path.insert(0, "/home/tenazas")
-sys.path.insert(0, "/home/tenazas/runtime/tool_tuning")
+ROOT = Path(__file__).resolve().parent.parent
+WORKSPACE_DIR = ROOT / "workspace"
+RUNTIME_DIR = WORKSPACE_DIR / "runtime"
+
+
+def _same_path(left: str, right: Path) -> bool:
+    try:
+        return Path(left).resolve() == right.resolve()
+    except OSError:
+        return False
+
+
+# Keep `runtime` resolving to the package at workspace/runtime, not the sibling
+# module workspace/runtime/runtime.py.
+sys.path[:] = [p for p in sys.path if not _same_path(p, RUNTIME_DIR)]
+sys.path.insert(0, str(WORKSPACE_DIR))
+sys.path.insert(0, str(ROOT))
 
 from runtime.tool_tuning import router
 

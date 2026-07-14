@@ -1,7 +1,11 @@
 version: "3.8"
 services:
   openclaw:
-    build: .
+    build:
+      context: .
+      args:
+        OPENCLAW_VERSION: ${OPENCLAW_VERSION:-2026.6.1}
+        HIMALAYA_VERSION: ${HIMALAYA_VERSION:-v1.2.0}
     container_name: openclaw
     restart: unless-stopped
     network_mode: host
@@ -15,15 +19,17 @@ services:
       - ENABLE_PORTFOLIO_RECONCILER_WATCH=${ENABLE_PORTFOLIO_RECONCILER_WATCH:-true}
       - ENABLE_IOL_REFRESH_LOOP=${ENABLE_IOL_REFRESH_LOOP:-true}
       - ENABLE_STARTUP_IOL_REFRESH=${ENABLE_STARTUP_IOL_REFRESH:-true}
-      - TENAZAS_JOB_RUNNER_HOST=${TENAZAS_JOB_RUNNER_HOST:-0.0.0.0}
+      - ENABLE_FINANCE_EXPORTER_TELEGRAM=${ENABLE_FINANCE_EXPORTER_TELEGRAM:-false}
+      - TENAZAS_JOB_RUNNER_HOST=${TENAZAS_JOB_RUNNER_HOST:-127.0.0.1}
       - TENAZAS_JOB_RUNNER_PORT=${TENAZAS_JOB_RUNNER_PORT:-18891}
-      - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:-tenazas-local-job-runner}
+      - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:?set TENAZAS_JOB_RUNNER_TOKEN in .env}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
       - OLLAMA_API_BASE=${OLLAMA_API_BASE}
       - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD}
       - GOG_ACCOUNT=${GOG_ACCOUNT}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LINKEDIN_BRIDGE_URL=${LINKEDIN_BRIDGE_URL:-http://192.168.2.73:9224}
       - BINANCE_API_KEY=${BINANCE_API_KEY}
       - BINANCE_SECRET=${BINANCE_SECRET}
       - OPENCLAW_TELEGRAM_CHAT_ID=${OPENCLAW_TELEGRAM_CHAT_ID:-}
@@ -52,7 +58,7 @@ services:
       - com.centurylinklabs.watchtower.enable=false
 
   prometheus:
-    image: prom/prometheus:latest
+    image: ${PROMETHEUS_IMAGE:?set PROMETHEUS_IMAGE in .env}
     container_name: prometheus
     restart: unless-stopped
     extra_hosts:
@@ -69,11 +75,15 @@ services:
       - "--storage.tsdb.retention.size=1GB"
 
   grafana:
-    image: grafana/grafana:latest
+    image: ${GRAFANA_IMAGE:?set GRAFANA_IMAGE in .env}
     container_name: grafana
     restart: unless-stopped
+    depends_on:
+      - prometheus
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000"
     environment:
@@ -81,7 +91,7 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
 
   searxng:
-    image: searxng/searxng:latest
+    image: ${SEARXNG_IMAGE:?set SEARXNG_IMAGE in .env}
     container_name: searxng
     restart: unless-stopped
     volumes:
@@ -112,9 +122,10 @@ services:
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://192.168.2.2:5678}
       - WEBHOOK_URL=${WEBHOOK_URL:-http://192.168.2.2:5678/}
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - GENERIC_TIMEZONE=${TZ:-America/Buenos_Aires}
       - TENAZAS_JOB_RUNNER_BASE_URL=${TENAZAS_JOB_RUNNER_BASE_URL:-http://host.docker.internal:18891}
-      - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:-tenazas-local-job-runner}
+      - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:?set TENAZAS_JOB_RUNNER_TOKEN in .env}
     volumes:
       - ./n8n/data:/home/node/.n8n
       - ./scripts:/workspace/scripts:ro

@@ -79,7 +79,6 @@ class TestFinanceDailyIOLNormalization(unittest.TestCase):
                     "2026-05-05",
                     {
                         "total_usd": 9220,
-                        "pnl_usd": 256,
                         "assets": [{"asset": "BTC", "value_usd": 9218, "change_pct": 2.86}],
                     },
                     {

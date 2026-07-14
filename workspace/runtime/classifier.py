@@ -243,6 +243,19 @@ CLASSIFICATION_RULES = [
         {"containers", "container", "docker", "infra", "infraestructura",
          "nas", "disco"},
     ),
+    # Security monitor (read-only homelab security posture)
+    (
+        "skill:security-monitor",
+        [r"(seguridad|security)\s+(del?\s+)?(homelab|nas|sistema|infra)",
+         r"(revis[aá]|cheque[aá]|audit[aá])\w*\s+(la\s+)?seguridad",
+         r"(puertos?|servicios?)\s+expuestos?",
+         r"superficie\s+de\s+ataque",
+         r"paneles?\s+admin",
+         r"(grafana|portainer|n8n).{0,30}(seguridad|expuesto|abierto)",
+         r"(firewall|credenciales?|ssh).{0,30}(seguridad|expuesto|abierto|riesgo)"],
+        {"seguridad", "security", "puertos", "expuestos", "firewall",
+         "credenciales", "ssh", "portainer", "grafana", "n8n"},
+    ),
     # Morning greeting
     (
         "skill:morning-greeting",

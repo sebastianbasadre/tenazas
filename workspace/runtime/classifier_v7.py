@@ -54,7 +54,7 @@ V6_DOMAINS = {"infra", "arr", "smart-home", "network", "containers",
 VALID_TOOLS = {
     "skill:weather", "skill:email", "skill:calendar", "skill:calendar-agenda",
     "skill:smart-home", "skill:tts", "skill:network-scanner",
-    "skill:arr-monitor", "skill:infra-monitor", "skill:morning-greeting",
+    "skill:arr-monitor", "skill:infra-monitor", "skill:security-monitor", "skill:morning-greeting",
     "skill:self-evolve", "skill:reminders", "skill:smoking",
     "skill:smoking-tracker", "skill:expense", "skill:model-trainer",
     "skill:iol-broker",

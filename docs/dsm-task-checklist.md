@@ -22,7 +22,7 @@ Shared environment during the first migration pass:
 ```env
 OPENCLAW_JOB_MODE=direct
 OPENCLAW_JOB_RUNNER_URL=http://127.0.0.1:18891
-OPENCLAW_JOB_RUNNER_TOKEN=tenazas-local-job-runner
+OPENCLAW_JOB_RUNNER_TOKEN=<same random value as TENAZAS_JOB_RUNNER_TOKEN in .env>
 ```
 
 When you temporarily want DSM to use the same authenticated endpoint as `n8n`:
@@ -30,7 +30,7 @@ When you temporarily want DSM to use the same authenticated endpoint as `n8n`:
 ```env
 OPENCLAW_JOB_MODE=runner
 OPENCLAW_JOB_RUNNER_URL=http://127.0.0.1:18891
-OPENCLAW_JOB_RUNNER_TOKEN=tenazas-local-job-runner
+OPENCLAW_JOB_RUNNER_TOKEN=<same random value as TENAZAS_JOB_RUNNER_TOKEN in .env>
 ```
 
 Base working directory:

@@ -1,621 +1,1101 @@
 {
   "__inputs": [],
   "__requires": [],
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "description": "Tenazas — Eval del modelo tenazas-multitool (fine-tuning vs baseline)",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
   "links": [],
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
       "title": "Metricas globales -- ultimo eval",
       "type": "row"
     },
     {
-      "id": 1,
-      "title": "Exact Match",
-      "description": "Porcentaje de queries donde el modelo eligio exactamente las tools correctas",
-      "type": "gauge",
-      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 1 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "minVizHeight": 75,
-        "minVizWidth": 75
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
       },
+      "description": "Porcentaje de queries donde el modelo eligio exactamente las tools correctas",
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
+          "mappings": [],
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red",    "value": null },
-              { "color": "orange", "value": 0.60 },
-              { "color": "yellow", "value": 0.70 },
-              { "color": "green",  "value": 0.85 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.6
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
             ]
           },
-          "mappings": []
+          "unit": "percentunit"
         }
       },
-      "targets": [{
-        "expr": "tenazas_eval_exact_match",
-        "legendFormat": "{{model}}",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 2,
-      "title": "F1 Score",
-      "description": "Media armonica de precision y recall",
-      "type": "gauge",
-      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 1 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "showThresholdLabels": false,
         "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red",    "value": null },
-              { "color": "orange", "value": 0.65 },
-              { "color": "yellow", "value": 0.80 },
-              { "color": "green",  "value": 0.90 }
-            ]
-          }
-        }
-      },
-      "targets": [{
-        "expr": "tenazas_eval_f1",
-        "legendFormat": "{{model}}",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 3,
-      "title": "Precision",
-      "description": "De las tools que eligio, cuantas eran correctas",
-      "type": "gauge",
-      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 1 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red",    "value": null },
-              { "color": "orange", "value": 0.65 },
-              { "color": "yellow", "value": 0.80 },
-              { "color": "green",  "value": 0.90 }
-            ]
-          }
-        }
-      },
-      "targets": [{
-        "expr": "tenazas_eval_precision",
-        "legendFormat": "{{model}}",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 4,
-      "title": "Recall",
-      "description": "De las tools que debia elegir, cuantas eligio",
-      "type": "gauge",
-      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 1 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red",    "value": null },
-              { "color": "orange", "value": 0.65 },
-              { "color": "yellow", "value": 0.80 },
-              { "color": "green",  "value": 0.90 }
-            ]
-          }
-        }
-      },
-      "targets": [{
-        "expr": "tenazas_eval_recall",
-        "legendFormat": "{{model}}",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 5,
-      "title": "Hallucination Rate",
-      "description": "Tools predichas que no existen en el registry -- debe ser < 5%",
-      "type": "gauge",
-      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 1 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 0.02 },
-              { "color": "orange", "value": 0.05 },
-              { "color": "red",    "value": 0.10 }
-            ]
-          }
-        }
-      },
-      "targets": [{
-        "expr": "tenazas_eval_hallucination_rate",
-        "legendFormat": "{{model}}",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
-    },
-    {
-      "id": 6,
-      "title": "Over / Under Trigger",
-      "description": "Over: eligio tools cuando no debia. Under: no eligio cuando debia.",
-      "type": "gauge",
-      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 1 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 0.05 },
-              { "color": "orange", "value": 0.10 },
-              { "color": "red",    "value": 0.20 }
-            ]
-          }
-        }
       },
       "targets": [
         {
-          "expr": "tenazas_eval_over_trigger",
+          "expr": "(tenazas_eval_exact_match) or on() vector(0)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Exact Match",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "description": "Media armonica de precision y recall",
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.65
+              },
+              {
+                "color": "yellow",
+                "value": 0.8
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_f1) or on() vector(0)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "F1 Score",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "description": "De las tools que eligio, cuantas eran correctas",
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.65
+              },
+              {
+                "color": "yellow",
+                "value": 0.8
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_precision) or on() vector(0)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Precision",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "description": "De las tools que debia elegir, cuantas eligio",
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.65
+              },
+              {
+                "color": "yellow",
+                "value": 0.8
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_recall) or on() vector(0)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Recall",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "description": "Tools predichas que no existen en el registry -- debe ser < 5%",
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.02
+              },
+              {
+                "color": "orange",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_hallucination_rate) or on() vector(0)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Hallucination Rate",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "description": "Over: eligio tools cuando no debia. Under: no eligio cuando debia.",
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.05
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_over_trigger) or on() vector(0)",
           "legendFormat": "over -- {{model}}",
           "refId": "A"
         },
         {
-          "expr": "tenazas_eval_under_trigger",
+          "expr": "(tenazas_eval_under_trigger) or on() vector(0)",
           "legendFormat": "under -- {{model}}",
           "refId": "B"
         }
       ],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "title": "Over / Under Trigger",
+      "type": "gauge"
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
       "id": 101,
       "title": "F1 por tool -- fine-tuned vs baseline",
       "type": "row"
     },
     {
-      "id": 10,
-      "title": "Per-tool F1 -- finetuned",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
       "description": "F1 score por tool. Verde > 0.85, rojo < 0.60. Tools con F1 bajo necesitan mas ejemplos en el dataset.",
-      "type": "bargauge",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.6
+              },
+              {
+                "color": "yellow",
+                "value": 0.75
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 10,
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "horizontal",
         "displayMode": "gradient",
-        "showUnfilled": true,
+        "legendDisplayMode": "list",
         "minVizHeight": 10,
         "minVizWidth": 0,
-        "valueMode": "color",
         "namePlacement": "auto",
-        "legendDisplayMode": "list"
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red",    "value": null },
-              { "color": "orange", "value": 0.60 },
-              { "color": "yellow", "value": 0.75 },
-              { "color": "green",  "value": 0.85 }
-            ]
-          }
+      "targets": [
+        {
+          "expr": "(tenazas_eval_f1_per_tool{model=\"finetuned\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "{{tool}}",
+          "refId": "A"
         }
-      },
-      "targets": [{
-        "expr": "tenazas_eval_f1_per_tool{model=\"finetuned\"}",
-        "legendFormat": "{{tool}}",
-        "refId": "A",
-        "instant": true
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      ],
+      "title": "Per-tool F1 -- finetuned",
+      "type": "bargauge"
     },
     {
-      "id": 11,
-      "title": "Per-tool F1 -- baseline",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
       "description": "F1 score del modelo sin fine-tuning. Comparar con el panel izquierdo.",
-      "type": "bargauge",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "minVizHeight": 10,
-        "minVizWidth": 0,
-        "valueMode": "color",
-        "namePlacement": "auto"
-      },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red",    "value": null },
-              { "color": "orange", "value": 0.60 },
-              { "color": "yellow", "value": 0.75 },
-              { "color": "green",  "value": 0.85 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.6
+              },
+              {
+                "color": "yellow",
+                "value": 0.75
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
             ]
-          }
+          },
+          "unit": "percentunit"
         }
       },
-      "targets": [{
-        "expr": "tenazas_eval_f1_per_tool{model=\"baseline\"}",
-        "legendFormat": "{{tool}}",
-        "refId": "A",
-        "instant": true
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 11,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_f1_per_tool{model=\"baseline\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "{{tool}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-tool F1 -- baseline",
+      "type": "bargauge"
     },
     {
-      "id": 12,
-      "title": "Delta F1 por tool (finetuned - baseline)",
-      "description": "Diferencia de F1 por tool. Verde = el fine-tuning mejoro esa tool. Rojo = empeoro.",
-      "type": "bargauge",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "minVizHeight": 10,
-        "minVizWidth": 0,
-        "valueMode": "color",
-        "namePlacement": "auto"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
       },
+      "description": "Diferencia de F1 por tool. Verde = el fine-tuning mejoro esa tool. Rojo = empeoro.",
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
-          "min": -1, "max": 1,
+          "max": 1,
+          "min": -1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red",    "value": null },
-              { "color": "yellow", "value": -0.05 },
-              { "color": "green",  "value": 0.0 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": -0.05
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
             ]
-          }
+          },
+          "unit": "percentunit"
         }
       },
-      "targets": [{
-        "expr": "tenazas_eval_f1_per_tool{model=\"finetuned\"} - on(tool) tenazas_eval_f1_per_tool{model=\"baseline\"}",
-        "legendFormat": "{{tool}}",
-        "refId": "A",
-        "instant": true
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 12,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_f1_per_tool{model=\"finetuned\"} - on(tool) tenazas_eval_f1_per_tool{model=\"baseline\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "{{tool}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Delta F1 por tool (finetuned - baseline)",
+      "type": "bargauge"
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
       "id": 102,
       "title": "Evolucion en el tiempo -- evals historicos",
       "type": "row"
     },
     {
-      "id": 20,
-      "title": "F1 historico -- fine-tuned vs baseline",
-      "description": "Evolucion del F1 a lo largo de los evals. Cada punto = una corrida de eval_runner.py.",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 25 },
-      "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last"] }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
       },
+      "description": "Evolucion del F1 a lo largo de los evals. Cada punto = una corrida de eval_runner.py.",
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
-          "min": 0, "max": 1,
           "custom": {
-            "lineWidth": 2,
             "fillOpacity": 10,
+            "lineWidth": 2,
             "pointSize": 6,
             "showPoints": "always"
           },
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red",   "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
-          }
+          },
+          "unit": "percentunit"
         },
         "overrides": [
           {
-            "matcher": { "id": "byFrameRefID", "options": "B" },
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
             "properties": [
-              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [8, 4] } },
-              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    8,
+                    4
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
             ]
           }
         ]
       },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 25
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "targets": [
         {
-          "expr": "tenazas_eval_f1{model=\"finetuned\"}",
+          "expr": "(tenazas_eval_f1{model=\"finetuned\"}) or on() vector(0)",
           "legendFormat": "F1 finetuned",
           "refId": "A"
         },
         {
-          "expr": "tenazas_eval_f1{model=\"baseline\"}",
+          "expr": "(tenazas_eval_f1{model=\"baseline\"}) or on() vector(0)",
           "legendFormat": "F1 baseline",
           "refId": "B"
         }
       ],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "title": "F1 historico -- fine-tuned vs baseline",
+      "type": "timeseries"
     },
     {
-      "id": 21,
-      "title": "Delta F1 (finetuned - baseline)",
-      "description": "Verde = el fine-tuning mejoro. Rojo = el fine-tuning empeoro.",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 25 },
-      "options": {
-        "tooltip": { "mode": "single" },
-        "legend": { "displayMode": "hidden" }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
       },
+      "description": "Verde = el fine-tuning mejoro. Rojo = el fine-tuning empeoro.",
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
           "custom": {
-            "lineWidth": 2,
             "fillOpacity": 20,
+            "lineWidth": 2,
             "pointSize": 6,
             "showPoints": "always",
-            "thresholdsStyle": { "mode": "area" }
+            "thresholdsStyle": {
+              "mode": "area"
+            }
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red",   "value": null },
-              { "color": "green", "value": 0.0 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
             ]
           },
-          "color": { "mode": "thresholds" }
+          "unit": "percentunit"
         }
       },
-      "targets": [{
-        "expr": "tenazas_eval_f1{model=\"finetuned\"} - tenazas_eval_f1{model=\"baseline\"}",
-        "legendFormat": "Delta F1",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 25
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "displayMode": "hidden"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "vector(scalar(tenazas_eval_f1{model=\"finetuned\"}) - scalar(tenazas_eval_f1{model=\"baseline\"})) or on() vector(0)",
+          "legendFormat": "Delta F1",
+          "refId": "A"
+        }
+      ],
+      "title": "Delta F1 (finetuned - baseline)",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
       "id": 103,
       "title": "Alertas de calidad",
       "type": "row"
     },
     {
-      "id": 30,
-      "title": "Estado del modelo",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
       "description": "LISTO = F1 > 0.80 y hallucination < 5%. REVISAR = alguna metrica fuera de rango.",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 34 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "1": {
+                  "color": "green",
+                  "text": "LISTO"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "REVISAR"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 34
+      },
+      "id": 30,
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
         "orientation": "auto",
-        "textMode": "value_and_name",
-        "colorMode": "background"
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "1": { "text": "LISTO",   "color": "green" } } },
-            { "type": "value", "options": { "0": { "text": "REVISAR", "color": "red"   } } }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red",   "value": null },
-              { "color": "green", "value": 1    }
-            ]
-          }
+      "targets": [
+        {
+          "expr": "((tenazas_eval_f1{model=\"finetuned\"} > 0.80) * (tenazas_eval_hallucination_rate{model=\"finetuned\"} < 0.05)) or on() vector(0)",
+          "legendFormat": "Calidad",
+          "refId": "A"
         }
-      },
-      "targets": [{
-        "expr": "(tenazas_eval_f1{model=\"finetuned\"} > 0.80) * (tenazas_eval_hallucination_rate{model=\"finetuned\"} < 0.05)",
-        "legendFormat": "Calidad",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      ],
+      "title": "Estado del modelo",
+      "type": "stat"
     },
     {
-      "id": 31,
-      "title": "Freshness eval",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
       "description": "Tiempo desde la ultima corrida de eval. Verde < 1d, rojo > 3d.",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 34 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "textMode": "value_and_name",
-        "colorMode": "background"
-      },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 86400 },
-              { "color": "red",    "value": 259200 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 86400
+              },
+              {
+                "color": "red",
+                "value": 259200
+              }
             ]
-          }
+          },
+          "unit": "s"
         }
       },
-      "targets": [{
-        "expr": "time() - tenazas_eval_file_mtime_seconds",
-        "legendFormat": "Hace",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 34
+      },
+      "id": 31,
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(time() - tenazas_eval_file_mtime_seconds) or on() vector(0)",
+          "legendFormat": "Hace",
+          "refId": "A"
+        }
+      ],
+      "title": "Freshness eval",
+      "type": "stat"
     },
     {
-      "id": 32,
-      "title": "Exporter status",
-      "description": "1 = exporter corriendo y con datos. 0 = sin archivos de resultados.",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 34 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "textMode": "value_and_name",
-        "colorMode": "background"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
       },
+      "description": "1 = exporter corriendo y con datos. 0 = sin archivos de resultados.",
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "1": { "text": "UP",   "color": "green" } } },
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red"   } } }
+            {
+              "options": {
+                "1": {
+                  "color": "green",
+                  "text": "UP"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "DOWN"
+                }
+              },
+              "type": "value"
+            }
           ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red",   "value": null },
-              { "color": "green", "value": 1    }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           }
         }
       },
-      "targets": [{
-        "expr": "tenazas_eval_exporter_up",
-        "legendFormat": "Exporter",
-        "refId": "A"
-      }],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 34
+      },
+      "id": 32,
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(tenazas_eval_exporter_up) or on() vector(0)",
+          "legendFormat": "Exporter",
+          "refId": "A"
+        }
+      ],
+      "title": "Exporter status",
+      "type": "stat"
     },
     {
-      "id": 33,
-      "title": "Resumen de umbrales",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
       "description": "Todas las metricas del finetuned de un vistazo.",
-      "type": "table",
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 34 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "displayMode": "color-background"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "id": 33,
       "options": {
-        "footer": { "show": false },
+        "footer": {
+          "show": false
+        },
         "showHeader": true,
         "sortBy": []
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "custom": { "align": "center", "displayMode": "color-background" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red",    "value": null },
-              { "color": "yellow", "value": 0.70 },
-              { "color": "green",  "value": 0.85 }
-            ]
-          }
-        }
-      },
       "targets": [
-        { "expr": "tenazas_eval_f1{model=\"finetuned\"}", "legendFormat": "F1", "refId": "A", "instant": true },
-        { "expr": "tenazas_eval_precision{model=\"finetuned\"}", "legendFormat": "Precision", "refId": "B", "instant": true },
-        { "expr": "tenazas_eval_recall{model=\"finetuned\"}", "legendFormat": "Recall", "refId": "C", "instant": true },
-        { "expr": "tenazas_eval_exact_match{model=\"finetuned\"}", "legendFormat": "Exact Match", "refId": "D", "instant": true },
-        { "expr": "tenazas_eval_hallucination_rate{model=\"finetuned\"}", "legendFormat": "Hallucination", "refId": "E", "instant": true }
+        {
+          "expr": "(tenazas_eval_f1{model=\"finetuned\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "F1",
+          "refId": "A"
+        },
+        {
+          "expr": "(tenazas_eval_precision{model=\"finetuned\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "Precision",
+          "refId": "B"
+        },
+        {
+          "expr": "(tenazas_eval_recall{model=\"finetuned\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "Recall",
+          "refId": "C"
+        },
+        {
+          "expr": "(tenazas_eval_exact_match{model=\"finetuned\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "Exact Match",
+          "refId": "D"
+        },
+        {
+          "expr": "(tenazas_eval_hallucination_rate{model=\"finetuned\"}) or on() vector(0)",
+          "instant": true,
+          "legendFormat": "Hallucination",
+          "refId": "E"
+        }
       ],
-      "datasource": { "type": "prometheus", "uid": "prometheus" }
+      "title": "Resumen de umbrales",
+      "type": "table"
     }
   ],
   "refresh": "",
   "schemaVersion": 39,
-  "tags": ["tenazas", "multitool", "ml", "eval"],
+  "tags": [
+    "tenazas",
+    "multitool",
+    "ml",
+    "eval"
+  ],
   "templating": {
     "list": [
       {
         "current": {},
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
         "definition": "label_values(tenazas_eval_f1, model)",
         "hide": 0,
         "includeAll": true,
+        "label": "Modelo",
         "multi": true,
         "name": "model",
         "options": [],
-        "query": { "query": "label_values(tenazas_eval_f1, model)", "refId": "A" },
+        "query": {
+          "query": "label_values(tenazas_eval_f1, model)",
+          "refId": "A"
+        },
         "refresh": 2,
         "sort": 1,
-        "type": "query",
-        "label": "Modelo"
+        "type": "query"
       }
     ]
   },
-  "time": { "from": "now-30d", "to": "now" },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "America/Argentina/Buenos_Aires",
   "title": "Tenazas — Multitool Eval",
-  "uid": "tenazas-multitool-eval",
-  "version": 2
+  "uid": "tenazas-multitool-eval"
 }

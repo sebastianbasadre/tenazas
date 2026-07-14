@@ -44,7 +44,7 @@ echo [ok] Files copied.
 
 :: --- Step 1: Validate data ---
 echo [1/7] Validating datasets...
-%PYTHON% -c "import json,re,sys;VALID={'weather','email','calendar','infra-monitor','network-scanner','arr-monitor','self-evolve','reminders','smart-home-on','smart-home-off','smart-home-cinema','tts'};bad=set();[bad.update(set(re.findall(r'<tool>([^<]+)</tool>',l))-VALID) for f in [r'%TRAIN_DATA%',r'%EVAL_DATA%'] for l in open(f)];sys.exit(1) if bad else print(f'[ok] All tools valid')"
+%PYTHON% -c "import json,re,sys;VALID={'weather','email','calendar','infra-monitor','network-scanner','security-monitor','arr-monitor','self-evolve','reminders','smart-home-on','smart-home-off','smart-home-cinema','tts'};bad=set();[bad.update(set(re.findall(r'<tool>([^<]+)</tool>',l))-VALID) for f in [r'%TRAIN_DATA%',r'%EVAL_DATA%'] for l in open(f)];sys.exit(1) if bad else print(f'[ok] All tools valid')"
 if errorlevel 1 (
   echo [error] Invalid tool names found in dataset!
   exit /b 1

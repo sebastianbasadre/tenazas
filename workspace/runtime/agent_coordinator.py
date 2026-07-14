@@ -31,6 +31,13 @@ AGENT_MODULES = {
     "research": "agent_research",
     "self_improve": "agent_self_improve",
     "security": "agent_security",
+    "portfolio_risk": "agent_portfolio_risk",
+    "subscriptions": "agent_subscriptions",
+    "job_search": "agent_job_search",
+    "home_reliability": "agent_home_reliability",
+    "media_stack": "agent_media_stack",
+    "daily_brief": "agent_daily_brief",
+    "runbook": "agent_runbook",
 }
 
 DOMAIN_EMOJI = {
@@ -40,6 +47,13 @@ DOMAIN_EMOJI = {
     "research": "🔍",
     "self_improve": "🔧",
     "security": "🔐",
+    "portfolio_risk": "📊",
+    "subscriptions": "🧾",
+    "job_search": "💼",
+    "home_reliability": "🏠",
+    "media_stack": "🎬",
+    "daily_brief": "🗓",
+    "runbook": "📘",
 }
 
 

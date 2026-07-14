@@ -29,9 +29,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import HOMELAB_IP, HOMELAB_USER, OLLAMA_GPU_URL, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import HOMELAB_IP, HOMELAB_USER, OLLAMA_GPU_URL, get_default_telegram_chat_id
 
 log = logging.getLogger("homelab_snapshot")
 
@@ -239,7 +239,7 @@ def _collect_recent_skills() -> list:
     log_file = RUNTIME / "logs" / "telegram_router.log"
     skills = []
     try:
-        lines = log_file.read_text().strip().splitlines()
+        lines = log_file.read_text(encoding="utf-8", errors="replace").strip().splitlines()
         for line in reversed(lines):
             if len(skills) >= 5:
                 break

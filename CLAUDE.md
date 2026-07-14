@@ -8,6 +8,46 @@ Tenazas es el asistente personal de Sebastian (Sebas), corriendo en OpenClaw den
 
 ---
 
+## Troubleshooting — Lecciones aprendidas
+
+### Modificar openclaw.json
+NUNCA agregar claves nuevas al openclaw.json sin verificar el schema del gateway.
+El validador rechaza claves desconocidas con "Invalid input" en <root>.
+
+Si rompes el archivo: hay backups en /home/tenazas/.openclaw/:
+- openclaw.json.last-good      <- mas reciente conocido bueno
+- openclaw.json.bak[.1-4]      <- backups automaticos
+- openclaw.json.clobbered.*    <- copias antes de overrides
+
+Para restaurar:
+  sudo docker exec openclaw cp /home/tenazas/.openclaw/openclaw.json.last-good \
+    /home/tenazas/.openclaw/openclaw.json
+  sudo docker restart openclaw
+
+### Ollama HOMELAB en CPU
+Si ollama ps muestra "100% CPU" con GPU libre:
+- Verificar variable OLLAMA_LLM_LIBRARY: si esta seteada con valor literal
+  como "cuda", borrarla. Las carpetas reales son cuda_v12/cuda_v13.
+- Comando: [Environment]::SetEnvironmentVariable("OLLAMA_LLM_LIBRARY", $null, "User"/"Machine"/"Process")
+- Cerrar TODAS las PowerShell, abrir nueva.
+
+### Qwen3 con thinking activo
+qwen3:4b y qwen3:8b por default tienen thinking habilitado.
+Para chat normal sin thinking, usar los modelos custom:
+  qwen3-fast:4b   <- TEMPLATE con <think></think> vacio pre-rellenado
+  qwen3-fast:8b   <- idem
+
+Modelfile en C:\temp\Modelfile-qwen3-Nb-nothink (HOMELAB).
+ROLE_MAP en /home/tenazas/runtime/model_router.py apunta a estos.
+
+### Container openclaw en crash loop
+Si job_runner.log muestra "listening on 0.0.0.0:18891" cada 30s
+-> algo esta crasheando startup.sh.
+Causa mas comun: openclaw.json corrupto.
+Diagnostico: sudo docker logs openclaw --tail 50 | grep "Gateway failed"
+
+---
+
 ## Arquitectura
 
 ```

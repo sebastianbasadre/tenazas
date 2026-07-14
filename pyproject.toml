@@ -1,0 +1,55 @@
+[project]
+name = "tenazas-runtime"
+version = "0.1.0"
+description = "Tenazas/OpenClaw runtime, automation, and observability layer."
+requires-python = ">=3.11"
+dependencies = [
+  "google-api-python-client",
+  "google-auth",
+  "google-auth-oauthlib",
+  "more-itertools",
+  "numba",
+  "openai-whisper",
+  "prometheus-client",
+  "pychromecast",
+  "pycryptodome",
+  "python-miio",
+  "requests",
+  "pypdf",
+  "reportlab",
+  "tiktoken",
+  "tqdm",
+  "tplinkrouterc6u",
+  "websocket-client",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+]
+training = [
+  "torch",
+  "transformers",
+  "datasets",
+  "peft",
+  "trl",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "workspace", "workspace/runtime"]
+addopts = "-q"
+markers = [
+  "integration: requires Docker, network services, container paths, or live homelab devices",
+  "live: requires external APIs, Telegram, broker access, or real infrastructure",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["workspace/runtime", "tools", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

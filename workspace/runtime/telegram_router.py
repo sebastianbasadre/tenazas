@@ -243,6 +243,49 @@ def _transcribe_voice(token: str, voice: dict, chat_id: str) -> str | None:
         return None
 
 
+def _handle_cv_document(token: str, document: dict, chat_id: str, caption: str = "") -> str:
+    """Download and register an explicitly identified master CV or template."""
+    import tempfile
+
+    filename = document.get("file_name", "master_cv")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".pdf", ".docx", ".txt", ".md"}:
+        return "Formato no soportado. Subí el CV en PDF, DOCX, TXT o MD."
+    file_info = tg_request(token, "getFile", {"file_id": document.get("file_id")})
+    if not file_info or not file_info.get("ok"):
+        return "No pude descargar el CV desde Telegram."
+    download_url = f"https://api.telegram.org/file/bot{token}/{file_info['result']['file_path']}"
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(urlopen(download_url, timeout=30).read())
+            tmp_path = tmp.name
+        from agent_job_search import save_cv_template, save_master_cv
+
+        label = caption.strip().lower()
+        filename_lower = filename.lower()
+        if "plantilla" in label or "template" in label or "plantilla" in filename_lower:
+            result = save_cv_template(tmp_path)
+            return (
+                f"Plantilla de CV guardada ({result['characters']} caracteres). "
+                "El CV maestro no fue modificado."
+            )
+        if "master" in label or "maestro" in label or "master" in filename_lower:
+            result = save_master_cv(tmp_path)
+            return (
+                f"CV maestro guardado ({result['characters']} caracteres). "
+                "Ahora escribí: analiza vacantes"
+            )
+        return (
+            "No guardé el documento porque falta identificarlo. "
+            "Reenvialo con caption `CV master` o `Plantilla CV`."
+        )
+    except Exception as exc:
+        return f"No pude procesar el CV: {exc}"
+    finally:
+        if "tmp_path" in locals():
+            Path(tmp_path).unlink(missing_ok=True)
+
+
 # ── Voseo post-processing ─────────────────────────────────────────
 
 # Tuteo → rioplatense replacements (applied to every outgoing message)
@@ -363,6 +406,7 @@ INTERCEPTED_SKILLS = {
     "skill:network-scanner",
     "skill:arr-monitor",
     "skill:infra-monitor",
+    "skill:security-monitor",
     "skill:calendar",
     "skill:calendar-agenda",
     "skill:morning-greeting",
@@ -374,6 +418,7 @@ INTERCEPTED_SKILLS = {
     "skill:model-trainer",
     "skill:expense",
     "agent:finance",
+    "agent:job_search",
 }
 
 # Additional keyword patterns for email that the orchestrator might miss.
@@ -386,6 +431,26 @@ EMAIL_OVERRIDE_PATTERNS = [
     r"\bhay\s+algo\s+de\b",  # "hay algo de telus?"
 ]
 _email_override_re = [re.compile(p, re.IGNORECASE) for p in EMAIL_OVERRIDE_PATTERNS]
+
+# Explicit job-search requests must bypass the generic tool model. The model's
+# allowlist does not include job_search and may otherwise misroute them to an
+# unrelated valid tool such as email or arr-monitor.
+_JOB_SEARCH_QUICK_RE = re.compile(
+    r"\b(?:"
+    r"(?:prepar[aá]|gener[aá]|arm[aá])"
+    r".{0,20}\bcv\b.{0,30}\bvacante\s+\d+"
+    r"|"
+    r"(?:analiz[aá]|evalu[aá]|revis[aá])"
+    r".{0,25}\b(?:vacantes?|empleos?|puestos?|oportunidades?)"
+    r"|"
+    r"(?:busc[aá](?:me)?|buscar|encontr[aá](?:me)?|consegu[ií](?:me)?)"
+    r".{0,35}\b(?:trabajo|laburo|empleo|vacantes?|puestos?|oportunidades?)"
+    r"|(?:trabajo|laburo|empleo|vacantes?|postulaciones?|entrevistas?)"
+    r".{0,35}\b(?:remoto|remote|product\s+manager|devops|tam|recruiter)"
+    r"|(?:c[oó]mo|como|estado|seguimiento).{0,25}\bpostulaciones?"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 # TTS false positive patterns: questions or casual mentions of "audio"
@@ -420,6 +485,13 @@ def classify_intent(text: str) -> str:
     the message should be handled without the LLM.
     """
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
+
+    # Tier 0: job-search agent. This has to run before the finetuned generic
+    # router because job_search is not one of that router's supported tools.
+    if _JOB_SEARCH_QUICK_RE.search(text):
+        _log({"action": "classified", "category": "agent:job_search",
+              "text": text[:80], "tier": "job_search_keywords"})
+        return "agent:job_search"
 
     # Tier 0: IOL broker keywords (finetuned router doesn't know IOL)
     _IOL_QUICK_RE = re.compile(
@@ -466,6 +538,7 @@ def classify_intent(text: str) -> str:
                 "calendar": "skill:calendar-agenda",
                 "arr-monitor": "skill:arr-monitor",
                 "infra-monitor": "skill:infra-monitor",
+                "security-monitor": "skill:security-monitor",
                 "self-evolve": "skill:self-evolve",
                 "tts": "skill:tts",
                 "reminders": "skill:reminders",
@@ -594,6 +667,17 @@ def execute_intercepted_skill(text: str, category: str = None) -> tuple[str, str
             msg = f"Error finanzas: {e}"
             return msg, ""
 
+    if category == "agent:job_search":
+        _log({"action": "job_search_execute", "text": text[:80]})
+        try:
+            import agent_job_search
+
+            observation, _recommendations = agent_job_search.handle(text)
+            return observation.summary, ""
+        except Exception as e:
+            msg = f"Error buscando oportunidades laborales: {e}"
+            return msg, ""
+
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
     from orchestrator import execute_skill
 
@@ -690,6 +774,7 @@ def _format_email_output(output: str) -> str:
 _HUMANIZE_SKILLS = {
     "skill:calendar", "skill:calendar-agenda",
     "skill:infra-monitor",
+    "skill:security-monitor",
     "skill:arr-monitor",
     "skill:weather",
     "skill:email",
@@ -1116,6 +1201,16 @@ def _handle_callback(token: str, callback_query: dict):
     """Handle an inline keyboard callback (approval_queue, exec approval, or feedback)."""
     data = callback_query.get("data", "")
 
+    if data.startswith("job_apply_"):
+        try:
+            from job_application_manager import handle_callback
+            result = handle_callback(callback_query, token)
+            _log({"action": "job_apply_callback", "result": result.get("action", "unknown")})
+            return
+        except Exception as e:
+            _log({"action": "job_apply_callback_error", "error": str(e)})
+            return
+
     # Route feedback callbacks
     if data.startswith("fb_"):
         try:
@@ -1180,6 +1275,13 @@ def _process_update(token: str, update: dict, allowed: set):
     if chat_id not in allowed:
         return
 
+    document = msg.get("document")
+    if document:
+        response = _handle_cv_document(token, document, chat_id, msg.get("caption", ""))
+        send_message(token, chat_id, response)
+        _append_history(chat_id, "assistant", response)
+        return
+
     # Handle voice/audio messages via Whisper transcription
     voice = msg.get("voice") or msg.get("audio")
     if voice:
@@ -1199,6 +1301,36 @@ def _process_update(token: str, update: dict, allowed: set):
 
     # ── Text-based approval/status commands ──
     text_lower = text.lower().strip()
+    tailored = re.search(
+        r"(?:prepar[aá]|gener[aá]|arm[aá]).{0,20}\bcv\b.{0,30}\bvacante\s+(\d+)",
+        text_lower,
+    )
+    if tailored:
+        send_typing(token, chat_id)
+        try:
+            from agent_job_search import prepare_tailored_cv
+            from telegram_transport import send_document
+
+            result = prepare_tailored_cv(int(tailored.group(1)))
+            if result.get("error"):
+                response = result["error"]
+                send_message(token, chat_id, response)
+            else:
+                response = (
+                    f"CV específico preparado para {result['title']} en "
+                    f"{result['company'] or 'empresa no indicada'} ({result['score']}%).\n"
+                    f"Fortalezas: {', '.join(result['strengths'][:5]) or 'sin datos'}\n"
+                    f"Brechas: {', '.join(result['gaps'][:5]) or 'sin datos'}\n"
+                    "Cambios: " + "; ".join(result["changes"]) + ".\n"
+                    "Revisalo antes de usarlo."
+                )
+                send_document(token, chat_id, result["path"], caption=response[:900])
+            _append_history(chat_id, "assistant", response)
+        except Exception as exc:
+            response = f"No pude preparar el CV: {exc}"
+            send_message(token, chat_id, response)
+        return
+
     if text_lower.startswith("aprobar ") or text_lower.startswith("approve "):
         target = text[len(text_lower.split()[0]) + 1:].strip()
         response = None
@@ -1341,6 +1473,8 @@ def _process_update(token: str, update: dict, allowed: set):
         }
         composer_source = _source_map.get(category)
         result_count = None
+        if category == "agent:job_search":
+            composed = formatted_response
         if composer_source and raw_data:
             try:
                 from response_composer import compose_skill_response

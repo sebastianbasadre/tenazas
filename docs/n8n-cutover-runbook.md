@@ -53,7 +53,7 @@ docker exec n8n n8n list:workflow
 Run a safe job through the same endpoint `n8n` uses:
 
 ```bash
-export TENAZAS_JOB_RUNNER_TOKEN=tenazas-local-job-runner
+export TENAZAS_JOB_RUNNER_TOKEN="$(grep '^TENAZAS_JOB_RUNNER_TOKEN=' .env | cut -d= -f2-)"
 
 curl -fsS -X POST \
   -H "X-Tenazas-Job-Token: ${TENAZAS_JOB_RUNNER_TOKEN}" \
@@ -93,7 +93,7 @@ Initial DSM wrapper environment:
 ```env
 OPENCLAW_JOB_MODE=direct
 OPENCLAW_JOB_RUNNER_URL=http://127.0.0.1:18891
-OPENCLAW_JOB_RUNNER_TOKEN=tenazas-local-job-runner
+OPENCLAW_JOB_RUNNER_TOKEN=<same random value as TENAZAS_JOB_RUNNER_TOKEN in .env>
 ```
 
 After a workflow is proven in `n8n`, either:

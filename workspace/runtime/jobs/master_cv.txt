@@ -1,0 +1,89 @@
+SEBASTIAN BASADRE
+Product Director · B2B SaaS & Enterprise Platforms
+sebastian.basadre@gmail.com · +54 11 3685 5698 · Buenos Aires, Argentina · linkedin.com/in/sebastianbasadre
+PROFESSIONAL SUMMARY
+Product leader with 15+ years building, delivering and scaling B2B SaaS and enterprise platforms across LATAM, with a
+deep technology foundation that enables end-to-end ownership alongside engineering. As Director of Product Development
+at Mandü HR (ex Visma Latam), led product strategy and technical execution of an HRMS and Payroll suite serving 6
+LATAM markets, shipping a pNPS instrumentation that lifted customer-signal quality by 40%, launching the AI-driven
+Invisible Payroll Engine projected to cut customer manual operations by 60%, and leading the migration from monolith to
+microservices with embedded AI/ML. Strong on discovery, experimentation, roadmap definition and stakeholder alignment
+with Tech, Marketing, Operations and Data. A-CSPO, CSPO, CSM, Prince2 Practitioner certified.
+CORE COMPETENCIES
+Product Leadership: Product Vision & Strategy · Product Lifecycle Management · Roadmap Development · User Research ·
+Product Discovery · A/B Testing & Experimentation · pNPS / NPS Instrumentation · Outcome-Based Prioritization · OKR
+Management
+Technology Leadership: Technology Strategy · Architecture Direction · Digital Transformation · AI/ML Strategy · System
+Modernization · Engineering Excellence
+Leadership & Stakeholder Management: Cross-functional Leadership (Tech · Marketing · Ops · Data) · Executive
+Communication · Multi-country Operations (6 LATAM) · Vendor & Portfolio Management · Change Management · Team Building
+(50+ org)
+Methodologies: Agile · Scrum · Kanban · SAFe · LeSS · Lean Product Development · Dual-Track Agile · Prince2
+TECHNICAL SKILLS
+Cloud & Infrastructure: AWS · Google Cloud Platform · Azure · Docker · Kubernetes · CI/CD Pipelines
+Architecture & Backend: Microservices · API Design · Event-Driven Systems · Distributed Systems
+Languages & Frameworks: Node.js · TypeScript · Python · React · Next.js
+AI / ML: LLM Integration · GenAI Implementation · Multi-Agent Architectures · Prompt Engineering · ML Ops
+Tools: Jira · GitHub · Figma · Vercel · Railway · VS Code
+PROFESSIONAL EXPERIENCE
+Director of Product Development
+Mandü HR (formerly Visma Latam) · 01/2024 – 03/2026 · Buenos Aires, Argentina
+• Owned end-to-end as product lead the Invisible Payroll Engine: ran discovery that revealed analysts spent 60%+ of their time on
+repetitive tasks, defined the product vision around LLMs and a multi-agent architecture, built the business case and secured
+executive alignment for a projected 60% reduction in customer manual operations.
+• Built from scratch the pNPS instrumentation and product-metrics system, achieving a 40% improvement in customer-signal
+quality and embedding real user input into roadmap prioritization and feature experimentation.
+• Led the migration from monolithic architecture to microservices with embedded AI/ML capabilities, shipping AI-powered features
+for document processing and predictive compliance analytics, and drove the Agile transformation across product squads that
+delivered a 25% improvement in delivery speed.
+• Owned the HRMS and Payroll roadmap for 6 LATAM markets (Argentina, Chile, Peru, Uruguay, Paraguay, Colombia), leading
+an organization of 50+ engineers, architects and Product Owners and reporting directly to executive sponsors on C-level
+priorities.
+Assurance Portfolio Service Delivery Manager
+EY (Ernst & Young) · 05/2022 – 01/2024 · Buenos Aires, Argentina
+• Managed an end-to-end portfolio of Assurance technology projects, delivering consistently on time and on budget while
+exceeding business outcomes.
+• Co-designed the operational strategy for core tech services (monitoring, performance, high availability), exceeding SLA targets
+by 15% and reducing production incidents significantly; defined root-cause analysis playbooks and led security and compliance
+audits across the platform.
+Lean Portfolio Manager — SAFe Agile PMO (ATTG)
+EY (Ernst & Young) · 07/2020 – 05/2022 · Buenos Aires, Argentina
+• Oversaw a large portfolio of technology programs, defining project charters, scope, schedules and resource allocation under a
+SAFe Lean Portfolio model.
+• Drove Agile adoption across multiple client teams, reducing delivery cycles by ~30% and improving stakeholder satisfaction
+through outcome-based reporting.
+IT Project Lead
+Charles Taylor InsureTech · 11/2019 – 07/2020 · Buenos Aires, Argentina
+• Led end-to-end project delivery for InsureTech solutions serving global insurance-market clients.
+Software Development Project Manager
+Huenei IT Services · 05/2019 – 08/2019 · Buenos Aires, Argentina
+• Led the pharmacovigilance application migration project for Mylan's business unit acquisition, kickoff to delivery.
+Americas IT Change Director → Global Infrastructure Programme Manager → Regional Infrastructure PM
+TMF Group · 05/2013 – 12/2018 · Buenos Aires, Argentina
+• Promoted through three progressively senior roles over 5 years; built the IT Change function for the Americas region from the
+ground up, covering demand intake, planning, sourcing and execution across 15+ countries.
+• Led the Global Infrastructure Project Portfolio and regional infrastructure delivery across LATAM, managing Project Managers
+directly and indirectly and establishing change-management frameworks that minimized business disruption during complex
+rollouts.
+Regional Infrastructure Project Manager
+DIRECTV · 03/2012 – 05/2013 · Buenos Aires, Argentina
+• Delivered software and hardware infrastructure initiatives for the LATAM region, providing oversight to technical managers and
+systems architects and governing SLAs and stakeholder communication.
+Cloud & Infrastructure Project Manager
+Globant · 07/2010 – 03/2012 · Buenos Aires, Argentina
+• Program-managed cloud-infrastructure initiatives for Silicon Valley accounts (Google, Electronic Arts) with full P&L responsibility,
+coordinating distributed cross-timezone teams for Fortune 500 clients.
+Onboarding Engineer
+Avaya Inc. · 2009 – 2010 · Buenos Aires, Argentina
+• Delivered IPSS onboarding projects for enterprise communication systems, keeping scope and timelines under tight control.
+CERTIFICATIONS
+Advanced Certified Scrum Product Owner (A-CSPO) · Certified Scrum Product Owner (CSPO) · Certified Scrum Master
+(CSM) — Scrum Alliance · Prince2 Practitioner & Foundation — AXELOS · Kanban Foundation — Kanban University ·
+Certified LeSS Basics · Google Cloud Data Analytics — Google
+EDUCATION
+Postgraduate Programme — Strategic Management of AI & Enterprise Automation · Universidad del CEMA (UCEMA) · 2025
+– 2026 (in progress)
+BSc in Management Information Systems and Services (Licenciatura en Sistemas y Servicios de Información de Gestión) ·
+Universidad CAECE · 2006 – 2010
+LANGUAGES
+Spanish (Native) · English (Professional Proficient) · Portuguese (Professional Proficient)

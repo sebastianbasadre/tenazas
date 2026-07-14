@@ -32,7 +32,7 @@ GEMMA_SYSTEM = (
     'You are a tool classifier. Respond ONLY with JSON: {"tool": "<name>"}. '
     "Tools: weather, chat, smart-home-on, smart-home-off, smart-home-cinema, "
     "arr-monitor, email, calendar, infra-monitor, tts, reminders, "
-    "self-evolve, smoking-tracker, network-scanner."
+    "self-evolve, smoking-tracker, network-scanner, security-monitor."
 )
 GEMMA_SCHEMA = {
     "type": "object",
@@ -43,7 +43,7 @@ GEMMA_SCHEMA = {
                 "weather", "chat", "smart-home-on", "smart-home-off",
                 "smart-home-cinema", "arr-monitor", "email", "calendar",
                 "infra-monitor", "tts", "reminders", "self-evolve",
-                "smoking-tracker", "network-scanner",
+                "smoking-tracker", "network-scanner", "security-monitor",
             ],
         },
     },
@@ -75,6 +75,7 @@ KEYWORD_RULES = [
     # Other skills
     (["clima", "lluvia", "temperatura", "weather"], "weather"),
     (["container", "docker", "infra", "caido"], "infra-monitor"),
+    (["seguridad", "security", "puertos expuestos", "firewall", "credenciales"], "security-monitor"),
     (["busca", "buscar", "serie", "episodio"], "arr-monitor"),
     (["fumando", "pucho", "cigarrillo"], "smoking-tracker"),
     (["recordame", "avisame", "reminder"], "reminders"),
@@ -94,7 +95,7 @@ KNOWN_TOOLS = {
     "smart-home-sync", "smart-home-shield", "smart-home-cameras",
     "smart-home-doorbell", "smart-home-tv",
     "weather", "email", "calendar", "arr-monitor", "infra-monitor",
-    "self-evolve", "tts", "reminders", "smoking-tracker", "chat",
+    "security-monitor", "self-evolve", "tts", "reminders", "smoking-tracker", "chat",
 }
 
 # Map tool → intent for normalizer compatibility
@@ -106,6 +107,7 @@ _TOOL_TO_INTENT = {
     "smart-home-shield": "shield_control", "smart-home-cameras": "cameras_status",
     "smart-home-doorbell": "doorbell_status", "smart-home-tv": "tv_control",
     "arr-monitor": "infra_check", "infra-monitor": "infra_check",
+    "security-monitor": "security_check",
 }
 
 # Telemetry log

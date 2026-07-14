@@ -18,6 +18,7 @@ try:
     from runtime.runtime_config import (
         CONFIG_PATH, load_config, get_telegram_settings, get_telegram_bot_token,
         get_allowed_chat_ids, get_default_telegram_chat_id, get_hue_api_key,
+        validate_config, get_config_value,
         _env_or_default, _cfg_get,
         LAN_SUBNET, ROUTER_IP, NAS_IP, NAS_BACKUP_IP, HOMELAB_IP, HOMELAB_USER,
         OLLAMA_GPU_URL, OLLAMA_GPU_TAGS_URL, OLLAMA_GPU_GENERATE_URL,
@@ -32,6 +33,7 @@ except ImportError:
     from workspace.runtime.runtime_config import (
         CONFIG_PATH, load_config, get_telegram_settings, get_telegram_bot_token,
         get_allowed_chat_ids, get_default_telegram_chat_id, get_hue_api_key,
+        validate_config, get_config_value,
         _env_or_default, _cfg_get,
         LAN_SUBNET, ROUTER_IP, NAS_IP, NAS_BACKUP_IP, HOMELAB_IP, HOMELAB_USER,
         OLLAMA_GPU_URL, OLLAMA_GPU_TAGS_URL, OLLAMA_GPU_GENERATE_URL,
@@ -188,6 +190,35 @@ class TestExistingFunctionsPreserved(unittest.TestCase):
         cfg = {"channels": {"telegram": {"allowFrom": ["123", "456"]}}}
         result = get_allowed_chat_ids(cfg)
         self.assertEqual(result, {"123", "456"})
+
+    def test_validate_config_accepts_empty_non_strict_config(self):
+        report = validate_config({}, require_secrets=False)
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["errors"], [])
+
+    def test_validate_config_requires_telegram_when_strict(self):
+        report = validate_config({}, require_secrets=True)
+        self.assertFalse(report["ok"])
+        self.assertIn("telegram bot token is required", report["errors"])
+
+    def test_validate_config_warns_on_placeholders(self):
+        cfg = {
+            "channels": {"telegram": {"botToken": "replace-with-telegram-bot-token"}},
+            "hue": {"apiKey": "replace-with-hue-api-key"},
+        }
+        report = validate_config(cfg)
+        self.assertTrue(report["ok"])
+        self.assertIn("telegram bot token is still a placeholder", report["warnings"])
+        self.assertIn("Hue API key is still a placeholder", report["warnings"])
+
+    def test_get_config_value_walks_nested_path(self):
+        cfg = {"a": {"b": {"c": 123}}}
+        self.assertEqual(get_config_value(["a", "b", "c"], cfg), 123)
+        self.assertEqual(get_config_value(["a", "x"], cfg, default="fallback"), "fallback")
+
+    def test_openclaw_schema_exists(self):
+        schema = Path(__file__).resolve().parents[1] / "workspace" / "runtime" / "schemas" / "openclaw_config_schema.json"
+        self.assertTrue(schema.exists())
 
 
 class TestPatchability(unittest.TestCase):
