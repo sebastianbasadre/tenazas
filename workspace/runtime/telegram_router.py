@@ -1256,6 +1256,34 @@ def _handle_callback(token: str, callback_query: dict):
             }, timeout=5)
 
 
+
+def _slash_command_response(text):
+    """Return a local response for slash commands; never classify them as skills."""
+    if not text.startswith("/"):
+        return None
+    command = text.split()[0].split("@", 1)[0].lower()
+    if command == "/model":
+        try:
+            config = _load_config()
+            configured = config.get("agents", {}).get("defaults", {}).get("model")
+            if isinstance(configured, dict):
+                configured = configured.get("primary", "no definido")
+            if not isinstance(configured, str):
+                configured = "no definido"
+        except Exception:
+            configured = "no disponible (error al leer configuracion)"
+        return ("OpenClaw, modelo configurado: " + configured
+                + "\nRouter Telegram, modelo base: " + str(LLM_MODEL)
+                + "\nEstos son valores configurados; el routing y los fallbacks "
+                  "pueden elegir otro modelo. No identifican la ultima respuesta.")
+    if command == "/status":
+        return ("El router de Telegram esta respondiendo. "
+                "Para consultar infraestructura, escribi: estado homelab. "
+                "Para modelos configurados, usa /model.")
+    if command in ("/help", "/start"):
+        return "Comandos: /model, /status, /help. Infraestructura: estado homelab."
+    return "Comando no soportado. Usa /help. No se ejecuto ninguna herramienta."
+
 def _process_update(token: str, update: dict, allowed: set):
     """Process a single Telegram update."""
     # Handle inline keyboard button taps (exec approvals)
@@ -1295,6 +1323,13 @@ def _process_update(token: str, update: dict, allowed: set):
         if not text:
             return
         _log({"action": "incoming", "chat_id": chat_id, "text": text[:120]})
+
+    # Slash commands bypass the intent classifier and all skills.
+    command_response = _slash_command_response(text)
+    if command_response is not None:
+        send_message(token, chat_id, command_response)
+        _log({"action": "slash_command", "command": text.split()[0].split("@", 1)[0].lower()})
+        return
 
     # Record user message in history
     _append_history(chat_id, "user", text)
