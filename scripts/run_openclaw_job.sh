@@ -15,6 +15,12 @@ MAX=10485760
 MODE="${OPENCLAW_JOB_MODE:-direct}"
 RUNNER_URL="${OPENCLAW_JOB_RUNNER_URL:-http://127.0.0.1:18891}"
 RUNNER_TOKEN="${OPENCLAW_JOB_RUNNER_TOKEN:-}"
+exit_job() {
+  if [ "${OPENCLAW_JOB_LEGACY_EXIT_ZERO:-false}" = "true" ]; then
+    exit 0
+  fi
+  exit "$1"
+}
 
 if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG")" -gt "$MAX" ]; then
   [ -f "${LOG}.1" ] && mv "${LOG}.1" "${LOG}.2"
@@ -28,14 +34,14 @@ if [ "$MODE" = "runner" ]; then
     echo "OPENCLAW_JOB_RUNNER_TOKEN is required in runner mode" >> "$LOG"
     echo "exit_code=78" >> "$LOG"
     echo "" >> "$LOG"
-    exit 0
+    exit_job 78
   fi
   CURL_BIN="$(command -v curl || true)"
   if [ -z "$CURL_BIN" ]; then
     echo "curl not found; cannot use runner mode" >> "$LOG"
     echo "exit_code=127" >> "$LOG"
     echo "" >> "$LOG"
-    exit 0
+    exit_job 127
   fi
   echo "mode=runner job=${JOB_NAME} url=${RUNNER_URL}" >> "$LOG"
   if command -v timeout >/dev/null 2>&1; then
@@ -72,4 +78,4 @@ fi
 echo "exit_code=$STATUS" >> "$LOG"
 echo "" >> "$LOG"
 
-exit 0
+exit_job "$STATUS"

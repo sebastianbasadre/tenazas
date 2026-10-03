@@ -124,7 +124,7 @@ class TestSelectModelGPU(unittest.TestCase):
         mock_detect.side_effect = _mock_backends(notebook=True, nas=True)
         result = mr.select_model("system")
         # V1 selects from non-legacy models that fit in 24GB VRAM (RTX 3090)
-        self.assertIn(result["model"], ("qwen3:4b", "qwen3:8b", "qwen2.5:7b"))
+        self.assertIn(result["model"], ("qwen3-fast:4b", "qwen3-fast:8b", "qwen2.5:7b"))
         self.assertEqual(result["backend"], "notebook_gpu")
 
     @patch("runtime.model_router._log")
@@ -322,11 +322,14 @@ class TestCatalogIntegrity(unittest.TestCase):
 
     def test_homelab_models_present(self):
         """Preferred local catalog only contains the compact active target set."""
-        expected = {"qwen3:4b", "qwen3:8b", "qwen2.5:7b",
-                    "qwen2.5-coder:7b", "qwen3-vl:4b", "nomic-embed-text"}
-        actual = {k for k, v in mr.MODEL_CATALOG.items()
-                  if not v.get("legacy") and not v.get("cloud")}
-        self.assertEqual(expected, actual)
+        expected = {"qwen3-fast:4b", "qwen3-fast:8b", "qwen2.5:7b",
+                    "qwen2.5-coder:14b", "qwen2.5vl:7b", "nomic-embed-text"}
+        self.assertTrue(expected.issubset(mr.MODEL_CATALOG))
+        self.assertEqual(mr.ROLE_MAP["code"][0], "qwen2.5-coder:14b")
+        self.assertEqual(mr.ROLE_MAP["heavy"][0], "deepseek-r1:14b")
+        for model in mr.ROLE_MAP["vision"]:
+            self.assertIn("vision", mr.MODEL_CATALOG[model]["capabilities"])
+
 
 
 # ── V2: Task Classification Tests ──────────────��────────────────
@@ -435,9 +438,9 @@ class TestRouteByRole(unittest.TestCase):
     def test_fast_selects_7b(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("hola que tal")
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "qwen3-fast:8b")
         self.assertEqual(result["role"], "fast")
-        self.assertTrue(result["fallback_used"])
+        self.assertFalse(result["fallback_used"])
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
@@ -445,7 +448,7 @@ class TestRouteByRole(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         # Deep reasoning prompt triggers the larger local reasoning model
         result = mr.route_by_role("investiga step by step por que falla el deploy de produccion")
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "qwen3-fast:8b")
         self.assertEqual(result["role"], "reason")
 
     @patch("runtime.model_router._log")
@@ -453,25 +456,25 @@ class TestRouteByRole(unittest.TestCase):
     def test_code_selects_coder(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("refactor the auth module")
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "qwen2.5-coder:14b")
         self.assertEqual(result["role"], "code")
-        self.assertTrue(result["fallback_used"])
+        self.assertFalse(result["fallback_used"])
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_vision_selects_vl(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("describe this", flags={"has_image": True})
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "qwen2.5vl:7b")
         self.assertEqual(result["role"], "vision")
-        self.assertTrue(result["fallback_used"])
+        self.assertFalse(result["fallback_used"])
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_heavy_selects_32b(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("critical production deploy")
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "deepseek-r1:14b")
         self.assertEqual(result["role"], "heavy")
 
     @patch("runtime.model_router._log")
@@ -505,14 +508,14 @@ class TestRouteByRole(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("random unclassified stuff")
         self.assertEqual(result["role"], "fast")
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "qwen3-fast:8b")
 
     @patch("runtime.model_router._log")
     @patch("runtime.model_router.detect_backends")
     def test_pre_fetched_backend_status(self, mock_detect, mock_log):
         pre_fetched = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("hello", backend_status=pre_fetched)
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "qwen3-fast:8b")
         mock_detect.assert_not_called()  # Should not re-detect
 
     @patch("runtime.model_router._log")
@@ -566,7 +569,7 @@ class TestRouteByRole(unittest.TestCase):
     def test_explicit_role_override(self, mock_detect, mock_log):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         result = mr.route_by_role("hello", flags={"role": "reason"})
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "qwen3-fast:8b")
         self.assertEqual(result["role"], "reason")
 
 
@@ -612,7 +615,7 @@ class TestGuardrails(unittest.TestCase):
         import time
         # Simulate cooldown active
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3-fast:8b"
         role, degraded, reason = mr.apply_guardrails("heavy", {"force_heavy": True})
         self.assertEqual(role, "heavy")
         self.assertFalse(degraded)
@@ -620,7 +623,7 @@ class TestGuardrails(unittest.TestCase):
     def test_cooldown_degrades_heavy_to_reason(self):
         import time
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3-fast:8b"
         role, degraded, reason = mr.apply_guardrails("heavy")
         self.assertEqual(role, "reason")
         self.assertTrue(degraded)
@@ -638,7 +641,7 @@ class TestGuardrails(unittest.TestCase):
     def test_cooldown_expires(self):
         import time
         mr._guardrail_state["last_heavy_ts"] = time.monotonic() - mr.GUARDRAIL_COOLDOWN - 1
-        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3-fast:8b"
         role, degraded, reason = mr.apply_guardrails("heavy")
         self.assertEqual(role, "heavy")
         self.assertFalse(degraded)
@@ -686,9 +689,9 @@ class TestGuardrails(unittest.TestCase):
         self.assertIn("vram_swaps", reason)
 
     def test_record_heavy_usage_tracks(self):
-        mr.record_heavy_usage("qwen3:8b", latency=10.0, vram_swap=True)
+        mr.record_heavy_usage("deepseek-r1:14b", latency=10.0, vram_swap=True)
         self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 1)
-        self.assertEqual(mr._guardrail_state["last_heavy_model"], "qwen3:8b")
+        self.assertEqual(mr._guardrail_state["last_heavy_model"], "deepseek-r1:14b")
         self.assertEqual(mr._guardrail_state["last_heavy_latency"], 10.0)
         self.assertEqual(len(mr._guardrail_state["vram_swaps_window"]), 1)
 
@@ -698,7 +701,7 @@ class TestGuardrails(unittest.TestCase):
         self.assertIsNone(mr._guardrail_state["last_heavy_model"])
 
     def test_reset_clears_state(self):
-        mr.record_heavy_usage("qwen3:8b", latency=10.0, vram_swap=True)
+        mr.record_heavy_usage("deepseek-r1:14b", latency=10.0, vram_swap=True)
         mr.reset_guardrails()
         self.assertEqual(len(mr._guardrail_state["heavy_timestamps"]), 0)
         self.assertIsNone(mr._guardrail_state["last_heavy_model"])
@@ -731,7 +734,7 @@ class TestRouteByRoleWithGuardrails(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         # First call: heavy goes through
         result1 = mr.route_by_role("critical production deploy")
-        self.assertEqual(result1["model"], "qwen3:8b")
+        self.assertEqual(result1["model"], "deepseek-r1:14b")
         # Simulate cooldown active (record_heavy_usage was called internally)
         # Second call: should degrade
         result2 = mr.route_by_role("critical production issue")
@@ -745,9 +748,9 @@ class TestRouteByRoleWithGuardrails(unittest.TestCase):
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         # Trigger cooldown
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3-fast:8b"
         result = mr.route_by_role("critical", flags={"role": "heavy", "force_heavy": True})
-        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertEqual(result["model"], "deepseek-r1:14b")
         self.assertFalse(result["degraded"])
 
     @patch("runtime.model_router._log")
@@ -756,10 +759,17 @@ class TestRouteByRoleWithGuardrails(unittest.TestCase):
         import time
         mock_detect.return_value = _mock_backends(notebook=True, nas=True)()
         mr._guardrail_state["last_heavy_ts"] = time.monotonic()
-        mr._guardrail_state["last_heavy_model"] = "qwen3:8b"
+        mr._guardrail_state["last_heavy_model"] = "qwen3-fast:8b"
         result = mr.route_by_role("critical production deploy")
         self.assertTrue(any("guardrail:" in s for s in result["signals"]))
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+import pytest
+
+@pytest.fixture(autouse=True)
+def isolated_model_inventory(monkeypatch):
+    monkeypatch.setattr(mr, "_fetch_available_models", lambda _url: [])

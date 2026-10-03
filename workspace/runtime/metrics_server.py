@@ -48,12 +48,21 @@ USD_ARS_API_TIMEOUT = 10
 OLLAMA_GPU_TIMEOUT = 5
 
 try:
-    from prometheus_client import Counter, Gauge, start_http_server
+    from functools import partial
+    from prometheus_client import Counter, Gauge, CollectorRegistry, start_http_server
     PROM_AVAILABLE = True
 except ImportError:
     PROM_AVAILABLE = False
 
 if PROM_AVAILABLE:
+    METRICS_REGISTRY = CollectorRegistry()
+    Gauge = partial(Gauge, registry=METRICS_REGISTRY)
+    Counter = partial(Counter, registry=METRICS_REGISTRY)
+    G_SERVICE_UP = Gauge("tenazas_service_up", "Supervised service running", ["service"])
+    G_SERVICE_RESTARTS = Gauge("tenazas_service_restarts_total", "Service restarts", ["service"])
+    G_SUPERVISOR_TS = Gauge("tenazas_service_supervisor_timestamp", "Last supervisor heartbeat")
+    G_RUNTIME_SUCCESS_TS = Gauge("tenazas_runtime_last_success_timestamp", "Last successful runtime cycle")
+    G_BACKGROUND_SUCCESS = Gauge("tenazas_background_last_success_timestamp", "Last successful background agent run", ["agent"])
     # Use Gauges (not Counters) because we SET values from file
     # Runtime
     G_RUNS = Gauge("runtime_runs_total", "Total runtime cycles completed")
@@ -953,6 +962,27 @@ def update_agent_metrics():
         log.warning("Agent metrics update failed: %s", e)
 
 
+def update_service_metrics():
+    if not PROM_AVAILABLE:
+        return
+    try:
+        from datetime import datetime
+        from runtime_utils import load_json
+
+        state = load_json(LOGS_DIR / "service_state.json", {})
+        G_SUPERVISOR_TS.set(state.get("ts", 0))
+        for name, info in state.get("services", {}).items():
+            G_SERVICE_UP.labels(service=name).set(int(info.get("running", False)))
+            G_SERVICE_RESTARTS.labels(service=name).set(info.get("restarts", 0))
+        G_RUNTIME_SUCCESS_TS.set(load_json(BASE_DIR / "supervisor_state.json", {}).get("last_success_ts", 0))
+        agents = load_json(BASE_DIR / "agents_state.json", {})
+        for name, info in agents.items():
+            stamp = info.get("last_success", info.get("last_run", "") if info.get("ok") else "")
+            G_BACKGROUND_SUCCESS.labels(agent=name).set(datetime.fromisoformat(stamp).timestamp() if stamp else 0)
+    except (OSError, TypeError, ValueError):
+        log.warning("Service metrics state unavailable")
+
+
 # ── Main Loop ──────────────────────────────────────────────────
 
 
@@ -961,7 +991,7 @@ if __name__ == "__main__":
         print("prometheus_client not available")
         exit(1)
 
-    start_http_server(9105)
+    start_http_server(9105, registry=METRICS_REGISTRY)
     print("Metrics server on :9105 (polling metrics_state.json + NAS + Ollama + IOL)")
 
     # Background thread for IOL CLI (slow, subprocess-based)
@@ -1014,6 +1044,7 @@ if __name__ == "__main__":
         update_ba_metrics()
         update_roi_metrics()
         update_agent_metrics()
+        update_service_metrics()
 
         # Network scan freshness (read timestamp file written by router_runtime)
         try:

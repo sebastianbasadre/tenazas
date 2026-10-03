@@ -25,19 +25,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/finance_daily'}}",
+        "url": "http://job-runner:18891/run/finance_daily",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-Tenazas-Job-Token",
-              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+              "name": "Idempotency-Key",
+              "value": "={{ \"n8n:\" + $workflow.id + \":\" + $execution.id }}"
             }
           ]
         },
         "options": {
-          "timeout": 180000
-        }
+          "timeout": 210000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "06555c8d-8f35-432e-8f5f-c3ec7940d244",
       "name": "Run Finance Daily",
@@ -46,7 +48,13 @@
       "position": [
         560,
         300
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tenazas-job-runner-auth",
+          "name": "Tenazas Job Runner"
+        }
+      }
     }
   ],
   "connections": {

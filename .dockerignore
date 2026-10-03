@@ -1,0 +1,5 @@
+# The image only copies dependency manifests. Secrets and runtime data stay on host.
+**
+!Dockerfile
+!requirements.txt
+!requirements.lock

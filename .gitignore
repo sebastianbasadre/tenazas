@@ -11,6 +11,15 @@ gogcli-config/
 state/
 n8n/data/
 n8n/data.pre-reset-*/
+workspace/runtime/jobs/
+workspace/runtime/*state*.json
+workspace/runtime/*.lock
+workspace/runtime/*.before-*
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+state/deployments/
+history-secret-report.txt
 
 # Junk files from early experiments
 =
@@ -72,6 +81,9 @@ workspace/runtime/ollama_notify_state.json
 workspace/runtime/deco_clients.json
 workspace/runtime/device_inventory.json
 workspace/runtime/finance_rules.json
+workspace/runtime/dev_proposals.json
+workspace/runtime/idle_learnings.json
+workspace/runtime/skill_proposals.json
 
 # Learning logs (generated)
 learning/
@@ -84,6 +96,7 @@ himalaya-config/
 
 # Host logs (not code)
 *.log
+logs/
 auto_training.log
 self-evolve.log
 runtime.log

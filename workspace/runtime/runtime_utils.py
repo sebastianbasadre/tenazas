@@ -33,11 +33,8 @@ def load_json(path, default=None):
 
 
 def save_json(path, data):
-    """Save data as JSON with indent=2. Creates parent dirs."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+    """Save JSON atomically; use StateLock for read-modify-write operations."""
+    write_atomic(path, data)
 
 
 # -- Time --

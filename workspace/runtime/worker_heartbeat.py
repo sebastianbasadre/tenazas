@@ -19,6 +19,7 @@ Usage (in supervisor):
 import json
 import time
 from pathlib import Path
+from runtime_utils import StateLock, write_atomic
 
 BASE_DIR = Path(__file__).parent
 HEARTBEAT_FILE = BASE_DIR / "logs" / "worker_heartbeat.json"
@@ -35,9 +36,7 @@ def _load() -> dict:
 
 
 def _save(data: dict):
-    HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(HEARTBEAT_FILE, "w") as f:
-        json.dump(data, f)
+    write_atomic(HEARTBEAT_FILE, data)
 
 
 def heartbeat(worker: str, step: str = ""):
@@ -47,19 +46,29 @@ def heartbeat(worker: str, step: str = ""):
         worker: Worker name (e.g. "runtime_worker")
         step: Current step name (e.g. "update_state")
     """
-    data = _load()
-    data[worker] = {
-        "ts": time.time(),
-        "step": step,
-        "pid": __import__("os").getpid(),
-    }
-    _save(data)
+    with StateLock(HEARTBEAT_FILE):
+        data = _load()
+        data[worker] = {
+            "ts": time.time(), "step": step, "pid": __import__("os").getpid(), "active": True,
+        }
+        _save(data)
+
+
+def complete(worker: str):
+    with StateLock(HEARTBEAT_FILE):
+        data = _load()
+        if worker in data:
+            data[worker]["active"] = False
+            data[worker]["step"] = "completed"
+        _save(data)
 
 
 def is_frozen(worker: str) -> bool:
     """Check if a specific worker's heartbeat is stale."""
     data = _load()
     entry = data.get(worker, {})
+    if not entry.get("active", True):
+        return False
     ts = entry.get("ts", 0)
     if ts == 0:
         return False  # Never started, not frozen
@@ -77,7 +86,7 @@ def check_all() -> list:
 
     for worker, entry in data.items():
         ts = entry.get("ts", 0)
-        if ts > 0 and (now - ts) > FREEZE_THRESHOLD:
+        if entry.get("active", True) and ts > 0 and (now - ts) > FREEZE_THRESHOLD:
             frozen.append({
                 "worker": worker,
                 "last_step": entry.get("step", ""),
@@ -90,12 +99,13 @@ def check_all() -> list:
 
 def clear(worker: str = ""):
     """Clear heartbeat for a worker (or all if empty)."""
-    if worker:
-        data = _load()
-        data.pop(worker, None)
-        _save(data)
-    else:
-        _save({})
+    with StateLock(HEARTBEAT_FILE):
+        if worker:
+            data = _load()
+            data.pop(worker, None)
+            _save(data)
+        else:
+            _save({})
 
 
 def get_status() -> dict:
@@ -108,6 +118,6 @@ def get_status() -> dict:
         status[worker] = {
             "step": entry.get("step", ""),
             "age_seconds": round(now - ts, 1) if ts > 0 else -1,
-            "frozen": (now - ts) > FREEZE_THRESHOLD if ts > 0 else False,
+            "frozen": entry.get("active", True) and (now - ts) > FREEZE_THRESHOLD if ts > 0 else False,
         }
     return status

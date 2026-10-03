@@ -31,9 +31,9 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import HOMELAB_IP, HOMELAB_USER, OLLAMA_GPU_URL, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import HOMELAB_IP, HOMELAB_USER, OLLAMA_GPU_URL, get_default_telegram_chat_id
 
 # ── Paths ────────────────────────────────────────────────────────
 

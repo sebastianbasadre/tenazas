@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   openclaw:
     build:
@@ -8,6 +7,7 @@ services:
         HIMALAYA_VERSION: ${HIMALAYA_VERSION:-v1.2.0}
     container_name: openclaw
     restart: unless-stopped
+    init: true
     network_mode: host
     group_add:
       - "${HOST_DOCKER_GID:-65536}"
@@ -19,12 +19,17 @@ services:
       - ENABLE_PORTFOLIO_RECONCILER_WATCH=${ENABLE_PORTFOLIO_RECONCILER_WATCH:-true}
       - ENABLE_IOL_REFRESH_LOOP=${ENABLE_IOL_REFRESH_LOOP:-true}
       - ENABLE_STARTUP_IOL_REFRESH=${ENABLE_STARTUP_IOL_REFRESH:-true}
+      - ENABLE_RUNTIME_SCHEDULER=${ENABLE_RUNTIME_SCHEDULER:-true}
+      - ENABLE_LOCAL_JOB_RUNNER=false
+      - TENAZAS_ALLOW_CLOUD=${TENAZAS_ALLOW_CLOUD:-false}
       - ENABLE_FINANCE_EXPORTER_TELEGRAM=${ENABLE_FINANCE_EXPORTER_TELEGRAM:-false}
       - TENAZAS_JOB_RUNNER_HOST=${TENAZAS_JOB_RUNNER_HOST:-127.0.0.1}
       - TENAZAS_JOB_RUNNER_PORT=${TENAZAS_JOB_RUNNER_PORT:-18891}
       - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:?set TENAZAS_JOB_RUNNER_TOKEN in .env}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
       - OLLAMA_API_BASE=${OLLAMA_API_BASE}
+      - TENAZAS_OLLAMA_GPU_URL=http://127.0.0.1:18902
+      - TENAZAS_OLLAMA_UPSTREAM_URL=${TENAZAS_OLLAMA_UPSTREAM_URL:-http://192.168.2.6:11434}
       - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD}
       - GOG_ACCOUNT=${GOG_ACCOUNT}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -47,9 +52,9 @@ services:
       - ./ssh-keys:/home/tenazas/.ssh:ro
       - ./gcal-token.json:/home/tenazas/.openclaw/gcal-token.json:ro
     command: ["bash", "/home/tenazas/startup.sh"]
-    stop_grace_period: 10s
+    stop_grace_period: 60s
     healthcheck:
-      test: ["CMD", "curl", "-sf", "--max-time", "5", "http://127.0.0.1:18789/health"]
+      test: ["CMD", "python3", "/home/tenazas/runtime/service_healthcheck.py"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -108,33 +113,115 @@ services:
     profiles:
       - migration
     restart: unless-stopped
-    group_add:
-      - "${HOST_DOCKER_GID:-65536}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     environment:
       - TZ=${TZ:-America/Buenos_Aires}
       - N8N_HOST=${N8N_HOST:-192.168.2.2}
       - N8N_PORT=5678
       - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
-      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://192.168.2.2:5678}
-      - WEBHOOK_URL=${WEBHOOK_URL:-http://192.168.2.2:5678/}
-      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
-      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-https://192.168.2.2:5679}
+      - WEBHOOK_URL=${WEBHOOK_URL:-https://192.168.2.2:5679/}
+      - N8N_SECURE_COOKIE=true
+      - N8N_PROXY_HOPS=1
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=true
       - GENERIC_TIMEZONE=${TZ:-America/Buenos_Aires}
-      - TENAZAS_JOB_RUNNER_BASE_URL=${TENAZAS_JOB_RUNNER_BASE_URL:-http://host.docker.internal:18891}
       - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:?set TENAZAS_JOB_RUNNER_TOKEN in .env}
     volumes:
       - ./n8n/data:/home/node/.n8n
       - ./scripts:/workspace/scripts:ro
       - ./n8n/workflows:/workspace/workflows:ro
       - ./n8n/import-workflows.sh:/workspace/import-workflows.sh:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ./tools/bootstrap_n8n_runner_credentials.js:/workspace/bootstrap-runner-credentials.js:ro
     labels:
       - com.centurylinklabs.watchtower.enable=false
+
+  job-runner:
+    image: openclaw-openclaw
+    container_name: tenazas-job-runner
+    restart: unless-stopped
+    init: true
+    group_add:
+      - "${HOST_DOCKER_GID:-65536}"
+    environment:
+      - TENAZAS_JOB_RUNNER_HOST=0.0.0.0
+      - TENAZAS_JOB_RUNNER_PORT=18891
+      - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:?set TENAZAS_JOB_RUNNER_TOKEN in .env}
+      - TENAZAS_JOB_EXEC_CONTAINER=openclaw
+      - TENAZAS_JOB_STORE=/home/tenazas/job-state/jobs.sqlite
+    volumes:
+      - ./workspace/runtime:/home/tenazas/runtime:ro
+      - ./logs/job-runner:/home/tenazas/runtime/logs
+      - ./state/job-runner:/home/tenazas/job-state
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "127.0.0.1:18891:18891"
+    command: ["python3", "/home/tenazas/runtime/job_runner.py"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "--max-time", "5", "http://127.0.0.1:18891/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  n8n-tls:
+    image: nginx:1.28.0-alpine
+    container_name: tenazas-n8n-tls
+    profiles: [migration]
+    restart: unless-stopped
+    ports:
+      - "${TENAZAS_ADMIN_BIND_IP:-192.168.2.2}:5679:443"
+    volumes:
+      - ./n8n/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./state/n8n-tls:/etc/nginx/tls:ro
+    depends_on:
+      - n8n
+
+  recovery-watchdog:
+    image: openclaw-openclaw
+    container_name: tenazas-recovery-watchdog
+    restart: unless-stopped
+    init: true
+    group_add:
+      - "${HOST_DOCKER_GID:-65536}"
+    volumes:
+      - ./workspace/runtime:/home/tenazas/runtime:ro
+      - ./state/watchdog:/home/tenazas/watchdog-state
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["python3", "/home/tenazas/runtime/recovery_watchdog.py"]
+
+  ollama-cpu:
+    image: ollama/ollama:0.35.1
+    container_name: tenazas-ollama-cpu
+    restart: unless-stopped
+    cpuset: "0,1"
+    mem_limit: 4g
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_CONTEXT_LENGTH=4096
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_cpu_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  observation:
+    image: openclaw-openclaw
+    container_name: tenazas-24x7-observation
+    profiles: [validation]
+    restart: "no"
+    volumes:
+      - ./workspace/runtime:/home/tenazas/runtime:ro
+      - ./tools:/home/tenazas/tools:ro
+      - ./state/observations:/home/tenazas/.openclaw/state
+    command: ["python3", "/home/tenazas/tools/observe_24x7.py", "--hours", "24"]
 
 volumes:
   prometheus_data:
   grafana_data:
+  ollama_cpu_data:

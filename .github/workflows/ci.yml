@@ -1,0 +1,50 @@
+name: Runtime checks
+on:
+  pull_request:
+  push:
+    branches: [main, feat/n8n-integrated]
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements-ci.txt
+      - name: Syntax and undefined names
+        run: >-
+          ruff check --select E9,F821,F822,F823
+          workspace/runtime/process_lock.py workspace/runtime/bounded_processes.py
+          workspace/runtime/job_store.py workspace/runtime/job_runner.py
+          workspace/runtime/job_entrypoint.py workspace/runtime/service_supervisor.py
+          workspace/runtime/service_healthcheck.py workspace/runtime/recovery_watchdog.py
+          workspace/runtime/inference_gate.py workspace/runtime/api_exporter_service.py
+          workspace/runtime/background_agents.py workspace/runtime/worker_supervisor.py
+          workspace/runtime/agent_coordinator.py workspace/runtime/runtime_utils.py
+      - name: Unit and fault isolation tests
+        run: >-
+          pytest tests/test_worker_supervisor.py tests/test_background_agents.py
+          tests/test_runtime_utils.py tests/test_bounded_processes.py tests/test_job_store.py
+          tests/test_job_runner.py tests/test_n8n_workflows.py tests/test_cron_wrappers.py
+          tests/test_inference_gate.py tests/test_service_supervisor.py
+          tests/test_model_router.py tests/test_autonomy_contracts.py
+          tests/test_evolution_policy.py tests/test_secret_scan.py
+          tests/test_phase9_metrics.py tests/test_phase9_regression.py
+          tests/test_orchestrator.py tests/test_autofix.py tests/test_cloud_policy.py
+          tests/test_gpu_scheduler.py tests/test_observability.py
+      - name: Current tracked secrets
+        run: python tools/secret_scan.py
+      - name: Historical secret report
+        continue-on-error: true
+        run: python tools/secret_scan.py --history --report=history-secret-report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: history-secret-report
+          path: history-secret-report.txt

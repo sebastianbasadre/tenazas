@@ -258,8 +258,12 @@ class TestGetAgentsStatus(_TempFilesMixin, unittest.TestCase):
 
 class TestAgentRegistry(_TempFilesMixin, unittest.TestCase):
 
-    def test_three_agents_registered(self):
-        self.assertEqual(len(ba.AGENTS), 3)
+    def test_expected_agents_registered_once(self):
+        names = [agent["name"] for agent in ba.AGENTS]
+        self.assertEqual(set(names), {
+            "infra_watcher", "pattern_detector", "metrics_collector", "security_watcher"
+        })
+        self.assertEqual(len(names), len(set(names)))
 
     def test_all_have_function(self):
         for agent in ba.AGENTS:

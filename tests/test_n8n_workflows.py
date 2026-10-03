@@ -30,7 +30,7 @@ class TestN8nWorkflows(unittest.TestCase):
         workflow_dir = ROOT / "n8n" / "workflows"
         actual = {path.name for path in workflow_dir.glob("*.json")}
         self.assertEqual(actual, set(WORKFLOW_EXPECTATIONS))
-        self.assertEqual(set(job_runner.JOBS), {entry["job"] for entry in WORKFLOW_EXPECTATIONS.values()})
+        self.assertEqual(set(job_runner.JOBS), {entry["job"] for entry in WORKFLOW_EXPECTATIONS.values()} | {"worker_supervisor"})
 
     def test_workflows_target_expected_job_runner_endpoints(self):
         workflow_dir = ROOT / "n8n" / "workflows"
@@ -44,16 +44,17 @@ class TestN8nWorkflows(unittest.TestCase):
                 self.assertEqual(len(http_nodes), 1)
                 node = http_nodes[0]
                 self.assertIn(f"/run/{expected['job']}", node["parameters"]["url"])
-                self.assertIn("http://host.docker.internal:18891", node["parameters"]["url"])
+                self.assertIn("http://job-runner:18891", node["parameters"]["url"])
                 self.assertTrue(node["parameters"].get("sendHeaders"))
 
                 headers = node["parameters"]["headerParameters"]["parameters"]
-                token_header = next((h for h in headers if h.get("name") == "X-Tenazas-Job-Token"), None)
-                self.assertIsNotNone(token_header)
-                self.assertIn("TENAZAS_JOB_RUNNER_TOKEN", token_header["value"])
+                self.assertEqual(node["parameters"]["genericAuthType"], "httpHeaderAuth")
+                self.assertEqual(node["credentials"]["httpHeaderAuth"]["id"], "tenazas-job-runner-auth")
+                self.assertTrue(any(h["name"] == "Idempotency-Key" for h in headers))
+                self.assertNotIn("$env", json.dumps(node))
 
                 timeout = node["parameters"].get("options", {}).get("timeout")
-                self.assertEqual(timeout, expected["timeout_ms"])
+                self.assertEqual(timeout, expected["timeout_ms"] + 30000)
 
 
 if __name__ == "__main__":

@@ -25,19 +25,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/gpu_keepalive'}}",
+        "url": "http://job-runner:18891/run/gpu_keepalive",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-Tenazas-Job-Token",
-              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+              "name": "Idempotency-Key",
+              "value": "={{ \"n8n:\" + $workflow.id + \":\" + $execution.id }}"
             }
           ]
         },
         "options": {
-          "timeout": 90000
-        }
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "042b89cd-a847-42f1-93e0-97e2f0f68c15",
       "name": "Run GPU Keepalive",
@@ -46,7 +48,13 @@
       "position": [
         560,
         300
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tenazas-job-runner-auth",
+          "name": "Tenazas Job Runner"
+        }
+      }
     }
   ],
   "connections": {

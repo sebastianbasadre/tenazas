@@ -23,9 +23,9 @@ except ImportError:
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 
 RUNTIME = Path(__file__).parent
 PENDING_PATH = RUNTIME / "pending_approvals.json"

@@ -1,6 +1,27 @@
 groups:
   - name: tenazas_alerts
     rules:
+      - alert: TenazasSupervisorStale
+        expr: (time() - tenazas_service_supervisor_timestamp) > 90 or absent(tenazas_service_supervisor_timestamp)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Supervisor sin heartbeat"
+      - alert: TenazasRuntimeCycleStale
+        expr: (time() - tenazas_runtime_last_success_timestamp) > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agentes sin ciclo exitoso en 15 minutos"
+      - alert: TenazasInfraAgentStale
+        expr: (time() - tenazas_background_last_success_timestamp{agent="infra_watcher"}) > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agente de infraestructura sin ejecucion exitosa"
       - alert: TenazasNetworkScanStale
         expr: (time() - tenazas_network_last_scan_timestamp) > 900
         for: 5m

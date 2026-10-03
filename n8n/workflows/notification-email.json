@@ -25,19 +25,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/notification_email'}}",
+        "url": "http://job-runner:18891/run/notification_email",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-Tenazas-Job-Token",
-              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+              "name": "Idempotency-Key",
+              "value": "={{ \"n8n:\" + $workflow.id + \":\" + $execution.id }}"
             }
           ]
         },
         "options": {
-          "timeout": 180000
-        }
+          "timeout": 210000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "8035273f-cd6d-41ce-ad58-45b5440f1cbd",
       "name": "Run Email Poller",
@@ -46,7 +48,13 @@
       "position": [
         560,
         300
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tenazas-job-runner-auth",
+          "name": "Tenazas Job Runner"
+        }
+      }
     }
   ],
   "connections": {

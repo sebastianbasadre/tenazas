@@ -11,6 +11,7 @@ if str(RUNTIME_DIR) not in sys.path:
     sys.path.insert(0, str(RUNTIME_DIR))
 
 import job_runner
+from job_store import JobStore
 
 
 class JobRunnerTests(unittest.TestCase):
@@ -25,7 +26,8 @@ class JobRunnerTests(unittest.TestCase):
             original = job_runner.JOBS
             job_runner.JOBS = {"test_ok": job_runner.JobSpec(["python3", str(script)], 5)}
             try:
-                result = job_runner.run_job("test_ok")
+                with patch.object(job_runner, "STORE", JobStore(Path(tmp) / "jobs.sqlite")):
+                    result = job_runner.run_job("test_ok")
             finally:
                 job_runner.JOBS = original
 

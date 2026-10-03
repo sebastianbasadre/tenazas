@@ -52,7 +52,7 @@ GUARDRAIL_STATE = BASE_DIR / "guardrail_state.json"
 
 OLLAMA_URL = OLLAMA_GPU_URL
 CRITIC_MODEL = "deepseek-r1:14b"
-SYNTHESIZER_MODEL = "qwen2.5:32b"
+SYNTHESIZER_MODEL = "qwen3-fast:8b"
 
 # Limits
 MAX_DECISIONS = 50

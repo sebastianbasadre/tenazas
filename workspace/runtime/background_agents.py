@@ -18,6 +18,8 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from runtime_utils import now
+from process_lock import ProcessLock
+from runtime_utils import StateLock, write_atomic
 try:
     from .runtime_utils import load_json, save_json
 except ImportError:
@@ -159,7 +161,10 @@ def _load_agents_state() -> dict:
 
 
 def _save_agents_state(state: dict):
-    save_json(AGENTS_STATE_FILE, state)
+    with StateLock(AGENTS_STATE_FILE):
+        current = _load_agents_state()
+        current.update(state)
+        write_atomic(AGENTS_STATE_FILE, current)
 
 
 def _should_run(agent_name: str, interval_seconds: int,
@@ -176,6 +181,16 @@ def _should_run(agent_name: str, interval_seconds: int,
 
 
 def check_and_run() -> list:
+    lock = ProcessLock(AGENTS_STATE_FILE.with_suffix(".execution.lock"))
+    if not lock.acquire():
+        return []
+    try:
+        return _check_and_run_locked()
+    finally:
+        lock.release()
+
+
+def _check_and_run_locked() -> list:
     """Check all agents and run those that are due. Sequential execution.
 
     Returns list of results from agents that ran.
@@ -203,7 +218,9 @@ def check_and_run() -> list:
             "last_run": now().isoformat(),
             "ok": ok,
             "result_summary": str(result)[:200],
+            "last_success": now().isoformat() if ok else agents_state.get(name, {}).get("last_success", ""),
         }
+        _save_agents_state({name: agents_state[name]})
 
         results.append({
             "agent": name,
@@ -218,7 +235,6 @@ def check_and_run() -> list:
             "result_keys": list(result.keys()) if isinstance(result, dict) else [],
         })
 
-    _save_agents_state(agents_state)
     return results
 
 

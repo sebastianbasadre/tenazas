@@ -25,19 +25,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/autofix_agent'}}",
+        "url": "http://job-runner:18891/run/autofix_agent",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-Tenazas-Job-Token",
-              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+              "name": "Idempotency-Key",
+              "value": "={{ \"n8n:\" + $workflow.id + \":\" + $execution.id }}"
             }
           ]
         },
         "options": {
-          "timeout": 1200000
-        }
+          "timeout": 1230000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "38f0c6ad-7434-4e4e-bc5d-b9082b6b7a81",
       "name": "Run Autofix Agent",
@@ -46,7 +48,13 @@
       "position": [
         560,
         300
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tenazas-job-runner-auth",
+          "name": "Tenazas Job Runner"
+        }
+      }
     }
   ],
   "connections": {

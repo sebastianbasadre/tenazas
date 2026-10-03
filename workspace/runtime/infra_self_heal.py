@@ -16,9 +16,9 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 
 RUNTIME = Path(__file__).parent
 LOG_PATH = RUNTIME / "logs" / "self_heal.log"

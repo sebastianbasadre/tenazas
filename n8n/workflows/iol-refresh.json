@@ -25,19 +25,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/iol_refresh'}}",
+        "url": "http://job-runner:18891/run/iol_refresh",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-Tenazas-Job-Token",
-              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+              "name": "Idempotency-Key",
+              "value": "={{ \"n8n:\" + $workflow.id + \":\" + $execution.id }}"
             }
           ]
         },
         "options": {
-          "timeout": 120000
-        }
+          "timeout": 150000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "91937cd4-8077-4916-980b-8d8c4d7f73a4",
       "name": "Run IOL Refresh",
@@ -46,7 +48,13 @@
       "position": [
         560,
         300
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tenazas-job-runner-auth",
+          "name": "Tenazas Job Runner"
+        }
+      }
     }
   ],
   "connections": {

@@ -350,7 +350,7 @@ def tg_request(token: str, method: str, data: dict | None = None, timeout: int =
     if data:
         payload = json.dumps(data).encode()
         req = Request(url, data=payload,
-                      headers={"Content-Type": "application/json"})
+                      headers={"Content-Type": "application/json", "X-Tenazas-Priority": "interactive"})
     else:
         req = Request(url)
     try:
@@ -880,7 +880,7 @@ def _ollama_request(url: str, path: str, payload: bytes, retries: int = OLLAMA_M
     Returns parsed JSON dict or None on failure.
     """
     req = Request(f"{url}{path}", data=payload,
-                  headers={"Content-Type": "application/json"})
+                  headers={"Content-Type": "application/json", "X-Tenazas-Priority": "interactive"})
     last_error = None
     for attempt in range(1 + retries):
         try:

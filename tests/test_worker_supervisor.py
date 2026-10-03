@@ -43,6 +43,7 @@ class _TempSupervisorMixin:
         ws.STATE_FILE = self.tmpdir / "supervisor_state.json"
 
     def tearDown(self):
+        ws.release_lock()
         ws.LOCKFILE = self._orig["lock"]
         ws.LOG_FILE = self._orig["log"]
         ws.STATE_FILE = self._orig["state"]
@@ -56,8 +57,10 @@ class TestLockfile(_TempSupervisorMixin, unittest.TestCase):
         ws.release_lock()
 
     def test_concurrent_blocked(self):
-        Path(ws.LOCKFILE).touch()
+        contender = ws.ProcessLock(ws.LOCKFILE)
+        self.assertTrue(contender.acquire())
         self.assertFalse(ws.acquire_lock())
+        contender.release()
 
     def test_stale_removed(self):
         Path(ws.LOCKFILE).touch()
@@ -67,9 +70,10 @@ class TestLockfile(_TempSupervisorMixin, unittest.TestCase):
         ws.release_lock()
 
     def test_release_removes(self):
-        Path(ws.LOCKFILE).touch()
+        self.assertTrue(ws.acquire_lock())
         ws.release_lock()
-        self.assertFalse(os.path.exists(ws.LOCKFILE))
+        self.assertTrue(ws.acquire_lock())
+        ws.release_lock()
 
     def test_release_missing_ok(self):
         ws.release_lock()  # no error

@@ -1,5 +1,7 @@
 # Tenazas
 
+**Operacion 24/7:** [scheduler, modelos, n8n y recuperacion](docs/operacion-24x7.md).
+
 Asistente personal de Sebastian, corriendo sobre [OpenClaw](https://github.com/nicholasgasior/openclaw) dentro de un contenedor Docker en un NAS Synology DS923+.
 
 Tenazas monitorea infraestructura, controla dispositivos smart home, gestiona una media stack completa, y se comunica via Telegram — todo de forma autonoma y local-first.
@@ -145,7 +147,8 @@ Gemini 429 detectado
     → Si disponible, switch back automatico
 ```
 
-Docker healthcheck reinicia el container si el gateway no responde por 3 minutos.
+El supervisor reinicia servicios fallidos. El watchdog externo recupera contenedores
+unhealthy con cooldown y presupuesto; Docker healthcheck solo informa su estado.
 
 ---
 

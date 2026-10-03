@@ -25,6 +25,8 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from runtime_config import HOMELAB_IP, HOMELAB_USER
+from runtime_utils import now
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -235,6 +237,8 @@ def _generate_train_script() -> str:
 """Auto-generated fine-tune script for HomeLab RTX 3090."""
 import json
 from pathlib import Path
+from runtime_config import HOMELAB_IP, HOMELAB_USER
+from runtime_utils import now
 
 try:
     from unsloth import FastLanguageModel

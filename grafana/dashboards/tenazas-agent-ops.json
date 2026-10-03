@@ -1396,6 +1396,116 @@
       ],
       "title": "OpenRouter Balance",
       "type": "stat"
+    },
+    {
+      "id": 200,
+      "type": "timeseries",
+      "title": "Consultas por agente",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "tenazas_agent_queries_total",
+          "refId": "A",
+          "legendFormat": "{{agent}}{{service}}{{strategy}}"
+        }
+      ]
+    },
+    {
+      "id": 201,
+      "type": "timeseries",
+      "title": "Rutas del coordinador",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 35,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "tenazas_coordinator_routes_total",
+          "refId": "A",
+          "legendFormat": "{{agent}}{{service}}{{strategy}}"
+        }
+      ]
+    },
+    {
+      "id": 202,
+      "type": "timeseries",
+      "title": "Servicios supervisados",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "tenazas_service_up",
+          "refId": "A",
+          "legendFormat": "{{agent}}{{service}}{{strategy}}"
+        }
+      ]
+    },
+    {
+      "id": 203,
+      "type": "timeseries",
+      "title": "Ultimo exito agentes de fondo",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 43,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "time() - tenazas_background_last_success_timestamp",
+          "refId": "A",
+          "legendFormat": "{{agent}}{{service}}{{strategy}}"
+        }
+      ]
+    },
+    {
+      "id": 204,
+      "type": "timeseries",
+      "title": "Reinicios de servicios",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afhjgavdgav40d"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "tenazas_service_restarts_total",
+          "refId": "A",
+          "legendFormat": "{{agent}}{{service}}{{strategy}}"
+        }
+      ]
     }
   ],
   "refresh": "30s",

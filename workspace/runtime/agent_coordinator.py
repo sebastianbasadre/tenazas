@@ -12,7 +12,8 @@ Usage:
 import json
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout, as_completed
+from bounded_processes import bounded_calls
+from runtime_utils import StateLock, load_json, write_atomic
 from pathlib import Path
 
 from agent_metrics import record_agent_result, record_route_result
@@ -68,19 +69,14 @@ def _log(e):
 
 
 def _save_coord_log(entry: dict):
-    COORD_LOG.parent.mkdir(parents=True, exist_ok=True)
     try:
-        existing = []
-        if COORD_LOG.exists():
-            existing = json.loads(COORD_LOG.read_text())
+        with StateLock(COORD_LOG):
+            existing = load_json(COORD_LOG, [])
             if not isinstance(existing, list):
                 existing = []
-        existing.append(entry)
-        existing = existing[-200:]
-        with open(COORD_LOG, "w") as f:
-            json.dump(existing, f, indent=2, default=str)
-    except Exception:
-        pass
+            write_atomic(COORD_LOG, (existing + [entry])[-200:])
+    except OSError as exc:
+        _log({"action": "coordinator_log_error", "error": str(exc)[:100]})
 
 
 def _load_agent(name: str):
@@ -96,99 +92,38 @@ def _load_agent(name: str):
 # ── Core Routing ─────────────────────────────────────────────────
 
 
-def _get_claimants(query: str) -> list:
-    """Run all owns() calls in parallel."""
-    claimants = []
-    agents = {name: _load_agent(name) for name in AGENT_MODULES}
-    loaded = {name: mod for name, mod in agents.items() if mod is not None and hasattr(mod, "owns")}
-    if not loaded:
-        return claimants
+def _call_agent(name, method, query, correlation_id=None):
+    agent = _load_agent(name)
+    if agent is None or not hasattr(agent, method):
+        return False if method == "owns" else None
+    if method == "owns":
+        return agent.owns(query)
+    return agent.handle(query, correlation_id=correlation_id)
 
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        futures = {pool.submit(mod.owns, query): name for name, mod in loaded.items()}
-        try:
-            for future in as_completed(futures, timeout=2):
-                name = futures[future]
-                try:
-                    if future.result():
-                        claimants.append(name)
-                except Exception:
-                    pass
-        except FutureTimeout:
-            pass
-    return claimants
+
+def _get_claimants(query: str) -> list:
+    calls = {name: (_call_agent, (name, "owns", query)) for name in AGENT_MODULES}
+    results = bounded_calls(calls, timeout=2, max_workers=5)
+    return [name for name, result in results.items() if result.get("ok") and result.get("value")]
 
 
 def _run_single(name: str, query: str, correlation_id: str) -> dict:
-    """Direct call to one agent. No threading overhead."""
-    started = time.perf_counter()
-    try:
-        agent = _load_agent(name)
-        if agent is None or not hasattr(agent, "handle"):
-            return {}
-        obs, recs = agent.handle(query, correlation_id=correlation_id)
-        record_agent_result(name, time.perf_counter() - started, "ok")
-        return {name: (obs, recs)}
-    except Exception as e:
-        record_agent_result(name, time.perf_counter() - started, "error")
-        _log(
-            {
-                "action": "agent_error",
-                "agent": name,
-                "error": str(e)[:100],
-                "correlation_id": correlation_id,
-            }
-        )
-        return {}
+    return _run_parallel([name], query, correlation_id)
 
 
 def _run_parallel(claimants: list, query: str, correlation_id: str) -> dict:
-    """Call handle() on all claimants in parallel."""
+    calls = {name: (_call_agent, (name, "handle", query, correlation_id)) for name in claimants}
+    started = time.perf_counter()
+    outcomes = bounded_calls(calls, timeout=30, max_workers=5)
     results = {}
-    loaded = {name: _load_agent(name) for name in claimants}
-    callable_agents = {name: mod for name, mod in loaded.items() if mod is not None and hasattr(mod, "handle")}
-    if not callable_agents:
-        return results
-
-    with ThreadPoolExecutor(max_workers=len(callable_agents)) as pool:
-        futures = {
-            pool.submit(mod.handle, query, correlation_id=correlation_id): name
-            for name, mod in callable_agents.items()
-        }
-        started = {future: time.perf_counter() for future in futures}
-        try:
-            for future in as_completed(futures, timeout=31):
-                name = futures[future]
-                try:
-                    obs, recs = future.result(timeout=30)
-                    record_agent_result(name, time.perf_counter() - started[future], "ok")
-                    results[name] = (obs, recs)
-                except FutureTimeout:
-                    record_agent_result(name, time.perf_counter() - started[future], "timeout")
-                    _log({"action": "agent_timeout", "agent": name, "correlation_id": correlation_id})
-                except Exception as e:
-                    record_agent_result(name, time.perf_counter() - started[future], "error")
-                    _log(
-                        {
-                            "action": "agent_error",
-                            "agent": name,
-                            "error": str(e)[:100],
-                            "correlation_id": correlation_id,
-                        }
-                    )
-        except FutureTimeout:
-            for future, name in futures.items():
-                if future.done():
-                    continue
-                record_agent_result(name, time.perf_counter() - started[future], "timeout")
-                _log({"action": "agent_timeout", "agent": name, "correlation_id": correlation_id})
-            _log(
-                {
-                    "action": "parallel_timeout",
-                    "correlation_id": correlation_id,
-                    "partial_results": list(results.keys()),
-                }
-            )
+    for name, outcome in outcomes.items():
+        status = "ok" if outcome.get("ok") else "timeout" if outcome.get("timeout") else "error"
+        record_agent_result(name, time.perf_counter() - started, status)
+        if outcome.get("ok") and outcome.get("value") is not None:
+            results[name] = outcome["value"]
+        elif not outcome.get("ok"):
+            _log({"action": "agent_" + status, "agent": name,
+                  "error": outcome.get("error"), "correlation_id": correlation_id})
     return results
 
 

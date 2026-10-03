@@ -19,11 +19,11 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, List
 from urllib.parse import urlparse
 
+from job_store import JobStore
 
-LOG_PATH = Path("/home/tenazas/runtime/logs/job_runner.log")
+LOG_PATH = Path(os.getenv("TENAZAS_JOB_RUNNER_LOG", str(Path(__file__).parent / "logs/job_runner.log")))
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
@@ -36,16 +36,22 @@ log = logging.getLogger("job_runner")
 HOST = os.getenv("TENAZAS_JOB_RUNNER_HOST", "127.0.0.1")
 PORT = int(os.getenv("TENAZAS_JOB_RUNNER_PORT", "18891"))
 TOKEN = os.getenv("TENAZAS_JOB_RUNNER_TOKEN", "")
+EXEC_CONTAINER = os.getenv("TENAZAS_JOB_EXEC_CONTAINER", "")
+STORE = JobStore(os.getenv("TENAZAS_JOB_STORE", "/home/tenazas/job-state/jobs.sqlite"))
 INSECURE_DEFAULT_TOKENS = {"", "tenazas-local-job-runner", "change-me", "replace-me"}
 
 
 @dataclass(frozen=True)
 class JobSpec:
-    command: List[str]
+    command: list[str]
     timeout: int
 
 
-JOBS: Dict[str, JobSpec] = {
+JOBS: dict[str, JobSpec] = {
+    "worker_supervisor": JobSpec(
+        ["python3", "/home/tenazas/runtime/worker_supervisor.py"],
+        240,
+    ),
     "health_sweep": JobSpec(
         ["python3", "/home/tenazas/runtime/health_sweep.py"],
         240,
@@ -89,7 +95,21 @@ def _json_bytes(payload: dict) -> bytes:
     return json.dumps(payload, ensure_ascii=True).encode("utf-8")
 
 
-def run_job(job_name: str) -> dict:
+def run_job(job_name: str, idempotency_key=None) -> dict:
+    spec = JOBS[job_name]
+    key = idempotency_key or str(uuid.uuid4())
+    existing = STORE.claim(job_name, key, spec.timeout)
+    if existing is not None:
+        return existing
+    try:
+        result = _execute_job(job_name)
+    except Exception as exc:
+        result = {"ok": False, "job": job_name, "error": str(exc)[:300], "exit_code": 1}
+    STORE.finish(key, result)
+    return result
+
+
+def _execute_job(job_name: str) -> dict:
     spec = JOBS.get(job_name)
     if spec is None:
         raise KeyError(job_name)
@@ -97,10 +117,21 @@ def run_job(job_name: str) -> dict:
     started = time.time()
     try:
         proc = subprocess.run(
-            spec.command,
+            (
+                [
+                    "docker",
+                    "exec",
+                    EXEC_CONTAINER,
+                    "python3",
+                    "/home/tenazas/runtime/job_entrypoint.py",
+                    job_name,
+                ]
+                if EXEC_CONTAINER
+                else spec.command
+            ),
             capture_output=True,
             text=True,
-            timeout=spec.timeout,
+            timeout=spec.timeout + 15 if EXEC_CONTAINER else spec.timeout,
             check=False,
         )
         elapsed_ms = int((time.time() - started) * 1000)
@@ -118,8 +149,9 @@ def run_job(job_name: str) -> dict:
         return result
     except subprocess.TimeoutExpired as exc:
         elapsed_ms = int((time.time() - started) * 1000)
-        stdout = (exc.stdout or "")[-4000:]
-        stderr = (exc.stderr or "")[-4000:]
+        stdout = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else exc.stdout or ""
+        stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr or ""
+        stdout, stderr = stdout[-4000:], stderr[-4000:]
         log.warning("job=%s timed_out elapsed_ms=%s timeout=%s", job_name, elapsed_ms, spec.timeout)
         return {
             "ok": False,
@@ -170,6 +202,10 @@ class Handler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if parsed.path == "/status":
+            if self._authorized():
+                self._send(HTTPStatus.OK, STORE.summary())
+            return
         self._send(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
 
     def do_POST(self) -> None:
@@ -182,14 +218,28 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         job_name = parsed.path.rsplit("/", 1)[-1]
-        log.info("request_id=%s job=%s remote=%s", self.request_id, job_name, self.client_address[0])
+        log.info(
+            "request_id=%s job=%s remote=%s", self.request_id, job_name, self.client_address[0]
+        )
         try:
-            result = run_job(job_name)
+            key = self.headers.get("Idempotency-Key")
+            if key is not None and (not key or len(key) > 200):
+                self._send(
+                    HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid idempotency key"}
+                )
+                return
+            result = run_job(job_name, key) if key else run_job(job_name)
         except KeyError:
             self._send(HTTPStatus.NOT_FOUND, {"ok": False, "error": f"unknown_job:{job_name}"})
             return
 
-        status = HTTPStatus.OK if result["ok"] else HTTPStatus.BAD_GATEWAY
+        status = (
+            HTTPStatus.CONFLICT
+            if result.get("conflict")
+            else HTTPStatus.OK
+            if result["ok"]
+            else HTTPStatus.BAD_GATEWAY
+        )
         self._send(status, result)
 
     def log_message(self, fmt: str, *args) -> None:

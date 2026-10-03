@@ -63,6 +63,8 @@ def check_ollama(model: str | None = None) -> dict:
 
 def check_openrouter() -> dict:
     """Check whether OpenRouter/Kimi cloud fallback is configured."""
+    if os.environ.get("TENAZAS_ALLOW_CLOUD", "true").lower() != "true":
+        return {"available": False, "backend": "openrouter", "reason": "cloud disabled"}
     llm_cfg = _load_llm_config()
     fallback_model = llm_cfg.get("aider_fallback_model", _DEFAULT_FALLBACK)
     if fallback_model.startswith("openrouter/") and os.environ.get("OPENROUTER_API_KEY"):
@@ -75,6 +77,8 @@ def check_openrouter() -> dict:
 
 def check_gemini() -> dict:
     """Check legacy Gemini fallback from cached state or env."""
+    if os.environ.get("TENAZAS_ALLOW_CLOUD", "true").lower() != "true":
+        return {"available": False, "backend": "gemini", "reason": "cloud disabled"}
     llm_cfg = _load_llm_config()
     fallback_model = llm_cfg.get("gemini_fallback_model", "gemini/gemini-2.5-flash")
 

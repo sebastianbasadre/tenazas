@@ -84,11 +84,13 @@ def _log(entry: dict):
         f.write(json.dumps(entry, default=str) + "\n")
 
 def _is_openrouter_available() -> bool:
-    return bool(os.environ.get("OPENROUTER_API_KEY", ""))
+    return (os.environ.get("TENAZAS_ALLOW_CLOUD", "true").lower() == "true"
+            and bool(os.environ.get("OPENROUTER_API_KEY", "")))
 
 
 def _is_gemini_available() -> bool:
-    return bool(os.environ.get("GOOGLE_API_KEY", ""))
+    return (os.environ.get("TENAZAS_ALLOW_CLOUD", "true").lower() == "true"
+            and bool(os.environ.get("GOOGLE_API_KEY", "")))
 
 _PARAMS = {"chat": {"temperature": 0.7, "max_tokens": 512},
            "knowledge_query": {"temperature": 0.3, "max_tokens": 1024},

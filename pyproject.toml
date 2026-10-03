@@ -4,29 +4,29 @@ version = "0.1.0"
 description = "Tenazas/OpenClaw runtime, automation, and observability layer."
 requires-python = ">=3.11"
 dependencies = [
-  "google-api-python-client",
-  "google-auth",
-  "google-auth-oauthlib",
-  "more-itertools",
-  "numba",
-  "openai-whisper",
-  "prometheus-client",
-  "pychromecast",
-  "pycryptodome",
-  "python-miio",
-  "requests",
-  "pypdf",
-  "reportlab",
-  "tiktoken",
-  "tqdm",
-  "tplinkrouterc6u",
-  "websocket-client",
+  "google-api-python-client==2.196.0",
+  "google-auth==2.53.0",
+  "google-auth-oauthlib==1.4.0",
+  "more-itertools==11.0.2",
+  "numba==0.65.1",
+  "openai-whisper==20250625",
+  "prometheus-client==0.25.0",
+  "pychromecast==14.0.10",
+  "pycryptodome==3.23.0",
+  "python-miio==0.5.12",
+  "requests==2.34.2",
+  "pypdf==6.14.2",
+  "reportlab==5.0.0",
+  "tiktoken==0.13.0",
+  "tqdm==4.67.3",
+  "tplinkrouterc6u==5.20.1",
+  "websocket-client==1.9.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest",
-  "ruff",
+  "pytest==9.1.1",
+  "ruff==0.16.10",
 ]
 training = [
   "torch",

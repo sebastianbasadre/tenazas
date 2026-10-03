@@ -64,6 +64,18 @@ BACKENDS = {
 # Ollama handles partial CPU offloading for models exceeding GPU VRAM.
 
 MODEL_CATALOG = {
+    "deepseek-r1:14b": {
+        "params": "14B", "vram_gb": 10, "use": "deep_reasoning",
+        "capabilities": ["reasoning", "analysis", "complex"], "role": "heavy",
+    },
+    "qwen2.5-coder:14b": {
+        "params": "14B", "vram_gb": 10, "use": "code",
+        "capabilities": ["code", "refactoring", "code_review"], "role": "code",
+    },
+    "qwen2.5vl:7b": {
+        "params": "7B", "vram_gb": 6, "use": "vision",
+        "capabilities": ["vision", "multimodal", "image_analysis"], "role": "vision",
+    },
     # ── Preferred small local models ──
     "qwen3-fast:4b": {
         "params": "4B", "vram_gb": 2.5, "use": "general_small",
@@ -136,9 +148,9 @@ TASK_REQUIREMENTS = {
 ROLE_MAP = {
     "fast":   ["qwen3-fast:8b", "qwen2.5:7b", "qwen3-fast:4b"],
     "reason": ["qwen3-fast:8b", "qwen3-fast:4b", "qwen2.5:7b"],
-    "heavy":  ["qwen3-fast:8b", "qwen3-fast:4b", "qwen2.5:7b"],
-    "code":   ["qwen2.5-coder:7b", "qwen3-fast:8b", "qwen2.5:7b"],
-    "vision": ["qwen3-vl:4b", "qwen3-fast:8b", "qwen2.5:7b"],
+    "heavy":  ["deepseek-r1:14b", "qwen3-fast:8b", "qwen3-fast:4b"],
+    "code":   ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "qwen3-fast:8b"],
+    "vision": ["qwen2.5vl:7b", "qwen3-vl:4b"],
     "embed":  ["nomic-embed-text"],
     "cloud":  ["moonshotai/kimi-k2", "google/gemini-flash-1.5"],
 }
@@ -148,7 +160,7 @@ DEFAULT_ROLE = "fast"
 
 # Models that are expensive to load/run (large parameter count, high VRAM usage)
 # On RTX 3090 (24GB) all fit in VRAM, but 32b still takes significant load time
-HEAVY_MODELS = {"qwen3-fast:8b", "qwen2.5-coder:7b"}
+HEAVY_MODELS = {"deepseek-r1:14b", "qwen2.5-coder:14b"}
 
 # ── V2: Guardrails ─────────────────────────────────────────────
 # Prevents overuse of heavy models when the system is under load.
@@ -482,7 +494,7 @@ def _ping_backend(backend_id: str) -> bool:
     if backend_id == "openrouter":
         import os
         api_key = os.environ.get("OPENROUTER_API_KEY", "")
-        return bool(api_key)
+        return os.environ.get("TENAZAS_ALLOW_CLOUD", "true").lower() == "true" and bool(api_key)
 
     try:
         result = subprocess.run(
@@ -765,11 +777,9 @@ def route_by_role(
 
     # For CPU backend, filter to small models only
     if best_info["type"] == "cpu":
-        cpu_candidates = [m for m in chain
-                          if MODEL_CATALOG.get(m, {}).get("vram_gb", 99) <= 3.5]
-        if not cpu_candidates:
-            cpu_candidates = ["phi4-mini"]
-        chain = cpu_candidates
+        if role == "vision":
+            return {}  # A text-only CPU model cannot inspect images.
+        chain = ["nomic-embed-text"] if role == "embed" else ["qwen2.5:3b", "phi4-mini"]
 
     if available_models:
         installed_chain = [m for m in chain if _normalize_model_name(m) in available_models]
@@ -831,6 +841,8 @@ def route_by_role(
 def call_openrouter(prompt: str, model: str = "moonshotai/kimi-k2", max_tokens: int = 1000) -> str:
     """Call OpenRouter API. Returns response text or raises on error."""
     import os, urllib.request, json
+    if os.environ.get("TENAZAS_ALLOW_CLOUD", "true").lower() != "true":
+        raise RuntimeError("Cloud inference disabled by local automation policy")
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")

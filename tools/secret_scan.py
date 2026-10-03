@@ -11,10 +11,11 @@ from pathlib import Path
 
 
 PATTERNS = [
-    re.compile(r"bot[0-9]{8,}:[A-Za-z0-9_-]{30,}"),
+    re.compile(r"(?:bot)?[0-9]{8,}:[A-Za-z0-9_-]{30,}"),
     re.compile(r"AIza[0-9A-Za-z_-]{30,}"),
     re.compile(r"sk-or-v1-[0-9A-Za-z_-]{20,}"),
     re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----"),
+    re.compile(r'"encryptionKey"\s*:\s*"[A-Za-z0-9+/=_-]{20,}"'),
 ]
 ASSIGNMENT_PATTERN = re.compile(
     r"(?i)(api[_-]?key|secret|password|refresh[_-]?token)\s*[:=]\s*['\"]([^'\"]{12,})['\"]"
@@ -81,8 +82,15 @@ def _looks_like_env_reference(value: str) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--all", action="store_true", help="scan tracked files; default behavior")
+    parser.add_argument("--history", action="store_true", help="scan historical added lines")
+    parser.add_argument("--report", type=Path, help="write findings without secret values")
     args = parser.parse_args()
-    _ = args
+    if args.history:
+        findings = scan_history()
+        if args.report:
+            args.report.write_text("\n".join(findings) + "\n", encoding="utf-8")
+        print(f"Historical secret candidates: {len(findings)} (values omitted)")
+        return 1 if findings else 0
 
     findings: list[str] = []
     for path in tracked_files():
@@ -94,6 +102,34 @@ def main() -> int:
         return 1
     print("No tracked-file secrets matched scanner patterns.")
     return 0
+
+
+def scan_history():
+    process = subprocess.Popen(
+        ["git", "log", "--all", "--format=COMMIT:%h", "-p", "--no-ext-diff", "--no-renames"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+    )
+    findings = []
+    commit, path = "", ""
+    for line in process.stdout:
+        if line.startswith("COMMIT:"):
+            commit = line.strip().split(":", 1)[1]
+        elif line.startswith("+++ b/"):
+            path = line.strip()[6:]
+        elif line.startswith("+") and not line.startswith("+++"):
+            if path in ALLOWLIST_PATH_PARTS or path.startswith("tests/"):
+                continue
+            match = ASSIGNMENT_PATTERN.search(line)
+            if any(pattern.search(line) for pattern in PATTERNS) or (
+                match and not _looks_like_env_reference(match.group(2))
+            ):
+                findings.append(f"{commit}:{path}: possible historical secret")
+    process.stdout.close()
+    error = process.stderr.read()
+    process.stderr.close()
+    if process.wait() != 0:
+        raise SystemExit(error or "git history scan failed")
+    return sorted(set(findings))
 
 
 if __name__ == "__main__":

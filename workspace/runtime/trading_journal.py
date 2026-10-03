@@ -17,9 +17,9 @@ from urllib.request import Request, urlopen
 from runtime_utils import now
 
 try:
-    from .runtime_config import get_default_telegram_chat_id
+    from .runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id
+    from runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"

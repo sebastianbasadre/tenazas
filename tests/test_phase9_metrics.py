@@ -50,9 +50,9 @@ class TestPhase9Metrics(unittest.TestCase):
 
     def test_coordinator_single_success_records_metrics(self):
         import agent_coordinator as ac
-        with patch.object(ac, "_load_agent") as mock_load:
-            mock_agent = type("A", (), {"handle": staticmethod(lambda _q, correlation_id=None: (type("O", (), {"summary": "ok"})(), []))})
-            mock_load.return_value = mock_agent
+        with patch.object(ac, "bounded_calls", return_value={
+            "infra": {"ok": True, "value": (type("O", (), {"summary": "ok"})(), [])}
+        }):
             with patch.object(ac, "record_agent_result") as mock_record:
                 result = ac._run_single("infra", "query", "abc12345")
         self.assertIn("infra", result)
@@ -87,6 +87,6 @@ class TestPhase9Metrics(unittest.TestCase):
         self.assertEqual(ms.G_COORD_FALLBACKS.labels(source="llm_needed")._value.get(), 1)
 
     def test_dashboard_contains_phase9_metric_names(self):
-        dashboard = Path("grafana-tenazas-agent.json").read_text(encoding="utf-8")
+        dashboard = (Path(__file__).resolve().parents[1] / "grafana/dashboards/tenazas-agent-ops.json").read_text(encoding="utf-8")
         self.assertIn("tenazas_agent_queries_total", dashboard)
         self.assertIn("tenazas_coordinator_routes_total", dashboard)

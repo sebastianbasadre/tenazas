@@ -12,6 +12,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from process_lock import ProcessLock
 from unittest.mock import patch
 
 RUNTIME = Path(__file__).resolve().parents[1] / "workspace" / "runtime"
@@ -35,6 +36,7 @@ class _TempSchedulerMixin:
         gs.BASE_DIR = self.tmpdir
 
     def tearDown(self):
+        gs.release_lock()
         gs.LOCKFILE = self._orig["lock"]
         gs.LOG_FILE = self._orig["log"]
         gs.BASE_DIR = self._orig["base"]
@@ -48,8 +50,10 @@ class TestLockfile(_TempSchedulerMixin, unittest.TestCase):
         gs.release_lock()
 
     def test_concurrent_blocked(self):
-        Path(gs.LOCKFILE).touch()
+        contender = ProcessLock(gs.LOCKFILE)
+        self.assertTrue(contender.acquire())
         self.assertFalse(gs.acquire_lock())
+        contender.release()
 
     def test_stale_removed(self):
         Path(gs.LOCKFILE).touch()
@@ -61,7 +65,9 @@ class TestLockfile(_TempSchedulerMixin, unittest.TestCase):
     def test_release_removes(self):
         Path(gs.LOCKFILE).touch()
         gs.release_lock()
-        self.assertFalse(os.path.exists(gs.LOCKFILE))
+        contender = ProcessLock(gs.LOCKFILE)
+        self.assertTrue(contender.acquire())
+        contender.release()
 
 
 class TestMainFlow(_TempSchedulerMixin, unittest.TestCase):
@@ -71,21 +77,27 @@ class TestMainFlow(_TempSchedulerMixin, unittest.TestCase):
         with patch.object(sys, "argv", ["gpu_scheduler.py", "--optimize"]):
             gs.main()
         mock_optimize.assert_called_once()
-        self.assertFalse(os.path.exists(gs.LOCKFILE))
+        contender = ProcessLock(gs.LOCKFILE)
+        self.assertTrue(contender.acquire())
+        contender.release()
 
     @patch("gpu_scheduler.run_keepalive")
     def test_keepalive_acquires_and_releases(self, mock_keepalive):
         with patch.object(sys, "argv", ["gpu_scheduler.py", "--keepalive"]):
             gs.main()
         mock_keepalive.assert_called_once()
-        self.assertFalse(os.path.exists(gs.LOCKFILE))
+        contender = ProcessLock(gs.LOCKFILE)
+        self.assertTrue(contender.acquire())
+        contender.release()
 
     @patch("gpu_scheduler.run_keepalive")
     def test_keepalive_skips_if_locked(self, mock_keepalive):
-        Path(gs.LOCKFILE).touch()
+        contender = ProcessLock(gs.LOCKFILE)
+        self.assertTrue(contender.acquire())
         with patch.object(sys, "argv", ["gpu_scheduler.py", "--keepalive"]):
             gs.main()
         mock_keepalive.assert_not_called()
+        contender.release()
 
     @patch("gpu_scheduler.run_keepalive")
     def test_keepalive_releases_lock_on_error(self, mock_keepalive):
@@ -93,14 +105,18 @@ class TestMainFlow(_TempSchedulerMixin, unittest.TestCase):
         with patch.object(sys, "argv", ["gpu_scheduler.py", "--keepalive"]):
             with self.assertRaises(RuntimeError):
                 gs.main()
-        self.assertFalse(os.path.exists(gs.LOCKFILE))
+        contender = ProcessLock(gs.LOCKFILE)
+        self.assertTrue(contender.acquire())
+        contender.release()
 
     @patch("gpu_scheduler.print_status")
     def test_status_does_not_lock(self, mock_status):
         with patch.object(sys, "argv", ["gpu_scheduler.py", "--status"]):
             gs.main()
         mock_status.assert_called_once()
-        self.assertFalse(os.path.exists(gs.LOCKFILE))
+        contender = ProcessLock(gs.LOCKFILE)
+        self.assertTrue(contender.acquire())
+        contender.release()
 
 
 if __name__ == "__main__":

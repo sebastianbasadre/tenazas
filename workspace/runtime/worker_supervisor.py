@@ -27,9 +27,15 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from process_lock import ProcessLock
+from runtime_utils import StateLock, load_json, write_atomic
+
 BASE_DIR = Path(__file__).parent
 LOCKFILE = "/tmp/tenazas_worker_supervisor.lock"
 STALE_LOCK_SECONDS = 600  # 10 minutes
+_process_lock = None
 LOG_FILE = BASE_DIR / "logs" / "worker_supervisor.log"
 STATE_FILE = BASE_DIR / "supervisor_state.json"
 WORKERS_DIR = BASE_DIR / "workers"
@@ -52,20 +58,22 @@ def log(msg: str):
 
 
 def acquire_lock() -> bool:
-    if os.path.exists(LOCKFILE):
-        age = time.time() - os.path.getmtime(LOCKFILE)
-        if age < STALE_LOCK_SECONDS:
-            log(f"locked (age={int(age)}s), skipping")
-            return False
-        log(f"stale lock (age={int(age)}s), removing")
-        os.remove(LOCKFILE)
-    Path(LOCKFILE).touch()
+    global _process_lock
+    if _process_lock is not None:
+        return False
+    candidate = ProcessLock(LOCKFILE)
+    if not candidate.acquire():
+        log("supervisor already running, skipping")
+        return False
+    _process_lock = candidate
     return True
 
 
 def release_lock():
-    if os.path.exists(LOCKFILE):
-        os.remove(LOCKFILE)
+    global _process_lock
+    if _process_lock is not None:
+        _process_lock.release()
+        _process_lock = None
 
 
 def run_worker(name: str, script: str, timeout: int) -> dict:
@@ -83,7 +91,7 @@ def run_worker(name: str, script: str, timeout: int) -> dict:
 
     try:
         proc = subprocess.Popen(
-            ["python3", str(script_path)],
+            [sys.executable, str(script_path)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=str(BASE_DIR),
@@ -143,8 +151,10 @@ def update_metrics(results: list):
         state["workers"] = workers
 
         metrics_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(metrics_file, "w") as f:
-            json.dump(state, f)
+        with StateLock(metrics_file):
+            current = load_json(metrics_file, {})
+            current.setdefault("workers", {}).update(workers)
+            write_atomic(metrics_file, current)
     except Exception as e:
         log(f"metrics update error: {e}")
 
@@ -152,17 +162,24 @@ def update_metrics(results: list):
 def save_state(results: list, total_elapsed: float):
     """Save supervisor run state for status queries."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(STATE_FILE, "w") as f:
-        json.dump({
+    write_atomic(STATE_FILE, {
             "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "total_elapsed": total_elapsed,
+            "completed_ts": time.time(),
             "workers": results,
-        }, f, indent=2)
+        })
 
 
 def run_all():
     """Execute all workers sequentially with isolation."""
     if not acquire_lock():
+        return
+
+    previous = load_json(STATE_FILE, {})
+    minimum_interval = int(os.getenv("TENAZAS_SUPERVISOR_MIN_INTERVAL", "300"))
+    if "--force" not in sys.argv and time.time() - previous.get("started_ts", 0) < minimum_interval:
+        release_lock()
+        log("runtime already executed in this scheduling interval, skipping")
         return
 
     total_start = time.time()
@@ -189,6 +206,11 @@ def run_all():
 
             result = run_worker(name, script, timeout)
             results.append(result)
+            try:
+                from runtime.worker_heartbeat import complete
+                complete(name)
+            except ImportError:
+                pass
 
             # Check for freeze after each worker
             try:
@@ -199,16 +221,23 @@ def run_all():
                         log(f"FREEZE: {f['worker']} stuck at {f['last_step']} for {f['since_seconds']}s")
             except Exception:
                 pass
+        total_elapsed = round(time.time() - total_start, 2)
+        update_metrics(results)
+        save_state(results, total_elapsed)
+        state = load_json(STATE_FILE, {})
+        state["started_ts"] = total_start
+        if all(result["ok"] for result in results):
+            state["last_success_ts"] = time.time()
+        else:
+            state["last_success_ts"] = previous.get("last_success_ts", 0)
+        write_atomic(STATE_FILE, state)
     finally:
         release_lock()
-
-    total_elapsed = round(time.time() - total_start, 2)
-    update_metrics(results)
-    save_state(results, total_elapsed)
 
     ok_count = sum(1 for r in results if r["ok"])
     fail_count = len(results) - ok_count
     log(f"supervisor done: {ok_count} ok, {fail_count} failed, {total_elapsed}s total")
+    return results
 
 
 def show_status():
@@ -225,7 +254,9 @@ def main():
     if "--status" in sys.argv:
         show_status()
     else:
-        run_all()
+        results = run_all()
+        if results is not None and any(not result["ok"] for result in results):
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":

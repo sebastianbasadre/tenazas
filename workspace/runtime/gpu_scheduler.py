@@ -22,6 +22,7 @@ import json
 import os
 import time
 from pathlib import Path
+from process_lock import ProcessLock
 from urllib.request import Request, urlopen
 
 try:
@@ -34,11 +35,14 @@ TOTAL_VRAM = 24 * 1024**3  # 24GB in bytes
 MIN_FREE_VRAM = 2 * 1024**3  # 2GB minimum free
 BASE_DIR = Path(__file__).parent
 LOCKFILE = "/tmp/tenazas_gpu_keepalive.lock"
-STALE_LOCK_SECONDS = 600  # 10 minutes
+STALE_LOCK_SECONDS = 600  # Compatibility constant; OS releases locks on process exit.
+_process_lock = None
 LOG_FILE = BASE_DIR / "logs" / "gpu_scheduler.log"
 
 # Priority order: higher = more important to keep in VRAM
 PRIORITY = {
+    "qwen3-fast:8b": 110,
+    "qwen3-fast:4b": 80,
     "qwen3:8b": 100,         # current default chat/reasoning model
     "qwen3:4b": 90,          # preferred small default once installed
     "qwen2.5-coder:7b": 70,  # smaller dedicated code model
@@ -47,10 +51,10 @@ PRIORITY = {
 }
 
 # Models that should always be in VRAM
-ALWAYS_LOADED = ["qwen3:8b"]
+ALWAYS_LOADED = ["qwen3-fast:8b"]
 
 # Models to keepalive. qwen3:4b is optional until it is actually installed.
-KEEPALIVE_MODELS = ["qwen3:4b", "qwen3:8b"]
+KEEPALIVE_MODELS = ["qwen3-fast:8b"]
 
 
 def log(msg: str):
@@ -61,20 +65,21 @@ def log(msg: str):
 
 
 def acquire_lock() -> bool:
-    if os.path.exists(LOCKFILE):
-        age = time.time() - os.path.getmtime(LOCKFILE)
-        if age < STALE_LOCK_SECONDS:
-            log(f"locked (age={int(age)}s), skipping")
-            return False
-        log(f"stale lock (age={int(age)}s), removing")
-        os.remove(LOCKFILE)
-    Path(LOCKFILE).touch()
+    global _process_lock
+    if _process_lock is not None:
+        return False
+    candidate = ProcessLock(LOCKFILE)
+    if not candidate.acquire():
+        return False
+    _process_lock = candidate
     return True
 
 
 def release_lock():
-    if os.path.exists(LOCKFILE):
-        os.remove(LOCKFILE)
+    global _process_lock
+    if _process_lock is not None:
+        _process_lock.release()
+        _process_lock = None
 
 
 def _api(endpoint: str, data: dict = None, timeout: int = 10) -> dict:
