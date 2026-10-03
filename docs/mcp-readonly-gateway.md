@@ -41,6 +41,29 @@ Responses must not include credentials, tokens, cookies, authorization headers, 
 variables, SSH material, raw configuration files, or arbitrary log contents. Internal addresses
 should only be returned when needed for diagnosis and may be redacted at the adapter boundary.
 
+The adapter projects model, storage and network snapshots onto an explicit field allowlist;
+unknown fields and raw headers/configuration are discarded. Credential key variants are
+normalized and removed recursively. Text containing credential labels, authentication schemes,
+credential-bearing URLs, private-key material or opaque long identifiers is redacted before
+truncation. Container and alert text receives the same filtering.
+
+Only the configured state snapshot, infrastructure snapshot and direct JSON incident files
+are readable. There is no client-supplied path or argument. Link files, junctions, non-regular
+files, hard links, malformed JSON and oversized snapshots fail closed. POSIX reads pin directory
+handles and use no-follow, read-only opens; Windows also checks resolved paths, file identity
+and reparse points, but that platform's fallback is not a substitute for an immutable cache.
+Snapshots are limited to 1 MiB, collections to 100 items and recent alerts to 20 from at most
+1,000 directory entries.
+
+The cache producer remains trusted: an arbitrary short password placed under a legitimate
+observability field cannot be distinguished reliably from ordinary text. Do not mount raw
+credential/configuration directories into a future gateway. Provide a dedicated sanitized,
+read-only cache with an immutable directory layout and OS-level isolation.
+
+This PR implements the local adapter only. It does not implement or validate a remote MCP
+server, authentication, TLS, rate limiting, audit logging or deployment isolation. Those remain
+acceptance requirements before any remote exposure; passing adapter tests does not prove them.
+
 ## Authentication and transport
 
 The eventual remote transport must be encrypted and authenticated. Do not expose DSM, Docker,
