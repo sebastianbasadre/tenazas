@@ -27,6 +27,8 @@ jobs:
           workspace/runtime/inference_gate.py workspace/runtime/api_exporter_service.py
           workspace/runtime/background_agents.py workspace/runtime/worker_supervisor.py
           workspace/runtime/agent_coordinator.py workspace/runtime/runtime_utils.py
+          workspace/runtime/assistant_*.py workspace/runtime/document_library.py
+          workspace/runtime/verified_routines.py
       - name: Unit and fault isolation tests
         run: >-
           pytest tests/test_worker_supervisor.py tests/test_background_agents.py
@@ -41,6 +43,8 @@ jobs:
           tests/test_container_health_states.py tests/test_iol_dependency.py
           tests/test_agent_finance.py tests/test_finance_exporter_notifications.py
           tests/test_observation_report.py
+          tests/test_assistant_features.py tests/test_job_application_manager.py
+          tests/test_health_sweep.py tests/test_sprint8.py
       - name: Current tracked secrets
         run: python tools/secret_scan.py
       - name: Historical secret report

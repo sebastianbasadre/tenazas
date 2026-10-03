@@ -105,7 +105,7 @@ class TestUnifiedBriefing(unittest.TestCase):
             p.start()
         try:
             with patch.object(ub, "_notify") as mock_notify:
-                result = ub.send_briefing()
+                result = ub.send_briefing(dry_run=True)
         finally:
             for p in patches:
                 p.stop()

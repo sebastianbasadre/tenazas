@@ -212,8 +212,7 @@ def _probe_containers() -> dict:
         expected = cfg.get("expected_containers", [
             "openclaw", "gluetun", "qbittorrent", "sonarr", "radarr",
             "lidarr", "prowlarr", "sabnzbd", "seerr", "requestrr",
-            "tautulli", "chromadb", "piper", "prometheus", "grafana",
-            "portainer", "watchtower",
+            "tautulli", "chromadb", "prometheus", "grafana", "portainer",
         ])
         running, lat = _docker_ps_names()
         running = {n.lower() for n in running}
@@ -272,7 +271,10 @@ def _probe_piper() -> dict:
             ["docker", "inspect", "--format", "{{.State.Running}}", "piper"])
         if "true" in r.stdout.lower():
             return _ok("piper", lat)
-        return _fail("piper", "not running", lat)
+        if "piper" in {name.lower() for name in _load_config().get("expected_containers", [])}:
+            return _fail("piper", "required but not running", lat)
+        return _ok("piper", lat, {"running": False, "optional": True,
+                                  "note": "detenido; TTS opcional no disponible"})
     except Exception as e:
         return _fail("piper", str(e))
 

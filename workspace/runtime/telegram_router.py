@@ -1257,11 +1257,15 @@ def _handle_callback(token: str, callback_query: dict):
 
 
 
-def _slash_command_response(text):
+def _slash_command_response(text, chat_id=None):
     """Return a local response for slash commands; never classify them as skills."""
     if not text.startswith("/"):
         return None
     command = text.split()[0].split("@", 1)[0].lower()
+    from assistant_commands import handle
+    response = handle(text, chat_id)
+    if response is not None:
+        return response
     if command == "/model":
         try:
             config = _load_config()
@@ -1291,7 +1295,8 @@ def _slash_command_response(text):
         except Exception:
             return "Telegram responde. Estado Docker no disponible. Usa /model para modelos."
     if command in ("/help", "/start"):
-        return "Comandos: /model, /status, /help. Infraestructura: estado homelab."
+        from assistant_commands import HELP
+        return "Comandos: /model, /status, /help.\n" + HELP
     return "Comando no soportado. Usa /help. No se ejecuto ninguna herramienta."
 
 def _process_update(token: str, update: dict, allowed: set):
@@ -1315,7 +1320,11 @@ def _process_update(token: str, update: dict, allowed: set):
 
     document = msg.get("document")
     if document:
-        response = _handle_cv_document(token, document, chat_id, msg.get("caption", ""))
+        if msg.get("caption", "").strip().lower().startswith("/documento"):
+            from assistant_commands import upload
+            response = upload(token, document, chat_id)
+        else:
+            response = _handle_cv_document(token, document, chat_id, msg.get("caption", ""))
         send_message(token, chat_id, response)
         _append_history(chat_id, "assistant", response)
         return
@@ -1335,7 +1344,7 @@ def _process_update(token: str, update: dict, allowed: set):
         _log({"action": "incoming", "chat_id": chat_id, "text": text[:120]})
 
     # Slash commands bypass the intent classifier and all skills.
-    command_response = _slash_command_response(text)
+    command_response = _slash_command_response(text, chat_id)
     if command_response is not None:
         send_message(token, chat_id, command_response)
         _log({"action": "slash_command", "command": text.split()[0].split("@", 1)[0].lower()})

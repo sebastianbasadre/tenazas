@@ -240,6 +240,13 @@ def build_briefing() -> dict:
 
 def send_briefing(dry_run: bool = False) -> dict:
     """Build and send the daily briefing."""
+    if not dry_run:
+        from assistant_schedule import enqueue_daily
+        job = enqueue_daily()
+        return {"sent": False, "queued": bool(job), "job_id": job["id"] if job else None,
+                "reason": "personal summary scheduler owns delivery", "sections_ok": 0,
+                "sections_failed": 0, "lines": 1,
+                "text": "Resumen delegado al scheduler personal" + (f": {job['id']}" if job else ": no corresponde enviar ahora")}
     payload = build_briefing()
 
     # Don't send if >50% sections failed

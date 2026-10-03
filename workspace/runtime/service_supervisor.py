@@ -52,6 +52,7 @@ def services():
         Service("metrics", [py, str(BASE / "metrics_server.py")], "http://127.0.0.1:9105/metrics"),
         Service("model_failover", [py, str(BASE / "model_failover.py")]),
         Service("telegram_router", [py, str(BASE / "telegram_router.py")]),
+        Service("assistant_worker", [py, str(BASE / "assistant_worker.py")]),
         Service("job_search_watcher", [py, str(BASE / "job_search_watcher.py")]),
         Service(
             "portfolio_exporter",
@@ -145,7 +146,7 @@ def stop(service):
     except ProcessLookupError:
         pass
     try:
-        process.wait(timeout=5)
+        process.wait(timeout=55 if service.name == "assistant_worker" else 5)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(process.pid, signal.SIGKILL)

@@ -23,6 +23,9 @@ def test_linkedin_approval_never_reports_false_submission(tmp_path, monkeypatch)
         },
         {"path": "/tmp/cv.pdf", "filename": "cv.pdf", "strengths": [], "gaps": []},
     )
+    queue, approved = manager._find(entry["id"])
+    approved["status"] = "approved"
+    manager._save(queue)
     result = manager.submit(entry["id"])
     assert result["ok"] is False
     assert result["status"] == "bridge_unavailable"

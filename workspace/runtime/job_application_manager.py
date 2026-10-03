@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from runtime_utils import write_atomic
 import os
 import re
 import time
@@ -51,7 +52,7 @@ def _load() -> list[dict]:
 
 def _save(items: list[dict]) -> None:
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(items, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_atomic(STATE_FILE, items)
 
 
 def _id(opportunity_id: str) -> str:
@@ -191,7 +192,7 @@ def submit(application_id: str) -> dict:
     queue, entry = _find(application_id)
     if not entry:
         return {"ok": False, "status": "not_found", "message": "Postulación no encontrada."}
-    if entry["status"] not in {"approved", "pending_approval"}:
+    if entry["status"] != "approved":
         return {"ok": False, "status": entry["status"], "message": "Ya fue procesada."}
 
     portal = entry["portal"]

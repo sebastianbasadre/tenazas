@@ -52,7 +52,7 @@ services:
       - ./ssh-keys:/home/tenazas/.ssh:ro
       - ./gcal-token.json:/home/tenazas/.openclaw/gcal-token.json:ro
     command: ["bash", "/home/tenazas/startup.sh"]
-    stop_grace_period: 60s
+    stop_grace_period: 120s
     healthcheck:
       test: ["CMD", "python3", "/home/tenazas/runtime/service_healthcheck.py"]
       interval: 60s

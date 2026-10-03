@@ -13,6 +13,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from runtime_utils import StateLock, write_atomic
 
 RUNTIME_DIR = Path(__file__).parent
 PROFILE_PATH = RUNTIME_DIR / "user_profile.json"
@@ -64,14 +65,15 @@ def get_profile() -> dict:
 
 
 def save_profile(profile: dict) -> None:
-    PROFILE_PATH.write_text(json.dumps(profile, indent=2, ensure_ascii=False))
+    write_atomic(PROFILE_PATH, profile)
 
 
 def update_profile(key: str, value) -> None:
     """Update a single profile field."""
-    p = get_profile()
-    p[key] = value
-    save_profile(p)
+    with StateLock(PROFILE_PATH):
+        p = get_profile()
+        p[key] = value
+        save_profile(p)
 
 
 # ── Recent Context (short-term) ─────────────────────────────────
@@ -120,13 +122,22 @@ def add_context(query: str, skill: str | None, summary: str) -> None:
     })
     # Keep only last N
     entries = entries[-CONTEXT_MAX_ENTRIES:]
-    CONTEXT_PATH.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
+    write_atomic(CONTEXT_PATH, entries)
     _log_memory_event("memory_write", query)
 
 
 def clear_context() -> None:
     """Clear short-term memory."""
-    CONTEXT_PATH.write_text("[]")
+    write_atomic(CONTEXT_PATH, [])
+
+
+def forget_profile_field(key):
+    with StateLock(PROFILE_PATH):
+        profile = get_profile()
+        existed = key in profile
+        profile.pop(key, None)
+        save_profile(profile)
+        return existed
 
 
 # ── Injection (selective) ────────────────────────────────────────
