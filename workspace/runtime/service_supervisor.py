@@ -18,6 +18,7 @@ BASE = Path(__file__).resolve().parent
 LOGS = BASE / "logs"
 STATE = LOGS / "service_state.json"
 STOP = threading.Event()
+STARTED_AT = time.time()
 
 
 @dataclass
@@ -204,8 +205,27 @@ def check(service, current):
 
 
 def snapshot(definitions):
+    memory = {}
+    try:
+        host = dict(line.split(":", 1) for line in Path("/proc/meminfo").read_text().splitlines())
+        memory["host_total_bytes"] = int(host["MemTotal"].split()[0]) * 1024
+        memory["host_available_bytes"] = int(host["MemAvailable"].split()[0]) * 1024
+        rss = 0
+        for proc in Path("/proc").iterdir():
+            if not proc.name.isdigit():
+                continue
+            try:
+                values = dict(line.split(":", 1) for line in (proc / "status").read_text().splitlines() if ":" in line)
+                rss += int(values.get("VmRSS", "0").split()[0]) * 1024
+            except (OSError, ValueError):
+                continue
+        memory["process_rss_sum_bytes"] = rss
+    except (OSError, ValueError, KeyError):
+        pass
     return {
         "ts": time.time(),
+        "supervisor_started_at": STARTED_AT,
+        "memory": memory,
         "services": {
             service.name: {
                 "pid": service.process.pid if service.process else None,

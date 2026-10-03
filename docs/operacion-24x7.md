@@ -106,6 +106,46 @@ en CPU respondieron correctamente. Tras terminar deliberadamente el exporter
 de metricas, el supervisor lo reinicio y su endpoint volvio a responder.
 Se inicio el contenedor de observacion de 24 horas; el periodo sigue pendiente.
 
-El refresco de IOL recibe HTTP 403 del proveedor. No se considera reparado:
-necesita revisar el acceso con IOL. Los fallos de tareas periodicas esperan al
-menos cinco minutos antes del siguiente intento, evitando un ciclo de reintentos.
+El 403 de IOL se corrigio usando el transporte HTTP estandar versionado y
+reautenticando con las credenciales existentes. Se verificaron HTTP 200 para
+autenticacion, refresh forzado, portafolio y estado de cuenta. El cliente local
+de la skill tiene backup y usa `iol_http.py`; el estado persistente de dependencia
+marca finanzas como degradado si falla IOL o la lectura tiene mas de 15 minutos.
+Los snapshots se etiquetan como historicos. La metrica `tenazas_iol_degraded`
+y su alerta permiten comprobarlo sin confundir datos antiguos con datos actuales.
+
+## Verificacion posterior de pendientes
+
+Las claves historicas se probaron contra sus emisores, sin escribirlas ni
+imprimirlas: Google devuelve 400/API_KEY_INVALID y OpenRouter 401. Ninguna
+autentica hoy. Esto no acredita la accion administrativa de revocacion;
+para eso hace falta el registro o la consola del proveedor. La clave antigua
+de cifrado de n8n tampoco revoca credenciales contenidas en backups antiguos.
+
+El audit de destinos confirma proxy para runtime GPU, gateway y autofix. Se
+corrigio el OLLAMA_API_BASE heredado que apuntaba directo a la PC. El upstream
+del propio proxy y el fallback CPU tienen destinos directos intencionales.
+Los logs del servidor GPU detectaron seis llamadas /api/chat directas desde
+192.168.2.43 durante las pruebas; las unitarias ahora bloquean conexiones a
+11434/18902 salvo marker live_inference. No se cerro el acceso GPU de otros
+clientes. Los headers de cliente identifican gateway, Telegram, router
+entrenado y empleo; otros consumidores quedan como unlabelled.
+
+La observacion ampliada registra RAM, latencia, epochs/reinicios del supervisor
+y estados SQLite. Genera `state/observations/24x7-report.json` cada minuto y
+al terminar. La ventana con estas metricas comenzo el 3/10 a las 14:49 ART:
+completa 24 horas el 4/10 aproximadamente a las 14:49 ART. Los reinicios
+manuales de despliegue se distinguen de reinicios automaticos de servicios.
+
+Verificacion directa final: `/status` devuelve 28 totales, 26 activos, 2
+detenidos y 0 unhealthy; el objetivo de contenedores devuelve ok. `/model`
+identifica Qwen3-fast 8B tanto en gateway como en Telegram. La consulta de la
+base de n8n confirma nueve workflows inactivos y el supervisor tiene scheduler.
+IOL reporta auth/portafolio/cuenta HTTP 200 y `tenazas_iol_degraded 0`.
+La suite ampliada aprobo 409 pruebas y 18 subtests en Linux.
+
+Herramientas de comprobacion: `check_followup.py`, `audit_inference_clients.py`,
+`verify_historical_keys.py` y `summarize_observation.py`. Esta ultima no ejecuta
+acciones: informa ciclos unicos, fallos, jobs interrumpidos, RAM y latencia.
+`period_complete` solo indica tiempo transcurrido; `coverage_complete` verifica
+continuidad de muestras. Ninguno sustituye revisar los fallos del informe.

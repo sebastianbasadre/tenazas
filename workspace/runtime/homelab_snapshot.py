@@ -69,10 +69,12 @@ def _collect_containers() -> dict:
             ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"],
             capture_output=True, text=True, timeout=10,
         )
+        if r.returncode != 0:
+            raise RuntimeError("docker ps failed")
         lines = [l for l in r.stdout.strip().splitlines() if l.strip()]
         total = len(lines)
-        running = sum(1 for l in lines if "Up" in l.split("\t", 1)[1] if "\t" in l)
-        unhealthy = sum(1 for l in lines if "unhealthy" in l.lower())
+        running = sum(1 for l in lines if "\t" in l and l.split("\t", 1)[1].startswith("Up"))
+        unhealthy = sum(1 for l in lines if "\t" in l and "unhealthy" in l.split("\t", 1)[1].lower())
         stopped = total - running
         return {
             "total": total, "running": running,

@@ -173,7 +173,7 @@ def _classify_finetuned(message: str) -> dict | None:
             "model": FINETUNED_MODEL, "stream": False,
             "prompt": message,
             "options": {"temperature": 0.1, "num_predict": 128},
-        }, timeout=OLLAMA_TIMEOUT)
+        }, timeout=OLLAMA_TIMEOUT, headers={"X-Tenazas-Client": "finetuned-router"})
         resp.raise_for_status()
         raw = resp.json().get("response", "")
         parsed = json.loads(raw.strip())

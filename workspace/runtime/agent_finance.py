@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from runtime_utils import now, load_json, save_json
 from agent_protocol import Observation, Recommendation
+from iol_dependency import status as iol_dependency_status
 
 BASE_DIR = Path(__file__).parent
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else BASE_DIR.parent / "state"
@@ -87,7 +88,8 @@ def _observe_iol():
         from finance_daily import get_iol_portfolio
         iol = get_iol_portfolio()
         if not iol:
-            return {"summary": "IOL: sin datos", "confidence": 0.5, "sub": "iol", "issues": [], "raw": {}}
+            return {"summary": "IOL: degradado, sin datos actuales", "confidence": 0.3,
+                    "sub": "iol", "issues": ["IOL no disponible"], "raw": {}}
         total = iol.get("total_ars", iol.get("total", 0))
         pnl = iol.get("pnl_day_ars", iol.get("pnl_day", iol.get("pnl", 0)))
         currency = str(iol.get("portfolio_currency") or "ARS").upper()
@@ -97,6 +99,9 @@ def _observe_iol():
         if total > 0 and abs(pnl) > IOL_ALERT_THRESHOLD * total:
             issues.append(f"IOL P&L dia: {prefix}{pnl:,.0f}")
         summary = f"IOL: {prefix}{total:,.0f}{suffix} total"
+        if iol_dependency_status()["degraded"]:
+            summary += " (degradado: lectura actual no verificada)"
+            issues.append("Dependencia IOL degradada")
         return {"summary": summary, "confidence": 0.8, "sub": "iol", "issues": issues, "raw": iol}
     except Exception as e:
         return {"summary": f"IOL: error ({str(e)[:80]})", "confidence": 0.3, "sub": "iol", "issues": [str(e)[:100]], "raw": {}}

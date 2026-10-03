@@ -20,6 +20,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+sys.path.insert(0, "/home/tenazas/runtime")
+from iol_http import urlopen as iol_urlopen
+
 # ---------------------------------------------------------------------------
 # Paths (match iol_client.py and iol_init_token.py)
 # ---------------------------------------------------------------------------
@@ -69,7 +72,7 @@ def _http_post(url: str, data: dict, timeout: int = 15) -> dict:
     req = Request(url, data=body,
                   headers={"Content-Type": "application/x-www-form-urlencoded"},
                   method="POST")
-    with urlopen(req, timeout=timeout) as resp:
+    with iol_urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read())
 
 

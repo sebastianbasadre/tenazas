@@ -38,6 +38,9 @@ jobs:
           tests/test_phase9_metrics.py tests/test_phase9_regression.py
           tests/test_orchestrator.py tests/test_autofix.py tests/test_cloud_policy.py
           tests/test_gpu_scheduler.py tests/test_observability.py
+          tests/test_container_health_states.py tests/test_iol_dependency.py
+          tests/test_agent_finance.py tests/test_finance_exporter_notifications.py
+          tests/test_observation_report.py
       - name: Current tracked secrets
         run: python tools/secret_scan.py
       - name: Historical secret report

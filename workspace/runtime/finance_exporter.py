@@ -46,6 +46,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.error import URLError
+from iol_dependency import status as iol_dependency_status
 
 try:
     from runtime_config import GLUETUN_PROXY
@@ -90,6 +91,8 @@ except ImportError:
     PROM_AVAILABLE = False
 
 if PROM_AVAILABLE:
+    G_IOL_DEGRADED = Gauge("tenazas_iol_degraded", "IOL unavailable, stale or using a snapshot")
+    G_IOL_FRESHNESS = Gauge("tenazas_iol_last_success_timestamp", "Last verified live IOL read")
     # IOL totals
     G_IOL_TOTAL = Gauge("tenazas_iol_portfolio_ars", "IOL portfolio total ARS")
     G_IOL_PNL = Gauge("tenazas_iol_pnl_day_ars", "IOL PNL del dia ARS")
@@ -624,7 +627,7 @@ def fetch_iol_live(usd_ars_rate: float | None = None) -> dict | None:
         from iol_client import IOLClient
         client = IOLClient()
         portfolio = client.get("/api/v2/portafolio/argentina")
-        if portfolio and portfolio.get("activos"):
+        if isinstance(portfolio, dict) and "activos" in portfolio:
             total_ars_equiv = 0.0
             total_usd_native = 0.0
             total_ars_native = 0.0
@@ -713,6 +716,7 @@ def fetch_iol_live(usd_ars_rate: float | None = None) -> dict | None:
                     pnl_day_ars_equiv += p.get("pnl_day_ars", 0)
 
             return {
+                "source": "live", "degraded": iol_dependency_status()["degraded"],
                 "total_ars": round(account_total_ars or total_ars_equiv, 2),
                 "total_usd_native": round(account_total_usd or total_usd_native, 2),
                 "total_ars_native": round(total_ars_native, 2),
@@ -733,7 +737,10 @@ def fetch_iol_live(usd_ars_rate: float | None = None) -> dict | None:
     for f in files[:3]:
         try:
             snap = json.loads(f.read_text())
-            return snap.get("iol")
+            iol = snap.get("iol")
+            if iol:
+                return {**iol, "source": "snapshot", "degraded": True,
+                        "snapshot_timestamp": f.stat().st_mtime}
         except Exception:
             continue
     return None
@@ -780,6 +787,9 @@ def update_metrics():
 
     # ── IOL (live API, snapshot fallback) ────────────────────
     iol = fetch_iol_live(_last_usd_ars)
+    dependency = iol_dependency_status()
+    G_IOL_DEGRADED.set(bool(dependency["degraded"] or not iol or iol.get("degraded")))
+    G_IOL_FRESHNESS.set(dependency.get("last_success_at", 0))
     if iol:
         _last_iol = iol
         G_IOL_TOTAL.set(iol.get("total_ars", 0))

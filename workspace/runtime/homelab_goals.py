@@ -170,14 +170,19 @@ def _eval_containers_healthy() -> tuple[str, str]:
             ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"],
             capture_output=True, text=True, timeout=10,
         )
+        if r.returncode != 0:
+            return "unknown", "Cannot check containers: docker ps failed"
         lines = r.stdout.strip().splitlines()
         unhealthy = []
         ignored = []
+        stopped = []
         for line in lines:
             if "\t" not in line:
                 continue
-            name = line.split("\t", 1)[0]
-            is_unhealthy = "unhealthy" in line.lower() or "Up" not in line
+            name, docker_status = line.split("\t", 1)
+            if not docker_status.startswith("Up"):
+                stopped.append(name)
+            is_unhealthy = "unhealthy" in docker_status.lower()
             if not is_unhealthy:
                 continue
             if name.lower() in IGNORED_CONTAINER_HEALTH:
@@ -186,7 +191,8 @@ def _eval_containers_healthy() -> tuple[str, str]:
             unhealthy.append(name)
         if not unhealthy:
             suffix = f" ({len(ignored)} ignored)" if ignored else ""
-            return "ok", f"All {len(lines)} containers healthy{suffix}"
+            stopped_info = f"; stopped: {', '.join(stopped)}" if stopped else ""
+            return "ok", f"0 unhealthy among {len(lines)} containers{suffix}{stopped_info}"
         suffix = f"; ignored: {', '.join(ignored[:5])}" if ignored else ""
         return "fail", f"{len(unhealthy)} unhealthy: {', '.join(unhealthy[:5])}{suffix}"
     except FileNotFoundError:

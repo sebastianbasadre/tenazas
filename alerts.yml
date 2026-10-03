@@ -1,4 +1,13 @@
 groups:
+  - name: iol-dependency
+    rules:
+      - alert: TenazasIOLDegraded
+        expr: tenazas_iol_degraded == 1 or absent(tenazas_iol_degraded)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "IOL degradado: acceso fallido o datos historicos"
   - name: tenazas_alerts
     rules:
       - alert: TenazasSupervisorStale

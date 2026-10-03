@@ -292,7 +292,7 @@ def _call_match_model(prompt: str) -> dict:
     req = Request(
         f"{OLLAMA_GPU_URL}/api/generate",
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "X-Tenazas-Client": "job-search"},
     )
     try:
         response = json.loads(urlopen(req, timeout=90).read())

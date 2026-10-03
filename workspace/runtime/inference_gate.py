@@ -4,6 +4,9 @@ import json
 import os
 import threading
 import time
+from collections import Counter, deque
+from pathlib import Path
+from runtime_utils import write_atomic
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -12,6 +15,33 @@ UPSTREAM = os.getenv("TENAZAS_OLLAMA_UPSTREAM_URL", "http://192.168.2.6:11434").
 CONDITION = threading.Condition()
 ACTIVE = 0
 WAITING_INTERACTIVE = 0
+STATS_LOCK = threading.Lock()
+COUNTS = Counter()
+OUTCOMES = Counter()
+LATENCIES = deque(maxlen=1000)
+QUEUE_LATENCIES = deque(maxlen=1000)
+STATS_FILE = Path(__file__).parent / "logs/inference_state.json"
+STARTED_AT = time.time()
+
+
+def record(client, status, elapsed, queue_elapsed):
+    with STATS_LOCK:
+        if client not in COUNTS and len(COUNTS) >= 64:
+            client = "other"
+        COUNTS[client] += 1
+        OUTCOMES[str(status)] += 1
+        LATENCIES.append(elapsed)
+        QUEUE_LATENCIES.append(queue_elapsed)
+        ordered = sorted(LATENCIES)
+        write_atomic(STATS_FILE, {
+            "ts": time.time(), "started_at": STARTED_AT,
+            "clients": dict(COUNTS), "last_http_status": status,
+            "http_status_counts": dict(OUTCOMES),
+            "latency_last_seconds": elapsed,
+            "latency_p95_seconds": ordered[(95 * len(ordered) + 99) // 100 - 1],
+            "queue_wait_max_seconds": max(QUEUE_LATENCIES),
+            "latency_window_size": len(LATENCIES),
+        })
 
 
 class InferenceSlot:
@@ -67,7 +97,7 @@ class Handler(BaseHTTPRequestHandler):
             response = exc
         except (URLError, OSError):
             self._error(503, "GPU backend unavailable")
-            return
+            return 503
         with response:
             self.send_response(response.status)
             self.send_header(
@@ -79,6 +109,7 @@ class Handler(BaseHTTPRequestHandler):
             while chunk := response.read1(8192):
                 self.wfile.write(chunk)
                 self.wfile.flush()
+            return response.status
 
     def do_GET(self):
         if self.path == "/health":
@@ -113,12 +144,24 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/show":
             self._proxy(body)
             return
+        started = time.monotonic()
+        queued = started
+        status = 503
+        client = self.headers.get("X-Tenazas-Client", "unlabelled")
+        if not client.replace("-", "").replace("_", "").isalnum() or len(client) > 64:
+            client = "unlabelled"
         try:
             interactive = self.headers.get("X-Tenazas-Priority") == "interactive"
             with InferenceSlot(interactive):
-                self._proxy(body)
+                queued = time.monotonic()
+                status = self._proxy(body)
         except TimeoutError:
+            queued = time.monotonic()
             self._error(503, "GPU busy; retry later")
+        except (BrokenPipeError, ConnectionResetError):
+            status = 499
+        finally:
+            record(client, status, time.monotonic() - started, queued - started)
 
     def log_message(self, *_):
         pass

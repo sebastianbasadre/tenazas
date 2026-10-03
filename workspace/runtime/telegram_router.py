@@ -350,7 +350,7 @@ def tg_request(token: str, method: str, data: dict | None = None, timeout: int =
     if data:
         payload = json.dumps(data).encode()
         req = Request(url, data=payload,
-                      headers={"Content-Type": "application/json", "X-Tenazas-Priority": "interactive"})
+                      headers={"Content-Type": "application/json", "X-Tenazas-Priority": "interactive", "X-Tenazas-Client": "telegram-router"})
     else:
         req = Request(url)
     try:
@@ -831,7 +831,7 @@ def _humanize_response(query: str, raw_output: str, category: str) -> str:
 OLLAMA_NAS_URL = _OLLAMA_NAS_URL
 # Router V2 chooses the model dynamically. This is only the last-resort fallback
 # when the router cannot provide a selection, so keep it on an installed model.
-LLM_MODEL = os.environ.get("TENAZAS_TELEGRAM_FALLBACK_MODEL", "qwen3:8b").strip() or "qwen3:8b"
+LLM_MODEL = os.environ.get("TENAZAS_TELEGRAM_FALLBACK_MODEL", "qwen3-fast:8b").strip() or "qwen3-fast:8b"
 LLM_TIMEOUT = 60
 
 
@@ -880,7 +880,7 @@ def _ollama_request(url: str, path: str, payload: bytes, retries: int = OLLAMA_M
     Returns parsed JSON dict or None on failure.
     """
     req = Request(f"{url}{path}", data=payload,
-                  headers={"Content-Type": "application/json", "X-Tenazas-Priority": "interactive"})
+                  headers={"Content-Type": "application/json", "X-Tenazas-Priority": "interactive", "X-Tenazas-Client": "telegram-router"})
     last_error = None
     for attempt in range(1 + retries):
         try:
@@ -1277,9 +1277,19 @@ def _slash_command_response(text):
                 + "\nEstos son valores configurados; el routing y los fallbacks "
                   "pueden elegir otro modelo. No identifican la ultima respuesta.")
     if command == "/status":
-        return ("El router de Telegram esta respondiendo. "
-                "Para consultar infraestructura, escribi: estado homelab. "
-                "Para modelos configurados, usa /model.")
+        try:
+            from homelab_snapshot import _collect_containers
+
+            containers = _collect_containers()
+            if containers.get("error"):
+                return "Telegram responde. No pude consultar Docker. Usa /model para modelos."
+            return (f"Docker: {containers['total']} contenedores, "
+                    f"{containers['running']} activos, {containers['stopped']} detenidos, "
+                    f"{containers['unhealthy']} con healthcheck unhealthy.\n"
+                    "Detenido y unhealthy son estados distintos.\n"
+                    "Modelos configurados: /model.")
+        except Exception:
+            return "Telegram responde. Estado Docker no disponible. Usa /model para modelos."
     if command in ("/help", "/start"):
         return "Comandos: /model, /status, /help. Infraestructura: estado homelab."
     return "Comando no soportado. Usa /help. No se ejecuto ninguna herramienta."

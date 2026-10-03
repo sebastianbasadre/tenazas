@@ -27,7 +27,7 @@ services:
       - TENAZAS_JOB_RUNNER_PORT=${TENAZAS_JOB_RUNNER_PORT:-18891}
       - TENAZAS_JOB_RUNNER_TOKEN=${TENAZAS_JOB_RUNNER_TOKEN:?set TENAZAS_JOB_RUNNER_TOKEN in .env}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
-      - OLLAMA_API_BASE=${OLLAMA_API_BASE}
+      - OLLAMA_API_BASE=http://127.0.0.1:18902
       - TENAZAS_OLLAMA_GPU_URL=http://127.0.0.1:18902
       - TENAZAS_OLLAMA_UPSTREAM_URL=${TENAZAS_OLLAMA_UPSTREAM_URL:-http://192.168.2.6:11434}
       - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD}
@@ -219,6 +219,8 @@ services:
       - ./workspace/runtime:/home/tenazas/runtime:ro
       - ./tools:/home/tenazas/tools:ro
       - ./state/observations:/home/tenazas/.openclaw/state
+      # SQLite reads use mode=ro; directory needs writable WAL shared-memory metadata.
+      - ./state/job-runner:/home/tenazas/job-state
     command: ["python3", "/home/tenazas/tools/observe_24x7.py", "--hours", "24"]
 
 volumes:

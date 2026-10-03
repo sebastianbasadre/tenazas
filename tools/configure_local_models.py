@@ -22,6 +22,7 @@ def main():
     config = copy.deepcopy(before)
     provider = config["models"]["providers"]["ollama"]
     provider["baseUrl"] = "http://127.0.0.1:18902"
+    provider["headers"] = {**provider.get("headers", {}), "X-Tenazas-Client": "openclaw-gateway"}
     template = copy.deepcopy(provider["models"][0])
     if not any(model["id"] == "qwen3-fast:8b" for model in provider["models"]):
         model = copy.deepcopy(template)
