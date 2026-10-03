@@ -23,7 +23,14 @@ def _log(msg: str):
         f.write(f"{ts} {msg}\n")
 
 
-PROACTIVE_AGENTS = ["agent_infra", "agent_personal", "agent_finance", "agent_research", "agent_self_improve"]
+PROACTIVE_AGENTS = [
+    "agent_infra",
+    "agent_personal",
+    "agent_finance",
+    "agent_research",
+    "agent_self_improve",
+    "agent_security",
+]
 
 
 def _run_proactive_observations():

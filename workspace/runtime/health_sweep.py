@@ -30,7 +30,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 try:
@@ -56,13 +56,16 @@ GRAFANA_AUTH = "YWRtaW46dGVuYXphcw=="  # admin:tenazas base64
 
 # ── Config ──────────────────────────────────────────────────────
 
-PROBE_TIMEOUT = 3       # seconds per probe
+PROBE_TIMEOUT = 3       # seconds per network probe
+DOCKER_TIMEOUT = 10     # seconds for local docker CLI calls on Synology
+ARR_CURL_TIMEOUT = 5    # seconds for curl inside arr-stack containers
 SWEEP_MAX = 30          # seconds total sweep budget
 MAX_WORKERS = 8
 WATCH_INTERVAL = 300    # 5 min
 
-# Expected models on HomeLab Ollama
-EXPECTED_MODELS = {"qwen2.5:3b", "qwen2.5:7b", "qwen3:8b", "nomic-embed-text"}
+# Expected models on HomeLab Ollama.
+# Keep this aligned with the models that are actually operationally required.
+EXPECTED_MODELS = {"qwen2.5:7b", "qwen3:8b", "nomic-embed-text"}
 
 # HomeLab IPs
 HOMELAB_IPS = [HOMELAB_IP]
@@ -107,6 +110,23 @@ def _tcp_ping(host: str, port: int, timeout: float = 2.0) -> float:
     return lat
 
 
+def _run_command(args: list[str], timeout: float = DOCKER_TIMEOUT) -> tuple[subprocess.CompletedProcess[str], float]:
+    """Run a local command and capture elapsed time in ms."""
+    t0 = time.monotonic()
+    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    lat = (time.monotonic() - t0) * 1000
+    return result, lat
+
+
+def _docker_ps_names() -> tuple[set[str], float]:
+    """Return running docker container names and elapsed time in ms."""
+    result, lat = _run_command(["docker", "ps", "--format", "{{.Names}}"])
+    if result.returncode != 0:
+        raise RuntimeError(f"docker ps exit {result.returncode}")
+    names = {n.strip() for n in result.stdout.strip().splitlines() if n.strip()}
+    return names, lat
+
+
 def _sanitize_detail(detail: dict) -> dict:
     """Strip secrets from detail dict before persisting."""
     s = json.dumps(detail)
@@ -117,6 +137,11 @@ def _sanitize_detail(detail: dict) -> dict:
         return json.loads(s)
     except Exception:
         return {"sanitized": True}
+
+
+def _normalize_model_name(name: str) -> str:
+    """Normalize Ollama tag names so `foo` and `foo:latest` compare equally."""
+    return name[:-7] if name.endswith(":latest") else name
 
 
 def _notify_telegram(msg: str):
@@ -174,13 +199,7 @@ def _fail(probe: str, msg: str, latency_ms: float = 0, detail: dict | None = Non
 def _probe_docker_socket() -> dict:
     """Check Docker daemon is alive via docker ps."""
     try:
-        t0 = time.monotonic()
-        r = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
-                           capture_output=True, text=True, timeout=PROBE_TIMEOUT)
-        lat = (time.monotonic() - t0) * 1000
-        if r.returncode != 0:
-            return _fail("docker_socket", f"exit {r.returncode}", lat)
-        names = [n.strip() for n in r.stdout.strip().split("\n") if n.strip()]
+        names, lat = _docker_ps_names()
         return _ok("docker_socket", lat, {"containers_up": len(names)})
     except Exception as e:
         return _fail("docker_socket", str(e))
@@ -194,13 +213,10 @@ def _probe_containers() -> dict:
             "openclaw", "gluetun", "qbittorrent", "sonarr", "radarr",
             "lidarr", "prowlarr", "sabnzbd", "seerr", "requestrr",
             "tautulli", "chromadb", "piper", "prometheus", "grafana",
-            "portainer", "watchtower", "hireswarm-agent-server",
+            "portainer", "watchtower",
         ])
-        t0 = time.monotonic()
-        r = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
-                           capture_output=True, text=True, timeout=PROBE_TIMEOUT)
-        lat = (time.monotonic() - t0) * 1000
-        running = {n.strip().lower() for n in r.stdout.strip().split("\n") if n.strip()}
+        running, lat = _docker_ps_names()
+        running = {n.lower() for n in running}
         missing = [c for c in expected if c.lower() not in running]
         if missing:
             return _warn("containers", f"missing: {', '.join(missing)}", lat,
@@ -252,11 +268,8 @@ def _probe_grafana() -> dict:
 def _probe_piper() -> dict:
     """Check Piper TTS container is running."""
     try:
-        t0 = time.monotonic()
-        r = subprocess.run(
-            ["docker", "inspect", "--format", "{{.State.Running}}", "piper"],
-            capture_output=True, text=True, timeout=PROBE_TIMEOUT)
-        lat = (time.monotonic() - t0) * 1000
+        r, lat = _run_command(
+            ["docker", "inspect", "--format", "{{.State.Running}}", "piper"])
         if "true" in r.stdout.lower():
             return _ok("piper", lat)
         return _fail("piper", "not running", lat)
@@ -288,9 +301,9 @@ def _probe_ollama_nas() -> dict:
     """Check NAS CPU Ollama fallback."""
     try:
         status, body, lat = _http_get("http://127.0.0.1:11434/api/tags")
-        return _ok("ollama_nas", lat) if status == 200 else _warn("ollama_nas", f"status {status}", lat)
+        return _ok("ollama_nas", lat) if status == 200 else _ok("ollama_nas", lat, {"status": status, "expected_optional": True})
     except Exception:
-        return _warn("ollama_nas", "offline (expected if HomeLab up)")
+        return _ok("ollama_nas", 0, {"status": "offline", "expected_optional": True})
 
 
 def _probe_arr_connectivity() -> dict:
@@ -309,10 +322,10 @@ def _probe_arr_connectivity() -> dict:
         }
         failed = []
         for name, (container, url) in checks.items():
-            r = subprocess.run(
+            r, _ = _run_command(
                 ["docker", "exec", container, "curl", "-sf", "-o", "/dev/null",
-                 "-w", "%{http_code}", "--max-time", "5", url],
-                capture_output=True, text=True, timeout=PROBE_TIMEOUT)
+                 "-w", "%{http_code}", "--max-time", str(ARR_CURL_TIMEOUT), url],
+                timeout=ARR_CURL_TIMEOUT + 3)
             code = r.stdout.strip()
             if code != "200":
                 failed.append(f"{name}({code})")
@@ -350,9 +363,11 @@ def _probe_ollama_gpu() -> dict:
             status, body, lat = _http_get(url)
             if status == 200:
                 data = json.loads(body)
-                models = {m.get("name", "").split(":")[0] + ":" + m.get("name", "").split(":")[-1]
-                          for m in data.get("models", [])}
-                model_names = {m.get("name", "") for m in data.get("models", [])}
+                model_names = {
+                    _normalize_model_name(m.get("name", ""))
+                    for m in data.get("models", [])
+                    if m.get("name")
+                }
                 missing = EXPECTED_MODELS - model_names
                 detail = {"ip": ip, "models": len(model_names),
                           "model_list": sorted(model_names)[:10]}
@@ -426,8 +441,9 @@ def _probe_gpu_exporter() -> dict:
                 return _ok("gpu_exporter", lat, detail)
         except Exception:
             continue
-    return _warn("gpu_exporter", "not running on :9835",
-                 detail={"suggestion": "Install nvidia-gpu-exporter on HomeLab"})
+    return _ok("gpu_exporter", 0,
+               {"status": "not_installed", "optional": True,
+                "suggestion": "Install nvidia-gpu-exporter on HomeLab"})
 
 
 def sweep_homelab() -> dict:
@@ -487,20 +503,41 @@ def _probe_binance_ticker() -> dict:
 def _probe_iol() -> dict:
     try:
         status, body, lat = _http_get("https://api.invertironline.com/", timeout=PROBE_TIMEOUT)
-        # 401 = auth required but API reachable, 200 = also fine
-        if status in (200, 401):
+        # 401/403 = auth/resource denied but API reachable, 200 = also fine.
+        if status in (200, 401, 403):
             return _ok("iol_api", lat, {"status": status})
         if status >= 500:
             return _fail("iol_api", f"server error {status}", lat)
         return _ok("iol_api", lat, {"status": status})
+    except HTTPError as e:
+        if e.code in (401, 403):
+            return _ok("iol_api", 0, {"status": e.code, "auth_required": True})
+        if e.code >= 500:
+            return _fail("iol_api", f"server error {e.code}", 0)
+        return _ok("iol_api", 0, {"status": e.code})
     except Exception as e:
         return _fail("iol_api", str(e))
 
 
 def _probe_gemini() -> dict:
-    """Dummy call to Gemini to check quota/reachability."""
+    """Legacy Gemini check.
+
+    Gemini is no longer treated as an operational dependency by default.
+    Keep the probe available for operators who explicitly want it, but
+    downgrade missing keys/quota exhaustion to optional info so it does not
+    pollute the health signal when Kimi/OpenRouter or local Ollama are the
+    intended cloud/local paths.
+    """
     try:
         cfg = _load_config()
+        enabled = str(
+            os.environ.get("TENAZAS_ENABLE_GEMINI_HEALTHCHECK",
+                           cfg.get("enable_gemini_healthcheck", "false"))
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        if not enabled:
+            return _ok("gemini", 0, {"status": "disabled", "optional": True,
+                                     "provider": "gemini"})
+
         # Try tenazas.json first for Gemini key
         _tcfg_path = Path("/home/tenazas/.openclaw/tenazas.json") if _IN_CONTAINER else BASE_DIR.parent / "state" / "tenazas.json"
         api_key = ""
@@ -512,7 +549,8 @@ def _probe_gemini() -> dict:
         if not api_key:
             api_key = os.environ.get("GOOGLE_API_KEY", "")
         if not api_key:
-            return _warn("gemini", "no API key configured")
+            return _ok("gemini", 0, {"status": "no_api_key", "optional": True,
+                                     "provider": "gemini"})
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
         payload = json.dumps({
@@ -527,11 +565,14 @@ def _probe_gemini() -> dict:
         data = json.loads(resp.read())
         if "candidates" in data:
             return _ok("gemini", lat)
-        return _warn("gemini", "no candidates in response", lat)
+        return _ok("gemini", lat, {"status": "unexpected_response",
+                                   "optional": True, "provider": "gemini"})
     except URLError as e:
         msg = str(e)
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
-            return _warn("gemini", "quota exhausted", detail={"suggestion": "Wait or check billing"})
+            return _ok("gemini", 0, {"status": "quota_exhausted", "optional": True,
+                                     "provider": "gemini",
+                                     "suggestion": "Wait or check billing"})
         return _fail("gemini", msg)
     except Exception as e:
         return _fail("gemini", str(e))
@@ -596,7 +637,7 @@ def _probe_freeze_detector() -> dict:
                              {"age_s": round(age)})
         except Exception:
             continue
-    return _warn("freeze_detector", "no heartbeat file found")
+    return _ok("freeze_detector", 0, {"status": "no_heartbeat_file", "optional": True})
 
 
 def _probe_rag() -> dict:
@@ -688,12 +729,16 @@ def _probe_grafana_cache() -> dict:
         auth = {"Authorization": f"Basic {GRAFANA_AUTH}"}
 
         # Fresh request
-        _, body_fresh, lat1 = _http_get(
+        status1, body_fresh, lat1 = _http_get(
             base + query, headers={**auth, "Cache-Control": "no-cache, no-store"})
+        if status1 == 401:
+            return _ok("grafana_cache", lat1, {"status": 401, "auth_required": True})
         data_fresh = json.loads(body_fresh)
 
         # Potentially cached request (no cache-bust headers)
-        _, body_cached, lat2 = _http_get(base + query, headers=auth)
+        status2, body_cached, lat2 = _http_get(base + query, headers=auth)
+        if status2 == 401:
+            return _ok("grafana_cache", lat2, {"status": 401, "auth_required": True})
         data_cached = json.loads(body_cached)
 
         # Extract timestamps
@@ -718,6 +763,8 @@ def _probe_grafana_cache() -> dict:
                          {**detail, "suggestion": "Check Prometheus scrape config"})
         return _ok("grafana_cache", lat1, detail)
     except Exception as e:
+        if "401" in str(e) or "Unauthorized" in str(e):
+            return _ok("grafana_cache", 0, {"status": 401, "auth_required": True})
         return _warn("grafana_cache", str(e))
 
 
@@ -925,13 +972,34 @@ _SECTION_LABELS = {
 
 _STATUS_ICONS = {"ok": "✅", "warn": "⚠️", "fail": "🔴"}
 
+TELEGRAM_SUPPRESSED_PROBES = {
+    "binance_ping",
+    "binance_ticker",
+    "iol_api",
+}
+
+
+def _filter_telegram_sections(sections: list[dict]) -> list[dict]:
+    """Remove private finance probes from Telegram heartbeat output."""
+    filtered = []
+    for section in sections:
+        results = [
+            r for r in section.get("results", [])
+            if r.get("probe") not in TELEGRAM_SUPPRESSED_PROBES
+        ]
+        if results:
+            filtered.append({**section, "results": results})
+    return filtered
+
 
 def format_telegram(sections: list[dict], overall: int) -> str:
     """Format sweep results as Telegram message."""
     now = datetime.now().strftime("%d/%m %H:%M")
     lines = [f"🧠 *Tenazas Health Sweep — {now}*", ""]
+    display_sections = _filter_telegram_sections(sections)
+    display_overall = _score_overall(display_sections)
 
-    for s in sections:
+    for s in display_sections:
         label = _SECTION_LABELS.get(s["section"], s["section"])
         results = s["results"]
         ok = sum(1 for r in results if r["status"] == "ok")
@@ -972,10 +1040,10 @@ def format_telegram(sections: list[dict], overall: int) -> str:
     prev = _get_previous_score()
     delta = ""
     if prev is not None:
-        diff = overall - prev
+        diff = display_overall - prev
         if diff != 0:
             delta = f" ({'↑' if diff > 0 else '↓'} {abs(diff)} vs anterior)"
-    lines.append(f"Score: {overall}/100{delta}")
+    lines.append(f"Score: {display_overall}/100{delta}")
 
     return "\n".join(lines)
 

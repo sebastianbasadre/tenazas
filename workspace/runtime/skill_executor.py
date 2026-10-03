@@ -51,7 +51,7 @@ MULTITOOL_SYSTEM_PROMPT = (
     "Respond only with valid XML. Allowed format:\n"
     "<tools>\n  <tool>TOOL_NAME</tool>\n</tools>\n"
     "Allowed tools: weather, email, calendar, infra-monitor, "
-    "network_scan, arr-monitor, self-evolve, reminders, "
+    "network-scanner, security-monitor, arr-monitor, self-evolve, reminders, "
     "smart-home-on, smart-home-off, smart-home-cinema, "
     "smart-home-relax, smart-home-work, tts.\n"
     "No extra text. If no tools apply, respond with <tools></tools>."
@@ -138,6 +138,12 @@ SKILL_MAP = {
         "destructive": False,
         "description": "Estado de containers Docker",
         "parser": "_parse_infra",
+    },
+    "skill:security-monitor": {
+        "command": "",
+        "destructive": False,
+        "description": "Auditoria read-only de seguridad del homelab",
+        "handler": "_handle_security_monitor",
     },
     "skill:morning-greeting": {
         "command": (
@@ -1013,6 +1019,40 @@ def _handle_network_scanner(skill_category, query, skill):
         }
 
 
+def _handle_security_monitor(skill_category, query, skill):
+    """Handle security posture checks via agent_security."""
+    try:
+        try:
+            from runtime import agent_security
+        except ImportError:
+            import agent_security
+        obs, recs = agent_security.handle(query)
+        raw = {
+            "observation": obs.to_dict() if hasattr(obs, "to_dict") else {},
+            "recommendations": [
+                r.to_dict() if hasattr(r, "to_dict") else r
+                for r in (recs or [])
+            ],
+        }
+        return {
+            "skill": skill_category,
+            "success": True,
+            "output": obs.summary,
+            "raw": json.dumps(raw, ensure_ascii=False, default=str),
+            "destructive": False,
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "skill": skill_category,
+            "success": False,
+            "output": f"Error security-monitor: {str(e)[:200]}",
+            "raw": "",
+            "destructive": False,
+            "error": "security_monitor_error",
+        }
+
+
 # ── Handler and Parser Registries ───────────────────────────────
 
 _SKILL_HANDLERS = {
@@ -1026,6 +1066,7 @@ _SKILL_HANDLERS = {
     "_handle_smoking": _handle_smoking,
     "_handle_calendar": _handle_calendar,
     "_handle_network_scanner": _handle_network_scanner,
+    "_handle_security_monitor": _handle_security_monitor,
 }
 
 _SKILL_PARSERS = {

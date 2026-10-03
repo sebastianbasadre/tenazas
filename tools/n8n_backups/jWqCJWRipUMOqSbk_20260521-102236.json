@@ -1,0 +1,101 @@
+{
+  "updatedAt": "2026-05-10T17:37:27.674Z",
+  "createdAt": "2026-05-10T17:37:27.674Z",
+  "id": "jWqCJWRipUMOqSbk",
+  "name": "OpenClaw Autofix Agent",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "f44d6e2e-4adf-4f52-a978-d1ed5a72571a",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/autofix_agent'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1200000
+        }
+      },
+      "id": "38f0c6ad-7434-4e4e-bc5d-b9082b6b7a81",
+      "name": "Run Autofix Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Autofix Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "61fa53eb-07c7-44ce-b450-e86cf3078181",
+  "activeVersionId": null,
+  "versionCounter": 2,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-10T17:37:27.679Z",
+      "createdAt": "2026-05-10T17:37:27.679Z",
+      "role": "workflow:owner",
+      "workflowId": "jWqCJWRipUMOqSbk",
+      "projectId": "NbYUjzZgSJqGobV2",
+      "project": {
+        "updatedAt": "2026-05-10T18:50:45.992Z",
+        "createdAt": "2026-05-10T17:35:55.379Z",
+        "id": "NbYUjzZgSJqGobV2",
+        "name": "Sebastian Basadre <sebastian.basadre@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "7ccf0425-ef08-40dc-b871-2224f910b000"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

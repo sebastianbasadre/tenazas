@@ -325,6 +325,7 @@ HANDLERS = {
     "lights": run_lights,
     "network_scan": run_network_scan,
     "infra": run_infra,
+    "arr_monitor": run_arr_monitor,
     "tts": run_tts,
     "none": handle_none,
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 finance_daily.py
-Daily finance summary: Binance PNL + IOL portfolio → Telegram.
+Daily finance summary: Binance balance + IOL portfolio → Telegram.
 
 Binance: requires tenazas.binance_api_key + binance_secret in openclaw.json
 IOL: reuses existing iol_client.py with bearer token auth
@@ -29,11 +29,65 @@ try:
 except ImportError:
     from runtime_config import GLUETUN_PROXY, get_default_telegram_chat_id
 
+try:
+    from .finance_positions import _normalize_iol_symbol
+except ImportError:
+    from finance_positions import _normalize_iol_symbol
+
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 IOL_CONFIG = Path("/home/tenazas/.openclaw/iol_config.json")
 STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else Path(__file__).parent.parent / "state"
 HISTORY_DIR = STATE_DIR / "finance_history"
 CHAT_ID = get_default_telegram_chat_id()
+
+
+def _is_legacy_iol_symbol(symbol: str) -> bool:
+    """Detect stale/legacy IOL placeholder symbols."""
+    return symbol.upper().endswith("OLD")
+
+
+def _normalize_iol_change_pct(variacion: float, puntos: float, precio: float) -> float:
+    """Normalize IOL daily change to percentage points.
+
+    Some IOL payloads appear to encode `variacionDiaria` as a fraction
+    (0.06 => 6%) while others behave like percentage points (0.06 => 0.06%).
+    When `puntosVariacion` is present, infer the right scale from the implied
+    absolute price move and keep the reported percentage consistent with it.
+    """
+    try:
+        variacion = float(variacion or 0)
+        puntos = float(puntos or 0)
+        precio = float(precio or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if not variacion:
+        return 0.0
+    if not puntos or precio <= 0:
+        return variacion
+
+    move_as_pct = abs(precio * (variacion / 100.0))
+    move_as_fraction = abs(precio * variacion)
+    if abs(move_as_fraction - abs(puntos)) < abs(move_as_pct - abs(puntos)):
+        return variacion * 100.0
+    return variacion
+
+
+def _normalize_iol_currency(raw_currency: str | None) -> str:
+    value = str(raw_currency or "").strip().lower()
+    if value in {"dolar_estadounidense", "usd", "dolar"}:
+        return "USD"
+    if value in {"peso_argentino", "ars", "peso"}:
+        return "ARS"
+    return value.upper() if value else "ARS"
+
+
+def _currency_prefix(currency: str) -> str:
+    return "US$" if currency == "USD" else "$"
+
+
+def _currency_suffix(currency: str) -> str:
+    return "" if currency == "USD" else f" {currency}"
 
 
 def _load_config() -> dict:
@@ -66,7 +120,7 @@ def _binance_sign(params: dict, secret: str) -> str:
 
 
 def get_binance_pnl(test: bool = False) -> dict | None:
-    """Get Binance account balance + 24h PNL."""
+    """Get Binance account balance and asset trend data."""
     # Try env vars first, then tenazas.json fallback
     api_key = os.environ.get("BINANCE_API_KEY", "")
     secret = os.environ.get("BINANCE_SECRET", "")
@@ -120,7 +174,7 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                 assets.append({"asset": b["asset"], "total": total})
 
         if not assets:
-            return {"assets": [], "total_usd": 0, "pnl_usd": 0}
+            return {"assets": [], "total_usd": 0}
 
         # Get 24h tickers only for assets we hold (avoid huge /ticker/24hr response)
         symbols_needed = [a["asset"] + "USDT" for a in assets
@@ -135,7 +189,6 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                 pass
 
         total_usd = 0
-        total_pnl = 0
         asset_details = []
 
         for a in assets:
@@ -145,16 +198,13 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                 price = float(ticker.get("lastPrice", 0))
                 change_pct = float(ticker.get("priceChangePercent", 0))
                 value = a["total"] * price
-                pnl = value * (change_pct / 100) / (1 + change_pct / 100)
                 total_usd += value
-                total_pnl += pnl
                 asset_details.append({
                     "asset": a["asset"],
                     "amount": a["total"],
                     "price": price,
                     "value_usd": round(value, 2),
                     "change_pct": round(change_pct, 2),
-                    "pnl_usd": round(pnl, 2),
                 })
             elif a["asset"] in ("USDT", "USDC", "BUSD"):
                 total_usd += a["total"]
@@ -163,7 +213,6 @@ def get_binance_pnl(test: bool = False) -> dict | None:
                     "amount": a["total"],
                     "value_usd": round(a["total"], 2),
                     "change_pct": 0,
-                    "pnl_usd": 0,
                 })
 
         # Sort by value
@@ -172,7 +221,6 @@ def get_binance_pnl(test: bool = False) -> dict | None:
         return {
             "assets": asset_details,
             "total_usd": round(total_usd, 2),
-            "pnl_usd": round(total_pnl, 2),
         }
 
     except Exception as e:
@@ -205,11 +253,13 @@ def get_iol_portfolio(test: bool = False) -> dict | None:
         for a in activos:
             titulo = a.get("titulo", {})
             nombre = titulo.get("descripcion", titulo.get("simbolo", "?"))
-            simbolo = titulo.get("simbolo", "?")
+            raw_symbol = titulo.get("simbolo", "?")
+            simbolo = _normalize_iol_symbol(raw_symbol)
+            currency = _normalize_iol_currency(titulo.get("moneda"))
             cantidad = a.get("cantidad", 0)
             precio = a.get("ultimoPrecio", 0)
-            variacion = a.get("variacionDiaria", 0)
             puntos = a.get("puntosVariacion", 0)
+            variacion = _normalize_iol_change_pct(a.get("variacionDiaria", 0), puntos, precio)
             valor = a.get("valorizado", cantidad * precio)
 
             total += valor
@@ -220,20 +270,25 @@ def get_iol_portfolio(test: bool = False) -> dict | None:
 
             positions.append({
                 "symbol": simbolo,
+                "raw_symbol": raw_symbol,
                 "name": nombre[:30],
                 "quantity": cantidad,
                 "price": precio,
                 "value": round(valor, 2),
+                "currency": currency,
                 "change_pct": round(variacion, 2),
                 "pnl_day": round(day_pnl, 2),
             })
 
         positions.sort(key=lambda x: -x.get("value", 0))
+        currencies = {p.get("currency", "ARS") for p in positions if p.get("currency")}
+        portfolio_currency = currencies.pop() if len(currencies) == 1 else "MIX"
 
         return {
             "positions": positions,
             "total_ars": round(total, 2),
             "pnl_day_ars": round(pnl_day, 2),
+            "portfolio_currency": portfolio_currency,
         }
 
     except Exception as e:
@@ -264,10 +319,7 @@ def format_daily(binance: dict | None, iol: dict | None) -> str:
     lines = ["Finance daily — " + today, ""]
 
     if binance:
-        pnl = binance["pnl_usd"]
-        icon = "👍" if pnl >= 0 else "👎"
-        pnl_sign = "+" if pnl >= 0 else ""
-        lines.append(f"{icon} Binance: ${binance['total_usd']:,.0f} | PNL hoy: {pnl_sign}${pnl:,.0f}")
+        lines.append(f"Binance: ${binance['total_usd']:,.0f}")
         for a in binance["assets"][:5]:
             if a["value_usd"] > 10:
                 t = _trend_icon(a["change_pct"])
@@ -282,38 +334,63 @@ def format_daily(binance: dict | None, iol: dict | None) -> str:
         pnl = iol["pnl_day_ars"]
         icon = "👍" if pnl >= 0 else "👎"
         pnl_sign = "+" if pnl >= 0 else ""
-        lines.append(f"{icon} IOL: ${iol['total_ars']:,.0f} ARS | hoy: {pnl_sign}${pnl:,.0f}")
-        for p in iol["positions"][:3]:
+        portfolio_currency = str(iol.get("portfolio_currency") or "ARS").upper()
+        prefix = _currency_prefix(portfolio_currency)
+        suffix = _currency_suffix(portfolio_currency)
+        lines.append(f"{icon} IOL: {prefix}{iol['total_ars']:,.0f}{suffix} | hoy: {pnl_sign}{prefix}{pnl:,.0f}")
+        display_positions = [
+            p for p in iol["positions"]
+            if not _is_legacy_iol_symbol(str(p.get("raw_symbol") or p.get("symbol") or ""))
+        ]
+        for p in display_positions[:3]:
             t = _trend_icon(p["change_pct"])
             sign = "+" if p["change_pct"] >= 0 else ""
-            lines.append(f"  {t} {p['symbol']}: ${p['value']:,.0f} ({sign}{p['change_pct']}%)")
+            pos_currency = str(p.get("currency") or portfolio_currency or "ARS").upper()
+            lines.append(
+                f"  {t} {p['symbol']}: {_currency_prefix(pos_currency)}{p['value']:,.0f}"
+                f"{_currency_suffix(pos_currency)} ({sign}{p['change_pct']}%)"
+            )
     else:
         lines.append("IOL: no disponible")
 
     return "\n".join(lines)
 
 
+def _build_snapshot(date_str: str, binance: dict | None, iol: dict | None, source: str = "live") -> dict:
+    """Build a persisted finance snapshot payload."""
+    snapshot = {
+        "date": date_str,
+        "ts": datetime.now().astimezone().isoformat(),
+        "source": source,
+        "binance": {
+            "total_usd": binance["total_usd"],
+            "assets": binance["assets"],
+        } if binance else None,
+        "iol": {
+            "total_ars": iol["total_ars"],
+            "pnl_day_ars": iol["pnl_day_ars"],
+            "portfolio_currency": iol.get("portfolio_currency", "ARS"),
+            "positions": iol["positions"],
+        } if iol else None,
+    }
+    return snapshot
+
+
+def save_snapshot_for_date(date_str: str, binance: dict | None, iol: dict | None, source: str = "manual") -> Path:
+    """Persist a finance snapshot for an explicit YYYY-MM-DD date."""
+    HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    snapshot = _build_snapshot(date_str, binance, iol, source=source)
+    path = HISTORY_DIR / f"{date_str}.json"
+    with open(path, "w") as f:
+        json.dump(snapshot, f, indent=2, default=str)
+    return path
+
+
 def _save_daily_snapshot(binance: dict | None, iol: dict | None):
     """Persist daily finance snapshot to history."""
     try:
-        HISTORY_DIR.mkdir(parents=True, exist_ok=True)
         today = datetime.now().strftime("%Y-%m-%d")
-        snapshot = {
-            "date": today,
-            "ts": datetime.now().astimezone().isoformat(),
-            "binance": {
-                "total_usd": binance["total_usd"],
-                "pnl_usd": binance["pnl_usd"],
-                "assets": binance["assets"],
-            } if binance else None,
-            "iol": {
-                "total_ars": iol["total_ars"],
-                "pnl_day_ars": iol["pnl_day_ars"],
-                "positions": iol["positions"],
-            } if iol else None,
-        }
-        with open(HISTORY_DIR / f"{today}.json", "w") as f:
-            json.dump(snapshot, f, indent=2, default=str)
+        save_snapshot_for_date(today, binance, iol, source="live")
     except Exception:
         pass
 

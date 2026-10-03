@@ -1,0 +1,19 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+google-api-python-client
+google-auth
+google-auth-oauthlib
+more-itertools
+numba
+openai-whisper
+prometheus_client
+pychromecast
+pycryptodome
+python-miio
+requests
+pypdf
+reportlab
+tiktoken
+torch
+tqdm
+tplinkrouterc6u
+websocket-client

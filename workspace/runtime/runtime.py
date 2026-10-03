@@ -52,6 +52,7 @@ TASKS_FILE = BASE_DIR / "tasks.json"
 MEMORY_FILE = BASE_DIR / "memory_log.json"
 PATTERNS_FILE = BASE_DIR / "patterns.json"
 LOGS_DIR = BASE_DIR / "logs"
+OLLAMA_NOTIFY_STATE_FILE = BASE_DIR / "ollama_notify_state.json"
 
 # ── Config ────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ GLOBAL_TIMEOUT_SECONDS = 120  # 2 min — kill if stuck
 LOCK_FILE = Path("/tmp/tenazas_runtime.lock")
 LOCK_STALE_SECONDS = 600      # 10 min — treat lock as stale
 NMAP_CACHE_FILE = BASE_DIR / "nmap_cache.json"
+OLLAMA_OFFLINE_REMINDER_SECONDS = 21600  # 6h — avoid 5-minute Telegram spam
 
 # ── JSON helpers ──────────────────────────────────────────────────
 
@@ -620,6 +622,46 @@ def _check_arr_port_bindings(prev: dict, curr: dict) -> list:
 # ── Main Loop ─────────────────────────────────────────────────────
 
 
+def _event_types(events: list) -> set:
+    return {e.get("type", "") for e in events if isinstance(e, dict)}
+
+
+def _parse_ts(ts: str | None) -> datetime:
+    if not ts:
+        return now()
+    try:
+        return datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return now()
+
+
+def _should_notify_ollama_offline(events: list, curr: dict) -> bool:
+    """Notify on transition to offline, then only periodic reminders."""
+    if curr.get("ollama_notebook", {}).get("ok"):
+        if OLLAMA_NOTIFY_STATE_FILE.exists():
+            save_json(OLLAMA_NOTIFY_STATE_FILE, {"status": "online", "last_notify_ts": ""})
+        return False
+
+    ts = _parse_ts(curr.get("ts"))
+    state = load_json(OLLAMA_NOTIFY_STATE_FILE, {})
+    types = _event_types(events)
+    last_raw = state.get("last_notify_ts", "")
+    last = _parse_ts(last_raw) if last_raw else None
+
+    should = "ollama_notebook_down" in types
+    if not should and last is None:
+        should = True
+    if not should and last is not None:
+        should = (ts - last).total_seconds() >= OLLAMA_OFFLINE_REMINDER_SECONDS
+
+    if should:
+        save_json(OLLAMA_NOTIFY_STATE_FILE, {
+            "status": "offline",
+            "last_notify_ts": ts.isoformat(),
+        })
+    return should
+
+
 def _build_notification(events: list, results: list, curr: dict) -> str | None:
     """Build Telegram message if there's anything worth reporting."""
     lines = []
@@ -628,10 +670,11 @@ def _build_notification(events: list, results: list, curr: dict) -> str | None:
         icon = "ok" if ok else "FAIL"
         lines.append(f"[{icon}] {r.get('action')} {r.get('target')} ({r.get('reason','')})")
 
-    # Notify on ollama down even without restart actions
-    ollama = curr.get("ollama_notebook", {})
-    if not ollama.get("ok"):
-        lines.append("[info] Notebook Ollama offline — Cloud/NAS CPU mode")
+    # Notify on Ollama down transition, then only periodic reminders.
+    if _should_notify_ollama_offline(events, curr):
+        ollama_nas = curr.get("ollama_nas", {})
+        fallback_mode = "Cloud/NAS CPU mode" if ollama_nas.get("ok") else "Cloud mode"
+        lines.append(f"[info] Notebook Ollama offline — {fallback_mode}")
 
     if not lines:
         return None

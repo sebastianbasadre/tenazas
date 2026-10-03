@@ -165,7 +165,7 @@ def _build_improve_recs(data):
     return recs
 
 
-def handle(query: str):
+def handle(query: str, correlation_id: str = None):
     """Returns (Observation, list[Recommendation])."""
     q = query.lower()
     if any(k in q for k in ("error", "falla", "failure", "mining")):
@@ -194,7 +194,7 @@ def handle(query: str):
         save_json(str(STATUS_FILE), state)
     except Exception:
         pass  # Never crash on observation caching
-    _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "confidence": obs.confidence})
+    _log({"action": "handle", "query": query[:80], "sub": data.get("sub", "full"), "confidence": obs.confidence, "correlation_id": correlation_id})
     return (obs, recs)
 
 

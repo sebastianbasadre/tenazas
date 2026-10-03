@@ -1,10 +1,10 @@
 {
-  "eval_loss": 0.17204464972019196,
+  "eval_loss": 0.17020046710968018,
   "train_loss": null,
   "epochs": 5.0,
-  "global_step": 200,
+  "global_step": 210,
   "base_model": "Qwen/Qwen2.5-3B-Instruct",
-  "train_examples": 640,
-  "eval_examples": 159,
-  "timestamp": "2026-04-10T16:45:21.145223"
+  "train_examples": 668,
+  "eval_examples": 166,
+  "timestamp": "2026-05-19T08:30:47.631056"
 }

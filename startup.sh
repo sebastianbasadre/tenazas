@@ -22,7 +22,7 @@ run_bg_cd() {
 }
 
 resolve_chat_id() {
-  python3 -c "import json; c=json.load(open('/home/tenazas/.openclaw/openclaw.json')); allowed=c['channels']['telegram'].get('allowFrom', []); print(allowed[0] if allowed else '')"
+  python3 -c "from runtime.runtime_config import get_default_telegram_chat_id; print(get_default_telegram_chat_id())"
 }
 
 # Watchdog wrapper: restarts a process with exponential backoff
@@ -120,19 +120,28 @@ fi
 
 run_bg_cd "Metrics server iniciado en :9105" "/home/tenazas" python3 /home/tenazas/runtime/metrics_server.py
 run_bg_cd "Model failover monitor iniciado" "/home/tenazas" python3 /home/tenazas/runtime/model_failover.py
+run_bg_cd "Job runner iniciado en :18891" "/home/tenazas" python3 /home/tenazas/runtime/job_runner.py
 run_bg "API metrics exporter iniciado en :9106" python3 -c "from runtime.api_call_counter import start_exporter; start_exporter(); import time; [time.sleep(3600) for _ in iter(int, 1)]"
 
 # Telegram router with auto-restart watchdog
 watchdog "telegram_router" python3 /home/tenazas/runtime/telegram_router.py &
 echo "Telegram router iniciado (with watchdog auto-restart)"
 
+# Qualified job-search heartbeat (every 10 minutes)
+watchdog "job_search_watcher" python3 /home/tenazas/runtime/job_search_watcher.py &
+echo "Job search watcher iniciado (cada 10 min)"
+
 run_bg_cd "Portfolio exporter iniciado en :9101" "/home/tenazas" node /home/tenazas/runtime/portfolio-exporter.mjs
 run_bg_cd "Network exporter iniciado en :9108" "/home/tenazas" python3 /home/tenazas/runtime/network_exporter.py
 run_bg_cd "Finance exporter iniciado en :9109" "/home/tenazas" python3 /home/tenazas/runtime/finance_exporter.py
 
 # Portfolio reconciler (delayed start, watch mode)
-(sleep 120 && cd /home/tenazas && python3 /home/tenazas/runtime/portfolio_reconciler.py --watch) &
-echo "Portfolio reconciler iniciado (watch mode, cada 10 min)"
+if [ "${ENABLE_PORTFOLIO_RECONCILER_WATCH:-true}" = "true" ]; then
+  (sleep 120 && cd /home/tenazas && python3 /home/tenazas/runtime/portfolio_reconciler.py --watch) &
+  echo "Portfolio reconciler iniciado (watch mode, cada 10 min)"
+else
+  echo "Portfolio reconciler watch deshabilitado por env"
+fi
 
 # Multitool eval exporter
 if ! pgrep -f "eval_exporter.py" >/dev/null 2>&1; then
@@ -142,12 +151,20 @@ fi
 # ── IOL token management ─────────────────────────────────────────
 
 sleep 20
-python3 /home/tenazas/tools/iol_refresh.py --force 2>&1 || echo "[startup] IOL refresh failed (non-critical)"
-echo "[startup] IOL token initialized"
+if [ "${ENABLE_STARTUP_IOL_REFRESH:-true}" = "true" ]; then
+  python3 /home/tenazas/tools/iol_refresh.py --force 2>&1 || echo "[startup] IOL refresh failed (non-critical)"
+  echo "[startup] IOL token initialized"
+else
+  echo "[startup] IOL startup refresh deshabilitado por env"
+fi
 
 # IOL auto-refresh loop (token expires in 20 min, refresh every 15)
-(while true; do sleep 900; python3 /home/tenazas/tools/iol_refresh.py >> /tmp/iol_refresh.log 2>&1; done) &
-echo "[startup] IOL auto-refresh loop iniciado (cada 15 min)"
+if [ "${ENABLE_IOL_REFRESH_LOOP:-true}" = "true" ]; then
+  (while true; do sleep 900; python3 /home/tenazas/tools/iol_refresh.py >> /tmp/iol_refresh.log 2>&1; done) &
+  echo "[startup] IOL auto-refresh loop iniciado (cada 15 min)"
+else
+  echo "[startup] IOL auto-refresh loop deshabilitado por env"
+fi
 
 # ── Startup checks ──────────────────────────────────────────────
 
@@ -164,15 +181,7 @@ LOCKFILE="/tmp/tenazas-startup.lock"
 if [ ! -f "$LOCKFILE" ] || [ $(($(date +%s) - $(cat "$LOCKFILE"))) -gt 300 ]; then
   date +%s > "$LOCKFILE"
 
-  BOT_TOKEN=$(python3 -c "import json; c=json.load(open('/home/tenazas/.openclaw/openclaw.json')); print(c['channels']['telegram']['botToken'])")
-  CHAT_ID="${OPENCLAW_TELEGRAM_CHAT_ID:-$(resolve_chat_id)}"
-  TIMESTAMP=$(TZ=America/Argentina/Buenos_Aires date +"%H:%M")
-
-  if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
-    curl -sf "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-      -d chat_id="${CHAT_ID}" \
-      -d text="🦀 Tenazas Online — ${TIMESTAMP} ART" > /dev/null 2>&1
-  fi
+  python3 /home/tenazas/runtime/startup_notify.py >/dev/null 2>&1 || true
 fi
 
 wait $OC_PID

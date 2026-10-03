@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, "/home/tenazas")
 from runtime import multitool_parser as mp
 from runtime import orchestrator as orch
+from runtime import hybrid_router
 
 
 # ── Parser Tests ─────────────────────────────────────────────────
@@ -141,7 +142,7 @@ class TestToolRegistry(unittest.TestCase):
         self.assertIsNone(mp.get_tool_action("weather"))
 
     def test_registry_size(self):
-        self.assertEqual(len(mp.TOOL_REGISTRY), 14)
+        self.assertEqual(len(mp.TOOL_REGISTRY), 16)
 
 
 # ── Policy Tests ─────────────────────────────────────────────────
@@ -167,6 +168,7 @@ class TestMultitoolPolicy(unittest.TestCase):
     def test_greeting_is_false(self):
         self.assertFalse(mp.should_use_multitool("hola"))
         self.assertFalse(mp.should_use_multitool("buen día"))
+        self.assertFalse(mp.should_use_multitool("buenos dias"))
 
     def test_ambiguous_is_false(self):
         self.assertFalse(mp.should_use_multitool("qué hacemos"))
@@ -318,6 +320,23 @@ class TestDataset(unittest.TestCase):
         self.assertGreaterEqual(len(NEGATIVES), 20)
         self.assertGreaterEqual(len(HARD_NEGATIVES), 20)
 
+    def test_greetings_are_negative_examples(self):
+        sys.path.insert(0, "/home/tenazas/runtime/tool_tuning")
+        from build_multitool_dataset import generate_dataset
+        expected = {
+            "hola": "<tools></tools>",
+            "buen día": "<tools></tools>",
+            "buen dia": "<tools></tools>",
+            "buenos días": "<tools></tools>",
+            "buenos dias": "<tools></tools>",
+        }
+        examples = {
+            entry["messages"][1]["content"]: entry["messages"][2]["content"]
+            for entry in generate_dataset()
+        }
+        for text, xml in expected.items():
+            self.assertEqual(examples.get(text), xml)
+
     def test_dataset_format(self):
         sys.path.insert(0, "/home/tenazas/runtime/tool_tuning")
         from build_multitool_dataset import generate_dataset
@@ -334,6 +353,16 @@ class TestDataset(unittest.TestCase):
             r = mp.parse_multitool_response(msgs[2]["content"])
             self.assertTrue(r["valid"],
                             f"Invalid XML in dataset: {msgs[2]['content']}")
+
+
+class TestHybridRouterHardRules(unittest.TestCase):
+
+    @patch("runtime.hybrid_router._call_model")
+    def test_plain_greetings_do_not_call_model(self, mock_model):
+        for text in ["hola", "buen día", "buen dia", "buenos días", "buenos dias"]:
+            with self.subTest(text=text):
+                self.assertEqual(hybrid_router.route(text), [])
+        mock_model.assert_not_called()
 
 
 if __name__ == "__main__":

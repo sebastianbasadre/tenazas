@@ -1,0 +1,101 @@
+{
+  "updatedAt": "2026-05-10T17:37:27.684Z",
+  "createdAt": "2026-05-10T17:37:27.684Z",
+  "id": "XWotFVUjNb81AaH7",
+  "name": "OpenClaw GPU Keepalive",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/4 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "ba0d8207-32d8-4392-aa53-94556f406780",
+      "name": "Every 4 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/gpu_keepalive'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "042b89cd-a847-42f1-93e0-97e2f0f68c15",
+      "name": "Run GPU Keepalive",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 4 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run GPU Keepalive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "7828af9b-a5df-44b0-bd4c-696f77496d2a",
+  "activeVersionId": null,
+  "versionCounter": 2,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-10T17:37:27.686Z",
+      "createdAt": "2026-05-10T17:37:27.686Z",
+      "role": "workflow:owner",
+      "workflowId": "XWotFVUjNb81AaH7",
+      "projectId": "NbYUjzZgSJqGobV2",
+      "project": {
+        "updatedAt": "2026-05-10T18:50:45.992Z",
+        "createdAt": "2026-05-10T17:35:55.379Z",
+        "id": "NbYUjzZgSJqGobV2",
+        "name": "Sebastian Basadre <sebastian.basadre@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "7ccf0425-ef08-40dc-b871-2224f910b000"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

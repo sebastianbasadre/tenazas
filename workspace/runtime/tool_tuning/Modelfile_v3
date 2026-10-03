@@ -31,6 +31,7 @@ email
 calendar
 infra-monitor
 network-scanner
+security-monitor
 arr-monitor
 self-evolve
 reminders
@@ -46,6 +47,8 @@ Rules:
 - Never answer the user
 - Never output Spanish labels like clima, agenda, modo descanso
 - Never output incomplete XML
+- Greetings, thanks, acknowledgments, farewells, and casual chat do not use tools.
+- For hola, buen dia, buenos dias, buenas tardes, gracias, ok, listo, chau: output exactly <tools></tools>
 - If no tool applies, output exactly: <tools></tools>
 <|im_end|>
 <|im_start|>user

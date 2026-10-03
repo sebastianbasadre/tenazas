@@ -3,7 +3,7 @@
 validate_tools.py — Assert strict tool name compliance across all datasets.
 
 Checks:
-  - Only 12 allowed tools exist
+  - Only allowed tools exist
   - XML is well-formed: <tools><tool>...</tool></tools>
   - No text outside XML in assistant output
   - No markdown
@@ -17,7 +17,7 @@ from pathlib import Path
 
 ALLOWED_TOOLS = {
     "weather", "email", "calendar", "infra-monitor", "network-scanner",
-    "arr-monitor", "self-evolve", "reminders", "smart-home-on",
+    "security-monitor", "arr-monitor", "self-evolve", "reminders", "smart-home-on",
     "smart-home-off", "smart-home-cinema", "tts",
 }
 

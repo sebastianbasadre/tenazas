@@ -21,7 +21,7 @@ except ImportError:
 
 ALLOWED_TOOLS = {
     "weather", "email", "calendar", "infra-monitor", "network-scanner",
-    "arr-monitor", "self-evolve", "reminders", "smart-home-on",
+    "security-monitor", "arr-monitor", "self-evolve", "reminders", "smart-home-on",
     "smart-home-off", "smart-home-cinema", "tts",
 }
 
@@ -35,6 +35,7 @@ TESTS = [
     ("apagá las luces", {"smart-home-off"}, "smart-home-off"),
     ("poné modo cine", {"smart-home-cinema"}, "smart-home-cinema"),
     ("escaneá la red", {"network-scanner"}, "network-scanner"),
+    ("revisar seguridad y puertos", {"security-monitor"}, "security-monitor"),
     ("estado de los containers", {"infra-monitor"}, "infra-monitor"),
     ("cómo están las descargas", {"arr-monitor"}, "arr-monitor"),
     ("tus propuestas de mejora", {"self-evolve"}, "self-evolve"),
@@ -45,6 +46,7 @@ TESTS = [
     ("clima y agenda", {"weather", "calendar"}, "weather+calendar"),
     ("prendé las luces y decime el clima", {"smart-home-on", "weather"}, "lights+weather"),
     ("estado de infra y descargas", {"infra-monitor", "arr-monitor"}, "infra+arr"),
+    ("seguridad y red", {"security-monitor", "network-scanner"}, "security+network"),
     ("leeme los mails y la agenda", {"email", "calendar"}, "email+calendar"),
 
     # None (should return empty tools)

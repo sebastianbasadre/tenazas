@@ -1,0 +1,101 @@
+{
+  "updatedAt": "2026-05-10T17:37:27.704Z",
+  "createdAt": "2026-05-10T17:37:27.704Z",
+  "id": "x9vgcUNh0RsKzwJu",
+  "name": "OpenClaw Proposal Executor",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "fa283896-41cb-40a1-9529-76793770a08a",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/proposal_executor'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "f3f91a9d-a992-41c0-91dd-f6f6cc2097c5",
+      "name": "Run Proposal Executor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Proposal Executor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "6fb8aaad-09ee-47db-8c0f-c4c7052bccfb",
+  "activeVersionId": null,
+  "versionCounter": 2,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-10T17:37:27.706Z",
+      "createdAt": "2026-05-10T17:37:27.706Z",
+      "role": "workflow:owner",
+      "workflowId": "x9vgcUNh0RsKzwJu",
+      "projectId": "NbYUjzZgSJqGobV2",
+      "project": {
+        "updatedAt": "2026-05-10T18:50:45.992Z",
+        "createdAt": "2026-05-10T17:35:55.379Z",
+        "id": "NbYUjzZgSJqGobV2",
+        "name": "Sebastian Basadre <sebastian.basadre@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "7ccf0425-ef08-40dc-b871-2224f910b000"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

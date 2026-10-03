@@ -44,14 +44,14 @@ SYSTEM_PROMPT = (
     "Respond only with valid XML. Allowed format:\n"
     "<tools>\n  <tool>TOOL_NAME</tool>\n</tools>\n"
     "Allowed tools: weather, email, calendar, infra-monitor, "
-    "network-scanner, arr-monitor, self-evolve, reminders, "
+    "network-scanner, security-monitor, arr-monitor, self-evolve, reminders, "
     "smart-home-on, smart-home-off, smart-home-cinema, tts.\n"
     "No extra text. If no tools apply, respond with <tools></tools>."
 )
 
 ALLOWLIST: Set[str] = {
     "weather", "email", "calendar", "infra-monitor", "network-scanner",
-    "arr-monitor", "self-evolve", "reminders", "smart-home-on",
+    "security-monitor", "arr-monitor", "self-evolve", "reminders", "smart-home-on",
     "smart-home-off", "smart-home-cinema", "tts",
 }
 
@@ -178,6 +178,33 @@ def _hard_rule_tts(q: str) -> bool:
     return False
 
 
+def _hard_rule_security(q: str) -> bool:
+    """Explicit homelab security posture/audit requests."""
+    security_patterns = {
+        "seguridad", "security", "puertos expuestos", "servicios expuestos",
+        "superficie de ataque", "firewall", "credenciales expuestas",
+        "paneles admin", "admin panels", "auditoria de seguridad",
+        "auditar seguridad", "audita seguridad", "security check",
+    }
+    return _contains_any(q, security_patterns)
+
+
+def _hard_rule_network(q: str) -> bool:
+    network_patterns = {
+        "red", "lan", "nmap", "dispositivos", "hosts", "ips activas",
+        "scan de red", "escanear la red", "escanea la red",
+    }
+    return _contains_any(q, network_patterns)
+
+
+def _hard_rule_infra(q: str) -> bool:
+    infra_patterns = {
+        "containers", "container", "docker", "infra", "infraestructura",
+        "sistema", "nas", "prometheus", "grafana",
+    }
+    return _contains_any(q, infra_patterns)
+
+
 # ── Model fallback ──────────────────────────────────────────────
 
 def _call_model(query: str) -> str | None:
@@ -258,6 +285,14 @@ def route(query: str) -> list[str]:
 
     if _hard_rule_tts(q):
         return ["tts"]
+
+    if _hard_rule_security(q):
+        tools = ["security-monitor"]
+        if _hard_rule_network(q):
+            tools.append("network-scanner")
+        if _hard_rule_infra(q) and len(tools) < 3:
+            tools.append("infra-monitor")
+        return tools
 
     # Model fallback for ambiguous queries
     raw = _call_model(query)  # pass original (model trained on natural text)

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 CONFIG_PATH = Path("/home/tenazas/.openclaw/openclaw.json")
 
@@ -20,6 +21,50 @@ def load_config() -> dict:
         return json.loads(CONFIG_PATH.read_text())
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+def validate_config(config: dict | None = None, *, require_secrets: bool = False) -> dict:
+    """Validate operator config shape and return a structured report.
+
+    This intentionally stays lightweight so it can run in tests and at startup
+    without pulling in a schema dependency.
+    """
+    cfg = config if config is not None else load_config()
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if not isinstance(cfg, dict):
+        return {"ok": False, "errors": ["config must be a JSON object"], "warnings": []}
+
+    telegram = get_telegram_settings(cfg)
+    if telegram and not isinstance(telegram, dict):
+        errors.append("channels.telegram must be an object")
+        telegram = {}
+
+    bot_token = get_telegram_bot_token(cfg)
+    if require_secrets and not bot_token:
+        errors.append("telegram bot token is required")
+    elif bot_token in {"change-me", "replace-with-telegram-bot-token"}:
+        warnings.append("telegram bot token is still a placeholder")
+
+    allowed = get_allowed_chat_ids(cfg)
+    if require_secrets and not allowed and not get_default_telegram_chat_id(cfg):
+        errors.append("at least one Telegram chat id is required")
+
+    hue_key = get_hue_api_key(cfg)
+    if hue_key in {"change-me", "replace-with-hue-api-key"}:
+        warnings.append("Hue API key is still a placeholder")
+
+    return {"ok": not errors, "errors": errors, "warnings": warnings}
+
+
+def get_config_value(path: list[str], config: dict | None = None, default: Any = "") -> Any:
+    cfg: Any = config if config is not None else load_config()
+    for key in path:
+        if not isinstance(cfg, dict):
+            return default
+        cfg = cfg.get(key)
+    return default if cfg is None else cfg
 
 
 def get_telegram_settings(config: dict | None = None) -> dict:
@@ -47,6 +92,23 @@ def get_default_telegram_chat_id(config: dict | None = None) -> str:
     if allowed:
         return allowed[0]
     return ""
+
+
+def use_agent_coordinator(config: dict | None = None) -> bool:
+    """Return whether Telegram free-text queries should use agent_coordinator."""
+    raw = os.environ.get("USE_AGENT_COORDINATOR", "").strip()
+    if not raw:
+        raw = get_telegram_settings(config).get("useAgentCoordinator", "")
+
+    if isinstance(raw, bool):
+        return raw
+
+    text = str(raw).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off", ""}:
+        return False
+    return False
 
 
 def get_hue_api_key(config: dict | None = None) -> str:

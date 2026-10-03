@@ -267,7 +267,7 @@ def fetch_iol_live() -> dict | None:
         # Portfolio argentina
         portfolio = client.get("/api/v2/portafolio/argentina")
         positions = {}
-        total_ars = 0
+        total_native_ars = 0.0
         if portfolio and portfolio.get("activos"):
             for a in portfolio["activos"]:
                 titulo = a.get("titulo", {})
@@ -275,19 +275,24 @@ def fetch_iol_live() -> dict | None:
                 qty = a.get("cantidad", 0)
                 price = a.get("ultimoPrecio", 0)
                 valor = a.get("valorizado", qty * price)
-                total_ars += valor
+                currency = "USD" if str(titulo.get("moneda", "")).lower() == "dolar_estadounidense" else "ARS"
+                if currency == "ARS":
+                    total_native_ars += valor
                 positions[sym] = {
                     "qty": qty,
                     "price": price,
-                    "value_ars": round(valor, 2),
+                    "currency": currency,
+                    "value_native": round(valor, 2),
                     "type": titulo.get("tipo", ""),
                 }
 
         # Estado de cuenta (cash)
         cash = {"ars": 0, "usd": 0, "usd_eeuu": 0}
+        total_ars_equiv = 0.0
         try:
             estado = client.get("/api/v2/estadocuenta")
             if estado and "cuentas" in estado:
+                total_ars_equiv = float(estado.get("totalEnPesos", 0) or 0)
                 for c in estado["cuentas"]:
                     tipo = c.get("tipo", "")
                     saldo = c.get("saldo", 0)
@@ -301,7 +306,7 @@ def fetch_iol_live() -> dict | None:
             log.warning("IOL estado de cuenta failed: %s", e)
 
         return {
-            "total_ars": round(total_ars, 2),
+            "total_ars": round(total_ars_equiv or total_native_ars, 2),
             "positions": positions,
             "cash": cash,
         }

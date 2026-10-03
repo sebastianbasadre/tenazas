@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tenazas OpenClaw Operator Config",
+  "type": "object",
+  "properties": {
+    "channels": {
+      "type": "object",
+      "properties": {
+        "telegram": {
+          "type": "object",
+          "properties": {
+            "botToken": { "type": "string" },
+            "allowFrom": {
+              "type": "array",
+              "items": { "type": ["string", "number"] }
+            },
+            "useAgentCoordinator": { "type": ["boolean", "string"] }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "hue": {
+      "type": "object",
+      "properties": {
+        "apiKey": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "devices": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "iol": {
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "refresh_token": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

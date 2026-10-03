@@ -5,20 +5,22 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 
 def merge(args):
+    device_map = args.device or "cpu"
+
     print("[merge] Loading tokenizer...")
     tok = AutoTokenizer.from_pretrained(args.base, trust_remote_code=True)
 
-    print("[merge] Loading base model in float32 sharded on CPU...")
+    print(f"[merge] Loading base model in float16 sharded on {device_map}...")
     # Clave: low_cpu_mem_usage=True reduce pico durante carga
     model = AutoModelForCausalLM.from_pretrained(
         args.base,
         torch_dtype=torch.float16,
-        device_map="cpu",
+        device_map=device_map,
         low_cpu_mem_usage=True,   # ← evita duplicar tensores al cargar
     )
 
     print("[merge] Loading LoRA adapter...")
-    model = PeftModel.from_pretrained(model, args.adapter, device_map="cpu")
+    model = PeftModel.from_pretrained(model, args.adapter, device_map=device_map)
 
     print("[merge] Merging (esto pica RAM ~30s)...")
     # Forzar GC antes del pico
@@ -40,6 +42,7 @@ def merge(args):
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--base",    default="models/base/qwen2.5-3b")
-    p.add_argument("--adapter", default="models/lora")
+    p.add_argument("--adapter", "--lora", dest="adapter", default="models/lora")
     p.add_argument("--output",  default="models/merged")
+    p.add_argument("--device",  default="cpu")
     merge(p.parse_args())

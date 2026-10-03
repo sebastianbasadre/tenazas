@@ -28,7 +28,6 @@ Safety invariants (hard, always enforced):
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
 import logging
@@ -41,6 +40,11 @@ import time
 import traceback
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import fcntl  # type: ignore
+except ImportError:  # pragma: no cover - Windows/local test fallback
+    fcntl = None
 
 # Import the package we just built.
 # When running from /home/tenazas/runtime/ this works because the package
@@ -61,6 +65,7 @@ try:
         path_is_protected,
     )
     from proposal_executors.base import ExecutionResult, _iso_now  # type: ignore
+    import evolution_policy  # type: ignore
 except ImportError:
     # Fallback when imported as a package: `from runtime.proposal_executor ...`
     from .proposal_executors import (  # type: ignore
@@ -78,6 +83,7 @@ except ImportError:
         path_is_protected,
     )
     from .proposal_executors.base import ExecutionResult, _iso_now  # type: ignore
+    from . import evolution_policy  # type: ignore
 
 
 # ---- Paths and defaults ---------------------------------------------------
@@ -90,6 +96,9 @@ DEFAULT_PROPOSALS_PATH = os.environ.get(
 )
 DEFAULT_EXEC_LOG_PATH = os.environ.get(
     "TENAZAS_EXEC_LOG_PATH", "learning/execution_log.jsonl"
+)
+DEFAULT_EVOLUTION_OUTCOME_PATH = os.environ.get(
+    "TENAZAS_EVOLUTION_OUTCOME_PATH", "learning/evolution_outcomes.jsonl"
 )
 DEFAULT_STATE_PATH = os.environ.get(
     "TENAZAS_EXECUTOR_STATE_PATH", "state/proposal_executor_state.json"
@@ -190,7 +199,10 @@ class Lock:
     def acquire(self) -> None:
         self.fh = open(self.path, "a+")
         try:
-            fcntl.flock(self.fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl is not None:
+                fcntl.flock(self.fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            elif os.path.getsize(self.path) > 0:
+                raise BlockingIOError("lockfile already populated")
         except (OSError, BlockingIOError):
             # Check staleness by mtime.
             try:
@@ -202,7 +214,8 @@ class Lock:
                 self.fh.close()
                 self.fh = open(self.path, "w")
                 try:
-                    fcntl.flock(self.fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    if fcntl is not None:
+                        fcntl.flock(self.fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except (OSError, BlockingIOError):
                     raise _LockHeld(f"lock held at {self.path}")
             else:
@@ -221,7 +234,8 @@ class Lock:
         if not self.fh:
             return
         try:
-            fcntl.flock(self.fh.fileno(), fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(self.fh.fileno(), fcntl.LOCK_UN)
         except OSError:
             pass
         try:
@@ -364,6 +378,13 @@ def classify_execution_mode(proposal: Proposal) -> Tuple[str, Optional[str]]:
         if path_is_protected(t, DEFAULT_PROTECTED_FILES):
             return "manual_only", f"protected_file:{t}"
 
+    # Self-evolution proposals have an additional policy boundary:
+    # evidence, change type, autonomy level, and protected areas.
+    if evolution_policy.is_self_evolution_proposal(proposal):
+        decision = evolution_policy.evaluate_proposal(proposal)
+        if not decision.allowed:
+            return "manual_only", f"evolution_policy:{decision.reason}"
+
     return "deterministic", None
 
 
@@ -439,6 +460,18 @@ def execute_proposal(
         started_at=started,
     )
     result.extra["classify_reason"] = reason
+
+    evolution_decision = None
+    if evolution_policy.is_self_evolution_proposal(proposal):
+        evolution_decision = evolution_policy.evaluate_proposal(proposal)
+        result.extra["evolution_decision"] = asdict(evolution_decision)
+        if not evolution_decision.allowed:
+            result.status = ExecutionStatus.UNSUPPORTED
+            result.code = ResultCode.CLASSIFIED_MANUAL
+            result.error = f"evolution_policy:{evolution_decision.reason}"
+            result.ended_at = time.time()
+            result.duration_ms = int((result.ended_at - started) * 1000)
+            return result
 
     if mode != "deterministic":
         result.status = ExecutionStatus.UNSUPPORTED
@@ -531,6 +564,19 @@ def execute_proposal(
             _safe_rollback(sb, branch, result, logger)
             return _finalize(result, started)
 
+        if evolution_decision is not None:
+            post_diff_decision = evolution_policy.evaluate_proposal(
+                proposal, diff_lines=result.diff_lines
+            )
+            result.extra["evolution_decision"] = asdict(post_diff_decision)
+            evolution_decision = post_diff_decision
+            if not post_diff_decision.allowed:
+                result.status = ExecutionStatus.UNSUPPORTED
+                result.code = ResultCode.CLASSIFIED_MANUAL
+                result.error = f"evolution_policy:{post_diff_decision.reason}"
+                _safe_rollback(sb, branch, result, logger)
+                return _finalize(result, started)
+
         # Run tests.
         test_res = sb.run_tests(test_command, cwd=repo_root)
         result.tests_passed = bool(test_res.get("passed"))
@@ -545,6 +591,14 @@ def execute_proposal(
             result.status = ExecutionStatus.FAILED
             result.code = ResultCode.TEST_FAILED
             result.error = f"tests failed: {test_command}"
+            _safe_rollback(sb, branch, result, logger)
+            return _finalize(result, started)
+
+        if evolution_decision is not None and not evolution_decision.auto_merge_allowed:
+            result.status = ExecutionStatus.SKIPPED
+            result.code = ResultCode.CLASSIFIED_MANUAL
+            result.error = f"evolution_policy:{evolution_decision.reason}"
+            result.extra["approval_required_after_tests"] = True
             _safe_rollback(sb, branch, result, logger)
             return _finalize(result, started)
 
@@ -601,6 +655,7 @@ def persist_execution_result(
     exec_log_path: str,
     state_path: str,
     state: Dict[str, Any],
+    evolution_outcome_path: Optional[str] = None,
 ) -> None:
     """
     Writes back:
@@ -655,6 +710,21 @@ def persist_execution_result(
         )
     _save_state(state_path, state)
 
+    if evolution_policy.is_self_evolution_proposal(proposal):
+        decision = None
+        try:
+            decision_data = result.extra.get("evolution_decision")
+            if isinstance(decision_data, dict):
+                decision = evolution_policy.EvolutionDecision(**decision_data)
+        except Exception:
+            decision = None
+        evolution_policy.record_outcome(
+            proposal,
+            result,
+            ledger_path=evolution_outcome_path,
+            decision=decision,
+        )
+
 
 # ---- Main runner ----------------------------------------------------------
 
@@ -664,6 +734,7 @@ def run(
     repo_root: str = DEFAULT_REPO_ROOT,
     proposals_path: Optional[str] = None,
     exec_log_path: Optional[str] = None,
+    evolution_outcome_path: Optional[str] = None,
     state_path: Optional[str] = None,
     lock_path: str = DEFAULT_LOCK_PATH,
     kill_switch: str = DEFAULT_KILL_SWITCH,
@@ -679,6 +750,9 @@ def run(
     """
     proposals_path = proposals_path or os.path.join(repo_root, DEFAULT_PROPOSALS_PATH)
     exec_log_path = exec_log_path or os.path.join(repo_root, DEFAULT_EXEC_LOG_PATH)
+    evolution_outcome_path = evolution_outcome_path or os.path.join(
+        repo_root, DEFAULT_EVOLUTION_OUTCOME_PATH
+    )
     state_path = state_path or os.path.join(repo_root, DEFAULT_STATE_PATH)
 
     logger = _build_logger(repo_root)
@@ -727,6 +801,7 @@ def run(
                     exec_log_path=exec_log_path,
                     state_path=state_path,
                     state=state,
+                    evolution_outcome_path=evolution_outcome_path,
                 )
             out_results.append({
                 "id": prop.id,
@@ -780,6 +855,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Override proposals.json path")
     p.add_argument("--exec-log", default=None,
                    help="Override execution_log.jsonl path")
+    p.add_argument("--evolution-outcomes", default=None,
+                   help="Override evolution_outcomes.jsonl path")
     p.add_argument("--state", default=None,
                    help="Override executor state path")
     p.add_argument("--lock", default=DEFAULT_LOCK_PATH,
@@ -823,6 +900,7 @@ def _print_status(repo_root: str, state_path: str, kill_switch: str, json_out: b
         "max_files_per_proposal": MAX_FILES_PER_PROPOSAL,
         "max_attempts_per_proposal": MAX_ATTEMPTS_PER_PROPOSAL,
         "lockfile_stale_seconds": LOCKFILE_STALE_SECONDS,
+        "evolution_policy": evolution_policy.status(),
     }
     if json_out:
         print(json.dumps(info, indent=2, sort_keys=True))
@@ -844,6 +922,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         repo_root=args.repo_root,
         proposals_path=args.proposals,
         exec_log_path=args.exec_log,
+        evolution_outcome_path=args.evolution_outcomes,
         state_path=args.state,
         lock_path=args.lock,
         kill_switch=args.kill_switch,

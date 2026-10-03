@@ -1,13 +1,19 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────
-#  Tenazas Test Runner — All 24 suites
+#  Tenazas Test Runner — curated unit suites
 #  Corre: bash tests/run_tests.sh
 # ─────────────────────────────────────────────────────────────────
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-export PYTHONPATH="/home/tenazas/runtime:${PYTHONPATH:-}"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONTAINER_ROOT="${TENAZAS_CONTAINER_ROOT:-/home/tenazas}"
+PY_PATHS="$ROOT_DIR:$ROOT_DIR/workspace:$ROOT_DIR/workspace/runtime"
+if [ -d "$CONTAINER_ROOT/runtime" ]; then
+  PY_PATHS="$CONTAINER_ROOT:$CONTAINER_ROOT/runtime:$PY_PATHS"
+fi
+export PYTHONPATH="$PY_PATHS:${PYTHONPATH:-}"
 TOTAL_PASS=0
 TOTAL_FAIL=0
 TOTAL_SUITES=0
@@ -93,6 +99,11 @@ run_suite "vision_pipeline"   "python3 $SCRIPT_DIR/test_vision_pipeline.py"
 run_suite "iol_broker"        "python3 $SCRIPT_DIR/test_iol_broker.py"
 run_suite "multitool"         "python3 $SCRIPT_DIR/test_multitool.py"
 run_suite "eval_harness"      "python3 $SCRIPT_DIR/test_eval_harness.py"
+run_suite "job_runner"        "python3 $SCRIPT_DIR/test_job_runner.py"
+run_suite "runtime_config"    "python3 $SCRIPT_DIR/test_runtime_config.py"
+run_suite "runtime_boundaries" "python3 $SCRIPT_DIR/test_runtime_boundaries.py"
+run_suite "new_agents"        "python3 $SCRIPT_DIR/test_new_agents.py"
+run_suite "secret_scan"       "python3 $SCRIPT_DIR/test_secret_scan.py"
 
 # Bash suites
 run_bash "ollama_check"       "bash $SCRIPT_DIR/test_ollama_check.sh"

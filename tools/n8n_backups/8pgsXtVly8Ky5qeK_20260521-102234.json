@@ -1,0 +1,105 @@
+{
+  "updatedAt": "2026-05-10T18:54:21.000Z",
+  "createdAt": "2026-05-10T17:37:27.701Z",
+  "id": "8pgsXtVly8Ky5qeK",
+  "name": "OpenClaw Portfolio Reconciler",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/10 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "0af33b4e-cff8-4de3-ba4c-f146c35a2e85",
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{($env.TENAZAS_JOB_RUNNER_BASE_URL || 'http://host.docker.internal:18891') + '/run/portfolio_reconciler'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenazas-Job-Token",
+              "value": "={{$env.TENAZAS_JOB_RUNNER_TOKEN || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "d6ef8512-7c28-4367-844d-fe9095bf4884",
+      "name": "Run Portfolio Reconciler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Portfolio Reconciler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Every 10 Minutes": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "c158c6d1-428f-4b65-8c21-7b1bf0d4ec7f",
+  "activeVersionId": null,
+  "versionCounter": 5,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-10T17:37:27.703Z",
+      "createdAt": "2026-05-10T17:37:27.703Z",
+      "role": "workflow:owner",
+      "workflowId": "8pgsXtVly8Ky5qeK",
+      "projectId": "NbYUjzZgSJqGobV2",
+      "project": {
+        "updatedAt": "2026-05-10T18:50:45.992Z",
+        "createdAt": "2026-05-10T17:35:55.379Z",
+        "id": "NbYUjzZgSJqGobV2",
+        "name": "Sebastian Basadre <sebastian.basadre@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "7ccf0425-ef08-40dc-b871-2224f910b000"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

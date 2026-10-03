@@ -135,6 +135,12 @@ case "$MODE" in
     fi
 
     TIMESTAMP=$(TZ=America/Argentina/Buenos_Aires date +"%H:%M:%S")
+    SYSTEM_ROUTE=$(route_model system)
+    SYSTEM_MODEL=$(echo "$SYSTEM_ROUTE" | cut -d'|' -f2)
+    SYSTEM_BACKEND=$(echo "$SYSTEM_ROUTE" | cut -d'|' -f3)
+    REASON_ROUTE=$(route_model reason)
+    REASON_MODEL=$(echo "$REASON_ROUTE" | cut -d'|' -f2)
+    REASON_BACKEND=$(echo "$REASON_ROUTE" | cut -d'|' -f3)
 
     python3 -c "
 import json
@@ -150,8 +156,8 @@ print(json.dumps({
         'status': '$NAS'
     },
     'routing': {
-        'system': '$(route_model system | cut -d\"|\" -f2) @ $(route_model system | cut -d\"|\" -f3)',
-        'reason': '$(route_model reason | cut -d\"|\" -f2) @ $(route_model reason | cut -d\"|\" -f3)'
+        'system': '$SYSTEM_MODEL @ $SYSTEM_BACKEND',
+        'reason': '$REASON_MODEL @ $REASON_BACKEND'
     }
 }, indent=2))
 "

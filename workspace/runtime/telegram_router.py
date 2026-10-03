@@ -38,6 +38,7 @@ try:
         get_default_telegram_chat_id,
         get_telegram_bot_token,
         load_config,
+        use_agent_coordinator,
     )
 except ImportError:
     from runtime_config import (
@@ -47,6 +48,7 @@ except ImportError:
         get_default_telegram_chat_id,
         get_telegram_bot_token,
         load_config,
+        use_agent_coordinator,
     )
 
 # ── Paths ──────────────────────────────────────────────────────────
@@ -241,6 +243,49 @@ def _transcribe_voice(token: str, voice: dict, chat_id: str) -> str | None:
         return None
 
 
+def _handle_cv_document(token: str, document: dict, chat_id: str, caption: str = "") -> str:
+    """Download and register an explicitly identified master CV or template."""
+    import tempfile
+
+    filename = document.get("file_name", "master_cv")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".pdf", ".docx", ".txt", ".md"}:
+        return "Formato no soportado. Subí el CV en PDF, DOCX, TXT o MD."
+    file_info = tg_request(token, "getFile", {"file_id": document.get("file_id")})
+    if not file_info or not file_info.get("ok"):
+        return "No pude descargar el CV desde Telegram."
+    download_url = f"https://api.telegram.org/file/bot{token}/{file_info['result']['file_path']}"
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(urlopen(download_url, timeout=30).read())
+            tmp_path = tmp.name
+        from agent_job_search import save_cv_template, save_master_cv
+
+        label = caption.strip().lower()
+        filename_lower = filename.lower()
+        if "plantilla" in label or "template" in label or "plantilla" in filename_lower:
+            result = save_cv_template(tmp_path)
+            return (
+                f"Plantilla de CV guardada ({result['characters']} caracteres). "
+                "El CV maestro no fue modificado."
+            )
+        if "master" in label or "maestro" in label or "master" in filename_lower:
+            result = save_master_cv(tmp_path)
+            return (
+                f"CV maestro guardado ({result['characters']} caracteres). "
+                "Ahora escribí: analiza vacantes"
+            )
+        return (
+            "No guardé el documento porque falta identificarlo. "
+            "Reenvialo con caption `CV master` o `Plantilla CV`."
+        )
+    except Exception as exc:
+        return f"No pude procesar el CV: {exc}"
+    finally:
+        if "tmp_path" in locals():
+            Path(tmp_path).unlink(missing_ok=True)
+
+
 # ── Voseo post-processing ─────────────────────────────────────────
 
 # Tuteo → rioplatense replacements (applied to every outgoing message)
@@ -361,6 +406,7 @@ INTERCEPTED_SKILLS = {
     "skill:network-scanner",
     "skill:arr-monitor",
     "skill:infra-monitor",
+    "skill:security-monitor",
     "skill:calendar",
     "skill:calendar-agenda",
     "skill:morning-greeting",
@@ -371,6 +417,8 @@ INTERCEPTED_SKILLS = {
     "iol_broker",
     "skill:model-trainer",
     "skill:expense",
+    "agent:finance",
+    "agent:job_search",
 }
 
 # Additional keyword patterns for email that the orchestrator might miss.
@@ -383,6 +431,26 @@ EMAIL_OVERRIDE_PATTERNS = [
     r"\bhay\s+algo\s+de\b",  # "hay algo de telus?"
 ]
 _email_override_re = [re.compile(p, re.IGNORECASE) for p in EMAIL_OVERRIDE_PATTERNS]
+
+# Explicit job-search requests must bypass the generic tool model. The model's
+# allowlist does not include job_search and may otherwise misroute them to an
+# unrelated valid tool such as email or arr-monitor.
+_JOB_SEARCH_QUICK_RE = re.compile(
+    r"\b(?:"
+    r"(?:prepar[aá]|gener[aá]|arm[aá])"
+    r".{0,20}\bcv\b.{0,30}\bvacante\s+\d+"
+    r"|"
+    r"(?:analiz[aá]|evalu[aá]|revis[aá])"
+    r".{0,25}\b(?:vacantes?|empleos?|puestos?|oportunidades?)"
+    r"|"
+    r"(?:busc[aá](?:me)?|buscar|encontr[aá](?:me)?|consegu[ií](?:me)?)"
+    r".{0,35}\b(?:trabajo|laburo|empleo|vacantes?|puestos?|oportunidades?)"
+    r"|(?:trabajo|laburo|empleo|vacantes?|postulaciones?|entrevistas?)"
+    r".{0,35}\b(?:remoto|remote|product\s+manager|devops|tam|recruiter)"
+    r"|(?:c[oó]mo|como|estado|seguimiento).{0,25}\bpostulaciones?"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 # TTS false positive patterns: questions or casual mentions of "audio"
@@ -418,6 +486,13 @@ def classify_intent(text: str) -> str:
     """
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
 
+    # Tier 0: job-search agent. This has to run before the finetuned generic
+    # router because job_search is not one of that router's supported tools.
+    if _JOB_SEARCH_QUICK_RE.search(text):
+        _log({"action": "classified", "category": "agent:job_search",
+              "text": text[:80], "tier": "job_search_keywords"})
+        return "agent:job_search"
+
     # Tier 0: IOL broker keywords (finetuned router doesn't know IOL)
     _IOL_QUICK_RE = re.compile(
         r"\b(portafolio|portfolio|iol\b|invertironline|cedears?|mis\s+acciones"
@@ -427,6 +502,16 @@ def classify_intent(text: str) -> str:
         _log({"action": "classified", "category": "iol_broker",
               "text": text[:80], "tier": "iol_keywords"})
         return "iol_broker"
+
+    # Tier 0: Finance keywords for short/direct Binance queries.
+    _FINANCE_QUICK_RE = re.compile(
+        r"\b(binance|btc|bitcoin|crypto|criptos?|eth|ethereum|pnl)\b",
+        re.IGNORECASE,
+    )
+    if _FINANCE_QUICK_RE.search(text):
+        _log({"action": "classified", "category": "agent:finance",
+              "text": text[:80], "tier": "finance_keywords"})
+        return "agent:finance"
 
     # Tier 1: Use finetuned_router (Gemma 12B → finetuned v8 → keyword)
     try:
@@ -453,6 +538,7 @@ def classify_intent(text: str) -> str:
                 "calendar": "skill:calendar-agenda",
                 "arr-monitor": "skill:arr-monitor",
                 "infra-monitor": "skill:infra-monitor",
+                "security-monitor": "skill:security-monitor",
                 "self-evolve": "skill:self-evolve",
                 "tts": "skill:tts",
                 "reminders": "skill:reminders",
@@ -503,6 +589,39 @@ def should_intercept(text: str) -> tuple[bool, str]:
     return category in INTERCEPTED_SKILLS, category
 
 
+def _prefer_coordinator_over_intercept(text: str, intercept: bool, category: str) -> bool:
+    """Allow mixed-domain free text to bypass deterministic skill intercepts.
+
+    Pure skill queries should keep the fast deterministic path. If the
+    coordinator flag is enabled and the query clearly belongs to multiple
+    agent domains, prefer the coordinator path so aggregation can happen.
+    """
+    if not intercept:
+        return False
+    if category not in {"skill:infra-monitor", "iol_broker", "skill:expense"}:
+        return False
+    try:
+        if not use_agent_coordinator(_load_config()):
+            return False
+    except Exception:
+        return False
+    try:
+        from agent_coordinator import identify_agents
+        claimants = identify_agents(text)
+    except Exception as e:
+        _log({"action": "coordinator_bypass_error", "error": str(e), "text": text[:80]})
+        return False
+    if len(claimants) > 1:
+        _log({
+            "action": "intercept_bypassed_for_coordinator",
+            "category": category,
+            "agents": claimants,
+            "text": text[:80],
+        })
+        return True
+    return False
+
+
 # ── Skill Execution ────────────────────────────────────────────────
 
 def _execute_iol(text: str) -> str:
@@ -537,6 +656,27 @@ def execute_intercepted_skill(text: str, category: str = None) -> tuple[str, str
         _log({"action": "iol_execute", "text": text[:80]})
         result = _execute_iol(text)
         return result, result
+
+    if category == "agent:finance":
+        _log({"action": "finance_execute", "text": text[:80]})
+        try:
+            import agent_finance
+            result = agent_finance.handle_query(text)
+            return result, result
+        except Exception as e:
+            msg = f"Error finanzas: {e}"
+            return msg, ""
+
+    if category == "agent:job_search":
+        _log({"action": "job_search_execute", "text": text[:80]})
+        try:
+            import agent_job_search
+
+            observation, _recommendations = agent_job_search.handle(text)
+            return observation.summary, ""
+        except Exception as e:
+            msg = f"Error buscando oportunidades laborales: {e}"
+            return msg, ""
 
     sys.path.insert(0, str(RUNTIME_DIR)) if str(RUNTIME_DIR) not in sys.path else None
     from orchestrator import execute_skill
@@ -634,6 +774,7 @@ def _format_email_output(output: str) -> str:
 _HUMANIZE_SKILLS = {
     "skill:calendar", "skill:calendar-agenda",
     "skill:infra-monitor",
+    "skill:security-monitor",
     "skill:arr-monitor",
     "skill:weather",
     "skill:email",
@@ -688,7 +829,9 @@ def _humanize_response(query: str, raw_output: str, category: str) -> str:
 
 # Ollama endpoint for non-skill messages
 OLLAMA_NAS_URL = _OLLAMA_NAS_URL
-LLM_MODEL = "qwen3:8b"
+# Router V2 chooses the model dynamically. This is only the last-resort fallback
+# when the router cannot provide a selection, so keep it on an installed model.
+LLM_MODEL = os.environ.get("TENAZAS_TELEGRAM_FALLBACK_MODEL", "qwen3:8b").strip() or "qwen3:8b"
 LLM_TIMEOUT = 60
 
 
@@ -985,6 +1128,39 @@ def handle_non_skill(text: str, chat_id: str = CHAT_ID) -> str:
     return "No pude conectar con el modelo. Ollama offline?"
 
 
+def _route_free_text_query(text: str, chat_id: str = CHAT_ID) -> dict:
+    """Route free-text non-skill traffic via coordinator or legacy LLM path."""
+    if not use_agent_coordinator(_load_config()):
+        return {
+            "response": handle_non_skill(text, chat_id=chat_id),
+            "used_coordinator": False,
+            "route_path": "llm_chat",
+        }
+
+    try:
+        import agent_coordinator
+
+        result = agent_coordinator.route(text)
+        aggregated = result.get("aggregated")
+        if result.get("handled") and aggregated:
+            return {
+                "response": aggregated,
+                "used_coordinator": True,
+                "route_path": "agent_coordinator",
+                "strategy": result.get("strategy", "unknown"),
+                "correlation_id": result.get("correlation_id", ""),
+                "source": result.get("source"),
+            }
+    except Exception as e:
+        _log({"action": "coordinator_error", "error": str(e)[:200], "text": text[:80]})
+
+    return {
+        "response": handle_non_skill(text, chat_id=chat_id),
+        "used_coordinator": False,
+        "route_path": "llm_chat",
+    }
+
+
 # ── Main Polling Loop ──────────────────────────────────────────────
 
 def poll_loop():
@@ -1024,6 +1200,16 @@ def poll_loop():
 def _handle_callback(token: str, callback_query: dict):
     """Handle an inline keyboard callback (approval_queue, exec approval, or feedback)."""
     data = callback_query.get("data", "")
+
+    if data.startswith("job_apply_"):
+        try:
+            from job_application_manager import handle_callback
+            result = handle_callback(callback_query, token)
+            _log({"action": "job_apply_callback", "result": result.get("action", "unknown")})
+            return
+        except Exception as e:
+            _log({"action": "job_apply_callback_error", "error": str(e)})
+            return
 
     # Route feedback callbacks
     if data.startswith("fb_"):
@@ -1070,6 +1256,34 @@ def _handle_callback(token: str, callback_query: dict):
             }, timeout=5)
 
 
+
+def _slash_command_response(text):
+    """Return a local response for slash commands; never classify them as skills."""
+    if not text.startswith("/"):
+        return None
+    command = text.split()[0].split("@", 1)[0].lower()
+    if command == "/model":
+        try:
+            config = _load_config()
+            configured = config.get("agents", {}).get("defaults", {}).get("model")
+            if isinstance(configured, dict):
+                configured = configured.get("primary", "no definido")
+            if not isinstance(configured, str):
+                configured = "no definido"
+        except Exception:
+            configured = "no disponible (error al leer configuracion)"
+        return ("OpenClaw, modelo configurado: " + configured
+                + "\nRouter Telegram, modelo base: " + str(LLM_MODEL)
+                + "\nEstos son valores configurados; el routing y los fallbacks "
+                  "pueden elegir otro modelo. No identifican la ultima respuesta.")
+    if command == "/status":
+        return ("El router de Telegram esta respondiendo. "
+                "Para consultar infraestructura, escribi: estado homelab. "
+                "Para modelos configurados, usa /model.")
+    if command in ("/help", "/start"):
+        return "Comandos: /model, /status, /help. Infraestructura: estado homelab."
+    return "Comando no soportado. Usa /help. No se ejecuto ninguna herramienta."
+
 def _process_update(token: str, update: dict, allowed: set):
     """Process a single Telegram update."""
     # Handle inline keyboard button taps (exec approvals)
@@ -1089,6 +1303,13 @@ def _process_update(token: str, update: dict, allowed: set):
     if chat_id not in allowed:
         return
 
+    document = msg.get("document")
+    if document:
+        response = _handle_cv_document(token, document, chat_id, msg.get("caption", ""))
+        send_message(token, chat_id, response)
+        _append_history(chat_id, "assistant", response)
+        return
+
     # Handle voice/audio messages via Whisper transcription
     voice = msg.get("voice") or msg.get("audio")
     if voice:
@@ -1103,11 +1324,48 @@ def _process_update(token: str, update: dict, allowed: set):
             return
         _log({"action": "incoming", "chat_id": chat_id, "text": text[:120]})
 
+    # Slash commands bypass the intent classifier and all skills.
+    command_response = _slash_command_response(text)
+    if command_response is not None:
+        send_message(token, chat_id, command_response)
+        _log({"action": "slash_command", "command": text.split()[0].split("@", 1)[0].lower()})
+        return
+
     # Record user message in history
     _append_history(chat_id, "user", text)
 
     # ── Text-based approval/status commands ──
     text_lower = text.lower().strip()
+    tailored = re.search(
+        r"(?:prepar[aá]|gener[aá]|arm[aá]).{0,20}\bcv\b.{0,30}\bvacante\s+(\d+)",
+        text_lower,
+    )
+    if tailored:
+        send_typing(token, chat_id)
+        try:
+            from agent_job_search import prepare_tailored_cv
+            from telegram_transport import send_document
+
+            result = prepare_tailored_cv(int(tailored.group(1)))
+            if result.get("error"):
+                response = result["error"]
+                send_message(token, chat_id, response)
+            else:
+                response = (
+                    f"CV específico preparado para {result['title']} en "
+                    f"{result['company'] or 'empresa no indicada'} ({result['score']}%).\n"
+                    f"Fortalezas: {', '.join(result['strengths'][:5]) or 'sin datos'}\n"
+                    f"Brechas: {', '.join(result['gaps'][:5]) or 'sin datos'}\n"
+                    "Cambios: " + "; ".join(result["changes"]) + ".\n"
+                    "Revisalo antes de usarlo."
+                )
+                send_document(token, chat_id, result["path"], caption=response[:900])
+            _append_history(chat_id, "assistant", response)
+        except Exception as exc:
+            response = f"No pude preparar el CV: {exc}"
+            send_message(token, chat_id, response)
+        return
+
     if text_lower.startswith("aprobar ") or text_lower.startswith("approve "):
         target = text[len(text_lower.split()[0]) + 1:].strip()
         response = None
@@ -1221,6 +1479,8 @@ def _process_update(token: str, update: dict, allowed: set):
     else:
         # Classify
         intercept, category = should_intercept(text)
+        if _prefer_coordinator_over_intercept(text, intercept, category):
+            intercept = False
 
     import time as _time
     _t0 = _time.perf_counter()
@@ -1248,6 +1508,8 @@ def _process_update(token: str, update: dict, allowed: set):
         }
         composer_source = _source_map.get(category)
         result_count = None
+        if category == "agent:job_search":
+            composed = formatted_response
         if composer_source and raw_data:
             try:
                 from response_composer import compose_skill_response
@@ -1321,19 +1583,32 @@ def _process_update(token: str, update: dict, allowed: set):
         _log({"action": "delegating_to_llm", "category": category, "text": text[:80]})
         send_typing(token, chat_id)
 
-        response = handle_non_skill(text, chat_id=chat_id)
+        route_info = _route_free_text_query(text, chat_id=chat_id)
+        response = route_info["response"]
         _latency = int((_time.perf_counter() - _t0) * 1000)
 
-        _log({"action": "llm_response", "category": category,
-              "response_len": len(response)})
+        if route_info.get("used_coordinator"):
+            _log({"action": "coordinator_response", "category": category,
+                  "response_len": len(response),
+                  "strategy": route_info.get("strategy"),
+                  "correlation_id": route_info.get("correlation_id")})
+        else:
+            _log({"action": "llm_response", "category": category,
+                  "response_len": len(response)})
 
         # Observability: structured log
         try:
             from obs import log_router_decision
-            log_router_decision(
-                query=text, route="chat_free", path="llm_chat",
-                skill=None, guardrail_hit=False, used_llm=True,
-                latency_ms=_latency, success=bool(response), chat_id=chat_id)
+            if route_info.get("used_coordinator"):
+                log_router_decision(
+                    query=text, route="agent_coordinator", path=route_info.get("strategy", "unknown"),
+                    skill=None, guardrail_hit=False, used_llm=False,
+                    latency_ms=_latency, success=bool(response), chat_id=chat_id)
+            else:
+                log_router_decision(
+                    query=text, route="chat_free", path="llm_chat",
+                    skill=None, guardrail_hit=False, used_llm=True,
+                    latency_ms=_latency, success=bool(response), chat_id=chat_id)
         except Exception:
             pass
 

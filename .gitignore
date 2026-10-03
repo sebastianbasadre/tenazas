@@ -9,6 +9,8 @@ gogcli-config/
 
 # State (runtime data, not code)
 state/
+n8n/data/
+n8n/data.pre-reset-*/
 
 # Junk files from early experiments
 =
@@ -66,6 +68,7 @@ workspace/runtime/goals_state.json
 workspace/runtime/self_heal_state.json
 workspace/runtime/task_queue.json
 workspace/runtime/recent_context.json
+workspace/runtime/ollama_notify_state.json
 workspace/runtime/deco_clients.json
 workspace/runtime/device_inventory.json
 workspace/runtime/finance_rules.json
@@ -81,6 +84,11 @@ himalaya-config/
 
 # Host logs (not code)
 *.log
+auto_training.log
+self-evolve.log
+runtime.log
+morning.log
+learn.log
 
 # IDE / tools
 .claude/

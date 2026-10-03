@@ -100,6 +100,25 @@ def _metrics_collector() -> dict:
         return {"error": str(e)}
 
 
+def _security_watcher() -> dict:
+    """Run the read-only security posture assessment."""
+    try:
+        try:
+            from runtime import agent_security
+        except ImportError:
+            import agent_security
+        status = agent_security.assess()
+        findings = status.get("findings", [])
+        return {
+            "health": status.get("health", "unknown"),
+            "findings": len(findings),
+            "high": sum(1 for f in findings if f.get("severity") == "high"),
+            "medium": sum(1 for f in findings if f.get("severity") == "medium"),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ── Agent Registry ──────────────────────────────────────────────
 
 
@@ -121,6 +140,12 @@ AGENTS = [
         "interval_seconds": 1800,      # 30 minutes
         "function": _metrics_collector,
         "description": "Aggregates daily metrics summary",
+    },
+    {
+        "name": "security_watcher",
+        "interval_seconds": 900,       # 15 minutes
+        "function": _security_watcher,
+        "description": "Checks local security posture and exposed admin surfaces",
     },
 ]
 

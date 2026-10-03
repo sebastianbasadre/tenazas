@@ -1,0 +1,74 @@
+SEBASTIAN BASADRE
+ Product Delivery Manager · Agile Transformation · Scaled Delivery · AI-Powered Teams
+ sebastian.basadre@gmail.com · +54 11 3685 5698 · Buenos Aires, Argentina · linkedin.com/in/sebastianbasadre
+PROFESSIONAL SUMMARY
+Product delivery leader with 15+ years coordinating cross-functional Agile teams across LATAM, driving scaled delivery
+transformations and embedding AI-powered practices into software development workflows. Currently leading a 50+ person
+organization across 6 countries, with a track record of 25% delivery speed improvement through Agile transformation, 30% faster
+delivery cycles at EY, and consistent on-time execution for Fortune 500 clients. Certified Scrum Master, CSP-PO, and LeSS
+practitioner with deep experience in scaled Agile frameworks, dependency management, and servant leadership across complex
+multi-team environments.
+CORE COMPETENCIES
+Agile Delivery: Scrum · Kanban · SAFe · LeSS · Scaled Agile · PI Planning · Sprint Ceremonies · Inspect & Adapt
+Delivery Management: Dependency Management · Risk Mitigation · Release Delivery · Impediment Removal · Agile Metrics
+Leadership: Servant Leadership · Coaching · Mentoring · Stakeholder Management · Cross-functional Facilitation
+Tools & AI: Jira · Miro · Notion · Azure DevOps · AI Tools Integration · LLM-powered Delivery Workflows
+Metrics & Flow: Velocity · Lead Time · Flow Efficiency · Predictability · Delivery Health Monitoring
+PROFESSIONAL EXPERIENCE
+Chief Technology Officer (CTO)
+Mandü HR (formerly Visma Latam) · 2024 – Present · Buenos Aires, Argentina
+ Led Agile transformation across all product squads in a 50+ person cross-functional organization spanning 6 LATAM countries,
+ achieving a 25% improvement in delivery speed and enabling tighter product-engineering feedback loops.
+ Coordinated multi-team dependencies across Product Owners, engineers, and architects to deliver HRMS and Payroll platform
+ releases across Argentina, Chile, Peru, Uruguay, Paraguay, and Colombia.
+ Promoted adoption of AI-powered tools within development teams, including LLM integration and multi-agent architectures,
+ reducing projected customer operational load by 60%.
+ Facilitated scaled Agile ceremonies and cross-squad alignment sessions, bridging Product Management, Engineering, and
+ regional stakeholders to keep delivery predictability high.
+ Drove strategic migration from legacy monolith to microservices architecture, enabling independent squad releases and faster
+ time-to-market for product experiments.
+Portfolio Service Delivery Manager
+EY (Ernst & Young) · 2021 – 2024 · Buenos Aires, Argentina
+ Led Agile adoption across multiple client teams simultaneously, cutting delivery cycles by approximately 30% and improving
+ stakeholder satisfaction through outcome-based reporting.
+ Managed enterprise digital transformation portfolio for Fortune 500 clients end-to-end, consistently delivering on-time and
+ on-budget while exceeding business outcome targets.
+ Co-built operational strategy for core tech services with focus on monitoring, performance, and high availability, exceeding SLA
+ targets by 15% and reducing production incidents significantly.
+ Coordinated cross-team dependencies and release delivery flows, proactively removing impediments and escalating blockers to
+ ensure predictable delivery execution.
+ Served as primary bridge between Product Management, Engineering teams, and executive leadership, translating technical
+ complexity into business terms for C-level decision making.
+Americas IT Change Director
+TMF Group · 2013 – 2018 · Buenos Aires, Argentina
+ Built IT Change function for the Americas region from the ground up, covering demand intake, planning, vendor sourcing, and
+ execution across 15+ countries.
+ Established change management frameworks ensuring smooth technology transitions across LATAM markets, minimizing
+ business disruption during complex rollouts.
+
+ Acted as primary reporting point for regional executive sponsors and senior leadership on status, risks, and investment
+ decisions.
+Cloud & Infrastructure Project Manager
+Globant · 2010 – 2013 · Buenos Aires, Argentina
+ Program managed cloud infrastructure initiatives for Silicon Valley accounts including Google and Electronic Arts, coordinating
+ distributed teams across time zones.
+ Delivered complex multi-workstream projects (development, infrastructure, QA) on time and on spec for Fortune 500 clients.
+ 
+Onboarding Engineer
+Avaya Inc. · 2009 – 2010 · Buenos Aires, Argentina
+ Delivered IPSS onboarding projects for enterprise communication systems, keeping scope and timelines under tight control.
+ 
+CERTIFICATIONS
+Certified Scrum Professional® – Product Owner (CSP-PO) · Scrum Alliance
+Advanced Certified Scrum Product Owner (A-CSPO) · Scrum Alliance
+Certified Scrum Master (CSM) · Scrum Alliance
+Certified LeSS Basics · LeSS Company
+Kanban Foundation · Kanban University
+Prince2 Practitioner & Foundation · AXELOS
+Google Cloud Data Analytics · Google
+EDUCATION
+Postgraduate Program in Strategic Management of AI and Enterprise Automation · Universidad del CEMA (UCEMA) · 2025 – 2026
+(in progress)
+Licenciatura en Sistemas y Servicios de Información de Gestión · Universidad CAECE · 2006 – 2010
+LANGUAGES
+Spanish (Native) · English (Proficient – Professional Working) · Portuguese (Proficient – Professional Working)

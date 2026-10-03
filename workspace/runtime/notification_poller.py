@@ -4,7 +4,7 @@ notification_poller.py
 Polls calendar and email for time-sensitive notifications.
 
 Calendar: alerts for events in the next 2 hours.
-Email: classifies new emails via Gemma 12B, alerts if urgent/important.
+Email: classifies new emails via local Ollama, alerts if urgent/important.
 
 Usage:
   python3 notification_poller.py --calendar
@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import re
@@ -27,9 +28,9 @@ except ImportError:
 from urllib.request import Request, urlopen
 
 try:
-    from .runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+    from .runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id, get_telegram_bot_token
 except ImportError:
-    from runtime_config import get_default_telegram_chat_id, get_telegram_bot_token
+    from runtime_config import OLLAMA_GPU_URL, get_default_telegram_chat_id, get_telegram_bot_token
 
 # ── Paths ────────────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ NOTIFIED_EVENTS = STATE_DIR / "notified_events.json"
 NOTIFIED_EMAILS = STATE_DIR / "notified_emails.json"
 GCAL_SCRIPT = "/home/tenazas/.openclaw/workspace/skills/calendar-agenda/gcal.py"
 GEMMA_URL = f"{OLLAMA_GPU_URL}/v1/chat/completions"
-GEMMA_MODEL = "gemma3:12b"
+GEMMA_MODEL = os.getenv("TENAZAS_NOTIFICATION_MODEL", "qwen3:8b")
 CHAT_ID = get_default_telegram_chat_id()
 
 
@@ -159,7 +160,7 @@ def check_calendar(test: bool = False):
 
 
 def _classify_email_urgency(subject: str, sender: str) -> bool:
-    """Ask Gemma if an email is urgent/important. Returns True if yes."""
+    """Ask the local chat model if an email is urgent/important. Returns True if yes."""
     try:
         payload = json.dumps({
             "model": GEMMA_MODEL,
@@ -230,7 +231,7 @@ def check_email(test: bool = False):
         # Mark as processed regardless
         notified[email_id] = datetime.now().isoformat()
 
-        # Check urgency via Gemma
+        # Check urgency via local Ollama
         is_urgent = _classify_email_urgency(subject, sender_name)
 
         if test:

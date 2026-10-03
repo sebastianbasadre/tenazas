@@ -16,6 +16,7 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from urllib.request import urlopen
 from runtime_utils import now
 
 try:
@@ -63,36 +64,31 @@ BACKENDS = {
 # Ollama handles partial CPU offloading for models exceeding GPU VRAM.
 
 MODEL_CATALOG = {
-    # ── HomeLab models (192.168.2.6) ──
-    "qwen2.5:7b": {
-        "params": "7B", "vram_gb": 4.7, "use": "general",
+    # ── Preferred small local models ──
+    "qwen3-fast:4b": {
+        "params": "4B", "vram_gb": 2.5, "use": "general_small",
         "capabilities": ["general", "reasoning", "analysis", "fast", "system", "json", "logs"],
         "role": "fast",
     },
-    "deepseek-r1:14b": {
-        "params": "14B", "vram_gb": 9.0, "use": "reasoning",
-        "capabilities": ["reasoning", "chain_of_thought", "analysis"],
+    "qwen3-fast:8b": {
+        "params": "8B", "vram_gb": 5.2, "use": "reasoning_small",
+        "capabilities": ["general", "reasoning", "analysis", "fast", "system", "json", "logs"],
         "role": "reason",
     },
-    "qwen2.5:32b": {
-        "params": "32B", "vram_gb": 20.0, "use": "heavy",
-        "capabilities": ["reasoning", "analysis", "complex", "expert", "critical"],
-        "role": "heavy",
+    "qwen2.5:7b": {
+        "params": "7B", "vram_gb": 4.7, "use": "general_compat",
+        "capabilities": ["general", "reasoning", "analysis", "fast", "system", "json", "logs"],
+        "role": "fast",
     },
-    "qwen2.5-coder:14b": {
-        "params": "14B", "vram_gb": 9.0, "use": "code",
+    "qwen2.5-coder:7b": {
+        "params": "7B", "vram_gb": 4.7, "use": "code_small",
         "capabilities": ["code", "refactoring", "code_review"],
         "role": "code",
     },
-    "qwen2.5vl:7b": {
-        "params": "7B", "vram_gb": 6.0, "use": "vision",
+    "qwen3-vl:4b": {
+        "params": "4B", "vram_gb": 3.3, "use": "vision_small",
         "capabilities": ["vision", "multimodal", "image_analysis"],
         "role": "vision",
-    },
-    "qwen3:8b": {
-        "params": "8B", "vram_gb": 5.2, "use": "alternative",
-        "capabilities": ["reasoning", "general"],
-        "role": "fast",
     },
     "nomic-embed-text": {
         "params": "-", "vram_gb": 0.3, "use": "embeddings",
@@ -138,11 +134,11 @@ TASK_REQUIREMENTS = {
 # Each role has an ordered fallback chain: primary → alternatives
 
 ROLE_MAP = {
-    "fast":   ["qwen2.5:7b", "qwen3:8b"],
-    "reason": ["deepseek-r1:14b", "qwen2.5:7b"],
-    "heavy":  ["qwen2.5:32b", "deepseek-r1:14b", "qwen2.5:7b"],
-    "code":   ["qwen2.5-coder:14b", "qwen2.5:7b"],
-    "vision": ["qwen2.5vl:7b", "qwen2.5:7b"],
+    "fast":   ["qwen3-fast:8b", "qwen2.5:7b", "qwen3-fast:4b"],
+    "reason": ["qwen3-fast:8b", "qwen3-fast:4b", "qwen2.5:7b"],
+    "heavy":  ["qwen3-fast:8b", "qwen3-fast:4b", "qwen2.5:7b"],
+    "code":   ["qwen2.5-coder:7b", "qwen3-fast:8b", "qwen2.5:7b"],
+    "vision": ["qwen3-vl:4b", "qwen3-fast:8b", "qwen2.5:7b"],
     "embed":  ["nomic-embed-text"],
     "cloud":  ["moonshotai/kimi-k2", "google/gemini-flash-1.5"],
 }
@@ -152,7 +148,7 @@ DEFAULT_ROLE = "fast"
 
 # Models that are expensive to load/run (large parameter count, high VRAM usage)
 # On RTX 3090 (24GB) all fit in VRAM, but 32b still takes significant load time
-HEAVY_MODELS = {"qwen2.5:32b"}
+HEAVY_MODELS = {"qwen3-fast:8b", "qwen2.5-coder:7b"}
 
 # ── V2: Guardrails ─────────────────────────────────────────────
 # Prevents overuse of heavy models when the system is under load.
@@ -429,8 +425,8 @@ _HEAVY_KEYWORDS = re.compile(
     r"|s[ií]ntesis|resumen\s+(completo|general|ejecutivo)|comprehensive)\b", re.I,
 )
 
-# Deep reasoning markers: prompts that truly need deepseek-r1:14b
-# Short/simple reasoning queries stay on qwen2.5:7b to avoid VRAM swaps
+# Deep reasoning markers: prompts that justify the larger local model.
+# Short/simple reasoning queries stay on the small fast chain.
 _DEEP_REASON_KEYWORDS = re.compile(
     r"\b(step\s+by\s+step|root\s+cause|debug.*log|investiga\w*|diagn[oó]stic\w*"
     r"|compar[aá]\w*.*(?:ventajas|opciones|alternativas)"
@@ -448,6 +444,33 @@ def _log(entry: dict):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
+
+
+def _normalize_model_name(name: str) -> str:
+    """Normalize Ollama tag names so `foo` and `foo:latest` match."""
+    return name[:-7] if name.endswith(":latest") else name
+
+
+def _fetch_available_models(base_url: str) -> set[str]:
+    """Return installed Ollama model names for a backend, or an empty set on error."""
+    try:
+        with urlopen(f"{base_url}/api/tags", timeout=5) as resp:
+            data = json.loads(resp.read())
+        return {
+            _normalize_model_name(model.get("name", ""))
+            for model in data.get("models", [])
+            if model.get("name")
+        }
+    except Exception:
+        return set()
+
+
+def _filter_installed_candidates(candidates: list[tuple[str, dict]], available_models: set[str]) -> list[tuple[str, dict]]:
+    """Prefer installed models when we can query backend inventory."""
+    if not available_models:
+        return candidates
+    installed = [(name, info) for name, info in candidates if _normalize_model_name(name) in available_models]
+    return installed or candidates
 
 
 def _ping_backend(backend_id: str) -> bool:
@@ -531,6 +554,8 @@ def select_model(task: str = "general", prefer_fast: bool = False) -> dict:
     best_backend_id, best_backend = available[0]
     vram = BACKENDS[best_backend_id].get("vram_gb", 0)
 
+    available_models = _fetch_available_models(BACKENDS[best_backend_id]["url"])
+
     # Find candidate models (not legacy, fits VRAM, has required capability)
     candidates = []
     for model_name, info in MODEL_CATALOG.items():
@@ -551,6 +576,8 @@ def select_model(task: str = "general", prefer_fast: bool = False) -> dict:
                 candidates.append((model_name, info))
         if not candidates:
             return {}
+
+    candidates = _filter_installed_candidates(candidates, available_models)
 
     # Sort candidates: smaller first if prefer_fast, else larger first
     candidates.sort(key=lambda x: x[1]["vram_gb"], reverse=not prefer_fast)
@@ -653,12 +680,12 @@ def classify_task(prompt: str, flags: dict | None = None) -> str:
             return "code"
 
     # 5. Reasoning detection — split by complexity to reduce VRAM swaps
-    #    Deep reasoning (long prompt or deep keywords) → reason (deepseek-r1:14b)
-    #    Light reasoning (short prompt, simple keywords) → fast (qwen2.5:7b)
+    #    Deep reasoning (long prompt or deep keywords) → reason
+    #    Light reasoning (short prompt, simple keywords) → fast
     if _REASON_KEYWORDS.search(prompt):
         if _DEEP_REASON_KEYWORDS.search(prompt) or len(prompt) > REASON_COMPLEXITY_THRESHOLD:
             return "reason"
-        return "fast"  # simple reasoning stays on qwen2.5:7b, avoids VRAM swap
+        return "fast"  # simple reasoning stays on the small local chain
     if len(prompt) > 500 and "?" in prompt:
         return "reason"
 
@@ -734,6 +761,7 @@ def route_by_role(
     best_bid, best_info = available[0]
     gpu_vram = BACKENDS.get(best_bid, {}).get("vram_gb", 0)
     chain = ROLE_MAP.get(role, ROLE_MAP[DEFAULT_ROLE])
+    available_models = _fetch_available_models(BACKENDS.get(best_bid, {}).get("url", ""))
 
     # For CPU backend, filter to small models only
     if best_info["type"] == "cpu":
@@ -743,13 +771,18 @@ def route_by_role(
             cpu_candidates = ["phi4-mini"]
         chain = cpu_candidates
 
+    if available_models:
+        installed_chain = [m for m in chain if _normalize_model_name(m) in available_models]
+        if installed_chain:
+            chain = installed_chain
+
     chosen = chain[0]
     fallback_used = False
 
     # Walk the chain — on GPU, all models work (Ollama offloads)
     # On CPU, chain is already filtered above
     if chosen not in MODEL_CATALOG:
-        chosen = chain[0] if chain else "qwen2.5:7b"
+        chosen = chain[0] if chain else "qwen3-fast:4b"
 
     primary = ROLE_MAP.get(raw_role, [None])[0]
     if chosen != primary:

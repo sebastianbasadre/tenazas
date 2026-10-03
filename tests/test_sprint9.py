@@ -1916,5 +1916,170 @@ class TestProactiveObservations(unittest.TestCase):
         mock_proactive.assert_called_once()
 
 
+# ══════════════════════════════════════════════════════════════
+#  Coordinator Rewrite — Phase 8: owns() + correlation_id + strategies
+# ══════════════════════════════════════════════════════════════
+
+class TestCoordinatorRewrite(unittest.TestCase):
+
+    def test_route_generates_correlation_id(self):
+        """CORD-04: Every route() call produces an 8-char correlation_id."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=[]):
+            with patch.object(ac, "_do_skill_fallback",
+                              return_value={"handled": False, "output": None}):
+                result = ac.route("test query")
+        self.assertIn("correlation_id", result)
+        self.assertEqual(len(result["correlation_id"]), 8)
+
+    def test_correlation_id_is_hex_string(self):
+        """CORD-04: correlation_id is an alphanumeric string from uuid4."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=[]):
+            with patch.object(ac, "_do_skill_fallback",
+                              return_value={"handled": False, "output": None}):
+                result = ac.route("test query")
+        cid = result["correlation_id"]
+        self.assertIsInstance(cid, str)
+        self.assertEqual(len(cid), 8)
+
+    def test_route_single_agent_uses_first_wins_strategy(self):
+        """CORD-03: Single claimant triggers first_wins strategy."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=["infra"]):
+            with patch.object(ac, "_run_single",
+                              return_value={"infra": (MagicMock(summary="ok"), [])}):
+                result = ac.route("containers down")
+        self.assertEqual(result["strategy"], "first_wins")
+
+    def test_route_multi_agent_uses_parallel_strategy(self):
+        """CORD-03: Multiple claimants trigger parallel strategy."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=["infra", "finance"]):
+            with patch.object(ac, "_run_parallel", return_value={}):
+                result = ac.route("como esta todo el sistema y mis finanzas")
+        self.assertEqual(result["strategy"], "parallel")
+
+    def test_route_zero_claims_uses_skill_fallback_strategy(self):
+        """CORD-03: Zero claimants trigger skill_fallback strategy."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=[]):
+            with patch.object(ac, "_do_skill_fallback",
+                              return_value={"handled": False, "output": None}):
+                result = ac.route("completely unrecognized query xyz")
+        self.assertEqual(result["strategy"], "skill_fallback")
+
+    def test_route_zero_claims_calls_skill_fallback(self):
+        """CORD-01: Zero claims routes to skill_executor, not agent pipeline."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=[]):
+            with patch.object(ac, "_do_skill_fallback",
+                              return_value={"handled": False, "output": None}) as mock_fb:
+                ac.route("xyzzy unrecognized query abc")
+        mock_fb.assert_called_once()
+
+    def test_aggregate_uses_emoji_labels(self):
+        """CORD-02: Multi-domain aggregation uses domain emoji labels."""
+        import agent_coordinator as ac
+        mock_infra = MagicMock()
+        mock_infra.summary = "containers OK"
+        mock_finance = MagicMock()
+        mock_finance.summary = "IOL: $1.2M"
+        result = ac._aggregate({
+            "infra": (mock_infra, []),
+            "finance": (mock_finance, []),
+        })
+        self.assertIn("📡", result)
+        self.assertIn("💰", result)
+        self.assertIn("containers OK", result)
+        self.assertIn("IOL: $1.2M", result)
+
+    def test_aggregate_skips_empty_summaries(self):
+        """CORD-02: Agents with empty summary are excluded from aggregation."""
+        import agent_coordinator as ac
+        mock_infra = MagicMock()
+        mock_infra.summary = "containers OK"
+        mock_finance = MagicMock()
+        mock_finance.summary = ""
+        result = ac._aggregate({
+            "infra": (mock_infra, []),
+            "finance": (mock_finance, []),
+        })
+        self.assertIn("containers OK", result)
+        self.assertNotIn("💰", result)
+
+    def test_aggregate_backward_compat_string_values(self):
+        """Existing TestCoordinator.test_aggregate_multiple_responses passes str values — must still work."""
+        import agent_coordinator as ac
+        result = ac._aggregate({
+            "infra": "Docker: 20/20",
+            "finance": "IOL: $1.2M",
+        })
+        self.assertIn("Docker", result)
+        self.assertIn("IOL", result)
+
+    def test_agent_exception_does_not_crash_coordinator(self):
+        """CORD-01: FRMK-03 compliance — one agent error never crashes coordinator."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=["infra"]):
+            with patch.object(ac, "_run_single", side_effect=Exception("agent blew up")):
+                result = ac.route("infra query")
+        self.assertIn("correlation_id", result)
+        self.assertIsInstance(result, dict)
+
+    def test_route_returns_required_keys(self):
+        """CORD-01: route() return dict has all required keys."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=[]):
+            with patch.object(ac, "_do_skill_fallback",
+                              return_value={"handled": False, "output": None}):
+                result = ac.route("test query")
+        for key in ["query", "correlation_id", "strategy", "agents"]:
+            self.assertIn(key, result)
+
+    def test_no_orchestrator_import_in_route(self):
+        """CORD-01: Coordinator must not import orchestrator (D-01 constraint)."""
+        import ast
+        import pathlib
+
+        src = pathlib.Path("workspace/runtime/agent_coordinator.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                names = [a.name for a in node.names]
+                module = getattr(node, "module", "") or ""
+                self.assertNotIn("orchestrator", module,
+                                 "coordinator must not import orchestrator")
+                for n in names:
+                    self.assertNotIn("orchestrator", n,
+                                     "coordinator must not import orchestrator")
+
+    def test_handle_accepts_correlation_id_kwarg_all_agents(self):
+        """CORD-04: All 5 agents accept correlation_id=None without error."""
+        import inspect
+        import sys
+
+        sys.path.insert(0, "workspace/runtime")
+        for mod_name in ["agent_infra", "agent_personal", "agent_finance",
+                         "agent_research", "agent_self_improve"]:
+            mod = __import__(mod_name)
+            params = inspect.signature(mod.handle).parameters
+            self.assertIn("correlation_id", params,
+                          f"{mod_name}.handle() missing correlation_id kwarg")
+            self.assertIsNone(params["correlation_id"].default,
+                              f"{mod_name}.handle() correlation_id default must be None")
+
+    def test_do_skill_fallback_does_not_call_orchestrator(self):
+        """CORD-01: Skill fallback uses skill_executor directly, not orchestrator."""
+        import agent_coordinator as ac
+        with patch.object(ac, "_get_claimants", return_value=[]):
+            with patch.object(ac, "_do_skill_fallback",
+                              return_value={"handled": True, "output": "weather result",
+                                            "source": "skill_executor"}) as mock_fb:
+                result = ac.route("como esta el tiempo")
+        self.assertEqual(result.get("source"), "skill_executor")
+        mock_fb.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

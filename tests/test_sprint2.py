@@ -238,7 +238,7 @@ class TestHomelabGoals(unittest.TestCase):
     def test_eval_gemma_warm_ok(self, mock_urlopen):
         mock_resp = MagicMock()
         mock_resp.read.return_value = json.dumps({
-            "models": [{"name": "gemma3:12b"}]
+            "models": [{"name": "gemma3:12b", "size_vram": 8074129571}]
         }).encode()
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
@@ -331,6 +331,21 @@ class TestHomelabGoals(unittest.TestCase):
         status, evidence = _eval_containers_healthy()
         self.assertEqual(status, "fail")
         self.assertIn("sonarr", evidence)
+
+    @patch('homelab_goals.subprocess')
+    def test_eval_containers_ignores_hireswarm(self, mock_subprocess):
+        mock_subprocess.run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                "hireswarm-inngest\tUp 3 hours (unhealthy)\n"
+                "hireswarm-agent-server\tUp 3 hours (unhealthy)\n"
+                "sonarr\tUp 3 hours\n"
+            ),
+        )
+        from homelab_goals import _eval_containers_healthy
+        status, evidence = _eval_containers_healthy()
+        self.assertEqual(status, "ok")
+        self.assertIn("2 ignored", evidence)
 
     def test_get_failing_goals_filters(self):
         """get_failing_goals only returns warn/fail goals."""
@@ -537,7 +552,7 @@ class TestPlannerGoalsIntegration(unittest.TestCase):
         ]
         with patch.dict(sys.modules, {}):
             # Need to patch at the source
-            with patch('homelab_goals.get_failing_goals', return_value=mock_failing):
+            with patch('homelab_goals.evaluate_all', return_value=mock_failing):
                 from proactive_planner import _check_goals
                 tasks = _check_goals()
 
