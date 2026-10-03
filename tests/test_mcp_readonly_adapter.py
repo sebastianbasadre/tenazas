@@ -192,6 +192,34 @@ def test_unknown_operation_does_not_read_anything(monkeypatch):
         mcp.call_tool("exec")
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX FIFO")
+def test_fifo_snapshot_fails_closed_without_blocking(cache):
+    state, _, _ = cache
+    os.mkfifo(state)
+    try:
+        assert mcp.get_models()["model"] == {}
+    finally:
+        # The legacy sandbox scans /tmp JSON files; do not leave a FIFO behind.
+        state.unlink()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX no-follow open")
+def test_file_swapped_for_link_before_open_is_rejected(cache, tmp_path, monkeypatch):
+    state, _, _ = cache
+    state.write_text("{}")
+    private = tmp_path / "private.json"
+    private.write_text('{"model":"canary-value"}')
+    original = mcp._open_snapshot
+
+    def swapped(path):
+        state.unlink()
+        state.symlink_to(private)
+        return original(path)
+
+    monkeypatch.setattr(mcp, "_open_snapshot", swapped)
+    assert mcp.get_models()["model"] == {}
+
+
 def test_inputs_and_output_are_bounded(cache):
     state, _, _ = cache
     state.write_bytes(b" " * (mcp._MAX_BYTES + 1))

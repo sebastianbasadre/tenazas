@@ -47,7 +47,7 @@ normalized and removed recursively. Text containing credential labels, authentic
 credential-bearing URLs, private-key material or opaque long identifiers is redacted before
 truncation. Container and alert text receives the same filtering.
 
-Only the configured state snapshot, infrastructure snapshot and direct JSON incident files
+Only the dedicated `workspace/runtime/mcp-cache/state.json`, `infra.json` and direct JSON incident files
 are readable. There is no client-supplied path or argument. Link files, junctions, non-regular
 files, hard links, malformed JSON and oversized snapshots fail closed. POSIX reads pin directory
 handles and use no-follow, read-only opens; Windows also checks resolved paths, file identity
@@ -55,14 +55,26 @@ and reparse points, but that platform's fallback is not a substitute for an immu
 Snapshots are limited to 1 MiB, collections to 100 items and recent alerts to 20 from at most
 1,000 directory entries.
 
-The cache producer remains trusted: an arbitrary short password placed under a legitimate
-observability field cannot be distinguished reliably from ordinary text. Do not mount raw
-credential/configuration directories into a future gateway. Provide a dedicated sanitized,
-read-only cache with an immutable directory layout and OS-level isolation.
+The separate `mcp_cache_producer.py` exporter requires an explicit credential inventory and
+redacts matching values and their URL/Base64/JSON representations before writing the dedicated cache.
+It drops raw container status prose
+and alert titles, projects the remaining fields, and rejects an export if a credential still
+intersects the serialized schema. Directories are mode 0700 and files 0600; writes are atomic.
+The adapter never imports this writer and never reads the original runtime/configuration state.
+Only the trusted producer may receive the credential inventory, never the gateway.
 
-This PR implements the local adapter only. It does not implement or validate a remote MCP
+The inventory must cover all configured credentials. An arbitrary unknown short password in an
+otherwise valid field cannot be recognized reliably by heuristics; inventory completeness remains
+a requirement. Do not mount raw credential/configuration directories into a future gateway.
+Provide only the dedicated sanitized, read-only cache with an immutable directory layout and
+OS-level isolation. The exporter is not connected to the production scheduler in this branch.
+
+This PR implements the local adapter and trusted cache exporter. It does not implement a remote MCP
 server, authentication, TLS, rate limiting, audit logging or deployment isolation. Those remain
 acceptance requirements before any remote exposure; passing adapter tests does not prove them.
+
+See [Linux/NAS validation and inherited failures](mcp-readonly-validation.md) for the evidence,
+credential-inventory scope, isolated gateway-role checks and remaining authentication blocker.
 
 ## Authentication and transport
 

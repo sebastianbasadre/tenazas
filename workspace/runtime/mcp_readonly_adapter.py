@@ -18,9 +18,10 @@ from typing import Any
 from urllib.parse import unquote
 
 RUNTIME = Path(__file__).resolve().parent
-STATE_FILE = RUNTIME / "state.json"
-AGENT_STATUS_FILE = Path("/home/tenazas/.openclaw/state/agents/infra_status.json")
-INCIDENTS_DIR = Path("/home/tenazas/.openclaw/state/incidents")
+CACHE_ROOT = RUNTIME / "mcp-cache"
+STATE_FILE = CACHE_ROOT / "state.json"
+AGENT_STATUS_FILE = CACHE_ROOT / "infra.json"
+INCIDENTS_DIR = CACHE_ROOT / "incidents"
 
 TOOLS = (
     "get_status",
@@ -226,7 +227,7 @@ def get_recent_alerts() -> dict:
         except OSError:
             files = []
         for path in files:
-            inc = _load_json(path, {})
+            inc = _load_json(path, None)
             if not isinstance(inc, dict):
                 continue
             alerts.append({
