@@ -59,3 +59,9 @@ def test_encoded_credentials_are_not_exported(tmp_path):
                           secret_values=[secret], destination=tmp_path)
     encoded_cache = (tmp_path / "state.json").read_text()
     assert all(variant not in encoded_cache for variant in variants)
+
+
+def test_credentials_are_redacted_before_truncation():
+    secret = "!?" * 200
+    result = producer.project_cache({"model": {"name": secret}}, secret_values=[secret])
+    assert result["state"]["model"]["name"] == "[REDACTED]"

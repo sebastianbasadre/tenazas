@@ -56,7 +56,8 @@ Snapshots are limited to 1 MiB, collections to 100 items and recent alerts to 20
 1,000 directory entries.
 
 The separate `mcp_cache_producer.py` exporter requires an explicit credential inventory and
-redacts matching values and their URL/Base64/JSON representations before writing the dedicated cache.
+redacts matching values and their URL/Base64/JSON representations before projection or truncation,
+so a long credential cannot be exported as a leaked prefix.
 It drops raw container status prose
 and alert titles, projects the remaining fields, and rejects an export if a credential still
 intersects the serialized schema. Directories are mode 0700 and files 0600; writes are atomic.

@@ -55,8 +55,10 @@ def project_cache(state, infra=None, incidents=(), *, secret_values):
     ):
         raise ValueError("Credential inventory must be a collection of values")
     secrets = tuple({variant for value in secret_values for variant in credential_variants(value)})
-    state = state if isinstance(state, dict) else {}
-    infra = infra if isinstance(infra, dict) else {}
+    # Inventory matching must precede projection/truncation, which could otherwise
+    # turn a long credential into an undetectable leaked prefix.
+    state = _clean(state, secrets) if isinstance(state, dict) else {}
+    infra = _clean(infra, secrets) if isinstance(infra, dict) else {}
     containers = []
     for item in state.get("containers", [])[:adapter._MAX_ITEMS] if isinstance(state.get("containers"), list) else []:
         if isinstance(item, dict):

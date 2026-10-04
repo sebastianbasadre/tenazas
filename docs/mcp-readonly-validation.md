@@ -13,11 +13,11 @@ Imagen de pruebas construida separadamente a partir de `sha256:bd6795ea0ff48bd36
 | Ejecución | Resultado |
 | --- | --- |
 | Adapter Linux | 70 aprobados; 0 fallados; 0 omitidos |
-| Productor Linux | 5 aprobados; 0 fallados; 0 omitidos |
+| Productor Linux | 6 aprobados; 0 fallados; 0 omitidos |
 | `python3 -m pytest`, baseline y candidato | Ambos abortan colección con los mismos 6 errores y trazas idénticas |
 | Suite baseline, `--continue-on-collection-errors` | 2688 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
-| Suite candidato, mismo comando | 2763 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
-| Regresiones nuevas entre casos ejecutados | 0: mismos 114 IDs y mensajes semánticos; +75 aprobados de esta frontera |
+| Suite candidato, mismo comando | 2764 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
+| Regresiones nuevas entre casos ejecutados | 0: mismos 114 IDs y mensajes semánticos; +76 aprobados de esta frontera |
 
 El flag de continuación no excluye archivos ni tests: permite ejecutar los casos recogidos pese a los errores de colección. La suite no está verde. La comparación de fallos usa mensajes exactos salvo dos direcciones de memoria de generadores y el orden de miembros de un set en un caso de catálogo. Las seis trazas de colección son idénticas completas.
 
@@ -218,7 +218,7 @@ El nuevo productor separado exporta a un cache dedicado. Exige un inventario de 
 
 Se leyó el estado real en modo lectura con UID/GID 1026 y se exportó a staging. El inventario se obtuvo del entorno del contenedor actual y su configuración OpenClaw: 10 valores únicos. Cinco placeholders de Ollama sin autenticación no son credenciales; `N8N_SECURE_COOKIE` es una política booleana, no una cookie. Los valores se mantuvieron en memoria/stdin del proceso productor y nunca se imprimieron ni se persistieron. El rol gateway no recibió el inventario.
 
-Snapshot comprobado: SHA-256 `dcd8f04c872e723435430c29f3aef242d451c8a1e4b27b3b705c21e626bd7277`; 29 contenedores, incluidos los temporales de revisión si estaban presentes al refrescar el snapshot.
+Snapshot comprobado: SHA-256 `18270393ba433a8831a21626a4c9a49b3270c5d4fe55a399117b248e8a67bb4d`; 28 contenedores, incluidos los temporales de revisión si estaban presentes al refrescar el snapshot.
 
 Resultado: cero coincidencias de las credenciales y representaciones inventariadas en snapshot, cache exportado y respuestas de las seis herramientas. Directorio del cache 0700, archivos 0600; lectura y ausencia de permiso de escritura comprobadas por el gateway con UID/GID 1026.
 
