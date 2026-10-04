@@ -1,0 +1,35 @@
+# Review template only. Does not modify the production compose or start ingress.
+services:
+  mcp-readonly:
+    image: ${TENAZAS_MCP_IMAGE:?set a reviewed immutable image digest}
+    user: "1026:1026"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    entrypoint: [python3, -m, workspace.runtime.mcp_readonly_gateway]
+    command: [--token-file, /run/mcp-auth/token, --cert, /run/mcp-tls/cert.pem, --key, /run/mcp-tls/key.pem]
+    volumes:
+      - type: bind
+        source: ${TENAZAS_MCP_CACHE:?set the dedicated sanitized cache directory}
+        target: /app/workspace/runtime/mcp-cache
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TENAZAS_MCP_AUTH:?set the private test credential directory}
+        target: /run/mcp-auth
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TENAZAS_MCP_TLS:?set the private test TLS directory}
+        target: /run/mcp-tls
+        read_only: true
+        bind:
+          create_host_path: false
+    working_dir: /app
+    # No published ports, host networking, Docker/SSH mounts, production config,
+    # arbitrary HTTP upstreams, collector code or producer module in the image.

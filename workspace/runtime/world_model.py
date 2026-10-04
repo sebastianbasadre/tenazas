@@ -12,6 +12,11 @@ Logs to logs/world_model.log.
 import json
 from datetime import datetime
 from pathlib import Path
+
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
 from runtime_utils import now
 
 try:
@@ -20,7 +25,7 @@ except ImportError:
     from workspace.runtime.runtime_config import CHROMADB_URL, GLUETUN_PROXY, HOMELAB_IP, HUE_BRIDGE_IP, LAN_SUBNET, NAS_BACKUP_IP, NAS_IP, OLLAMA_GPU_URL, ROUTER_IP, SAMSUNG_M8_IP
 
 BASE_DIR = Path(__file__).parent
-STATE_FILE = BASE_DIR / "state.json"
+STATE_FILE = private_state_path(BASE_DIR)
 INVENTORY_FILE = BASE_DIR / "device_inventory.json"
 LOG_FILE = BASE_DIR / "logs" / "world_model.log"
 

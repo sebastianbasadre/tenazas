@@ -1,0 +1,211 @@
+{
+  "containers_inspected": 28,
+  "relevant_mounts": [
+    {
+      "container": "openclaw",
+      "configured_user": "tenazas",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/himalaya-config",
+          "destination": "/home/tenazas/.config/himalaya",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/tools",
+          "destination": "/home/tenazas/tools",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/ssh-keys",
+          "destination": "/home/tenazas/.ssh",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/gcal-token.json",
+          "destination": "/home/tenazas/.openclaw/gcal-token.json",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/tests",
+          "destination": "/home/tenazas/tests",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/workspace/runtime",
+          "destination": "/home/tenazas/runtime",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/ollama-check.sh",
+          "destination": "/home/tenazas/ollama-check.sh",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/startup.sh",
+          "destination": "/home/tenazas/startup.sh",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/state",
+          "destination": "/home/tenazas/.openclaw",
+          "rw": true
+        }
+      ]
+    },
+    {
+      "container": "tenazas-24x7-observation",
+      "configured_user": "tenazas",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/state/job-runner",
+          "destination": "/home/tenazas/job-state",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/workspace/runtime",
+          "destination": "/home/tenazas/runtime",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/tools",
+          "destination": "/home/tenazas/tools",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/state/observations",
+          "destination": "/home/tenazas/.openclaw/state",
+          "rw": true
+        }
+      ]
+    },
+    {
+      "container": "tenazas-recovery-watchdog",
+      "configured_user": "tenazas",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/workspace/runtime",
+          "destination": "/home/tenazas/runtime",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/state/watchdog",
+          "destination": "/home/tenazas/watchdog-state",
+          "rw": true
+        }
+      ]
+    },
+    {
+      "container": "tenazas-job-runner",
+      "configured_user": "tenazas",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/state/job-runner",
+          "destination": "/home/tenazas/job-state",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/workspace/runtime",
+          "destination": "/home/tenazas/runtime",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/logs/job-runner",
+          "destination": "/home/tenazas/runtime/logs",
+          "rw": true
+        }
+      ]
+    },
+    {
+      "container": "tenazas-n8n-tls",
+      "configured_user": "",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/n8n/nginx.conf",
+          "destination": "/etc/nginx/conf.d/default.conf",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/state/n8n-tls",
+          "destination": "/etc/nginx/tls",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "container": "n8n",
+      "configured_user": "node",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/n8n/data",
+          "destination": "/home/node/.n8n",
+          "rw": true
+        },
+        {
+          "source": "/volume1/docker/openclaw/scripts",
+          "destination": "/workspace/scripts",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/n8n/workflows",
+          "destination": "/workspace/workflows",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/n8n/import-workflows.sh",
+          "destination": "/workspace/import-workflows.sh",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/tools/bootstrap_n8n_runner_credentials.js",
+          "destination": "/workspace/bootstrap-runner-credentials.js",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "container": "grafana",
+      "configured_user": "472",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/grafana/dashboards",
+          "destination": "/var/lib/grafana/dashboards",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/grafana/provisioning",
+          "destination": "/etc/grafana/provisioning",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "container": "prometheus",
+      "configured_user": "nobody",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/prometheus.yml",
+          "destination": "/etc/prometheus/prometheus.yml",
+          "rw": false
+        },
+        {
+          "source": "/volume1/docker/openclaw/alerts.yml",
+          "destination": "/etc/prometheus/alerts.yml",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "container": "searxng",
+      "configured_user": "",
+      "mounts": [
+        {
+          "source": "/volume1/docker/openclaw/searxng",
+          "destination": "/etc/searxng",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "readonly": true,
+  "scope": "current configured containers; no environment/commands collected"
+}

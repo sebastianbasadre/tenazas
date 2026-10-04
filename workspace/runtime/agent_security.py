@@ -9,6 +9,11 @@ recommends, but does not execute changes directly.
 import json
 from pathlib import Path
 
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
+
 from agent_protocol import Observation, Recommendation
 from runtime_utils import load_json, now, save_json
 
@@ -18,7 +23,7 @@ AGENT_DIR = STATE_DIR / "agents"
 MEMORY_FILE = AGENT_DIR / "security_memory.json"
 STATUS_FILE = AGENT_DIR / "security_status.json"
 LOG_FILE = BASE_DIR / "logs" / "agent_security.log"
-RUNTIME_STATE_FILE = BASE_DIR / "state.json"
+RUNTIME_STATE_FILE = private_state_path(BASE_DIR)
 DEVICE_INVENTORY_FILE = BASE_DIR / "device_inventory.json"
 
 OWNERSHIP = {

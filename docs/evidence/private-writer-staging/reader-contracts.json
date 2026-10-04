@@ -1,0 +1,114 @@
+{
+  "consumer_contracts_passed": 10,
+  "failed": 0,
+  "legacy_alias_present": false,
+  "consumers": [
+    {
+      "consumer": "runtime",
+      "source_sha256": "f94f98bc5d9f6d532deebf4a851bf434e0f7ac370860d2d23ac9a8df724d343a",
+      "path_aliases": [
+        "STATE_FILE"
+      ],
+      "read_expressions_tested": 3,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "background_agents",
+      "source_sha256": "335eeca214cb8ba3d1ae3a57d273f46db26a6bbea3b895144b3f89bb352284cf",
+      "path_aliases": [
+        "STATE_FILE"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "goal_engine",
+      "source_sha256": "29631729db630b95a1c9d8c3e6e0265a9086f57a0ecc190450aa03e76d758419",
+      "path_aliases": [
+        "STATE_FILE"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "devin_lite",
+      "source_sha256": "c52f552a50501865f87465acce47e0a05f26eee33d25200fc0e4a4bdc84be6ce",
+      "path_aliases": [
+        "STATE_FILE"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "infra_diagnostics",
+      "source_sha256": "8fe72b69c130e9bb8c9d58ec561c02af91f7dfbf1772e5d82cdbd12c785c3ac8",
+      "path_aliases": [
+        "STATE_FILE"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "benchmark_continuous",
+      "source_sha256": "994e41f5fb1ce55fffe2dd72b08e866ced3bbaa095d9d6e69cf1cd77b97fddf9",
+      "path_aliases": [
+        "STATE_FILE"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "world_model",
+      "source_sha256": "e704c57d543adf5aa44d9f0123bc7b748a1917943086c27441b534dae1bd57a7",
+      "path_aliases": [
+        "STATE_FILE"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "agent_security",
+      "source_sha256": "8262d3692722c57370c5d022e49562c4a3e57a2884ca6a508f9e175bc6f942c4",
+      "path_aliases": [
+        "RUNTIME_STATE_FILE"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "diagnostics_worker",
+      "source_sha256": "d12527b772f7fc5c3ea4f9d49c16688054d96ea68450279912e7b67fb4870d20",
+      "path_aliases": [
+        "state_file"
+      ],
+      "read_expressions_tested": 1,
+      "legacy_path_missing_negative_control": true,
+      "new_path_schema_ok": true
+    },
+    {
+      "consumer": "health_sweep",
+      "source_sha256": "5a5772e5ad1ba897d732494738fad8614ff0576297042e915268f7739d1f7d61",
+      "unmodified_probe_silently_omits_state": true,
+      "migrated_probe_reports_real_size": true
+    }
+  ],
+  "scope": "captured read expressions + health probe; not full service execution",
+  "host_acl": [
+    {
+      "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/reader-view/runtime/private-state",
+      "result": "(synoacltool.c, 596)It's Linux mode"
+    },
+    {
+      "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/reader-view/runtime/private-state/state.json",
+      "result": "(synoacltool.c, 596)It's Linux mode"
+    }
+  ]
+}

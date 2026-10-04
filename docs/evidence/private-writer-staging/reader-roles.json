@@ -1,0 +1,42 @@
+[
+  {
+    "uid": 1026,
+    "gid": 1026,
+    "new_private_state_readable": true,
+    "legacy_path_absent": true,
+    "mount_ro": true,
+    "production_role": "openclaw",
+    "image": "sha256:bd6795ea0ff48bd365a79e405474cb27d3265c24bdcf5d0a95d3d46282fec9be",
+    "real_production_process_not_executed": true
+  },
+  {
+    "uid": 1026,
+    "gid": 1026,
+    "new_private_state_readable": true,
+    "legacy_path_absent": true,
+    "mount_ro": true,
+    "production_role": "tenazas-24x7-observation",
+    "image": "sha256:bd6795ea0ff48bd365a79e405474cb27d3265c24bdcf5d0a95d3d46282fec9be",
+    "real_production_process_not_executed": true
+  },
+  {
+    "uid": 1026,
+    "gid": 1026,
+    "new_private_state_readable": true,
+    "legacy_path_absent": true,
+    "mount_ro": true,
+    "production_role": "tenazas-recovery-watchdog",
+    "image": "sha256:bd6795ea0ff48bd365a79e405474cb27d3265c24bdcf5d0a95d3d46282fec9be",
+    "real_production_process_not_executed": true
+  },
+  {
+    "uid": 1026,
+    "gid": 1026,
+    "new_private_state_readable": true,
+    "legacy_path_absent": true,
+    "mount_ro": true,
+    "production_role": "tenazas-job-runner",
+    "image": "sha256:bd6795ea0ff48bd365a79e405474cb27d3265c24bdcf5d0a95d3d46282fec9be",
+    "real_production_process_not_executed": true
+  }
+]
