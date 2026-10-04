@@ -70,12 +70,32 @@ a requirement. Do not mount raw credential/configuration directories into a futu
 Provide only the dedicated sanitized, read-only cache with an immutable directory layout and
 OS-level isolation. The exporter is not connected to the production scheduler in this branch.
 
-This PR implements the local adapter and trusted cache exporter. It does not implement a remote MCP
-server, authentication, TLS, rate limiting, audit logging or deployment isolation. Those remain
-acceptance requirements before any remote exposure; passing adapter tests does not prove them.
+This branch also implements `mcp_readonly_gateway.py`, a deliberately narrow staging HTTPS
+JSON-RPC transport. It supports initialize, initialized notification, ping, tools/list and
+tools/call, with numeric request IDs and protocol version 2025-03-26. GET returns 405; no SSE,
+batch requests, sessions, resources, prompts, OAuth or public ingress are implemented.
+This is a test gateway, not a claim of compatibility with all MCP clients. Transport behavior
+is informed by the [MCP transport specification](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports).
+
+Every POST authenticates against a dedicated 32-128 character alphanumeric bearer credential
+file, mode 0600. Symlinks, hardlinks and public file permissions are rejected. The file is read
+on each request: replacing it revokes the old credential immediately, and a missing/invalid
+file fails closed. No credential is included in logs, errors or cache. Use an independent,
+random credential; production inventory must never be mounted into this process.
+
+The command-line entry point requires TLS certificate/key files, minimum TLS 1.2, and binds
+only to 127.0.0.1. Browser Origin headers are rejected; bodies are limited to 16 KiB, requests
+to 120/minute globally, concurrent connections to 16 and socket/handshake timeouts to 5 seconds.
+Audit records contain only HTTP status codes. Rate-limit counters are process-local; a production
+proxy must handle distributed abuse and reliable log delivery. Authentication protects cache
+reads; unsupported HTTP methods return generic 405 without reading infrastructure data.
+
+The producer's existing 0700/0600 permissions are applied to reused staging caches as well.
+The gateway mounts that directory read-only. Raw production cache permissions are unchanged.
+No scheduler hook or production deployment is installed by these changes.
 
 See [Linux/NAS validation and inherited failures](mcp-readonly-validation.md) for the evidence,
-credential-inventory scope, isolated gateway-role checks and remaining authentication blocker.
+credential-inventory scope, isolated gateway-role checks and staging HTTPS authentication evidence.
 
 ## Authentication and transport
 

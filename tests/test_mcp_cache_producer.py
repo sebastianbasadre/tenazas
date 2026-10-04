@@ -8,6 +8,30 @@ from workspace.runtime import mcp_cache_producer as producer
 from workspace.runtime import mcp_readonly_adapter as adapter
 
 
+def test_existing_cache_permissions_are_tightened(tmp_path):
+    root = tmp_path / "cache"
+    root.mkdir(mode=0o777)
+    (root / "incidents").mkdir(mode=0o777)
+    (root / "state.json").write_text('{}')
+    (root / "state.json").chmod(0o666)
+    producer.export_cache({}, secret_values=[], destination=root)
+    if os.name == "posix":
+        assert stat.S_IMODE(root.stat().st_mode) == 0o700
+        assert stat.S_IMODE((root / "incidents").stat().st_mode) == 0o700
+        assert all(stat.S_IMODE(p.stat().st_mode) == 0o600 for p in root.rglob('*.json'))
+
+
+@pytest.mark.parametrize("entry", ["credentials.json", "incidents/unknown.json"])
+def test_reused_cache_cannot_keep_unmanaged_secret_files(tmp_path, entry):
+    root = tmp_path / "cache"
+    path = root / entry
+    path.parent.mkdir(parents=True)
+    path.write_text('{"title":"unknown-short-secret"}')
+    with pytest.raises(ValueError, match="Unexpected"):
+        producer.export_cache({}, secret_values=[], destination=root)
+    assert not (root / "state.json").exists()
+
+
 def test_secrets_are_removed_before_adapter_receives_cache(tmp_path, monkeypatch):
     secret = "shortpw!"
     raw = {"token": secret, "containers": [{"name": secret, "status": secret, "up": True}],

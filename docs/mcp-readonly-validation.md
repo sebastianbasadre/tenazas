@@ -1,6 +1,6 @@
 # Validación read-only MCP en Linux/NAS — 2026-10-03
 
-**Criterio de salida pendiente: no existe un servidor MCP remoto ni autenticación en esta rama, y no se proporcionó un gateway de staging.** No se declara autorización remota validada.
+**Gateway de prueba autenticado implementado y validado en Linux/NAS, fuera de producción.** La aprobación de merge/deploy sigue pendiente de revisión del diff. La validación cubre este gateway temporal, no un servicio público ni interoperabilidad con todos los clientes MCP.
 
 Rama exclusiva: `feature/tenazas-readonly-mcp`. El commit local previo `d5d1a4560484af3f7d081e41bc115760fda68caf` se preservó en un bundle Git. No hubo push, merge ni deploy.
 
@@ -13,11 +13,11 @@ Imagen de pruebas construida separadamente a partir de `sha256:bd6795ea0ff48bd36
 | Ejecución | Resultado |
 | --- | --- |
 | Adapter Linux | 70 aprobados; 0 fallados; 0 omitidos |
-| Productor Linux | 6 aprobados; 0 fallados; 0 omitidos |
+| Productor Linux | 9 aprobados; 0 fallados; 0 omitidos |
 | `python3 -m pytest`, baseline y candidato | Ambos abortan colección con los mismos 6 errores y trazas idénticas |
 | Suite baseline, `--continue-on-collection-errors` | 2688 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
-| Suite candidato, mismo comando | 2764 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
-| Regresiones nuevas entre casos ejecutados | 0: mismos 114 IDs y mensajes semánticos; +76 aprobados de esta frontera |
+| Suite candidato, mismo comando | 2813 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
+| Regresiones nuevas entre casos ejecutados | 0: mismos 114 IDs y mensajes semánticos; +125 aprobados de esta frontera |
 
 El flag de continuación no excluye archivos ni tests: permite ejecutar los casos recogidos pese a los errores de colección. La suite no está verde. La comparación de fallos usa mensajes exactos salvo dos direcciones de memoria de generadores y el orden de miembros de un set en un caso de catálogo. Las seis trazas de colección son idénticas completas.
 
@@ -218,7 +218,7 @@ El nuevo productor separado exporta a un cache dedicado. Exige un inventario de 
 
 Se leyó el estado real en modo lectura con UID/GID 1026 y se exportó a staging. El inventario se obtuvo del entorno del contenedor actual y su configuración OpenClaw: 10 valores únicos. Cinco placeholders de Ollama sin autenticación no son credenciales; `N8N_SECURE_COOKIE` es una política booleana, no una cookie. Los valores se mantuvieron en memoria/stdin del proceso productor y nunca se imprimieron ni se persistieron. El rol gateway no recibió el inventario.
 
-Snapshot comprobado: SHA-256 `18270393ba433a8831a21626a4c9a49b3270c5d4fe55a399117b248e8a67bb4d`; 28 contenedores, incluidos los temporales de revisión si estaban presentes al refrescar el snapshot.
+Snapshot comprobado: SHA-256 `147f290e6e9faa834421c184a4b2d4fd206812c040ccf892fb702223f3d8f151`; 28 contenedores, incluidos los temporales de revisión si estaban presentes al refrescar el snapshot.
 
 Resultado: cero coincidencias de las credenciales y representaciones inventariadas en snapshot, cache exportado y respuestas de las seis herramientas. Directorio del cache 0700, archivos 0600; lectura y ausencia de permiso de escritura comprobadas por el gateway con UID/GID 1026.
 
@@ -228,11 +228,17 @@ Se probaron enlaces/hardlinks, sustitución por enlace antes de abrir, FIFO, JSO
 
 La comprobación de cero secretos se limita al inventario descrito y a las reglas de redacción. No demuestra ausencia universal de credenciales desconocidas: una contraseña corta desconocida puede parecer un identificador normal. Antes de exponer el gateway, completar y actualizar el inventario y comprobar permisos/aislamiento del servicio real, no sólo del rol de pruebas.
 
-## Bloqueo de autenticación
+## Autenticación y HTTPS de prueba
 
-No hay servidor MCP, middleware de autenticación, configuración de TLS ni endpoint de staging en la rama. Se pidió repositorio/configuración y URL fuera de producción. No se usó OpenClaw de producción para suplir ese faltante y no se inventaron pruebas de autenticación.
+Se agregó mcp_readonly_gateway.py: token dedicado en archivo privado 0600, autenticación antes de procesar solicitudes o leer cache, comparación constante, TLS mínimo 1.2, rotación/revocación por archivo, rate limit global, límite de conexiones y timeout. Sólo seis tools, sin argumentos de rutas/comandos, sin llamadas al productor. Logs sólo contienen el status HTTP. La CLI requiere certificado/key y escucha en loopback.
 
-Pendiente: probar identidad válida, identidad ausente/inválida/expirada/revocada, rechazo sin datos antes de listar o ejecutar herramientas, protección de sesiones y logs sin credenciales, y la configuración de aislamiento del gateway remoto real. Hasta entonces el criterio de salida completo no está alcanzado.
+alidate_mcp_authenticated_gateway.py levantó y apagó el servidor HTTPS temporal dentro de un contenedor network-none; ningún puerto fue publicado. El cliente verificó certificado y hostname. Se probaron initialize, lista exacta y lectura de las seis tools sobre el cache real, acceso ausente/incorrecto/alterado, operaciones y argumentos prohibidos, Origin de navegador, GET, rotación, revocación, archivo ausente, rate limit, auditoría sin credenciales y permisos 0700/0600 con montaje RO. Una conexión sin negociación TLS no impide otro acceso autenticado.
+
+Los tokens de pruebas y la clave TLS existieron sólo en el tmpfs del contenedor. No hubo ingress, OAuth ni sesiones: transporte stateless, IDs numéricos, protocolo 2025-03-26, sin SSE/batches. No se afirma interoperabilidad universal ni autenticación de un futuro proxy público. Ese servicio y su configuración requerirán revisión antes de exposición. Las claves bearer no tienen expiración automática; eliminar/reemplazar el archivo revoca el acceso. El rate limit es global y local al proceso.
+
+Se detectó y corrigió que reutilizar un cache podía conservar archivos no gestionados, incluidos incidentes con texto sin sanitizar. Ahora el productor rechaza entradas ajenas al esquema fijo antes de publicar datos; dos regresiones cubren cache e incidentes.
+
+El cache dedicado se restringió a 0700/0600 y se agregó regresión para corregir un directorio existente con permisos abiertos. El cache raw original sigue 0777: no se alteró producción. Este riesgo sigue registrado; el gateway de prueba no tiene acceso a ese archivo y sólo recibe la exportación sanitizada RO.
 
 ## Artefactos y reproducción
 
@@ -240,6 +246,6 @@ Staging NAS: `/volume1/docker/tenazas-mcp-review-d5d1a45/`; evidencia JUnit y lo
 
 La suite se ejecutó con `python3 -m pytest`; tras clasificar la interrupción, `python3 -m pytest --continue-on-collection-errors`. Para reproducir con seguridad, usar la misma imagen, UID, tmpfs, código read-only, `--network none`, `--cap-drop ALL`, `--security-opt no-new-privileges` y el hook que bloquea conexiones/comandos; no montar producción en la suite.
 
-`tools/validate_mcp_cache_producer.py` es el probe del productor confiable: recibe un inventario explícito por stdin y escribe exclusivamente una exportación de staging. `tools/validate_mcp_gateway_cache.py` verifica el rol sin inventario ni cache original. Su opción de output para auditoría devuelve respuestas al cliente de validación en memoria, que comprueba secretos y descarta los datos antes de guardar sólo métricas. No son servidores MCP ni implementan autenticación.
+`tools/validate_mcp_cache_producer.py` es el probe del productor confiable: recibe un inventario explícito por stdin y escribe exclusivamente una exportación de staging. `tools/validate_mcp_gateway_cache.py` verifica el rol sin inventario ni cache original. Su opción de output para auditoría devuelve respuestas al cliente de validación en memoria, que comprueba secretos y descarta los datos antes de guardar sólo métricas. Estos dos probes no son servidores. El nuevo 	ools/validate_mcp_authenticated_gateway.py prueba el servidor HTTPS autenticado en un entorno separado, con credenciales y certificados efímeros.
 
 **No hubo push, merge ni deploy. No se modificó código/configuración ni se reiniciaron servicios de producción.**

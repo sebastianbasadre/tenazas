@@ -109,11 +109,16 @@ def export_cache(state, infra=None, incidents=(), *, secret_values, destination=
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     if root.resolve() != root or root.is_symlink():
         raise ValueError("Cache directory must not traverse links")
+    if any(path.name not in {"state.json", "infra.json", "incidents"} for path in root.iterdir()):
+        raise ValueError("Unexpected cache entry; export rejected")
     os.chmod(root, 0o700)
     alerts = root / "incidents"
     alerts.mkdir(mode=0o700, exist_ok=True)
     if alerts.is_symlink():
         raise ValueError("Incident directory must not be a link")
+    expected_alerts = {f"alert-{index:02}.json" for index in range(20)}
+    if any(path.name not in expected_alerts for path in alerts.iterdir()):
+        raise ValueError("Unexpected incident entry; export rejected")
     os.chmod(alerts, 0o700)
     _write(root / "state.json", data["state"])
     _write(root / "infra.json", data["infra"])
