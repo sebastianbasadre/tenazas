@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from workspace.runtime import mcp_readonly_adapter as adapter
+from workspace.runtime import mcp_cache_policy
 
 MAX_BODY = 16384
 PROTOCOL = "2025-03-26"
@@ -26,8 +27,7 @@ def load_token(path):
     info = path.lstat()
     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
         raise ValueError("Credential file must be a private regular file")
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(descriptor, "rb") as stream:
+    with adapter._open_snapshot(path.absolute()) as stream:
         opened = os.fstat(stream.fileno())
         if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino) or opened.st_size > 256 or opened.st_mode & 0o077 or opened.st_nlink != 1:
             raise ValueError("Invalid credential file")
@@ -94,6 +94,10 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         pass  # Never log request lines, headers, credentials or user-controlled text.
 
+    def send_error(self, code, message=None, explain=None):
+        # The stdlib default reflects malformed request lines and unsupported verbs.
+        self.reply(code, {"error": "invalid HTTP request"})
+
     def reply(self, status, payload=None):
         body = json.dumps(payload, allow_nan=False).encode() if payload is not None else b""
         self.send_response(status)
@@ -108,16 +112,24 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         AUDIT.info("request status=%d", status)
 
-    def do_POST(self):
+    def authenticated(self):
         if not self.server.permitted():
-            return self.reply(429, {"error": "rate limit"})
+            self.reply(429, {"error": "rate limit"})
+            return False
         headers = self.headers.get_all("Authorization", [])
         try:
             expected = "Bearer " + load_token(self.server.token_file)
         except (OSError, ValueError, UnicodeError):
-            return self.reply(503, {"error": "unavailable"})
+            self.reply(503, {"error": "unavailable"})
+            return False
         if len(headers) != 1 or not hmac.compare_digest(headers[0].encode(), expected.encode()):
-            return self.reply(401, {"error": "unauthorized"})
+            self.reply(401, {"error": "unauthorized"})
+            return False
+        return True
+
+    def do_POST(self):
+        if not self.authenticated():
+            return
         if self.path != "/mcp":
             return self.reply(404, {"error": "not found"})
         if self.headers.get("Origin") is not None:
@@ -172,6 +184,7 @@ class Handler(BaseHTTPRequestHandler):
                 error = {"code": -32602, "message": "Tool or arguments forbidden"}
             else:
                 try:
+                    mcp_cache_policy.validate_cache(adapter.CACHE_ROOT)
                     value = adapter.call_tool(params["name"])
                     result = {"content": [{"type": "text", "text": json.dumps(value, allow_nan=False)}], "isError": False}
                 except Exception:
@@ -182,7 +195,8 @@ class Handler(BaseHTTPRequestHandler):
                                 **({"error": error} if error else {"result": result})})
 
     def do_GET(self):
-        self.reply(405, {"error": "method forbidden"})
+        if self.authenticated():
+            self.reply(405, {"error": "method forbidden"})
 
     do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = do_GET
 
@@ -196,6 +210,7 @@ def main():
     args = parser.parse_args()
     if not args.cert or not args.key:
         parser.error("TLS certificate and key required")
+    mcp_cache_policy.validate_cache(adapter.CACHE_ROOT)
     server = Gateway(("127.0.0.1", args.port), args.token_file)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2

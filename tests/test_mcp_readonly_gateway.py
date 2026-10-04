@@ -17,6 +17,7 @@ def invoke(tmp_path, monkeypatch):
     path.write_text(TOKEN)
     path.chmod(0o600)
     monkeypatch.setattr(gateway.adapter, "call_tool", lambda name: {"sanitized": name})
+    monkeypatch.setattr(gateway.mcp_cache_policy, "validate_cache", lambda root: None)
 
     def call(request=None, *, authorization="Bearer " + TOKEN, headers=None, method="POST", target="/mcp", raw=None):
         handler = object.__new__(gateway.Handler)
@@ -97,6 +98,31 @@ def test_other_http_methods(invoke, method):
     assert call(method=method)[0] == 405
 
 
+@pytest.mark.parametrize("method", ["GET", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+def test_other_http_methods_require_auth(invoke, method):
+    call, _ = invoke
+    assert call(method=method, authorization=None)[0] == 401
+
+
+def test_parser_errors_do_not_reflect_request_secrets():
+    handler = object.__new__(gateway.Handler)
+    replies = []
+    handler.reply = lambda status, payload: replies.append((status, payload))
+    handler.send_error(501, TOKEN, TOKEN)
+    assert replies == [(501, {"error": "invalid HTTP request"})]
+
+
+def test_unsafe_cache_is_not_dispatched(invoke, monkeypatch):
+    call, _ = invoke
+    def deny(_root):
+        raise ValueError("private-cache-path")
+    monkeypatch.setattr(gateway.mcp_cache_policy, "validate_cache", deny)
+    monkeypatch.setattr(gateway.adapter, "call_tool", lambda *_: pytest.fail("Unsafe read"))
+    _, payload = call({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "get_status"}})
+    assert payload["error"]["code"] == -32603
+    assert "private-cache-path" not in json.dumps(payload)
+
+
 def test_secret_string_id_is_not_reflected(invoke):
     call, _ = invoke
     status, body = call({"jsonrpc": "2.0", "id": TOKEN, "method": "ping"})
@@ -108,6 +134,14 @@ def test_private_credential_permissions(invoke):
     path.chmod(0o644)
     with pytest.raises(ValueError):
         gateway.load_token(path)
+
+
+def test_credential_directory_symlink_fails_closed(invoke, tmp_path):
+    _, path = invoke
+    alias = tmp_path / "alias"
+    alias.symlink_to(path.parent, target_is_directory=True)
+    with pytest.raises(OSError):
+        gateway.load_token(alias / path.name)
 
 
 def test_audit_never_logs_headers_or_request(caplog):

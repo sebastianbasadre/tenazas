@@ -86,13 +86,22 @@ random credential; production inventory must never be mounted into this process.
 The command-line entry point requires TLS certificate/key files, minimum TLS 1.2, and binds
 only to 127.0.0.1. Browser Origin headers are rejected; bodies are limited to 16 KiB, requests
 to 120/minute globally, concurrent connections to 16 and socket/handshake timeouts to 5 seconds.
-Audit records contain only HTTP status codes. Rate-limit counters are process-local; a production
+Audit records contain only HTTP status codes. Parser errors never reflect request text.
+All recognized HTTP methods require authentication, including methods subsequently rejected.
+Unsafe cache modes/ownership/links/unmanaged entries fail closed at CLI startup and before
+each tool read through `mcp_cache_policy.py`. Rate-limit counters are process-local; a production
 proxy must handle distributed abuse and reliable log delivery. Authentication protects cache
-reads; unsupported HTTP methods return generic 405 without reading infrastructure data.
+reads; authenticated unsupported HTTP methods return generic 405 without reading infrastructure data.
 
 The producer's existing 0700/0600 permissions are applied to reused staging caches as well.
 The gateway mounts that directory read-only. Raw production cache permissions are unchanged.
 No scheduler hook or production deployment is installed by these changes.
+
+See [mandatory cache cutover and proposed ChatGPT ingress](mcp-readonly-deployment.md).
+The current internal bearer is a staging mechanism; ChatGPT integration requires an OAuth
+resource-server proxy and a separately validated private Secure MCP Tunnel. Those are proposed,
+not implemented by this branch. Raw 0777 permissions and NAS ACLs must be retired as specified
+before authorizing a production deployment.
 
 See [Linux/NAS validation and inherited failures](mcp-readonly-validation.md) for the evidence,
 credential-inventory scope, isolated gateway-role checks and staging HTTPS authentication evidence.

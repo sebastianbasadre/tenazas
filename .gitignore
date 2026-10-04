@@ -32,6 +32,8 @@ media/
 
 # Runtime JSON state (regenerated)
 workspace/runtime/state.json
+workspace/runtime/mcp-cache/
+deploy/mcp-readonly/private/
 workspace/runtime/events.json
 workspace/runtime/tasks.json
 workspace/runtime/memory_log.json

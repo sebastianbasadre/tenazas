@@ -24,8 +24,9 @@ def main():
     root = Path("/tmp")
     token_path = root / "gateway-token"
     token = secrets.token_hex(32)
-    token_path.write_text(token)
-    token_path.chmod(0o600)
+    descriptor = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        stream.write(token)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(root / "cert.pem", root / "key.pem")
@@ -87,7 +88,11 @@ def main():
         results.append("mutation_and_arbitrary_arguments_denied")
         assert call(extra={"Origin": "https://evil.example"})[0] == 403
         assert call(http_method="GET")[0] == 405
+        assert call(http_method="GET", credential=None)[0] == 401
         results.append("browser_origin_and_get_denied")
+        status, response = call(http_method=token)
+        assert status == 501 and token not in json.dumps(response)
+        results.append("HTTP_parser_errors_do_not_reflect_credentials")
         replacement = secrets.token_hex(32)
         token_path.write_text(replacement)
         assert call()[0] == 401

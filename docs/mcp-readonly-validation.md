@@ -1,6 +1,6 @@
 # Validación read-only MCP en Linux/NAS — 2026-10-03
 
-**Gateway de prueba autenticado implementado y validado en Linux/NAS, fuera de producción.** La aprobación de merge/deploy sigue pendiente de revisión del diff. La validación cubre este gateway temporal, no un servicio público ni interoperabilidad con todos los clientes MCP.
+**Gateway de prueba autenticado implementado y validado en Linux/NAS, fuera de producción.** La revisión de seguridad está documentada en [mcp-readonly-security-review.md](mcp-readonly-security-review.md). Merge/deploy siguen pendientes de autorización. La validación cubre este gateway temporal, no un servicio público ni interoperabilidad con todos los clientes MCP.
 
 Rama exclusiva: `feature/tenazas-readonly-mcp`. El commit local previo `d5d1a4560484af3f7d081e41bc115760fda68caf` se preservó en un bundle Git. No hubo push, merge ni deploy.
 
@@ -16,8 +16,8 @@ Imagen de pruebas construida separadamente a partir de `sha256:bd6795ea0ff48bd36
 | Productor Linux | 9 aprobados; 0 fallados; 0 omitidos |
 | `python3 -m pytest`, baseline y candidato | Ambos abortan colección con los mismos 6 errores y trazas idénticas |
 | Suite baseline, `--continue-on-collection-errors` | 2688 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
-| Suite candidato, mismo comando | 2813 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
-| Regresiones nuevas entre casos ejecutados | 0: mismos 114 IDs y mensajes semánticos; +125 aprobados de esta frontera |
+| Suite candidato, mismo comando | 2831 aprobados, 114 fallados, 9 omitidos, 6 errores; 29 subtests aprobados |
+| Regresiones nuevas entre casos ejecutados | 0: mismos 114 IDs y mensajes semánticos; +143 aprobados de esta frontera |
 
 El flag de continuación no excluye archivos ni tests: permite ejecutar los casos recogidos pese a los errores de colección. La suite no está verde. La comparación de fallos usa mensajes exactos salvo dos direcciones de memoria de generadores y el orden de miembros de un set en un caso de catálogo. Las seis trazas de colección son idénticas completas.
 
@@ -232,7 +232,7 @@ La comprobación de cero secretos se limita al inventario descrito y a las regla
 
 Se agregó mcp_readonly_gateway.py: token dedicado en archivo privado 0600, autenticación antes de procesar solicitudes o leer cache, comparación constante, TLS mínimo 1.2, rotación/revocación por archivo, rate limit global, límite de conexiones y timeout. Sólo seis tools, sin argumentos de rutas/comandos, sin llamadas al productor. Logs sólo contienen el status HTTP. La CLI requiere certificado/key y escucha en loopback.
 
-alidate_mcp_authenticated_gateway.py levantó y apagó el servidor HTTPS temporal dentro de un contenedor network-none; ningún puerto fue publicado. El cliente verificó certificado y hostname. Se probaron initialize, lista exacta y lectura de las seis tools sobre el cache real, acceso ausente/incorrecto/alterado, operaciones y argumentos prohibidos, Origin de navegador, GET, rotación, revocación, archivo ausente, rate limit, auditoría sin credenciales y permisos 0700/0600 con montaje RO. Una conexión sin negociación TLS no impide otro acceso autenticado.
+alidate_mcp_authenticated_gateway.py levantó y apagó el servidor HTTPS temporal dentro de un contenedor network-none; ningún puerto fue publicado. El cliente verificó certificado y hostname. Se probaron initialize, lista exacta y lectura de las seis tools sobre el cache real, acceso ausente/incorrecto/alterado, operaciones y argumentos prohibidos, Origin de navegador, GET, rotación, revocación, archivo ausente, rate limit, auditoría sin credenciales y permisos 0700/0600 con montaje RO. Una conexión sin negociación TLS no impide otro acceso autenticado. La revisión posterior eliminó la reflexión de texto en errores HTTP, exigió auth en métodos rechazados y añadió validación 0700/0600, ownership y enlaces al arrancar y antes de cada lectura.
 
 Los tokens de pruebas y la clave TLS existieron sólo en el tmpfs del contenedor. No hubo ingress, OAuth ni sesiones: transporte stateless, IDs numéricos, protocolo 2025-03-26, sin SSE/batches. No se afirma interoperabilidad universal ni autenticación de un futuro proxy público. Ese servicio y su configuración requerirán revisión antes de exposición. Las claves bearer no tienen expiración automática; eliminar/reemplazar el archivo revoca el acceso. El rate limit es global y local al proceso.
 
@@ -248,4 +248,4 @@ La suite se ejecutó con `python3 -m pytest`; tras clasificar la interrupción, 
 
 `tools/validate_mcp_cache_producer.py` es el probe del productor confiable: recibe un inventario explícito por stdin y escribe exclusivamente una exportación de staging. `tools/validate_mcp_gateway_cache.py` verifica el rol sin inventario ni cache original. Su opción de output para auditoría devuelve respuestas al cliente de validación en memoria, que comprueba secretos y descarta los datos antes de guardar sólo métricas. Estos dos probes no son servidores. El nuevo 	ools/validate_mcp_authenticated_gateway.py prueba el servidor HTTPS autenticado en un entorno separado, con credenciales y certificados efímeros.
 
-**No hubo push, merge ni deploy. No se modificó código/configuración ni se reiniciaron servicios de producción.**
+**Este informe corresponde a validaciones previas al push. El push del branch y la actualización del PR están autorizados después de la revisión; no autorizan merge ni deploy. No se modificó código/configuración ni se reiniciaron servicios de producción.**
