@@ -15,6 +15,11 @@ import json
 import traceback
 from datetime import datetime
 from pathlib import Path
+
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
 from runtime_utils import now
 try:
     from .runtime_utils import load_json
@@ -24,7 +29,7 @@ except ImportError:
 BASE_DIR = Path(__file__).parent
 CRASH_FILE = BASE_DIR / "logs" / "runtime_crash.json"
 EVENTS_FILE = BASE_DIR / "events.json"
-STATE_FILE = BASE_DIR / "state.json"
+STATE_FILE = private_state_path(BASE_DIR)
 MAX_CRASHES = 50
 
 

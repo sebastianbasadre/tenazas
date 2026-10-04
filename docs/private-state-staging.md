@@ -1,8 +1,11 @@
 # Estado privado: diseño y evidencia de staging
 
 Trabajo exclusivo de `feature/tenazas-readonly-mcp`. **NO MERGE / NO DEPLOY**.
-Los módulos productivos siguen intactos: el writer y las sustituciones de rutas
-son candidatos de staging en `tools/`, no hooks instalados en OpenClaw.
+Los archivos realmente desplegados siguen intactos. El checkout candidato ahora
+integra el writer y el resolver privado en los consumidores; todavía no están
+instalados en producción. El ensayo integrado se describe en
+[private-state-full-clone.md](private-state-full-clone.md); la evidencia histórica
+de este documento corresponde al ensayo previo por componentes.
 
 ## Writer exacto y dos entradas
 
