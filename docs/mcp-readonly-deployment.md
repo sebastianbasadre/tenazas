@@ -2,6 +2,9 @@
 
 This document and `deploy/mcp-readonly/compose.staging.yml` are review artifacts.
 No production migration, ingress, image publication or service startup has been performed.
+The later [private-state staging review](private-state-staging.md) records Synology
+ACL inheritance and the proposed raw-state subdirectory. Its consumer compatibility
+gate remains open; the earlier migration outline below must not be executed as-is.
 The staging manifest is deliberately network-none with no published ports; it cannot
 connect ChatGPT until a separately reviewed tunnel/OAuth configuration is provided.
 
@@ -13,19 +16,22 @@ mounted **read-only** in the gateway. It must not merely chmod the raw data and 
 
 1. Keep the future gateway stopped. Identify all existing raw-cache writers/readers and
    NAS ACLs. Confirm the trusted producer UID and credential inventory completeness.
-2. Create a dedicated `/volume1/docker/tenazas-mcp-cache` directory, owner 1026:1026,
-   mode 0700. Do not reuse the raw runtime directory or mount the OpenClaw workspace.
+2. Provision a dedicated cache in a protected NAS namespace, proposed
+   `/volume1/@tenazas-private/mcp-cache`, owner 1026:1026, mode 0700. Verify native
+   ACLs and ancestor replacement permissions; mkdir's mode alone is insufficient
+   on this Synology. Do not reuse the raw runtime directory or mount the OpenClaw workspace.
 3. Run the trusted exporter outside the gateway, passing the credential inventory only
    in memory/stdin. Export the fixed state/infra/incident schema. The exporter enforces
    0700/0600, atomic file replacement and rejects unmanaged entries. Configure one owner
    of periodic exports; no duplicate n8n workflow/scheduler is enabled by this PR.
-4. Retire the 0777 raw-cache access: restrict the raw file to 0600 and make its trusted
-   writer preserve 0600 on every creation/replacement (umask 077 or atomic private writes).
-   Review existing consumers first; never chmod the entire OpenClaw runtime directory
-   to 0700 without auditing dependencies. This writer change is a **deployment prerequisite**,
-   not implemented or applied automatically by this PR. If it cannot be demonstrated,
-   production deployment remains blocked. Do not overwrite raw state with sanitized state
-   while unmodified OpenClaw consumers still require the original schema.
+4. Retire the 0777 raw-cache access through the proposed private-state subdirectory,
+   coordinated reader references and the private atomic writer. Never rely on umask
+   alone under inherited Synology ACLs or chmod the entire runtime directory: the
+   staging rehearsal demonstrated inherited child permission recalculation. Close
+   the full consumer compatibility gate first. This writer/routing integration is a
+   **deployment prerequisite**, not applied automatically by this PR. Production
+   remains blocked until demonstrated. Preserve the original raw OpenClaw schema;
+   sanitized MCP data is a separate export.
 5. Remove inherited extended ACL grants on the new dedicated cache and test reads as
    UID 1026 and denial as a different UID. Mode bits alone do not prove NAS ACL isolation.
 6. Mount only the dedicated cache at `/app/workspace/runtime/mcp-cache:ro` in an immutable

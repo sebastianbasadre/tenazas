@@ -1,0 +1,44 @@
+[
+  {
+    "uid": 1026,
+    "gid": 1026,
+    "tools": [
+      "get_status",
+      "get_containers",
+      "get_models",
+      "get_storage",
+      "get_network_health",
+      "get_recent_alerts"
+    ],
+    "containers": 1,
+    "cache_readable": true,
+    "cache_read_only": true,
+    "no_docker_socket": true,
+    "no_ssh_keys": true,
+    "no_raw_cache_or_credential_mounts": true,
+    "no_credential_environment": true,
+    "capabilities_zero": true,
+    "no_new_privileges": true,
+    "network_none": true
+  },
+  {
+    "integration_checks": [
+      "stalled_TLS_does_not_block_authenticated_client",
+      "TLS_verified_initialize",
+      "exact_six_tools",
+      "six_tools_real_cache",
+      "missing_wrong_altered_credentials_denied",
+      "mutation_and_arbitrary_arguments_denied",
+      "browser_origin_and_get_denied",
+      "HTTP_parser_errors_do_not_reflect_credentials",
+      "rotation_revocation_missing_key_fail_closed",
+      "rate_limit",
+      "credential_free_outputs_and_audit",
+      "private_cache_700_600_readonly"
+    ],
+    "passed": 12,
+    "failed": 0,
+    "TLS": "verified certificate and hostname, minimum TLS1.2",
+    "binding": "container loopback only, no published ports"
+  }
+]

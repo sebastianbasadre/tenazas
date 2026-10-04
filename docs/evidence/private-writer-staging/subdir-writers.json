@@ -1,0 +1,136 @@
+{
+  "cycles": [
+    {
+      "cycle": 1,
+      "route": "service",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889448,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 2,
+      "route": "dsm-exec-emulation",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889458,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 3,
+      "route": "service",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889462,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 4,
+      "route": "dsm-exec-emulation",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889470,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 5,
+      "route": "service",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889473,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 6,
+      "route": "dsm-exec-emulation",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889481,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 7,
+      "route": "service",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889484,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 8,
+      "route": "dsm-exec-emulation",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889497,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 9,
+      "route": "service",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889512,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    },
+    {
+      "cycle": 10,
+      "route": "dsm-exec-emulation",
+      "after": {
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "inode": 30889516,
+        "legacy_tripwire_proven": true,
+        "json_valid": true
+      }
+    }
+  ],
+  "actual_private_path": "/home/tenazas/runtime/private-state/state.json",
+  "legacy_path_blocked": true,
+  "acl": [
+    {
+      "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/reader-view/runtime/private-state",
+      "result": "(synoacltool.c, 596)It's Linux mode"
+    },
+    {
+      "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/reader-view/runtime/private-state/state.json",
+      "result": "(synoacltool.c, 596)It's Linux mode"
+    }
+  ]
+}
