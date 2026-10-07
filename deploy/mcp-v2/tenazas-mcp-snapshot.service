@@ -1,0 +1,24 @@
+# Staging template only; not installed or enabled by repository changes.
+[Unit]
+Description=Tenazas sanitized MCP snapshot cycle
+
+[Service]
+Type=oneshot
+User=tenazas-mcp
+Group=tenazas-mcp
+WorkingDirectory=/opt/tenazas-mcp/releases/mcp-v2-staging
+ExecStart=/usr/bin/python3 -m workspace.runtime.mcp_snapshot_producer --cache-root /var/lib/tenazas-mcp-v2 --config-file /etc/tenazas-mcp-v2/producer.json
+TimeoutStartSec=180
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/tenazas-mcp-v2
+ReadOnlyPaths=/tmp /var/tmp /dev/shm
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
