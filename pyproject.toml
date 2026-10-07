@@ -41,6 +41,7 @@ testpaths = ["tests"]
 pythonpath = [".", "workspace", "workspace/runtime"]
 addopts = "-q"
 markers = [
+  "linux_filesystem: Linux-only UID/GID, file modes, links and atomic publication checks",
   "integration: requires Docker, network services, container paths, or live homelab devices",
   "live: requires external APIs, Telegram, broker access, or real infrastructure",
 ]
