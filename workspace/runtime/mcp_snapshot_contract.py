@@ -38,6 +38,33 @@ def public_text(value):
     return value
 
 
+_CONTAINER_SYNTAX = re.compile(r"[A-Za-z0-9]{1,23}(?:[._-][A-Za-z0-9]{1,23})*")
+_CONTAINER_PRIVATE = re.compile(
+    r"(?i)(token|password|passwd|pwd|secret|credential|authorization|bearer|cookie|jwt|api.?key|ssh-|private.?key|session|authentication|"
+    r"\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f]{2}(?:[:-][0-9a-f]{2}){5}|[0-9a-f]{2}(?:-[0-9a-f]{2}){5}|"
+    r"[0-9a-f]{4}(?:\.[0-9a-f]{4}){2}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|"
+    r"(?:^|[._-])(?:sk|gh[pousr]|github[._-]pat)[._-]|(?:^|[._-])(?:AKIA|ASIA)[A-Za-z0-9]{16}|AIza[A-Za-z0-9])"
+)
+
+
+def container_name(value):
+    """Docker names only: bounded short segments, not one arbitrary long token.
+
+    Delimiters permit descriptive long names while each alphanumeric segment keeps
+    the existing 24-character opaque-string boundary. No decoding/normalization or
+    generic public_text relaxation; URLs, paths, ports and encoded text fail syntax.
+    """
+    if (
+        not isinstance(value, str)
+        or not 1 <= len(value) <= 120
+        or not _CONTAINER_SYNTAX.fullmatch(value)
+    ):
+        raise ValueError("Invalid public container name")
+    if _CONTAINER_PRIVATE.search(value):
+        raise ValueError("Private public container name")
+    return value
+
+
 def utc(value):
     if not isinstance(value, str) or not re.fullmatch(
         r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z", value
@@ -112,7 +139,7 @@ def validate_snapshot(data):
             or item["status"] not in STATUSES
         ):
             raise ValueError("Invalid container")
-        public_text(item["name"])
+        container_name(item["name"])
     for key in ("ollama_notebook", "ollama_nas", "model"):
         section = data[key]
         if not isinstance(section, dict) or set(section) - {"available", "models"}:

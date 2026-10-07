@@ -41,12 +41,19 @@ Inventory:
 {"observed_at":"<UTC_ISO8601_Z>","containers":[{"name":"<SAFE_PUBLIC_NAME>","up":true,"status":"running"}]}
 ```
 
-Up is boolean, names obey the public identifier policy, status is one of running,
+Up is boolean, names use a container-specific validator, status is one of running,
 stopped, healthy, unhealthy, unknown. The NAS-only Docker collector uses fixed
 `docker ps -a` with a Names/State-only format, not inspect or the full .ps JSON. It
 discards env/mounts/commands/labels/ports and never logs raw output. observed_at is
 UTC after the successful local collection. No Docker socket or Docker CLI belongs
 in the staging VM; no SSH NAS→VM is involved.
+
+Container names allow at most 120 ASCII characters in 1–23-character alphanumeric
+segments separated by a single dot, underscore or hyphen. This accepts descriptive
+long names such as tenazas-24x7-observation and tenazas-recovery-watchdog without
+accepting one long opaque token. IP/MAC/UUID, credential markers/key prefixes,
+URLs, paths, encoded text and unsafe characters remain rejected. Generic public_text
+and model/other-field validation are unchanged; the exception is container-only.
 
 Storage:
 

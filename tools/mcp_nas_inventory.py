@@ -4,7 +4,7 @@ import json
 import subprocess
 from datetime import UTC, datetime
 
-from workspace.runtime.mcp_snapshot_contract import MAX_ITEMS, public_text
+from workspace.runtime.mcp_snapshot_contract import MAX_ITEMS, container_name
 
 
 def inventory(run=subprocess.run):
@@ -36,7 +36,7 @@ def inventory(run=subprocess.run):
             if state in {"exited", "created", "paused", "dead"}
             else "unknown"
         )
-        items.append({"name": public_text(raw["Names"]), "up": up, "status": status})
+        items.append({"name": container_name(raw["Names"]), "up": up, "status": status})
     return {
         "observed_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "containers": items,

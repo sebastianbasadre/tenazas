@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from workspace.runtime.mcp_snapshot_contract import MAX_ITEMS, STATUSES, number, public_text, utc
+from workspace.runtime.mcp_snapshot_contract import MAX_ITEMS, STATUSES, container_name, number, utc
 
 OPTIONAL_NETWORK = {"healthy", "unhealthy", "latency_ms"}
 STORAGE_FIELDS = {"total_gb", "used_gb", "free_gb", "used_pct"}
@@ -43,7 +43,7 @@ def validate_feed(route, data):
                 or row["status"] not in STATUSES
             ):
                 raise ValueError("Invalid sanitized container")
-            public_text(row["name"])
+            container_name(row["name"])
     elif route == "/storage":
         if any(not number(data[key]) for key in STORAGE_FIELDS) or data["used_pct"] > 100:
             raise ValueError("Invalid normalized storage")
