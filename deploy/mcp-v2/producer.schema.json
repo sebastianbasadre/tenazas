@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tenazas MCP v2 producer configuration",
+  "$comment": "Sanitized JSON feeds only. configured_sources is normative for URL parsing, bounds and strict integer checks. No source mappings or real source service host/port are supplied.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "inventory_url",
+    "storage_url",
+    "network_url",
+    "ollama_url",
+    "ttl_seconds",
+    "timeout_seconds"
+  ],
+  "properties": {
+    "inventory_url": {
+      "$ref": "#/$defs/source_url"
+    },
+    "ollama_url": {
+      "$ref": "#/$defs/source_url"
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600,
+      "$comment": "Use explicit 300. Runtime rejects booleans and floating-point JSON literals, even integral floats."
+    },
+    "timeout_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 30,
+      "$comment": "Use explicit 5. Must be finite; booleans rejected."
+    },
+    "storage_url": {
+      "$ref": "#/$defs/source_url"
+    },
+    "network_url": {
+      "$ref": "#/$defs/source_url"
+    }
+  },
+  "$defs": {
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://[^\\u0000-\\u0020]+$",
+      "$comment": "Runtime additionally requires hostname, no username/password/query/fragment and port 1..65535 if specified. Ollama is a base URL; /api/tags and /api/ps are appended."
+    }
+  }
+}

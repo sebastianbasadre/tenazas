@@ -29,6 +29,9 @@ jobs:
           workspace/runtime/agent_coordinator.py workspace/runtime/runtime_utils.py
           workspace/runtime/assistant_*.py workspace/runtime/document_library.py
           workspace/runtime/verified_routines.py
+          workspace/runtime/mcp_*.py
+          tools/mcp_v2_helper_wiring.py
+          tools/mcp_nas_inventory.py tools/mcp_nas_preflight.py tools/mcp_build_packages.py
       - name: Unit and fault isolation tests
         run: >-
           pytest tests/test_worker_supervisor.py tests/test_background_agents.py
@@ -45,6 +48,15 @@ jobs:
           tests/test_observation_report.py
           tests/test_assistant_features.py tests/test_job_application_manager.py
           tests/test_health_sweep.py tests/test_sprint8.py
+      - name: MCP and OAuth proxy local integration tests
+        run: >-
+          pytest tests/test_mcp_cache_policy.py tests/test_mcp_snapshot_producer.py
+          tests/test_mcp_readonly_adapter.py tests/test_mcp_readonly_gateway.py
+          tests/test_mcp_oauth_proxy.py
+          tests/test_mcp_deploy_wiring.py
+          tests/test_mcp_sanitized_sources.py
+          tests/test_mcp_nas_artifacts.py
+          tests/test_mcp_nas_preflight.py
       - name: Current tracked secrets
         run: python tools/secret_scan.py
       - name: Historical secret report
