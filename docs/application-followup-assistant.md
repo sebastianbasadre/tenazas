@@ -110,3 +110,15 @@ anotaciones, rechazo de todas las escrituras con token de solo lectura y permiso
 específico antes de reenviar. Los datos, correos y CVs reales no se usan como fixtures.
 
 Referencia de permisos Auth0: https://auth0.com/docs/get-started/apis/add-api-permissions.
+
+## Refresh del catalogo de ChatGPT
+
+Renovar OAuth no sustituye el refresh de herramientas. Tras desplegar cambios,
+abrir la conexion Tenazas en https://chatgpt.com/plugins, seleccionar Refresh,
+verificar que aparecen 17 herramientas (incluido get_job_applications) y abrir
+una conversacion nueva con el plugin seleccionado. Si siguen apareciendo seis,
+comparar la URL configurada con la ruta publica del proxy actualizado; la prueba
+interna del gateway no demuestra que el endpoint publico use ese gateway.
+No se da por validada la interfaz ChatGPT hasta poder llamar a la herramienta.
+
+Referencia oficial: https://developers.openai.com/plugins/deploy/connect-chatgpt#refresh-metadata.
