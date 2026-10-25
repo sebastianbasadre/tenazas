@@ -1,0 +1,37 @@
+{
+  "name": "hermes-independent",
+  "services": {
+    "hermes": {
+      "image": "nousresearch/hermes-agent@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d",
+      "container_name": "hermes-agent",
+      "restart": "unless-stopped",
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "working_dir": "/opt/data/workspace",
+      "environment": {
+        "HERMES_UID": "10000",
+        "HERMES_GID": "10000"
+      },
+      "volumes": [
+        "/volume1/docker/hermes-agent/data:/opt/data"
+      ],
+      "mem_limit": "4g",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "labels": {
+        "com.centurylinklabs.watchtower.enable": "false"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "cpu_shares": 512
+    }
+  }
+}
