@@ -1,0 +1,21 @@
+# Proposed DSM systemd 219 (-SECCOMP) unit; not installed by this change.
+# Independent from existing 9105/9108 exporters. Do not enable at boot.
+[Unit]
+Description=Tenazas sanitized NAS MCP sources
+
+[Service]
+Type=simple
+User=sbasadre
+Group=docker
+WorkingDirectory=/volume1/docker/tenazas-mcp-sources
+ExecStart=/usr/local/bin/python3.13 -m workspace.runtime.mcp_sanitized_sources --bind 192.168.2.2 --port 19105 --filesystem /volume1 --filesystem-confirmed
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyDirectories=/ /tmp /var/tmp /dev/shm
+CapabilityBoundingSet=
+Restart=on-failure
+
+# No [Install] section: manual start only, no unit-provided boot enablement.

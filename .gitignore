@@ -97,6 +97,7 @@ himalaya-config/
 # Host logs (not code)
 *.log
 logs/
+workspace/runtime/mcp-cache/
 auto_training.log
 self-evolve.log
 runtime.log

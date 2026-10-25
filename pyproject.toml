@@ -24,6 +24,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp-oauth = [
+  "PyJWT[crypto]==2.15.1",
+]
 dev = [
   "pytest==9.1.1",
   "ruff==0.16.10",
@@ -41,6 +44,7 @@ testpaths = ["tests"]
 pythonpath = [".", "workspace", "workspace/runtime"]
 addopts = "-q"
 markers = [
+  "linux_filesystem: Linux-only UID/GID, file modes, links and atomic publication checks",
   "integration: requires Docker, network services, container paths, or live homelab devices",
   "live: requires external APIs, Telegram, broker access, or real infrastructure",
 ]

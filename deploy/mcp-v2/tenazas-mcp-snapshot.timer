@@ -1,0 +1,12 @@
+# Start manually for the approved E2E window; do not enable at boot.
+[Unit]
+Description=Tenazas MCP snapshot cadence
+
+[Timer]
+OnActiveSec=10s
+OnUnitInactiveSec=60s
+AccuracySec=1s
+Unit=tenazas-mcp-snapshot.service
+
+[Install]
+WantedBy=timers.target
