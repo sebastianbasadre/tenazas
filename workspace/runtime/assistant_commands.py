@@ -14,7 +14,7 @@ HELP = ("/resumen · resumen personal\n/semanal · errores y mejoras\n/jobs [id]
         "/cancelar id · cancelar\n/aprobar id · aprobar una propuesta\n"
         "/memoria [ver|poner campo valor|borrar campo|limpiar] · preferencias\n"
         "/empleo [lista|buscar texto] · vacantes\n/cv número · preparar CV y postulación\n"
-        "/postulaciones · seguimiento\n/documentos [lista|borrar id|pregunta] · archivos y fuentes\n"
+        "/postulaciones [ayuda|agregar|estado|pendientes|correo] · seguimiento laboral\n/documentos [lista|borrar id|pregunta] · archivos y fuentes\n"
         "Adjuntá archivos con la leyenda /documento.\n"
         "/diagnostico contenedor · evidencia y rollback\n/rutina cine · plan para revisar\n"
         "/tareas [agregar texto|terminar id] · pendientes")
@@ -133,8 +133,14 @@ def handle(text, chat):
             return "Usá /cv número, según /empleo lista."
         return enqueue(chat, "cv", {"opportunity_id": items[int(argument) - 1]["id"]})
     if command == "/postulaciones":
-        from job_application_manager import _load
-        return "Postulaciones:\n" + ("\n".join(f"{item.get('title', '?')} · {item.get('company', '?')}: {item.get('status', '?')}" for item in _load()[-15:]) or "Ninguna registrada.")
+        if argument == "propuestas":
+            from runtime_config import get_default_telegram_chat_id
+            if str(chat) != str(get_default_telegram_chat_id() or ""):
+                return "Las propuestas anteriores están disponibles para el chat principal."
+            from job_application_manager import _load
+            return "Propuestas de envío (no son postulaciones confirmadas):\n" + ("\n".join(f"{item.get('title', '?')} · {item.get('company', '?')}: {item.get('status', '?')}" for item in _load()[-15:]) or "Ninguna registrada.")
+        from application_tracker import handle as track_applications
+        return track_applications(argument, chat)
     if command == "/documentos":
         from document_library import list_documents, delete
         if not argument or argument == "lista":

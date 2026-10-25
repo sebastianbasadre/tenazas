@@ -29,6 +29,8 @@ jobs:
           workspace/runtime/agent_coordinator.py workspace/runtime/runtime_utils.py
           workspace/runtime/assistant_*.py workspace/runtime/document_library.py
           workspace/runtime/verified_routines.py
+          workspace/runtime/application_tracker.py workspace/runtime/application_mail.py
+          tools/configure_job_gmail.py
           workspace/runtime/mcp_*.py
           tools/mcp_v2_helper_wiring.py
           tools/mcp_nas_inventory.py tools/mcp_nas_preflight.py tools/mcp_build_packages.py
@@ -48,6 +50,7 @@ jobs:
           tests/test_agent_finance.py tests/test_finance_exporter_notifications.py
           tests/test_observation_report.py
           tests/test_assistant_features.py tests/test_job_application_manager.py
+          tests/test_application_tracker.py
           tests/test_health_sweep.py tests/test_sprint8.py
       - name: MCP and OAuth proxy local integration tests
         run: >-

@@ -84,6 +84,11 @@ def deliver(job, store):
     if job["chat"] not in allowed:
         store.update(job["id"], delivery="blocked")
         return
+    if job["kind"] == "application_digest":
+        from application_tracker import Applications
+        if job["result"].get("skip_delivery") or not Applications().reminders_enabled(job["chat"]):
+            store.update(job["id"], delivery="skipped")
+            return
     token = get_telegram_bot_token()
     if not token:
         return

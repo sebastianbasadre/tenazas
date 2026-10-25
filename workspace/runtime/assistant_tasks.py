@@ -19,6 +19,11 @@ def perform(job):
         return {"text": features.daily(chat)}
     if kind == "weekly":
         return {"text": features.weekly(chat)}
+    if kind == "application_digest":
+        return features.application_digest(chat)
+    if kind == "application_mail":
+        from application_mail import scan
+        return {"text": scan(chat)["text"]}
     if kind == "search":
         return {"text": features.search(payload.get("query", ""))}
     if kind == "cv":

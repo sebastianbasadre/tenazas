@@ -262,6 +262,14 @@ def handle_callback(callback_query: dict, token: str) -> dict:
         _save(_dedupe_queue(queue))
         result = submit(application_id)
 
+    if result.get("ok") and result.get("status") == "submitted":
+        try:
+            from application_tracker import Applications
+            tracked = Applications().add(chat_id, entry["company"], entry["title"], entry.get("url", ""), entry.get("cv_filename", ""))
+            result["message"] += "\nSeguimiento: /postulaciones ver " + tracked["id"]
+        except Exception:
+            result["message"] += "\nEnvío confirmado; registrá el seguimiento con /postulaciones agregar."
+
     telegram_request(token, "answerCallbackQuery", {
         "callback_query_id": callback_id,
         "text": "Procesado",

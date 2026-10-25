@@ -54,6 +54,8 @@ def enqueue_daily(moment=None):
 def tick(moment=None):
     moment = moment or datetime.now(TZ)
     data = settings()
+    from application_tracker import Applications
+    Applications().schedule(moment)
     hour, minute = map(int, data["daily"].split(":"))
     if moment.hour * 60 + moment.minute >= hour * 60 + minute:
         enqueue_daily(moment)

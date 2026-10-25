@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exists() else Path(__file__).parent.parent / "state"
 DB = ROOT / "assistant/jobs.sqlite"
-KINDS = {"daily", "weekly", "search", "cv", "apply", "documents", "document_index", "diagnose", "routine_plan", "routine_execute"}
+KINDS = {"daily", "weekly", "search", "cv", "apply", "documents", "document_index", "diagnose", "routine_plan", "routine_execute", "application_digest", "application_mail"}
 LABELS = {"received": "recibido", "running": "trabajando", "waiting_approval": "esperando aprobación",
           "done": "terminado", "failed": "falló", "cancel_requested": "cancelando",
           "cancelled": "cancelado", "interrupted": "interrumpido: requiere revisión"}
