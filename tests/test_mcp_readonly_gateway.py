@@ -79,7 +79,7 @@ def test_initialize_discovery_and_six_tools(rpc):
     assert discovery["supportedVersions"] == ["2025-11-25"]
     tools = rpc(call("tools/list"))[1]["result"]["tools"]
     assert [t["name"] for t in tools] == list(adapter.TOOLS)
-    assert len(tools) == 6
+    assert len(tools) == 8
     assert all(
         t["annotations"]["readOnlyHint"]
         and not t["annotations"]["destructiveHint"]
@@ -88,7 +88,7 @@ def test_initialize_discovery_and_six_tools(rpc):
     )
 
 
-@pytest.mark.parametrize("name", adapter.TOOLS)
+@pytest.mark.parametrize("name", adapter.TOOLS[:6])
 def test_tools_call_with_meta(rpc, name):
     status, response = rpc(
         call(
@@ -101,6 +101,24 @@ def test_tools_call_with_meta(rpc, name):
     result = response["result"]
     assert result["isError"] is False
     assert json.loads(result["content"][0]["text"])["snapshot"]["generation"]
+
+
+@pytest.mark.parametrize("name", ["get_media_library", "get_downloads", "get_status"])
+def test_media_tools_and_existing_status_read_only(rpc, name, monkeypatch):
+    from tests.test_mcp_media_extension import state
+    from workspace.runtime import mcp_media_reader
+
+    media = state()
+    monkeypatch.setattr(mcp_media_reader, "read_state", lambda *args: media)
+    monkeypatch.setattr(gateway.mcp_cache_policy, "expected_identity", lambda: None)
+    status, response = rpc(call("tools/call", params={"name": name, "arguments": {}}))
+    assert status == 200 and response["result"]["isError"] is False
+    value = json.loads(response["result"]["content"][0]["text"])
+    if name == "get_status":
+        assert value["media_library"]["data"]["totals"]["movies"] == 12
+        assert value["downloads"]["sources"]["sabnzbd"]["available"] is True
+    else:
+        assert value["snapshot"]["generation"] == media["generation"]
 
 
 @pytest.mark.parametrize(

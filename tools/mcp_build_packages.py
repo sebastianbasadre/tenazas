@@ -11,6 +11,8 @@ COMMON = [
     "workspace/runtime/__init__.py",
     "workspace/runtime/mcp_snapshot_contract.py",
     "workspace/runtime/mcp_source_contract.py",
+    "workspace/runtime/mcp_media_contract.py",
+    "workspace/runtime/mcp_media_reader.py",
 ]
 PAYLOADS = {
     "nas-sources": COMMON
@@ -25,6 +27,7 @@ PAYLOADS = {
         "workspace/runtime/mcp_readonly_gateway.py",
         "workspace/runtime/mcp_cache_policy.py",
         "workspace/runtime/mcp_snapshot_producer.py",
+        "workspace/runtime/mcp_media_producer.py",
         "deploy/mcp-v2/tenazas-mcp-gateway.conf",
         "deploy/mcp-v2/tenazas-mcp-snapshot.service",
         "deploy/mcp-v2/tenazas-mcp-snapshot.timer",

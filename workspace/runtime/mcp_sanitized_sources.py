@@ -23,6 +23,7 @@ from workspace.runtime.mcp_source_contract import (
 )
 
 ROUTES = ("/inventory", "/storage", "/network")
+MEDIA_ROUTE = "/media"
 AUDIT = logging.getLogger("tenazas.mcp.sources")
 
 
@@ -135,9 +136,10 @@ class NASCollectors:
 
 
 class SourceStore:
-    def __init__(self):
+    def __init__(self, media_file=None):
         self._lock = threading.Lock()
         self._documents = {}
+        self.media_file = media_file
 
     def refresh(self, collectors):
         documents = {}
@@ -151,6 +153,13 @@ class SourceStore:
             except Exception:
                 # Producer retains its last valid value; never renew failed data.
                 documents[route] = None
+        if self.media_file is not None:
+            try:
+                from workspace.runtime.mcp_media_reader import read_state
+
+                documents[MEDIA_ROUTE] = json.dumps(read_state(self.media_file), allow_nan=False).encode()
+            except Exception:
+                documents[MEDIA_ROUTE] = None
         with self._lock:
             self._documents = documents
 
@@ -233,7 +242,7 @@ class SourceHandler(BaseHTTPRequestHandler):
         AUDIT.info("source_request status=%d", status)
 
     def do_GET(self):
-        if self.path not in ROUTES:
+        if self.path not in (*ROUTES, MEDIA_ROUTE) or (self.path == MEDIA_ROUTE and self.server.store.media_file is None):
             return self.reply(404, b'{"error":"not found"}')
         if (
             self.headers.get_all("Origin")
@@ -285,6 +294,7 @@ def main():
     parser.add_argument("--bind", required=True)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--filesystem", type=Path, required=True)
+    parser.add_argument("--media-file", type=Path)
     parser.add_argument("--filesystem-confirmed", action="store_true", required=True)
     args = parser.parse_args()
     if args.filesystem != Path("/volume1"):
@@ -302,7 +312,7 @@ def main():
     except Exception:
         AUDIT.error("source_volume_unavailable")
         return 1
-    store = SourceStore()
+    store = SourceStore(args.media_file)
     store.refresh(collectors)
     server = SourceServer((args.bind, args.port), store)
     stop = threading.Event()

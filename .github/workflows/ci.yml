@@ -32,6 +32,7 @@ jobs:
           workspace/runtime/mcp_*.py
           tools/mcp_v2_helper_wiring.py
           tools/mcp_nas_inventory.py tools/mcp_nas_preflight.py tools/mcp_build_packages.py
+          tools/mcp_media_probe.py tools/mcp_media_collect.py tools/mcp_media_deploy.py tools/mcp_media_verify.py
       - name: Unit and fault isolation tests
         run: >-
           pytest tests/test_worker_supervisor.py tests/test_background_agents.py
@@ -58,6 +59,7 @@ jobs:
           tests/test_mcp_nas_artifacts.py
           tests/test_mcp_nas_preflight.py
           tests/test_mcp_container_names.py
+          tests/test_mcp_media_probe.py tests/test_mcp_media_extension.py
       - name: Current tracked secrets
         run: python tools/secret_scan.py
       - name: Historical secret report

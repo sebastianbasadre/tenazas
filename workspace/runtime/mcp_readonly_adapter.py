@@ -25,6 +25,8 @@ TOOLS = (
     "get_storage",
     "get_network_health",
     "get_recent_alerts",
+    "get_media_library",
+    "get_downloads",
 )
 
 _MAX_BYTES = 1024 * 1024
@@ -167,7 +169,17 @@ def call_tool(name):
 
     if not isinstance(name, str) or name not in TOOLS:
         raise ValueError("Tool forbidden")
-    return _result(name, _state(), datetime.now(UTC))
+    if name in {"get_media_library", "get_downloads"}:
+        from workspace.runtime.mcp_media_reader import call
+
+        return call(name)
+    result = _result(name, _state(), datetime.now(UTC))
+    if name == "get_status":
+        from workspace.runtime.mcp_media_reader import call
+
+        result["media_library"] = call("get_media_library")
+        result["downloads"] = call("get_downloads")
+    return result
 
 
 def get_status():

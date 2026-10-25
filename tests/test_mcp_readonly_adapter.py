@@ -6,7 +6,7 @@ from tests.test_mcp_snapshot_producer import NOW, snapshot
 from workspace.runtime import mcp_readonly_adapter as adapter
 
 
-@pytest.mark.parametrize("name", adapter.TOOLS)
+@pytest.mark.parametrize("name", adapter.TOOLS[:6])
 def test_six_tools(name, monkeypatch):
     monkeypatch.setattr(adapter, "_state", snapshot)
     result = adapter.call_tool(name)

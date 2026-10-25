@@ -60,6 +60,26 @@ def server():
     thread.join(timeout=2)
 
 
+def test_media_route_serves_validated_memory_and_isolates_failed_file(server, tmp_path):
+    from tests.test_mcp_media_extension import state
+
+    instance, request = server
+    assert request("/media")[0] == 404
+    path = tmp_path / "media.json"
+    media = state()
+    path.write_text(json.dumps(media))
+    instance.store.media_file = path
+    instance.store.refresh(Fixtures())
+    assert json.loads(request("/media")[1])["generation"] == media["generation"]
+    path.unlink()
+    # HTTP handlers perform neither file reads nor live collection.
+    assert request("/media")[0] == 200
+    instance.store.refresh(Fixtures())
+    assert request("/media")[0] == 503
+    assert request("/inventory")[0] == 200
+    assert request("/media", "POST")[0] == 405
+
+
 def test_inventory_drops_sensitive_docker_fields():
     from tools.mcp_nas_inventory import inventory
 
