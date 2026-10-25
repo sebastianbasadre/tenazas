@@ -96,9 +96,13 @@ escritura. No sobrescribe releases de medios ni el release NAS 275A180.
 Bundle SHA256: 4442a703548705c4ee18dfd611aed557933652320766f1640a9641579a57bcd7.
 Instalador SHA256: c4b733a928388699d3f001e73746a97de9b29227f4ea8b9aa1ef166edacf581c.
 
-Pendiente: ejecuci贸n con sudo en la VM, registrar/autorizar write:applications en
-la API Auth0 usada por Tenazas y reconectar el MCP en ChatGPT. La conexi贸n actual
-segu铆a pidiendo reautenticaci贸n; no se declara completada la prueba desde ChatGPT.
+Instalado en la VM el 25 de octubre de 2026: jobs-chatgpt-v1. Verificadas las
+17 herramientas, listado real de postulaciones (cero registros), trabajo de
+correo finalizado sin errores y consulta de infraestructura correcta.
+
+Pendiente: registrar/autorizar write:applications en Auth0 y reconectar el MCP
+en ChatGPT. La interfaz conectada sigue pidiendo renovar la autenticaci髇;
+no se declara completada la prueba desde ChatGPT.
 
 Las pruebas cubren argumentos, aislamiento de propietario, altas y estados,
 Gmail sin cambios de flags ni env铆os, revisi贸n expl铆cita, claves SSH fijas,

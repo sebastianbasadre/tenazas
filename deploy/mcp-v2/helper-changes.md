@@ -1,5 +1,12 @@
 # Minimal restricted-helper correction — local proposal, not installed
 
+## 2026-10-08 scope reminder
+
+Only a local discovery/source diff and mock tests are authorized in this phase.
+The installed VM helper's switch and rollback still act on the tunnel and must
+not be used. The discovery proposal needs no VM release/helper modification; see
+[its deployment and rollback review](../../docs/tenazas-mcp-discovery-review.md).
+
 The currently installed helper is not copied into this repository. This proposal
 defines the exact integration changes and pure renderers in
 `tools/mcp_v2_helper_wiring.py`; it does not claim to be an applied diff against the

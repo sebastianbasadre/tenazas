@@ -180,27 +180,13 @@ def test_storage_requires_confirmed_mount(tmp_path, monkeypatch):
     assert collector.storage()["total_gb"] == 2
 
 
-def test_authoritative_network_timestamp_from_only_9105_gauges():
-    payload = b'tenazas_network_last_scan_timestamp 1791244800\ndevice_discovery_online 40\ndevice_discovery_missing 75\ntenazas_device_info{ip="private",mac="private",name="private"} 1\nother_metric 999'
-    data = source.network_from_metrics(payload)
-    assert data["total"] == 115 and data["online"] == 40 and data["missing"] == 75
-    assert data["observed_at"] == STAMP
-    assert data["healthy"] is None and "private" not in json.dumps(data)
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        b"device_discovery_online 40\ndevice_discovery_missing 75",
-        b"tenazas_network_last_scan_timestamp 0\ndevice_discovery_online 40\ndevice_discovery_missing 75",
-        b"tenazas_network_last_scan_timestamp NaN\ndevice_discovery_online 40\ndevice_discovery_missing 75",
-        b'tenazas_network_last_scan_timestamp 1791244800\ndevice_discovery_online{ip="private"} 40\ndevice_discovery_missing 75',
-        b"tenazas_network_last_scan_timestamp 1791244800\ndevice_discovery_online 40.5\ndevice_discovery_missing 75",
-    ],
-)
-def test_network_metrics_fail_closed(payload):
-    with pytest.raises(ValueError):
-        source.network_from_metrics(payload)
+def test_network_requires_separate_signal_without_metrics_fallback(tmp_path):
+    collector = source.NASCollectors(
+        filesystem=tmp_path, filesystem_confirmed=True,
+        inventory_collector=Fixtures().inventory,
+    )
+    with pytest.raises(ValueError, match="Discovery result path required"):
+        collector.network()
 
 
 @pytest.mark.parametrize(

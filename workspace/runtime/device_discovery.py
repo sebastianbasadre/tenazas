@@ -31,6 +31,7 @@ Usage:
 """
 
 import json
+import ipaddress
 import re
 import subprocess
 import sys
@@ -39,6 +40,13 @@ from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
 from runtime_utils import now_iso
+from runtime_utils import write_atomic
+from uuid import uuid4
+
+if __package__:
+    from .network_discovery_result import discovery_lock, read_result, utc_now, write_result
+else:
+    from network_discovery_result import discovery_lock, read_result, utc_now, write_result
 
 try:
     from runtime_config import (
@@ -58,6 +66,7 @@ except ImportError:
 BASE_DIR = Path(__file__).parent
 INVENTORY_FILE = BASE_DIR / "device_inventory.json"
 LOG_FILE = BASE_DIR / "logs" / "device_discovery.log"
+RESULT_FILE = BASE_DIR / "network_discovery_result.json"
 SUBNET = LAN_SUBNET
 
 # Timeouts
@@ -187,8 +196,7 @@ def _save_inventory(inventory: dict):
     INVENTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     # Save as list sorted by IP for readability
     devices = sorted(inventory.values(), key=lambda d: _ip_sort_key(d.get("ip", "")))
-    with open(INVENTORY_FILE, "w") as f:
-        json.dump(devices, f, indent=2, default=str)
+    write_atomic(INVENTORY_FILE, devices)
 
 
 def _ip_sort_key(ip: str) -> tuple:
@@ -315,6 +323,12 @@ def _enrich_with_arp(devices: list) -> list:
 
 # ── nmap parsers ────────────────────────────────────────────────
 
+class DiscoveryFailure(Exception):
+    def __init__(self, status):
+        self.status = status
+        super().__init__(status)
+
+
 def _run_nmap(args: list, timeout: int) -> str:
     """Run nmap with args, return stdout."""
     cmd = ["nmap"] + args
@@ -324,14 +338,41 @@ def _run_nmap(args: list, timeout: int) -> str:
         )
         if result.returncode == 0:
             return result.stdout
-        _log({"action": "nmap_error", "args": args, "stderr": result.stderr[:500]})
-        return result.stdout  # may still have partial output
-    except subprocess.TimeoutExpired:
-        _log({"action": "nmap_timeout", "args": args, "timeout": timeout})
-        return ""
-    except FileNotFoundError:
-        _log({"action": "nmap_not_found"})
-        return ""
+        _log({"action": "nmap_error"})
+        raise DiscoveryFailure("execution_error")
+    except subprocess.TimeoutExpired as exc:
+        _log({"action": "nmap_timeout", "timeout": timeout})
+        raise DiscoveryFailure("timeout") from exc
+    except OSError as exc:
+        _log({"action": "nmap_error"})
+        raise DiscoveryFailure("execution_error") from exc
+
+
+def _validated_parse(output, parser):
+    """A zero exit code alone does not establish a complete, parseable scan."""
+    try:
+        endings = re.findall(
+            r"^Nmap done: \d+ IP addresses? \((\d+) hosts? up\) scanned in [\d.]+ seconds\s*$",
+            output, re.MULTILINE,
+        )
+        if len(endings) != 1 or not output.rstrip().splitlines()[-1].startswith("Nmap done:"):
+            raise ValueError()
+        devices = parser(output)
+        ips = [str(ipaddress.IPv4Address(d["ip"])) for d in devices]
+        reports = sum(line.startswith("Nmap scan report for ") for line in output.splitlines())
+        if len(ips) != int(endings[0]) or len(set(ips)) != len(ips) or reports != len(ips):
+            raise ValueError()
+        if parser is parse_quick_scan:
+            lines = [line.strip() for line in output.splitlines() if line.strip()]
+            if any(not line.startswith(("Starting Nmap ", "Nmap scan report for ",
+                                        "Host is up", "MAC Address: ", "Nmap done:"))
+                   for line in lines):
+                raise ValueError()
+            if sum(line.startswith("Host is up") for line in lines) != len(ips):
+                raise ValueError()
+        return devices
+    except (ValueError, KeyError, TypeError, IndexError) as exc:
+        raise DiscoveryFailure("parsing_error") from exc
 
 
 def parse_quick_scan(output: str) -> list:
@@ -523,7 +564,7 @@ def quick_scan(subnet: str = SUBNET) -> list:
     """Fast host discovery. Returns list of {ip, mac, vendor}."""
     _log({"action": "quick_scan", "subnet": subnet})
     output = _run_nmap(["-sn", subnet], timeout=QUICK_SCAN_TIMEOUT)
-    devices = parse_quick_scan(output)
+    devices = _validated_parse(output, parse_quick_scan)
     devices = _enrich_with_arp(devices)
     _log({"action": "quick_scan_done", "hosts": len(devices)})
     return devices
@@ -536,7 +577,7 @@ def deep_scan(subnet: str = SUBNET) -> list:
         ["-A", "--host-timeout", "30s", subnet],
         timeout=DEEP_SCAN_TIMEOUT,
     )
-    devices = parse_deep_scan(output)
+    devices = _validated_parse(output, parse_deep_scan)
     devices = _enrich_with_arp(devices)
     _log({"action": "deep_scan_done", "hosts": len(devices)})
     return devices
@@ -551,15 +592,15 @@ def target_scan(ip: str) -> dict:
         ["-sT", "-sV", "--host-timeout", "30s", ip],
         timeout=TARGET_SCAN_TIMEOUT,
     )
-    devices = parse_deep_scan(output)
+    devices = _validated_parse(output, parse_deep_scan)
     if not devices:
         # Fallback: try ping scan only
         output = _run_nmap(["-sn", ip], timeout=15)
-        devices = parse_quick_scan(output)
+        devices = _validated_parse(output, parse_quick_scan)
     devices = _enrich_with_arp(devices)
     if devices:
         return devices[0]
-    return {"ip": ip, "status": "down_or_filtered"}
+    return {"status": "down_or_filtered"}
 
 
 # ── Inventory management ────────────────────────────────────────
@@ -614,9 +655,9 @@ def update_inventory(scan_results: list, scan_type: str = "quick") -> dict:
     # Mark devices not seen in this scan
     seen_ips = {d.get("ip") for d in scan_results}
     for ip, device in inventory.items():
-        if ip not in seen_ips:
+        if ip not in seen_ips and scan_type != "target":
             device.setdefault("missing_since", now)
-        else:
+        elif ip in seen_ips:
             device.pop("missing_since", None)
 
     _save_inventory(inventory)
@@ -768,6 +809,11 @@ def discover(mode: str = "quick", subnet: str = SUBNET,
     Returns:
         {"devices": list, "summary": dict, "scan_type": str}
     """
+    with discovery_lock(RESULT_FILE):
+        return _discover_locked(mode, subnet, target)
+
+
+def _discover_locked(mode, subnet, target):
     if target:
         device = target_scan(target)
         if device.get("ip"):
@@ -775,19 +821,36 @@ def discover(mode: str = "quick", subnet: str = SUBNET,
             update_inventory([device], scan_type="target")
         return {"devices": [device], "summary": summary(), "scan_type": "target"}
 
-    if mode == "deep":
-        raw = deep_scan(subnet)
-    else:
-        raw = quick_scan(subnet)
-
-    classified = [classify_device(d) for d in raw]
-    update_inventory(classified, scan_type=mode)
-
-    return {
-        "devices": classified,
-        "summary": summary(),
-        "scan_type": mode,
+    if mode not in {"quick", "deep"} or subnet != SUBNET:
+        raise ValueError("Full configured LAN discovery required")
+    try:
+        previous = read_result(RESULT_FILE)["last_success"]
+    except FileNotFoundError:
+        previous = None
+    signal = {
+        "schema_version": 1, "attempt_id": str(uuid4()), "status": "running",
+        "attempted_at": utc_now(), "finished_at": None, "last_success": previous,
     }
+    # Invalidate the feed before scanning. A killed writer leaves it unavailable.
+    write_result(RESULT_FILE, signal)
+    try:
+        raw = deep_scan(subnet) if mode == "deep" else quick_scan(subnet)
+        classified = [classify_device(d) for d in raw]
+        inventory = update_inventory(classified, scan_type=mode)
+        finished = utc_now()
+        missing = sum(bool(d.get("missing_since")) for d in inventory.values())
+        signal.update(status="success", finished_at=finished, last_success={
+            "attempt_id": signal["attempt_id"], "observed_at": finished,
+            "total": len(inventory), "online": len(inventory) - missing, "missing": missing,
+        })
+        write_result(RESULT_FILE, signal)
+    except Exception as exc:
+        status = exc.status if isinstance(exc, DiscoveryFailure) else "publication_error"
+        signal.update(status=status, finished_at=utc_now(), last_success=previous)
+        write_result(RESULT_FILE, signal)
+        raise DiscoveryFailure(status) from exc
+    return {"devices": classified, "summary": summary(), "scan_type": mode,
+            "observed_at": finished}
 
 
 # ── CLI ─────────────────────────────────────────────────────────

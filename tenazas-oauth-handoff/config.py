@@ -1,0 +1,8 @@
+ISSUER = "<AUTH0_ISSUER>"
+AUDIENCE = "<OAUTH_AUDIENCE>"
+REQUIRED_SCOPE = "read:tenazas"
+
+JWKS_URL = "<JWKS_URL>"
+
+UPSTREAM_MCP = "<UPSTREAM_MCP_URL>"
+INTERNAL_BEARER_FILE = "/run/secrets/mcp-internal-token"

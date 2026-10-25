@@ -1,5 +1,13 @@
 # Validated NAS reconciliation — local only, no deployment performed
 
+## 2026-10-08 discovery proposal — review before deployment
+
+The local source unit now requires `--network-result-file` and the NAS source
+package includes `network_discovery_result.py`. The writer update is separate
+from the source package. Follow [the discovery review](tenazas-mcp-discovery-review.md)
+for the proposed sequence and rollback; the earlier metrics-only steps below
+are historical baseline and do not authorize deployment or helper switch/rollback.
+
 Operator-validated facts supersede the earlier blocked NAS SSH preflight:
 NAS 192.168.2.2, DSM SSH **4822**, public-key user **sbasadre**, no SFTP.
 /volume1 is a real btrfs mount. Total=28770439729152 bytes, used=12026896465920,

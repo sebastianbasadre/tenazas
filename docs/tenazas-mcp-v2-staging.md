@@ -1,5 +1,15 @@
 # MCP v2: controlled staging plan, not executed
 
+## 2026-10-08 discovery gate — staging remains pending
+
+The local [discovery proposal](tenazas-mcp-discovery-review.md) separates failed
+discovery from successful empty scans. No NAS/VM change has been performed for
+this proposal. TTL remains 300; a successful source can become stale between
+the existing scan cycles. The installed helper's switch/rollback remain forbidden
+because they act on the tunnel. Earlier tunnel operations in this document are
+not the authorized execution plan. Activation and the six-tool OAuth/tunnel E2E
+require later approval after the feed's failure semantics have been verified.
+
 ## Wiring correction — local only, staging blocked
 
 The installed staging release has workspace/ directly under

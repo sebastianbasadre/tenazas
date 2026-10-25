@@ -18,6 +18,7 @@ PAYLOADS = {
     "nas-sources": COMMON
     + [
         "workspace/runtime/mcp_sanitized_sources.py",
+        "workspace/runtime/network_discovery_result.py",
         "tools/mcp_nas_inventory.py",
         "deploy/mcp-v2/tenazas-mcp-sources.service",
     ],

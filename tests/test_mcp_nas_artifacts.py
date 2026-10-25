@@ -18,15 +18,12 @@ def test_validated_volume_conversion():
     assert data["used_gb"] == 12026.89646592
 
 
-def test_only_three_9105_metrics_not_9108():
-    assert source.NETWORK_METRICS_URL == "http://192.168.2.2:9105/metrics"
-    assert {
-        "tenazas_network_last_scan_timestamp",
-        "device_discovery_online",
-        "device_discovery_missing",
-    } == source.NETWORK_METRICS
+def test_network_uses_discovery_signal_without_exporter_fallback():
     text = (ROOT / "workspace/runtime/mcp_sanitized_sources.py").read_text()
-    assert "9108" not in text and "device_inventory.json" not in text and "last_seen" not in text
+    assert "read_result(self.network_result_file)" in text
+    assert "9105" not in text and "9108" not in text
+    assert "device_inventory.json" not in text and "last_seen" not in text
+    assert not hasattr(source, "fetch_network_metrics")
 
 
 def test_independent_nas_service_bind_port_and_identity():
@@ -40,6 +37,9 @@ def test_independent_nas_service_bind_port_and_identity():
     assert args[args.index("--bind") + 1] == "192.168.2.2"
     assert args[args.index("--port") + 1] == "19105"
     assert args[args.index("--filesystem") + 1] == "/volume1"
+    assert args[args.index("--network-result-file") + 1] == (
+        "/volume1/docker/openclaw/workspace/runtime/network_discovery_result.json"
+    )
     assert fields["User"] == "sbasadre" and fields["Group"] == "docker"
     assert "EnvironmentFile" not in fields and "ReadWritePaths" not in fields
 

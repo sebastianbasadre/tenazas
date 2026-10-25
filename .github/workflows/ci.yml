@@ -33,6 +33,8 @@ jobs:
           workspace/runtime/application_mcp_runner.py tools/deploy_applications_mcp.py
           tools/configure_job_gmail.py
           workspace/runtime/mcp_*.py
+          workspace/runtime/network_discovery_result.py workspace/runtime/device_discovery.py
+          workspace/runtime/runtime.py
           tools/mcp_v2_helper_wiring.py
           tools/mcp_nas_inventory.py tools/mcp_nas_preflight.py tools/mcp_build_packages.py
           tools/mcp_media_probe.py tools/mcp_media_collect.py tools/mcp_media_deploy.py tools/mcp_media_verify.py
@@ -65,6 +67,7 @@ jobs:
           tests/test_mcp_container_names.py
           tests/test_mcp_media_probe.py tests/test_mcp_media_extension.py
           tests/test_mcp_applications.py
+          tests/test_network_discovery_result.py
       - name: Current tracked secrets
         run: python tools/secret_scan.py
       - name: Historical secret report

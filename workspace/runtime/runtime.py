@@ -475,6 +475,21 @@ def trigger_patterns() -> list:
 
 
 def _network_scan(curr: dict):
+    # Shared with the staging cadence runner; never fabricate scan observations.
+    import fcntl
+    gate = Path(__file__).with_name(".mcp-discovery-cadence.lock")
+    descriptor = os.open(gate, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        return _network_scan_without_cadence_guard(curr)
+    finally:
+        os.close(descriptor)
+
+
+def _network_scan_without_cadence_guard(curr: dict):
     """Run nmap + device discovery. Separate from update_state to avoid freeze alerts."""
     nmap_cache = load_json(NMAP_CACHE_FILE, {"last_scan": 0, "hosts": 0})
     if time.time() - nmap_cache.get("last_scan", 0) <= NMAP_INTERVAL_SECONDS:
@@ -490,11 +505,6 @@ def _network_scan(curr: dict):
     })
     # Update count in current state
     curr["network_devices"] = {"count": network_devices.get("count", 0)}
-    # Freshness timestamp for Prometheus
-    try:
-        Path("/home/tenazas/runtime/network_scan_last_ts").write_text(str(scan_ts))
-    except Exception:
-        pass
     # Device inventory enrichment
     try:
         if __package__:
@@ -502,10 +512,14 @@ def _network_scan(curr: dict):
         else:
             from runtime import device_discovery
         result = device_discovery.discover(mode="quick")
+        # Existing exporter remains unchanged; only successful discovery renews its date.
+        observed = datetime.fromisoformat(result["observed_at"].replace("Z", "+00:00"))
+        Path("/home/tenazas/runtime/network_scan_last_ts").write_text(str(observed.timestamp()))
         _log({"action": "device_inventory_updated",
               "total": result.get("summary", {}).get("total", 0)})
     except Exception as e:
-        _log({"action": "device_inventory_error", "error": str(e)})
+        _log({"action": "device_inventory_error",
+              "status": getattr(e, "status", "publication_error")})
 
 
 # ── Gluetun port-binding check ───────────────────────────────────

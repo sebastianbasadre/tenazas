@@ -21,87 +21,33 @@ from workspace.runtime.mcp_source_contract import (
     storage_payload,
     validate_feed,
 )
+from workspace.runtime.network_discovery_result import network_from_result, read_result
 
 ROUTES = ("/inventory", "/storage", "/network")
 MEDIA_ROUTE = "/media"
 AUDIT = logging.getLogger("tenazas.mcp.sources")
 
 
-NETWORK_METRICS_URL = "http://192.168.2.2:9105/metrics"
-NETWORK_METRICS = {
-    "tenazas_network_last_scan_timestamp",
-    "device_discovery_online",
-    "device_discovery_missing",
-}
-
-
-def fetch_network_metrics():
-    from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
-
-    class NoRedirect(HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-
-    with build_opener(ProxyHandler({}), NoRedirect()).open(
-        Request(NETWORK_METRICS_URL, method="GET"), timeout=5
-    ) as response:
-        payload = response.read(MAX_BYTES + 1)
-    if len(payload) > MAX_BYTES:
-        raise ValueError("Metrics size limit")
-    return payload
-
-
-def network_from_metrics(payload):
-    import math
-
-    if not isinstance(payload, bytes) or len(payload) > MAX_BYTES:
-        raise ValueError("Invalid metrics payload")
-    samples = {}
-    for line in payload.decode("utf-8").splitlines():
-        fields = line.split()
-        if not fields or fields[0] not in NETWORK_METRICS:
-            continue
-        if len(fields) not in (2, 3) or fields[0] in samples:
-            raise ValueError("Ambiguous metric sample")
-        value = float(fields[1])
-        if not math.isfinite(value) or value < 0 or value > 2**53:
-            raise ValueError("Invalid metric sample")
-        samples[fields[0]] = value
-    if set(samples) != NETWORK_METRICS:
-        raise ValueError("Missing authoritative network metrics")
-    epoch = samples["tenazas_network_last_scan_timestamp"]
-    if epoch <= 0:
-        raise ValueError("Scan timestamp unavailable")
-    counts = [samples[k] for k in ("device_discovery_online", "device_discovery_missing")]
-    if any(not count.is_integer() for count in counts):
-        raise ValueError("Non-integer device count")
-    online, missing = map(int, counts)
-    observed = datetime.fromtimestamp(epoch, UTC).isoformat().replace("+00:00", "Z")
-    return validate_feed(
-        "/network",
-        {
-            "observed_at": observed,
-            "total": online + missing,
-            "online": online,
-            "missing": missing,
-            "healthy": None,
-            "unhealthy": None,
-            "latency_ms": None,
-        },
-    )
-
-
 class NASCollectors:
     """Explicit NAS-only configuration. No rootfs fallback or VM Docker use."""
 
     def __init__(
-        self, *, filesystem, filesystem_confirmed, inventory_collector=None, metrics_fetch=None
+        self,
+        *,
+        filesystem,
+        filesystem_confirmed,
+        inventory_collector=None,
+        network_result_file=None,
     ):
         path = Path(filesystem)
         if filesystem_confirmed is not True or not path.is_absolute() or path == Path("/"):
             raise ValueError("Confirmed NAS volume required")
         self.filesystem = path
-        self.metrics_fetch = metrics_fetch or fetch_network_metrics
+        self.network_result_file = (
+            Path(network_result_file) if network_result_file is not None else None
+        )
+        if self.network_result_file is not None and not self.network_result_file.is_absolute():
+            raise ValueError("Absolute discovery result path required")
         if inventory_collector is None:
             from tools.mcp_nas_inventory import inventory
 
@@ -132,7 +78,9 @@ class NASCollectors:
         return storage_payload(total, total - free, observed)
 
     def network(self):
-        return network_from_metrics(self.metrics_fetch())
+        if self.network_result_file is None:
+            raise ValueError("Discovery result path required")
+        return validate_feed("/network", network_from_result(read_result(self.network_result_file)))
 
 
 class SourceStore:
@@ -295,6 +243,7 @@ def main():
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--filesystem", type=Path, required=True)
     parser.add_argument("--media-file", type=Path)
+    parser.add_argument("--network-result-file", type=Path, required=True)
     parser.add_argument("--filesystem-confirmed", action="store_true", required=True)
     args = parser.parse_args()
     if args.filesystem != Path("/volume1"):
@@ -305,6 +254,7 @@ def main():
     collectors = NASCollectors(
         filesystem=args.filesystem,
         filesystem_confirmed=args.filesystem_confirmed,
+        network_result_file=args.network_result_file,
     )
     # A confirmed but missing/wrong mount must fail before any listener opens.
     try:

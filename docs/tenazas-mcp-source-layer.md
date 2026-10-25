@@ -1,5 +1,14 @@
 # Sanitized NAS source boundary — local implementation only
 
+## 2026-10-08 discovery proposal — local, not deployed
+
+The reviewed local proposal now uses an atomic discovery outcome signal for
+`/network`, replacing the 9105 mapping described below. Failed discovery returns
+source-unavailable without renewing the previous observation; successful empty
+discovery remains valid. Exporters and TTL 300 are unchanged. The full contract,
+deployment gates and rollback are in [the discovery review](tenazas-mcp-discovery-review.md).
+The earlier Prometheus wiring below describes the deployed baseline only.
+
 Current validated deployment facts and exact future commands are in
 [tenazas-mcp-nas-deployment.md](tenazas-mcp-nas-deployment.md). NAS SSH is
 sbasadre@192.168.2.2:4822; no SFTP. Dedicated source port 19105 is proposed, not
