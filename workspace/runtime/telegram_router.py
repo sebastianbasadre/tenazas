@@ -1478,14 +1478,6 @@ def _process_update(token: str, update: dict, allowed: set):
         _append_history(chat_id, "assistant", response)
         return
 
-    # Owner-scoped tracking queries are answered from the persistent tracker.
-    from application_tracker import conversational as application_followup
-    application_reply = application_followup(text, chat_id)
-    if application_reply is not None:
-        send_message(token, chat_id, application_reply)
-        _append_history(chat_id, "assistant", application_reply)
-        return
-
     # Check email send follow-up before classifying
     try:
         from orchestrator import complete_email_send, _load_email_pending

@@ -1,4 +1,4 @@
-"""Owner-scoped application tracking, history and opt-in follow-up reminders.
+"""Owner-scoped application tracking, history and dated next actions.
 
 Uses the assistant's existing local SQLite database. Does not submit applications
 or contact recruiters. All user-facing dates are in Buenos Aires time.
@@ -35,26 +35,6 @@ ALIASES = {
     "tecnica": "technical",
     "postulado": "applied",
 }
-USAGE = """Seguimiento de postulaciones (horarios de Argentina):
-/postulaciones agregar Empresa | Puesto | URL opcional | CV opcional
-/postulaciones ver ID
-/postulaciones estado ID entrevista | nota opcional
-/postulaciones fecha ID 2026-10-20 09:00 (corregir fecha de envío)
-Estados: postulada, screening, entrevista, tecnica, oferta, aceptada, rechazada, retirada, pausada.
-/postulaciones recordar ID 2026-11-02 09:00 | acción
-/postulaciones entrevista ID 2026-11-03 15:00 | notas
-/postulaciones contacto ID | nota (registra seguimiento realizado)
-/postulaciones recruiter ID email
-/postulaciones nota ID texto
-/postulaciones borrador ID
-/postulaciones pendientes
-/postulaciones avisos 09:00 (o avisos off)
-/postulaciones correo (lectura de Gmail y sugerencias para confirmar)
-/postulaciones sugerencias (últimas 10 pendientes)
-/postulaciones confirmar SUGERENCIA
-/postulaciones descartar SUGERENCIA
-/postulaciones importar (envíos confirmados previos)
-/postulaciones borrar ID"""
 
 
 def text(value, maximum=500):
@@ -308,15 +288,6 @@ class Applications:
                 "DELETE FROM tracked_applications WHERE id=? AND chat=?", (identity, str(chat))
             )
 
-    def configure(self, chat, clock):
-        if clock != "off" and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", clock):
-            raise ValueError("Usá avisos HH:MM o avisos off.")
-        with self.connect() as connection:
-            connection.execute(
-                "INSERT INTO application_preferences VALUES(?,?,?,?) ON CONFLICT(chat) DO UPDATE SET clock=excluded.clock,enabled=excluded.enabled,configured=excluded.configured",
-                (str(chat), "09:00" if clock == "off" else clock, int(clock != "off"), time.time()),
-            )
-
     def due(self, chat, moment=None):
         moment = time.time() if moment is None else moment
         return sorted(
@@ -328,200 +299,9 @@ class Applications:
             key=lambda r: r["next_at"],
         )
 
-    def reminders_enabled(self, chat):
-        with self.connect() as connection:
-            row = connection.execute(
-                "SELECT enabled FROM application_preferences WHERE chat=?", (str(chat),)
-            ).fetchone()
-            return bool(row and row["enabled"])
-
-    def schedule(self, moment=None):
-        moment = moment or datetime.now(TZ)
-        with self.connect() as connection:
-            preferences = [
-                dict(r)
-                for r in connection.execute("SELECT * FROM application_preferences WHERE enabled=1")
-            ]
-        for pref in preferences:
-            hour, minute = map(int, pref["clock"].split(":"))
-            slot = moment.astimezone(TZ).replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if moment.timestamp() < slot.timestamp() or slot.timestamp() < pref["configured"]:
-                continue
-            if self.items(pref["chat"], active=True):
-                Jobs().create(
-                    pref["chat"],
-                    "application_digest",
-                    schedule_key=f"applications:{pref['chat']}:{slot.date()}",
-                )
-
-
-def summary(chat, due_only=False):
-    store = Applications()
-    items = store.items(chat)
-    due = store.due(chat)
-    counts = {s: sum(r["status"] == s for r in items) for s in STATUSES}
-    lines = [
-        f"Postulaciones: {len(items)} · próximas acciones vencidas: {len(due)}",
-        ", ".join(f"{STATUSES[s]}: {n}" for s, n in counts.items() if n),
-    ]
-    selected = (
-        due
-        if due_only
-        else sorted(items, key=lambda r: (r["status"] in TERMINAL, r["next_at"] or float("inf")))
-    )
-    for row in selected[:10]:
-        lines.append(
-            f"{row['id']} · {row['company']} — {row['role']}\n{STATUSES[row['status']]} · {row['next_action'] or 'sin próxima acción'}: {local_date(row['next_at'])}"
-        )
-    if len(selected) > 10:
-        lines.append(f"Mostrando 10 de {len(selected)}; /postulaciones ver ID para el detalle.")
-    if not items:
-        lines.append("Registrá una con /postulaciones agregar Empresa | Puesto | URL | CV")
-    lines.append("Ayuda: /postulaciones ayuda")
-    return "\n\n".join(line for line in lines if line)[:3800]
-
-
-def detail(chat, identity):
-    row = Applications().get(chat, identity)
-    lines = [
-        f"{row['id']} · {row['company']} — {row['role']}",
-        f"Estado: {STATUSES[row['status']]}",
-        f"Postulada: {local_date(row['applied'])}",
-        "CV: " + (row["cv"] or "no registrado"),
-        "Contacto: " + (row["recruiter"] or "no registrado"),
-        f"Próxima acción: {row['next_action'] or 'sin definir'} · {local_date(row['next_at'])}",
-    ]
-    if row["interview_at"]:
-        lines.append("Entrevista: " + local_date(row["interview_at"]))
-    if row["url"]:
-        lines.append(row["url"])
-    lines.append("Historial (últimos 12):")
-    lines.extend(f"{local_date(e['created'])} · {e['detail']}" for e in row["events"])
-    return "\n".join(lines)[:3800]
-
 
 def draft(chat, identity):
     row = Applications().get(chat, identity)
     if row["status"] in TERMINAL:
         raise ValueError("La postulación está cerrada o pausada.")
     return f"Borrador para revisar — no enviado\n\nHola, ¿cómo estás?\n\nQuería consultar si hay novedades sobre mi postulación al puesto de {row['role']} en {row['company']}, enviada el {datetime.fromtimestamp(row['applied'], TZ):%d/%m/%Y}. Sigo interesado en la oportunidad y quedo disponible para ampliar información.\n\nMuchas gracias."
-
-
-def import_confirmed(chat):
-    from runtime_config import get_default_telegram_chat_id
-
-    if str(chat) != str(get_default_telegram_chat_id() or ""):
-        raise ValueError("La importación anterior solo está disponible para el chat principal.")
-    from job_application_manager import _load
-
-    total = 0
-    for row in _load():
-        if row.get("status") != "submitted":
-            continue
-        total += Applications().add(
-            chat,
-            row.get("company", ""),
-            row.get("title", ""),
-            row.get("url", ""),
-            row.get("cv_filename", ""),
-            applied=row.get("resolved_at") or row.get("created_at"),
-        )["created_now"]
-    return f"Importé {total} envíos confirmados. Las propuestas pendientes no cuentan como postulaciones enviadas."
-
-
-def handle(argument, chat):
-    if not chat:
-        return "Se necesita un chat autorizado."
-    store = Applications()
-    action, _, rest = argument.strip().partition(" ")
-    action = action.casefold()
-    try:
-        if action in {"ayuda", "help"}:
-            return USAGE
-        if action in {"", "lista", "resumen", "pendientes"}:
-            return summary(chat, due_only=action == "pendientes")
-        if action in {"agregar", "registrar"}:
-            parts = [p.strip() for p in rest.split("|")]
-            if not 2 <= len(parts) <= 4:
-                raise ValueError("Usá agregar Empresa | Puesto | URL opcional | CV opcional.")
-            row = store.add(chat, *parts)
-            return (
-                ("Registrada" if row["created_now"] else "Ya estaba registrada")
-                + ":\n"
-                + detail(chat, row["id"])
-            )
-        if action == "avisos":
-            store.configure(chat, rest.strip())
-            return (
-                "Avisos de postulaciones desactivados."
-                if rest.strip() == "off"
-                else f"Revisión diaria activada a las {rest.strip()} (Argentina). Avisaré si hay acciones vencidas o nuevas sugerencias de Gmail."
-            )
-        if action == "importar":
-            return import_confirmed(chat)
-        if action == "correo":
-            from assistant_commands import enqueue
-
-            return enqueue(chat, "application_mail")
-        if action == "sugerencias":
-            from application_mail import suggestions_text
-
-            return suggestions_text(chat)
-        if action in {"confirmar", "descartar"}:
-            from application_mail import resolve
-
-            return resolve(chat, rest.strip(), accept=action == "confirmar")
-        identity, _, value = rest.strip().partition(" ")
-        value, _, note = value.partition("|")
-        value, note = value.strip(), note.strip()
-        if action == "ver":
-            return detail(chat, identity)
-        if action == "borrador":
-            return draft(chat, identity)
-        if action == "borrar":
-            store.delete(chat, identity)
-            return "Borré la postulación, su historial y las sugerencias de correo asociadas."
-        kinds = {
-            "fecha": "applied_date",
-            "estado": "status",
-            "recordar": "reminder",
-            "entrevista": "interview",
-            "contacto": "contact",
-            "recruiter": "recruiter",
-            "nota": "note",
-        }
-        if action not in kinds:
-            return USAGE
-        store.update(chat, identity, kinds[action], value, note)
-        return detail(chat, identity)
-    except ValueError as error:
-        return str(error)
-
-
-def conversational(query, chat):
-    """Deterministic personal tracking intents; never routes email content."""
-    normalized = " ".join(
-        "".join(
-            c
-            for c in unicodedata.normalize("NFD", query.casefold())
-            if unicodedata.category(c) != "Mn"
-        )
-        .strip("¿?¡!.")
-        .split()
-    )
-    if normalized in {
-        "mis postulaciones",
-        "como van mis postulaciones",
-        "estado de mis postulaciones",
-        "seguimiento de mis postulaciones",
-    }:
-        return handle("", chat)
-    if normalized in {"postulaciones pendientes", "que postulaciones tengo pendientes"}:
-        return handle("pendientes", chat)
-    if normalized in {
-        "revisa los correos de mis postulaciones",
-        "revisar correos de postulaciones",
-        "revisa respuestas de mis postulaciones",
-    }:
-        return handle("correo", chat)
-    return None

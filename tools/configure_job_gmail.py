@@ -85,7 +85,7 @@ def main():
         )
         return 1
     print(
-        "Gmail verificado con TLS. Configuración privada guardada. Usá /postulaciones correo en Telegram."
+        "Gmail verificado con TLS. Configuración privada guardada. Consultá tus postulaciones desde ChatGPT."
     )
     return 0
 

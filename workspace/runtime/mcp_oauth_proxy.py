@@ -28,6 +28,8 @@ AUDIT = logging.getLogger("tenazas.oauth.access")
 PUBLIC_METHODS = frozenset(
     {"initialize", "notifications/initialized", "ping", "server/discover", "tools/list"}
 )
+APPLICATION_WRITE_SCOPE = "write:applications"
+APPLICATION_WRITE_TOOLS = frozenset({"register_job_application", "update_job_application", "resolve_job_mail_suggestion", "delete_job_application"})
 
 
 class ValidatorUnavailable(Exception):
@@ -268,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
     def send_error(self, code, message=None, explain=None):
         self.reply(code, {"error": "invalid HTTP request"})
 
-    def reply(self, status, payload=None, *, raw=None, challenge=None):
+    def reply(self, status, payload=None, *, raw=None, challenge=None, required_scope=REQUIRED_SCOPE):
         body = raw if raw is not None else json.dumps(payload, allow_nan=False).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -278,7 +280,7 @@ class Handler(BaseHTTPRequestHandler):
         if challenge:
             self.send_header(
                 "WWW-Authenticate",
-                f'Bearer resource_metadata="{self.server.config.resource_metadata}", scope="{REQUIRED_SCOPE}", error="{challenge}"',
+                f'Bearer resource_metadata="{self.server.config.resource_metadata}", scope="{required_scope}", error="{challenge}"',
             )
         self.end_headers()
         if self.command != "HEAD":
@@ -343,7 +345,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(401, {"error": "missing bearer"}, challenge="invalid_token")
             token = authorization[7:].strip()
             try:
-                self.server.validator.validate(token)
+                claims = self.server.validator.validate(token)
+                if request["method"] == "tools/call" and isinstance(request.get("params"), dict) and request["params"].get("name") in APPLICATION_WRITE_TOOLS:
+                    if APPLICATION_WRITE_SCOPE not in str(claims.get("scope", "")).split():
+                        return self.reply(403, {"error": "application write permission required"}, challenge="insufficient_scope", required_scope=APPLICATION_WRITE_SCOPE)
             except InsufficientScope:
                 return self.reply(
                     403, {"error": "insufficient scope"}, challenge="insufficient_scope"
@@ -370,7 +375,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "resource": self.server.config.audience,
                     "authorization_servers": [self.server.config.issuer],
-                    "scopes_supported": [REQUIRED_SCOPE],
+                    "scopes_supported": [REQUIRED_SCOPE, APPLICATION_WRITE_SCOPE],
                 },
             )
         self.reply(405, {"error": "method forbidden"})

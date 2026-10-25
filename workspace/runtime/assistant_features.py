@@ -143,33 +143,4 @@ def submit_application(payload):
     entry.update({"status": "approved", "approved_at": payload["approval"]["at"]})
     _save(queue)
     result = submit(application)
-    response = {"text": result["message"] + "\nEstado: " + result["status"], "ok": result["ok"]}
-    if result["ok"] and result["status"] == "submitted":
-        # A tracker failure must never turn a confirmed send into a failed send.
-        try:
-            from application_tracker import Applications
-            tracked = Applications().add(payload["approval"]["chat"], entry["company"], entry["title"], entry.get("url", ""), entry.get("cv_filename", ""))
-            response["text"] += "\nSeguimiento: /postulaciones ver " + tracked["id"]
-        except Exception:
-            response["text"] += "\nEl envío está confirmado; no pude registrar el seguimiento. Agregalo con /postulaciones agregar."
-    return response
-
-
-def application_digest(chat):
-    from application_tracker import Applications, summary
-    from application_mail import scan
-    from runtime_config import get_default_telegram_chat_id
-
-    due = Applications().due(chat)
-    mail = {"new": 0, "text": ""}
-    mail_failed = False
-    if str(chat) == str(get_default_telegram_chat_id() or ""):
-        try:
-            mail = scan(chat)
-        except Exception:
-            mail_failed = True
-            mail["text"] = "Gmail no disponible para esta revisión. Las postulaciones y sus estados se conservaron."
-    parts = ["Seguimiento laboral", summary(chat, due_only=True)]
-    if mail["text"]:
-        parts.append(mail["text"])
-    return {"text": "\n\n".join(parts)[:3800], "skip_delivery": not due and not mail["new"] and not mail_failed}
+    return {"text": result["message"] + "\nEstado: " + result["status"], "ok": result["ok"]}

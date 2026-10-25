@@ -37,10 +37,37 @@ def rpc(monkeypatch):
         connection.close()
         return status, json.loads(raw) if raw else None
 
+    request.server = server
     yield request
     server.shutdown()
     server.server_close()
     thread.join(timeout=3)
+
+
+def test_application_tools_are_optional_typed_and_independent_of_infra_cache(rpc, monkeypatch):
+    from workspace.runtime import mcp_applications_contract as contracts
+
+    captured = []
+
+    class Applications:
+        def call(self, name, arguments):
+            captured.append((name, arguments))
+            return {"ok": True, "data": {"total": 0}}
+
+    rpc.server.applications = Applications()
+    tools = rpc(call("tools/list"))[1]["result"]["tools"]
+    assert len(tools) == 17
+    assert {t["name"] for t in tools} == set(adapter.TOOLS) | set(contracts.DEFINITIONS)
+    response = rpc(call("tools/call", params={"name": "get_job_applications", "arguments": {}}))[1]
+    assert json.loads(response["result"]["content"][0]["text"]) == {"total": 0}
+    assert captured == [("get_job_applications", {})]
+    response = rpc(
+        call(
+            "tools/call",
+            params={"name": "get_job_applications", "arguments": {"owner": "another-user"}},
+        )
+    )[1]
+    assert response["error"]["code"] == -32602 and len(captured) == 1
 
 
 def call(method, identity=1, params=None):

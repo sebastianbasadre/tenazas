@@ -57,9 +57,11 @@ class Gateway(ThreadingHTTPServer):
         window=60,
         resource_url=None,
         authorization_server=None,
+        applications=None,
     ):
         self.resource_url = resource_url
         self.authorization_server = authorization_server
+        self.applications = applications
         self.token_file = Path(token_file)
         load_token(self.token_file)
         self.limit, self.window = limit, window
@@ -223,26 +225,39 @@ class Handler(BaseHTTPRequestHandler):
                         "annotations": {"readOnlyHint": True, "destructiveHint": False},
                     }
                     for name in adapter.TOOLS
-                ]
+                ] + self.application_tools()
             }
         elif method == "tools/call":
             if (
                 set(params) - {"name", "arguments", "_meta"}
-                or params.get("arguments", {}) != {}
+                or not isinstance(params.get("arguments", {}), dict)
                 or ("_meta" in params and not isinstance(params["_meta"], dict))
                 or not isinstance(params.get("name"), str)
-                or params.get("name") not in adapter.TOOLS
+                or params.get("name") not in (*adapter.TOOLS, *(t["name"] for t in self.application_tools()))
+                or (params.get("name") in adapter.TOOLS and params.get("arguments", {}) != {})
             ):
                 error = {"code": -32602, "message": "Tool or arguments forbidden"}
             else:
                 try:
-                    mcp_cache_policy.validate_cache(adapter.CACHE_ROOT)
+                    is_application = params["name"] not in adapter.TOOLS
+                    if is_application:
+                        from workspace.runtime.mcp_applications_contract import validate
+                        validate(params["name"], params.get("arguments", {}))
+                    else:
+                        mcp_cache_policy.validate_cache(adapter.CACHE_ROOT)
                     AUDIT.info("tool=%s", params["name"])
-                    value = adapter.call_tool(params["name"])
+                    is_error = False
+                    if is_application:
+                        response = self.server.applications.call(params["name"], params.get("arguments", {}))
+                        value, is_error = response["data"], not response["ok"]
+                    else:
+                        value = adapter.call_tool(params["name"])
                     result = {
                         "content": [{"type": "text", "text": json.dumps(value, allow_nan=False)}],
-                        "isError": False,
+                        "isError": is_error,
                     }
+                except ValueError:
+                    error = {"code": -32602, "message": "Invalid arguments or unavailable data"} if is_application else {"code": -32603, "message": "Read unavailable"}
                 except Exception:
                     error = {"code": -32603, "message": "Read unavailable"}
         else:
@@ -255,6 +270,12 @@ class Handler(BaseHTTPRequestHandler):
                 **({"error": error} if error else {"result": result}),
             },
         )
+
+    def application_tools(self):
+        if self.server.applications is None:
+            return []
+        from workspace.runtime.mcp_applications_contract import tools
+        return tools()
 
     def do_GET(self):
         if self.path == "/.well-known/oauth-protected-resource/mcp":
@@ -283,15 +304,21 @@ def main():
     parser.add_argument("--authorization-server")
     parser.add_argument("--cert")
     parser.add_argument("--key")
+    parser.add_argument("--applications-config", type=Path)
     args = parser.parse_args()
     if not args.cert or not args.key:
         parser.error("TLS certificate and key required")
     adapter.configure_cache(args.cache_root)
+    applications = None
+    if args.applications_config is not None:
+        from workspace.runtime.mcp_applications_client import ApplicationsClient
+        applications = ApplicationsClient(args.applications_config)
     server = Gateway(
         ("127.0.0.1", args.port),
         args.token_file,
         resource_url=args.resource_url,
         authorization_server=args.authorization_server,
+        applications=applications,
     )
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2

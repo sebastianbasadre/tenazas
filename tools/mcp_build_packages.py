@@ -28,6 +28,8 @@ PAYLOADS = {
         "workspace/runtime/mcp_cache_policy.py",
         "workspace/runtime/mcp_snapshot_producer.py",
         "workspace/runtime/mcp_media_producer.py",
+        "workspace/runtime/mcp_applications_contract.py",
+        "workspace/runtime/mcp_applications_client.py",
         "deploy/mcp-v2/tenazas-mcp-gateway.conf",
         "deploy/mcp-v2/tenazas-mcp-snapshot.service",
         "deploy/mcp-v2/tenazas-mcp-snapshot.timer",

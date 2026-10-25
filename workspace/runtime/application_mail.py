@@ -18,7 +18,6 @@ from pathlib import Path
 
 from application_tracker import ALIASES, STATUSES, TERMINAL, TZ, Applications
 from assistant_jobs import ROOT
-from runtime_config import get_default_telegram_chat_id
 
 MAX_BYTES = 2 * 1024 * 1024
 JOB_WORDS = re.compile(
@@ -27,10 +26,8 @@ JOB_WORDS = re.compile(
 
 
 def owner(chat):
-    if str(chat) != str(get_default_telegram_chat_id() or ""):
-        raise ValueError(
-            "Gmail está disponible solo para el chat principal de la cuenta configurada."
-        )
+    if str(chat) != "personal":
+        raise ValueError("Gmail está disponible solo para la cuenta personal autorizada.")
 
 
 def normalized(value):
@@ -244,11 +241,11 @@ def suggestions_text(chat):
     owner(chat)
     rows = pending(chat)
     if not rows:
-        return "No hay sugerencias pendientes. Consultar Gmail: /postulaciones correo"
+        return "No hay sugerencias pendientes. Podés pedir una nueva lectura de Gmail."
     lines = ["Sugerencias de correo (hasta 10 pendientes; requieren revisión):"]
     for row in rows:
         lines.append(
-            f"{row['id']} · {row['company']} — {row['role']}\nPosible estado: {STATUSES[row['proposed']]}\nAsunto: {row['subject']}\n/postulaciones confirmar {row['id']} o /postulaciones descartar {row['id']}"
+            f"{row['id']} · {row['company']} — {row['role']}\nPosible estado: {STATUSES[row['proposed']]}\nAsunto: {row['subject']}\nConfirmá o descartá esta sugerencia desde el asistente."
         )
     return "\n\n".join(lines)[:3800]
 
@@ -259,7 +256,7 @@ def scan(chat, client=None):
     if not applications:
         return {
             "new": 0,
-            "text": "Registrá primero tus postulaciones con /postulaciones agregar. No consulté Gmail.",
+            "text": "Registrá primero tus postulaciones en el asistente. No consulté Gmail.",
         }
     client = client or Gmail()
     after = (datetime.now(TZ) - timedelta(days=30)).date().isoformat()
@@ -319,7 +316,7 @@ def scan(chat, client=None):
         )
     for row in suggestions:
         lines.append(
-            f"{row['id']} · {row['company']} — {row['role']}\nPosible estado: {STATUSES[row['proposed']]}\nAsunto: {row['subject']}\n/postulaciones confirmar {row['id']} o /postulaciones descartar {row['id']}"
+            f"{row['id']} · {row['company']} — {row['role']}\nPosible estado: {STATUSES[row['proposed']]}\nAsunto: {row['subject']}\nConfirmá o descartá esta sugerencia desde el asistente."
         )
     lines.append(
         "No cambié estados, no marqué mensajes como leídos y no envié correos. Las sugerencias necesitan revisión."

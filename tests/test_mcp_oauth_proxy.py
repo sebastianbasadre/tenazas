@@ -262,6 +262,22 @@ def test_jwt_not_forwarded_and_body_ids_meta_preserved(running, config, keys):
         assert json.loads(body) == payload
 
 
+@pytest.mark.parametrize("name", sorted(proxy.APPLICATION_WRITE_TOOLS))
+def test_read_scope_never_authorizes_job_mutations(running, config, keys, name):
+    _, request, captured = running
+    status, headers, _ = request(rpc(params={"name": name, "arguments": {}}), auth="Bearer " + encode(config, keys[0]))
+    assert status == 403 and "write:applications" in headers["WWW-Authenticate"]
+    assert not captured
+
+
+def test_application_write_scope_is_checked_before_forwarding(running, config, keys):
+    _, request, captured = running
+    payload = rpc(params={"name": "register_job_application", "arguments": {"company": "Acme", "role": "PM"}})
+    token = encode(config, keys[0], {"scope": "read:tenazas write:applications"})
+    assert request(payload, auth="Bearer " + token)[0] == 200
+    assert json.loads(captured[0][0]) == payload
+
+
 @pytest.mark.parametrize("method", [[], {}, None, 2, True])
 def test_non_string_jsonrpc_method(running, method):
     assert running[1](rpc(method))[0] == 400
