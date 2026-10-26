@@ -11,11 +11,20 @@
       ],
       "working_dir": "/opt/data/workspace",
       "environment": {
-        "HERMES_UID": "10000",
-        "HERMES_GID": "10000"
+        "HERMES_UID": "1034",
+        "HERMES_GID": "100"
       },
       "volumes": [
-        "/volume1/docker/hermes-agent/data:/opt/data"
+        "/volume1/docker/hermes-agent/data:/opt/data",
+        {
+          "type": "bind",
+          "source": "/volume1/photo",
+          "target": "/mnt/photo",
+          "read_only": false,
+          "bind": {
+            "create_host_path": false
+          }
+        }
       ],
       "mem_limit": "4g",
       "security_opt": [

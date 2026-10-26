@@ -9,8 +9,9 @@ The image is pinned by digest in compose.json and excluded from Watchtower.
 - Container: hermes-agent; network: hermes-independent_default.
 - Live Compose: /volume1/docker/hermes-agent/compose.json.
 - Private persistent data: /volume1/docker/hermes-agent/data -> /opt/data.
-- Hermes UID/GID: 10000; working directory: /opt/data/workspace.
+- Hermes UID/GID: 1034:100 (NAS user sbasadre); working directory: /opt/data/workspace.
 - No published ports, host network, Docker socket or Tenazas mounts.
+- Authorized photo share: /volume1/photo -> /mnt/photo, read/write.
 - Memory cap: 4 GiB. CPU shares: 512, a relative priority, not a CPU cap.
 - This NAS kernel does not support NanoCPU quotas or PIDs limits.
 - Restart policy: unless-stopped. Docker/DSM must start after a NAS reboot.
@@ -18,7 +19,8 @@ The image is pinned by digest in compose.json and excluded from Watchtower.
 This is a CLI instance. Its main command is sleep infinity so Hermes can be
 invoked interactively on demand. The official s6 entrypoint is preserved.
 No messaging channel, dashboard or recurring task has been configured.
-OpenAI authentication and a real model response remain pending.
+OpenAI Codex authentication and a model response were confirmed by the user.
+The user also verified creation and reading of /opt/data/workspace/prueba.txt.
 
 ## Configure and use
 
@@ -54,3 +56,21 @@ Official sources:
 - https://github.com/NousResearch/hermes-agent/releases/tag/v0.22.5
 - https://github.com/NousResearch/hermes-agent/blob/v0.22.5/docker-compose.yml
 - https://hermes-agent.nousresearch.com/docs/getting-started/installation
+
+## Photo access
+
+The user authorized read/write access to the NAS photo share for organization.
+The bind mount refuses to create a missing source directory. Hermes now maps to
+NAS user sbasadre (1034:100), whose existing photo permissions were verified;
+no photo ACLs or recursive photo permissions were changed. The official image
+bootstrap migrated ownership of Hermes private state to the mapped UID/GID.
+
+Before recreation, Compose and provider configuration were backed up privately
+under /volume1/docker/hermes-agent/backups/before-photo-20261026T012846Z.
+No credentials are stored in this repository. Container verification confirmed
+preserved authentication/configuration and workspace, plus creation, reading,
+renaming and deletion of a temporary check file under /mnt/photo. Existing
+photos were not changed, and no organization job was started.
+
+Reopen the Hermes CLI after recreation and refer to /mnt/photo/<folder>.
+Choose the intended subfolder and organization rules before moving real photos.
