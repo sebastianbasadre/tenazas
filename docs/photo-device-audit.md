@@ -53,3 +53,31 @@ python tools/photo_device_audit.py --root /mnt/photo --output /opt/data/workspac
 ```
 
 The output directory must not already exist and must be outside the photo share.
+
+## Completed 2000-2004 pilot
+
+The user selected device/year/month and requested a trial of the existing year
+folders 2000 through 2004. The trial used independent copies, preserving all
+source files. Its destination is:
+`/volume1/photo/PRUEBA_por_dispositivo_2000_2004`.
+
+Results: 528 JPG files, 380,665,217 bytes, copied with per-file SHA256 comparison.
+All copies were subsequently opened successfully and all original paths exist.
+Device counts: Sony CYBERSHOT 316, Sony DSC-P72 78, Sony DCR-TRV520 29,
+Sony DCR-TRV33 18, unidentified 87. The latter include 12 files whose image
+metadata could not be read. Byte-copy verification does not validate image
+decoding. One MOV and one DB file were excluded and remain in their source folders.
+
+441 copies use their EXIF capture year/month. The other 87 use the original
+folder year and Mes_desconocido; those dates are not inferred capture dates.
+All unidentified devices use Sin_dispositivo. Original filenames are preserved
+unless a collision requires a deterministic relative-path hash suffix.
+
+The frozen input and SHA256 manifest remain private in Hermes workspace:
+`photo-pilot-2000-2004-inventory.jsonl` and `photo-pilot-2000-2004-report`.
+The pilot is implemented by `tools/photo_device_pilot.py`; it refuses to reuse
+an existing destination, overwrite copies, or operate on a changed sample count.
+
+Future full-library audits must account for these extra trial copies so they
+are not mistaken for additional originals. The v2 inventory started before
+the trial directory was created. No full-library reorganization has occurred.
