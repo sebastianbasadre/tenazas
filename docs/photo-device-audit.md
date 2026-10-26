@@ -1,8 +1,9 @@
 # Photo device inventory
 
 The user requested regrouping the NAS photo library by camera/device after
-sequential renaming. A read-only inventory is the first step; no reorganization
-has been authorized against a specific final manifest yet.
+sequential renaming. A read-only inventory was the first step; the subsequent
+pilot and authorization for a full copy are recorded below. Original folders
+are to remain unchanged.
 
 The photo share is mounted in Hermes as `/mnt/photo`. Private reports are in
 `/opt/data/workspace/photo-device-audit-20261025-v2`, corresponding to
@@ -81,3 +82,38 @@ an existing destination, overwrite copies, or operate on a changed sample count.
 Future full-library audits must account for these extra trial copies so they
 are not mistaken for additional originals. The v2 inventory started before
 the trial directory was created. No full-library reorganization has occurred.
+
+## Full 2000-2026 copy requested
+
+The user explicitly requested copies from the original 2000-2026 year folders
+in a trial device/year/month tree, preserving the original arrangement.
+`tools/photo_device_copy.py` is installed in the private Hermes workspace and
+launched detached as PID 2240. Its destination will be:
+`/volume1/photo/PRUEBA_por_dispositivo_2000_2026`.
+
+The worker waits for the complete v2 inventory before planning and copying.
+The previous pilot, google_backup and other non-year roots are excluded.
+All inventoried regular files inside the year roots are copied: image metadata
+comes from the audit; video metadata is read locally with ffprobe and restricted
+file/pipe protocols. Unknown videos use Videos_sin_dispositivo; non-media files
+use Archivos_auxiliares. Unknown image devices use Sin_dispositivo. Missing or
+out-of-scope dates use the original folder year and Mes_desconocido.
+
+The worker creates a new destination only, uses exclusive file creation,
+disambiguates normalized folder labels and filename collisions, compares SHA256
+for every copy, and checks source size/mtime before and after copying. It does
+not deduplicate or delete originals. Insufficient space, changed sources or
+other errors stop the job. Partial verified copies remain documented; the job
+does not silently resume or overwrite them on restart.
+
+Private status, plan, verified-copy manifest and final summary live in
+`/opt/data/workspace/photo-copy-2000-2026-report`. The adjacent log and
+photo-copy-2000-2026-process.json identify the detached process. The terminal
+may close; container recreation or restart stops the worker and the inventory.
+No completion notification or external message is configured.
+
+Three Linux tests cover collisions, unchanged originals, excluded source roots,
+missing/invalid dates, refusing overwrites/changed sources, symlinks and traversal.
+The ffprobe reader was checked against a real video without modifying it.
+Launch is not completion: consult status.json and require state=complete plus
+summary.json before reporting that all files were copied.

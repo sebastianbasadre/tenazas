@@ -32,6 +32,7 @@ jobs:
           workspace/runtime/application_tracker.py workspace/runtime/application_mail.py
           workspace/runtime/application_mcp_runner.py tools/deploy_applications_mcp.py
           tools/configure_job_gmail.py
+          tools/photo_device_*.py
           workspace/runtime/mcp_*.py
           workspace/runtime/network_discovery_result.py workspace/runtime/device_discovery.py
           workspace/runtime/runtime.py
@@ -67,6 +68,7 @@ jobs:
           tests/test_mcp_container_names.py
           tests/test_mcp_media_probe.py tests/test_mcp_media_extension.py
           tests/test_mcp_applications.py
+          tests/test_photo_device_copy.py
           tests/test_network_discovery_result.py
       - name: Current tracked secrets
         run: python tools/secret_scan.py
