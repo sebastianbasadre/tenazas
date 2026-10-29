@@ -1,14 +1,14 @@
-# Modelos y routing
+# Models and routing
 
-Revisión del código: **2026-10-28**. El catálogo es configuración, no un inventario
-de modelos instalados ni una medición de disponibilidad, costo o rendimiento.
+Code reviewed **2026-10-28**. The catalog is configuration, not proof of installed
+models, provider availability, current pricing, or inference performance.
 
-## Model router Python
+## Python model router
 
-Fuente: [model_router.py](workspace/runtime/model_router.py). V1 selecciona por
-capacidades y V2 por roles; ambos consideran backends y restricciones.
+Source: [model_router.py](workspace/runtime/model_router.py). V1 selects by
+capability; V2 selects by role. Both account for backends and constraints.
 
-| Rol V2 | Cadena `ROLE_MAP`, en orden |
+| V2 role | Ordered `ROLE_MAP` chain |
 |---|---|
 | `fast` | `qwen3-fast:8b` → `qwen2.5:7b` → `qwen3-fast:4b` |
 | `reason` | `qwen3-fast:8b` → `qwen3-fast:4b` → `qwen2.5:7b` |
@@ -18,56 +18,55 @@ capacidades y V2 por roles; ambos consideran backends y restricciones.
 | `embed` | `nomic-embed-text` |
 | `cloud` | `moonshotai/kimi-k2` → `google/gemini-flash-1.5` |
 
-Los backends declarados son `notebook_gpu` (nombre interno del HomeLab), `nas_cpu`
-y `openrouter`, con prioridades 1, 2 y 3. Se detecta disponibilidad y se consideran
-VRAM, cooldown, frecuencia y latencia. El catálogo marca `qwen2.5:3b` y `phi4-mini`
-como legacy; sus estimaciones de memoria son orientativas.
+Declared backends are `notebook_gpu` (the internal HomeLab name), `nas_cpu`, and
+`openrouter`, with priorities 1, 2, and 3. Selection considers availability, VRAM,
+cooldown, frequency, and latency. The catalog marks `qwen2.5:3b` and `phi4-mini`
+as legacy. Memory estimates are approximate.
 
-`qwen3-fast:*` son nombres de modelos custom; no asumir que existen en un registry
-ni que `ollama pull` puede descargarlos. Crear/importar sus Modelfiles y comprobar
-`ollama list` en el host. El repositorio no contiene los Modelfiles locales
-mencionados en las notas históricas de HomeLab.
+`qwen3-fast:*` names refer to custom models. Do not assume they are registry tags
+that `ollama pull` can download. Import or recreate their Modelfiles and check
+`ollama list`. The local Modelfiles mentioned in historical HomeLab notes are not
+included in this checkout.
 
-## Otros selectores
+## Independent selectors
 
-| Componente | Configuración del código |
+| Component | Code configuration |
 |---|---|
-| `model_failover.py` | Primario `google/gemini-2.5-flash`; fallback `ollama/qwen2.5:7b` |
-| `telegram_router.py` | Fallback `TENAZAS_TELEGRAM_FALLBACK_MODEL`, default `qwen3:8b` |
-| `tool_tuning/router.py` | Clasificador default `tenazas-router-labels`, configurable con `OLLAMA_MODEL` |
-| `agent_job_search.py` | Matching de CV con `qwen2.5:3b` |
-| `scripts/homelab-ollama-startup.ps1` | Descarga `gemma3:12b`, `qwen3:8b`, `qwen2.5:7b`, `nomic-embed-text`; precarga `gemma3:12b` |
+| `model_failover.py` | Primary `google/gemini-2.5-flash`; fallback `ollama/qwen2.5:7b` |
+| `telegram_router.py` | `TENAZAS_TELEGRAM_FALLBACK_MODEL`, default `qwen3:8b` |
+| `tool_tuning/router.py` | Default classifier `tenazas-router-labels`, configurable through `OLLAMA_MODEL` |
+| `agent_job_search.py` | CV matching with `qwen2.5:3b` |
+| `scripts/homelab-ollama-startup.ps1` | Pulls `gemma3:12b`, `qwen3:8b`, `qwen2.5:7b`, `nomic-embed-text`; warms `gemma3:12b` |
+| `finetuned_router.py` | Separate skill classifier; inspect its constants and caller before changing routing |
 
-Estas configuraciones no son una única cascada global. El monitor de failover
-revisa rate limits y modifica la configuración del gateway; el router Python
-elige modelos para sus propios flujos. El script de arranque HomeLab conserva
-un conjunto distinto del `ROLE_MAP`; ver [runbook Ollama](docs/homelab-ollama-runbook.md).
+These settings do not form one global cascade. The gateway failover monitor
+observes rate limits and changes gateway configuration. The Python model router
+selects models for its own callers. HomeLab startup uses a different model set
+from `ROLE_MAP`; see the [Ollama runbook](docs/homelab-ollama-runbook.md).
 
-Los identificadores cloud anteriores se documentan porque figuran en el código.
-Su disponibilidad y precio deben verificarse en el proveedor antes de usarlos.
-No se mantienen tarifas ni promesas de free tier en esta guía.
+Cloud identifiers are documented because they exist in source. Verify provider
+availability and pricing before use; this guide does not promise a free tier or
+maintain current price quotations.
 
-## Tools y entrenamiento
+## Tool classification and training
 
-Los labels canónicos del clasificador son `weather`, `calendar`, `weather_calendar`,
-`lights`, `network_scan`, `infra`, `tts`, `arr_monitor` y `none`.
-Ver [contrato](workspace/runtime/INTERFACE_CONTRACT.md).
+Canonical labels are `weather`, `calendar`, `weather_calendar`, `lights`,
+`network_scan`, `infra`, `tts`, `arr_monitor`, and `none`. See the
+[routing contract](workspace/runtime/INTERFACE_CONTRACT.md).
 
-El runtime contiene [tool_tuning](workspace/runtime/tool_tuning/), con builders,
-evaluación y exportación de métricas. [workbench/tenazas-router](workbench/tenazas-router/)
-contiene otro pipeline y datos de entrenamiento. Revisar rutas, argumentos,
-dependencias y formato de cada pipeline antes de ejecutarlo; sus datasets no
-constituyen un único artefacto de versión fija.
+[Runtime tool_tuning](workspace/runtime/tool_tuning/) contains dataset builders,
+evaluation, and exporters. [workbench/tenazas-router](workbench/tenazas-router/)
+contains a separate pipeline and training data. Review each pipeline's paths,
+arguments, dependencies, and formats; they are not one fixed-version dataset.
 
-Los modelos `tenazas-router-labels` y `tenazas-multitool` requieren artefactos de
-entrenamiento/importación externos al bootstrap estándar. Los resultados de
-abril de 2026 que figuraban aquí eran históricos; no prueban precisión actual ni
-una mejora del modelo ajustado. Generar una evaluación nueva, registrando modelo,
-dataset, split y fecha antes de comparar resultados.
+`tenazas-router-labels` and `tenazas-multitool` need training/import artifacts beyond
+the standard bootstrap. Previously documented April 2026 evaluation results were
+historical and do not establish current accuracy or improvement from fine-tuning.
+Record model, dataset, split, and date with a fresh evaluation before comparing results.
 
-## Observabilidad
+## Evaluation observability
 
-El exporter de evaluación corre en `:9107`; Prometheus lo consulta cada 300 s.
-Revisar timestamps, estado del exporter y archivos de resultados antes de usar
-F1, precision, recall o exact match. Dashboard:
+The evaluation exporter listens on `:9107`; Prometheus scrapes it every 300 s.
+Check timestamps, exporter health, and result files before interpreting F1,
+precision, recall, or exact match. Dashboard:
 [grafana/dashboards/tenazas-multitool-eval.json](grafana/dashboards/tenazas-multitool-eval.json).

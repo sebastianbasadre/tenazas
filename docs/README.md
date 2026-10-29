@@ -1,42 +1,44 @@
-# Documentación de Tenazas
+# Tenazas documentation
 
-Revisión: **2026-10-28**. La referencia técnica es el código de la rama revisada;
-los inventarios y reportes históricos no prueban el estado actual de producción.
+Reviewed **2026-10-28** against repository code. Historical reports and inventory
+notes do not establish the current production state.
 
-## Instalación y desarrollo
+## Setup and development
 
-| Documento | Contenido |
+| Guide | Contents |
 |---|---|
-| [Presentación](../README.md) | Alcance y componentes |
-| [Instalación](setup.md) | Requisitos, configuración, mounts y arranque |
-| [Arquitectura](architecture.md) | Telegram, agentes, workers, modelos y estado |
-| [Desarrollo](development.md) | Entorno Python, pruebas y revisión de cambios |
-| [Infraestructura](../INFRA.md) | Servicios, puertos, métricas y dependencias externas |
-| [Modelos](../MODELS.md) | Catálogo y cadenas de fallback del código |
-| [Contrato de routing](../workspace/runtime/INTERFACE_CONTRACT.md) | Labels y APIs reales |
+| [Overview](../README.md) | Scope and components |
+| [Setup](setup.md) | Requirements, configuration, mounts, and startup |
+| [Architecture](architecture.md) | Deployment, request paths, scheduling, and state |
+| [Development](development.md) | Python environment, checks, and contribution workflow |
+| [Infrastructure](../INFRA.md) | Services, ports, telemetry, and external dependencies |
+| [Models](../MODELS.md) | Catalog and fallback chains in code |
+| [Routing contract](../workspace/runtime/INTERFACE_CONTRACT.md) | Canonical labels and implemented APIs |
 
-## Operación
+## Operations
 
-| Documento | Contenido |
+| Guide | Contents |
 |---|---|
-| [HomeLab Ollama](homelab-ollama-runbook.md) | Arranque Windows y diferencias entre scripts/modelos |
-| [Migración de plataforma](platform-migration-plan.md) | Arquitectura objetivo y fases propuestas |
-| [Jobs n8n](n8n-phase1-jobs.md) | Allowlist, timeouts y schedules de referencia |
-| [Cutover n8n](n8n-cutover-runbook.md) | Conectividad, activación gradual y rollback |
-| [Checklist DSM](dsm-task-checklist.md) | Tareas programadas y wrappers |
-| [Directorio n8n](../n8n/README.md) | Workflows y persistencia |
-| [Búsqueda laboral](job-search-platform.md) | Perfil, oportunidades y CV |
-| [Plan de mejoras](improvement-execution-plan.md) | Hardening y pendientes |
+| [HomeLab Ollama](homelab-ollama-runbook.md) | Windows startup and model configuration differences |
+| [Platform migration](platform-migration-plan.md) | Target split and proposed rollout phases |
+| [n8n jobs](n8n-phase1-jobs.md) | Allowlist, timeouts, and reference schedules |
+| [n8n cutover](n8n-cutover-runbook.md) | Connectivity, gradual activation, and rollback |
+| [DSM checklist](dsm-task-checklist.md) | Scheduled tasks and wrappers |
+| [n8n directory](../n8n/README.md) | Workflows and persistence |
+| [Job search](job-search-platform.md) | Profile, opportunities, matching, and CVs |
+| [Improvement plan](improvement-execution-plan.md) | Hardening and remaining work |
 
-## Contexto e historia
+## Context and history
 
-- [Workspace](../workspace/README.md) y [contexto resumido](../workspace/TENAZAS-CONTEXT.md).
-- [Staging](../workspace/staging/README.md): candidatos y revisión.
-- [Instrucciones para Claude Code](../CLAUDE.md): incluye secciones generadas e históricas.
-- [Notas de schema](../tools/SCHEMA_NOTES.md): observaciones de mayo de 2026.
-- [Reporte 2026-05-21](../tools/REPORT_20260521.md): cambios observados en esa fecha.
-- [Estado de planificación](../.planning/STATE.md): historial de milestones.
+- [Workspace](../workspace/README.md) and [current context](../workspace/TENAZAS-CONTEXT.md).
+- [Staging](../workspace/staging/README.md): candidates and review boundaries.
+- [Contributor instructions](../CLAUDE.md): repository rules and operational lessons.
+- [Schema notes](../tools/SCHEMA_NOTES.md): observations from May 2026.
+- [2026-05-21 report](../tools/REPORT_20260521.md): changes recorded on that date.
+- [Planning state](../.planning/STATE.md): milestone history.
+- [Documentation review](documentation-review-20261028.md): scope and validation limits.
 
-Los documentos de `.planning/`, reportes fechados y secciones generadas de
-`CLAUDE.md` conservan su contexto histórico. Para decisiones de instalación o
-routing usar las guías vigentes y verificar los archivos fuente enlazados.
+Milestone plans and dated results retain their historical meaning. Use the current
+guides and linked source files for installation, model selection, and routing decisions.
+Executable identifiers, log messages, and user-facing command examples retain their
+original spelling where changing them would break matching or behavior.

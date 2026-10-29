@@ -1,30 +1,29 @@
 # n8n
 
-El repositorio incluye workflows y un script de importación. `data/` se usa para
-persistencia local y está excluido de Git.
+This directory contains workflows and an import script. `data/` stores local
+persistent state and is excluded from Git.
 
-El servicio requiere activación explícita:
+Activate the service explicitly:
 
 ```bash
 docker compose --profile migration up -d n8n
-# Después del preflight y respaldo:
+# After preflight and backup:
 docker exec n8n /workspace/import-workflows.sh
 ```
 
-La versión declarada en Compose es `2.19.5`. Se usa como scheduler/orquestador que
-llama al runner de Tenazas mediante HTTP y `X-Tenazas-Job-Token`; no reemplaza la
-lógica de routing de Telegram.
+Compose declares version `2.19.5`. n8n acts as a scheduler/orchestrator calling
+Tenazas's HTTP runner with `X-Tenazas-Job-Token`; it does not replace Telegram routing.
 
-El runner escucha en `127.0.0.1` por defecto. El target de n8n,
-`http://host.docker.internal:18891`, requiere un bind del host alcanzable desde la
-red Docker. Resolver conectividad y restricciones antes de activar schedules.
+The runner defaults to `127.0.0.1`. n8n's target,
+`http://host.docker.internal:18891`, requires a host bind reachable from the Docker
+bridge. Resolve connectivity and access restrictions before activating schedules.
 
-Importar no equivale a completar un cutover: comprobar cada workflow, su estado,
-las notificaciones y el scheduler anterior para evitar duplicación.
+Importing workflows does not complete a cutover. Verify each workflow, activation
+state, notifications, and previous scheduler to avoid duplicate executions.
 
-- [Runbook de cutover](../docs/n8n-cutover-runbook.md)
-- [Allowlist y timeouts](../docs/n8n-phase1-jobs.md)
-- [Checklist DSM](../docs/dsm-task-checklist.md)
-- [Plan de migración](../docs/platform-migration-plan.md)
+- [Cutover runbook](../docs/n8n-cutover-runbook.md)
+- [Allowlist and timeouts](../docs/n8n-phase1-jobs.md)
+- [DSM checklist](../docs/dsm-task-checklist.md)
+- [Migration plan](../docs/platform-migration-plan.md)
 
-Revisión: 2026-10-28, basada en código; no confirma workflows activos en el NAS.
+Reviewed **2026-10-28** against code; this does not confirm active NAS workflows.

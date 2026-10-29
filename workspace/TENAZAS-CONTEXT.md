@@ -1,39 +1,39 @@
-# Contexto de Tenazas
+# Tenazas context
 
-Revisión: **2026-10-28**. Contexto del repositorio para colaboradores y asistentes;
-no es una instrucción para ejecutar acciones en equipos reales.
+Reviewed **2026-10-28**. Repository context for collaborators and coding assistants;
+this document does not authorize actions against live infrastructure.
 
-Tenazas es el asistente personal de Sebastián sobre OpenClaw en un NAS Synology.
-La interacción principal es Telegram. Usa runtime Python, Ollama en HomeLab,
-modelos cloud según el flujo, servicios de observabilidad y herramientas personales.
-El estilo del asistente es español rioplatense, directo y breve.
+Tenazas is Sebastián's personal assistant, built on OpenClaw and hosted on a
+Synology NAS. Telegram is its main interaction channel. It combines Python runtime
+modules, HomeLab Ollama inference, cloud providers where configured, observability,
+and personal tools. The assistant's user-facing style is concise Rioplatense Spanish;
+maintained repository documentation is English.
 
-## Fuentes vigentes
+## Current references
 
-- [README](../README.md): alcance y acceso a las guías.
-- [Arquitectura](../docs/architecture.md): procesos, agentes y persistencia.
-- [Instalación](../docs/setup.md): requisitos y límites del bootstrap.
-- [Infraestructura](../INFRA.md): servicios, puertos y dependencias externas.
-- [Modelos](../MODELS.md): configuración de los distintos selectores.
-- [Contrato de routing](runtime/INTERFACE_CONTRACT.md): labels y APIs.
-- [Desarrollo](../docs/development.md): entorno y validación.
+- [Overview](../README.md): scope and documentation entry points.
+- [Architecture](../docs/architecture.md): deployment and request/scheduling diagrams.
+- [Setup](../docs/setup.md): requirements and bootstrap limitations.
+- [Infrastructure](../INFRA.md): services, ports, and external dependencies.
+- [Models](../MODELS.md): independent selectors and fallback chains.
+- [Routing contract](runtime/INTERFACE_CONTRACT.md): labels and APIs.
+- [Development](../docs/development.md): environment and validation.
 
-## Decisiones que requieren atención
+## Configuration boundaries
 
-El coordinador se activa con `USE_AGENT_COORDINATOR` o la configuración Telegram
-leída por Tenazas; el default es desactivado. No asumir que la implementación nueva
-está habilitada en el NAS.
+The coordinator is controlled by `USE_AGENT_COORDINATOR` or the Telegram setting
+read by Tenazas; it defaults to disabled. Its implementation does not prove it is
+active on the NAS.
 
-n8n usa el perfil Compose `migration`. DSM, loops internos y workflows pueden
-coexistir en un despliegue existente; inventariarlos antes de migrar schedules.
+n8n uses the Compose `migration` profile. DSM, internal loops, and workflows can
+coexist in an existing deployment; inventory them before moving schedules.
 
-La configuración del gateway tiene schema estricto. Las plantillas para helpers
-no reemplazan una configuración OpenClaw validada. Las credenciales y chat IDs se
-obtienen del estado y entorno del operador, sin fijarlos en esta documentación.
+The gateway enforces a strict configuration schema. Helper templates do not replace
+a validated OpenClaw configuration. Credentials and chat IDs come from operator
+state/environment rather than fixed documentation values.
 
-Las propuestas aceptadas pueden ejecutarse mediante el executor con sus controles;
-los candidatos no deben confundirse con cambios ya desplegados. Ver
-[staging](staging/README.md).
+Accepted proposals may be executed under the executor's controls. Candidates are
+not evidence of approval or deployment; see [Staging](staging/README.md).
 
-Los planes de `.planning/` y los reportes fechados registran decisiones e historia.
-No usarlos como confirmación del inventario o métricas actuales.
+Milestone plans and dated reports preserve historical decisions and results.
+They do not establish the current inventory or evaluation metrics.

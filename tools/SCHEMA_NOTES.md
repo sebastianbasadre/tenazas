@@ -1,129 +1,59 @@
-# OpenClaw Config Schema Notes
+# OpenClaw configuration schema notes
 
-Fecha de las observaciones: 2026-05-21
+Observation date: **2026-05-21**. Documentation reviewed **2026-10-28**.
+These are historical findings; validate against the installed gateway version.
 
-Nota de revisión (2026-10-28): este documento conserva hallazgos históricos.
-El checkout actual tiene `openclaw.example.json`, no un `openclaw.json` de raíz
-versionado. Esa plantilla incluye campos para helpers que pueden no ser válidos
-para el gateway. Ver [instalación](../docs/setup.md); validar con la versión
-instalada antes de usar cualquier clave.
+The current checkout contains `openclaw.example.json`, not a tracked root
+`openclaw.json`. That helper template includes fields the gateway may reject.
+See [Setup](../docs/setup.md).
 
-## Resumen
+## Strict gateway schema
 
-`openclaw.json` es validado por el gateway con schema estricto. No acepta claves
-root arbitrarias: agregar `tenazas` u otra key fuera del contrato rompe el
-arranque con errores tipo `Invalid input` en `<root>`.
+The observed gateway rejected arbitrary root keys, including a custom `tenazas`
+namespace, with `Invalid input` at `<root>`. Use separate files for Tenazas
+extensions where supported by the relevant reader:
 
-Para extensiones propias de Tenazas, usar archivos separados dentro de
-`/home/tenazas/.openclaw/`, especialmente:
+| File under `/home/tenazas/.openclaw/` | Historical use |
+|---|---|
+| `tenazas.json` | Tenazas-specific runtime flags |
+| `tenazas_config.json` | Device configuration |
+| `iol_config.json` | Broker tokens and runtime state |
 
-- `tenazas.json`: flags/runtime config propios de Tenazas.
-- `tenazas_config.json`: configuracion de dispositivos.
-- `iol_config.json`: tokens/runtime state de IOL.
+The observed deployment's root keys were `auth`, `agents`, `models`, `tools`,
+`commands`, `channels`, `gateway`, `mcp`, `plugins`, and `meta`. The smaller
+root configuration inspected at that time used `auth`, `agents`, `models`,
+`tools`, `channels`, and `gateway`.
 
-## Root keys observadas como validas
+## Observed nested keys
 
-La configuración observada en `state/openclaw.json` el 2026-05-21 usaba estas claves root:
+| Root | Observed fields or purpose |
+|---|---|
+| `auth` | `profiles`: provider authentication profiles |
+| `agents` | `defaults`: model, workspace, timezone, compaction, concurrency, subagents |
+| `models` | `providers`: gateway provider/model definitions |
+| `tools` | `profile`, `web`, `exec`, `media` |
+| `commands` | `native`, `nativeSkills`, `ownerDisplay`, `restart` |
+| `channels` | `telegram`: token, allowlist, channel options |
+| `gateway` | `auth`, `bind`, `controlUi`, `mode` |
+| `mcp` | `servers` |
+| `plugins` | `entries` |
+| `meta` | `lastTouchedAt`, `lastTouchedVersion` |
 
-- `auth`
-- `agents`
-- `models`
-- `tools`
-- `commands`
-- `channels`
-- `gateway`
-- `mcp`
-- `plugins`
-- `meta`
+This list records observations rather than a complete versioned schema. No valid
+arbitrary-root extension namespace was identified in that review.
 
-El `openclaw.json` de raíz observado en esa revisión era más chico y contenía:
+## Fine-tuned router flag
 
-- `auth`
-- `agents`
-- `models`
-- `tools`
-- `channels`
-- `gateway`
-
-## Subkeys principales observadas
-
-`auth`
-
-- `profiles`: perfiles de proveedores de autenticacion.
-
-`agents`
-
-- `defaults`: modelo default, workspace, timezone, compaction, concurrencia y subagents.
-
-`models`
-
-- `providers`: proveedores/modelos disponibles para el gateway.
-
-`tools`
-
-- `profile`
-- `web`
-- `exec`
-- `media`
-
-`commands`
-
-- `native`
-- `nativeSkills`
-- `ownerDisplay`
-- `restart`
-
-`channels`
-
-- `telegram`: bot token, allowlist y opciones del canal.
-
-`gateway`
-
-- `auth`
-- `bind`
-- `controlUi`
-- `mode`
-
-`mcp`
-
-- `servers`
-
-`plugins`
-
-- `entries`
-
-`meta`
-
-- `lastTouchedAt`
-- `lastTouchedVersion`
-
-## Claves arbitrarias / extensiones
-
-No se encontro un namespace root valido para claves arbitrarias en
-`openclaw.json`. La evidencia operacional previa confirma que agregar keys
-desconocidas causa rechazo del gateway.
-
-Decision: no extender `openclaw.json` para features propias de Tenazas.
-
-## Finetuned router
-
-El runtime ya implementa el flag en:
-
-`/home/tenazas/runtime/classifier.py`
-
-La lectura real es:
+The inspected runtime classifier read a separate file:
 
 ```python
 _tcfg_path = Path("/home/tenazas/.openclaw/tenazas.json")
-...
+# ...
 if _tcfg.get("use_finetuned_router"):
+    ...
 ```
 
-Por lo tanto, el lugar correcto para activar el router es:
-
-`/home/tenazas/.openclaw/tenazas.json`
-
-con:
+Its configuration therefore belonged in `tenazas.json`:
 
 ```json
 {
@@ -131,27 +61,23 @@ con:
 }
 ```
 
-No usar `openclaw.json` para este flag.
+Do not place that flag under a new gateway root namespace.
 
-## safe_config_edit.py
+## Configuration helper
 
-`tools/safe_config_edit.py` aplica esta regla:
+`tools/safe_config_edit.py` routes `tenazas.*` paths into `tenazas.json`:
 
-- `python3 safe_config_edit.py set tenazas.use_finetuned_router=true`
-  escribe `use_finetuned_router=true` en `tenazas.json`.
-- Paths sin prefijo `tenazas.` se tratan como cambios a `openclaw.json` y se
-  validan contra las root keys conocidas antes de escribir.
+```bash
+python3 tools/safe_config_edit.py set tenazas.use_finetuned_router=true
+```
 
-## Rollback
+Other paths target `openclaw.json` and are checked against known root keys before
+writing. Those helper checks do not establish complete gateway schema compatibility.
 
-Backups conocidos de `openclaw.json`:
+## Recovery
 
-- `/home/tenazas/.openclaw/openclaw.json.last-good`
-- `/home/tenazas/.openclaw/openclaw.json.bak`
-- `/home/tenazas/.openclaw/openclaw.json.bak.1` ... `.bak.4`
-- `/home/tenazas/.openclaw/openclaw.json.clobbered.*`
-
-Restauracion manual:
+Known backup conventions included `.last-good`, `.bak`, `.bak.1` through `.bak.4`,
+and `.clobbered.*`. Verify the selected file before an operator recovery:
 
 ```bash
 sudo docker exec openclaw cp /home/tenazas/.openclaw/openclaw.json.last-good \

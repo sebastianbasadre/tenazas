@@ -1,8 +1,10 @@
-# Desarrollo y validación
+# Development and validation
 
-## Entorno local
+## Local environment
 
-Python **3.11+**, conforme a [pyproject.toml](../pyproject.toml). En Linux:
+Use Python **3.11+**, as declared in [pyproject.toml](../pyproject.toml).
+
+Linux:
 
 ```bash
 python3 -m venv .venv
@@ -10,7 +12,7 @@ python3 -m venv .venv
 python -m pip install -r requirements-dev.txt
 ```
 
-En PowerShell:
+PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -18,62 +20,64 @@ python -m venv .venv
 python -m pip install -r requirements-dev.txt
 ```
 
-Las dependencias de entrenamiento son opcionales en `pyproject.toml`; revisar
-compatibilidad de Python, PyTorch/CUDA y scripts del workbench antes de instalarlas.
-`requirements*.txt` no fija todas las versiones transitivas: no equivale a un lockfile.
+Training dependencies are optional in `pyproject.toml`. Check Python, PyTorch/CUDA,
+and workbench compatibility before installation. The requirements files do not
+pin all transitive versions and are not lockfiles.
 
-## Pruebas
+## Tests
 
 ```bash
 python -m pytest --collect-only
 python -m pytest tests/test_runtime_config.py
-# En Linux con Bash y dependencias requeridas:
+# Linux with Bash and required dependencies:
 bash tests/run_tests.sh
-# Dentro de un despliegue preparado:
+# Prepared container deployment:
 docker exec openclaw bash /home/tenazas/tests/run_tests.sh
 ```
 
-`pyproject.toml` agrega raíz, workspace y runtime al path de pytest. El runner Bash
-configura su propio `PYTHONPATH` y ejecuta una selección curada de suites; no equivale
-a descubrir automáticamente todos los archivos de `tests/`.
+Pytest configuration adds the repository, workspace, and runtime to its import
+path. The Bash runner sets its own `PYTHONPATH` and executes curated suites; it
+does not automatically discover every test file.
 
-Los marcadores `integration` y `live` están declarados, pero no asumir que todas
-las pruebas dependientes de infraestructura están marcadas. Inspeccionar la suite
-antes de ejecutarla. Coleccionar tests tampoco garantiza ausencia de efectos de
-importación. Usar un entorno aislado, sin tokens ni acceso a equipos personales,
-para la primera revisión.
+`integration` and `live` markers are declared, but do not assume every test with
+infrastructure dependencies has a marker. Inspect the selected suite first.
+Collection can also trigger import-time effects. Use an isolated environment
+without personal credentials or device access for initial inspection.
 
-Para un cambio documental, validar rutas, enlaces, bloques de código y coherencia
-con las fuentes. No hace falta ejecutar workflows reales, bots o jobs financieros
-para verificar Markdown. No publicar conteos de tests como garantía permanente.
+For documentation changes, check paths, links, fenced examples, diagrams, and
+consistency with source. Running real workflows, bots, or financial jobs is not
+required to validate Markdown. Derive test totals from actual runs.
 
-## Estilo y contratos
+## Style and contracts
 
 ```bash
 python -m ruff check workspace/runtime tools tests
 ```
 
-Ruff se configura en `pyproject.toml`; el repositorio puede tener deuda previa.
-Acotar la revisión al cambio y documentar fallos preexistentes.
+Ruff settings live in `pyproject.toml`. Separate existing lint debt from regressions
+introduced by your change.
 
-Antes de cambiar routing, leer el
-[contrato](../workspace/runtime/INTERFACE_CONTRACT.md). Mantener labels en
-`routes_contract.py`; una modificación debe revisar clasificación, dispatch,
-métricas, dashboards y pruebas correspondientes.
+Read the [routing contract](../workspace/runtime/INTERFACE_CONTRACT.md) before
+editing routing. Keep canonical labels in `routes_contract.py`; review classification,
+dispatch, metrics, dashboards, and relevant tests together.
 
-## Configuración y cambios
+## Configuration and review
 
-- Leer [CLAUDE.md](../CLAUDE.md) y las instrucciones locales aplicables. Los prompts
-  GSD están en `.codex/prompts/`; requieren un engine GSD instalado aparte.
-- El checkout no contiene el engine `.claude/get-shit-done`; no presentar sus
-  comandos como disponibles sin verificar la instalación local/global.
-- Separar configuración válida del gateway de extensiones de Tenazas.
-- Usar plantillas con placeholders. Revisar el diff antes de incluir estado, CV,
-  credenciales, logs o resultados de servicios reales.
-- Describir en el PR qué cambió, cómo se validó y qué requiere verificación en NAS.
+- Read [CLAUDE.md](../CLAUDE.md) and applicable repository instructions.
+- GSD prompts live in `.codex/prompts/`; their engine must be installed separately.
+  This checkout does not include `.claude/get-shit-done`.
+- Separate gateway schema configuration from Tenazas extensions.
+- Use placeholders in examples. Inspect diffs for credentials, personal data,
+  CVs, logs, and generated operational artifacts.
+- Explain behavior changes, validation, and any NAS-only checks in the PR.
 
-## Mantener esta documentación
+## Documentation maintenance
 
-Actualizar las guías junto con cambios de Compose, mounts, flags, puertos o APIs.
-Usar enlaces relativos para que funcionen en GitHub. Conservar los reportes fechados
-como historia y registrar fecha/alcance de las revisiones operativas.
+Keep maintained guides in English and use relative links that work on GitHub.
+Preserve literal identifiers, runtime log strings, and supported user command
+examples when their spelling matters. Historical milestone plans remain records
+of their original decisions and results.
+
+Update diagrams and guides when services, mounts, flags, ports, or APIs change.
+Mermaid diagrams belong in Markdown so their source and rendered GitHub view stay
+reviewable together. Record the date and scope of operational reviews.

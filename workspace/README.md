@@ -1,15 +1,15 @@
-# Workspace de Tenazas
+# Tenazas workspace
 
-El código versionado de [runtime](runtime/) se monta en `/home/tenazas/runtime`.
-El workspace operativo de OpenClaw vive en `state/workspace/` en el host y queda
-bajo `/home/tenazas/.openclaw/workspace/` dentro del contenedor. Son rutas distintas;
-Compose no copia automáticamente todo este directorio a ese estado operativo.
+Versioned [runtime source](runtime/) is mounted at `/home/tenazas/runtime`.
+The operational OpenClaw workspace lives in host `state/workspace/`, mounted under
+`/home/tenazas/.openclaw/workspace/`. These are separate paths; Compose does not
+automatically copy this entire directory into operational state.
 
-- [Contexto vigente](TENAZAS-CONTEXT.md)
-- [Contrato de routing](runtime/INTERFACE_CONTRACT.md)
-- [Staging de propuestas](staging/README.md)
-- [Instalación y mounts](../docs/setup.md)
-- [Arquitectura](../docs/architecture.md)
+- [Current context](TENAZAS-CONTEXT.md)
+- [Routing contract](runtime/INTERFACE_CONTRACT.md)
+- [Candidate staging](staging/README.md)
+- [Setup and mounts](../docs/setup.md)
+- [Architecture](../docs/architecture.md)
 
-Revisar datos personales y archivos generados antes de publicar cambios: algunos
-módulos guardan JSON y artefactos junto a su código, además del estado central.
+Review personal and generated files before publication. Some modules persist JSON
+and artifacts beside their source as well as in the central state directory.

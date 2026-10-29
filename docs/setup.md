@@ -1,21 +1,21 @@
-# Instalación y configuración
+# Setup and configuration
 
-Revisión del repositorio: **2026-10-28**. Despliegue previsto: host Linux con Docker
-Compose; en Synology, adaptar directorios, UID/GID y permisos a DSM.
+Reviewed **2026-10-28**. The intended deployment is a Linux Docker host with
+Compose; adapt paths, UID/GID, and permissions to Synology DSM when applicable.
 
-## Requisitos
+## Requirements
 
-- Docker Engine y Compose con perfiles y `host-gateway`.
-- Acceso del usuario de despliegue al socket Docker.
-- Espacio para imágenes, modelos, estado y métricas.
-- Ollama accesible en el HomeLab si se usarán modelos locales.
-- Tokens y credenciales para las integraciones que se habiliten.
+- Docker Engine and Compose with profiles and `host-gateway` support.
+- Deployment-user access to the Docker socket.
+- Storage for images, models, state, and metrics.
+- A reachable HomeLab Ollama endpoint for local inference.
+- Credentials for the integrations you enable.
 
-El Dockerfile usa `node:24-bookworm`, crea el usuario `tenazas` con UID 1026 e
-instala Python, herramientas de red, Docker CLI y dependencias de `requirements.txt`.
-OpenClaw se fija mediante `OPENCLAW_VERSION` (default del Compose: `2026.6.1`).
+The Dockerfile uses `node:24-bookworm`, creates user `tenazas` with UID 1026, and
+installs Python, networking tools, Docker CLI, and `requirements.txt` dependencies.
+`OPENCLAW_VERSION` pins the gateway package; the Compose default is `2026.6.1`.
 
-## Preparar el checkout
+## Prepare the checkout
 
 ```bash
 git clone https://github.com/sebastianbasadre/tenazas.git
@@ -24,68 +24,67 @@ cp .env.example .env
 mkdir -p state himalaya-config ssh-keys
 ```
 
-Editar `.env` antes del arranque:
+Edit `.env` before startup:
 
-| Variable | Configuración |
+| Variable | Required action |
 |---|---|
-| `GF_SECURITY_ADMIN_PASSWORD` | Contraseña propia para Grafana |
-| `TENAZAS_JOB_RUNNER_TOKEN` | Valor aleatorio propio; generar con `openssl rand -hex 32` |
-| `HOST_DOCKER_GID` | GID real del socket, consultar `stat -c '%g' /var/run/docker.sock` |
-| `PROMETHEUS_IMAGE`, `GRAFANA_IMAGE`, `SEARXNG_IMAGE` | Revisar tags; el ejemplo de SearXNG usa `latest` |
-| `OPENCLAW_TELEGRAM_BOT_TOKEN`, `OPENCLAW_TELEGRAM_CHAT_ID` | Credenciales/destino de los helpers Telegram |
-| `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_API_BASE` | Completar según proveedores habilitados |
-| `TENAZAS_*` de infraestructura | Adaptar IPs, endpoints y usuario a la red propia |
+| `GF_SECURITY_ADMIN_PASSWORD` | Set your own Grafana password |
+| `TENAZAS_JOB_RUNNER_TOKEN` | Set a unique random token; generate with `openssl rand -hex 32` |
+| `HOST_DOCKER_GID` | Read the socket GID using `stat -c '%g' /var/run/docker.sock` |
+| `PROMETHEUS_IMAGE`, `GRAFANA_IMAGE`, `SEARXNG_IMAGE` | Review tags; the SearXNG example still uses `latest` |
+| `OPENCLAW_TELEGRAM_BOT_TOKEN`, `OPENCLAW_TELEGRAM_CHAT_ID` | Supply Telegram helper credentials and destination |
+| `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_API_BASE` | Configure enabled providers |
+| Infrastructure `TENAZAS_*` variables | Adapt addresses, endpoints, and usernames |
 
-Compose carga `.env` dentro de `openclaw` mediante `env_file`. Los valores del
-bloque `environment` pueden prevalecer sobre ese archivo. No publicar la salida
-de `docker compose config`, que puede contener secretos; usar `--quiet` para validar.
+Compose injects `.env` into `openclaw` using `env_file`; its explicit `environment`
+entries may take precedence. Full `docker compose config` output can contain
+secrets. Use `--quiet` for validation without displaying resolved values.
 
-## Configuración de OpenClaw
+## Configure OpenClaw
 
-Crear `state/openclaw.json` con una configuración válida para la versión instalada
-del gateway. La plantilla [openclaw.example.json](../openclaw.example.json) ilustra
-campos que consumen helpers de Tenazas; incluye claves propias como `hue`, `devices`
-e `iol` que pueden ser rechazadas por el schema estricto del gateway.
+Create `state/openclaw.json` using a configuration accepted by the installed
+gateway version. [openclaw.example.json](../openclaw.example.json) illustrates fields
+read by Tenazas helpers, including custom `hue`, `devices`, and `iol` keys that the
+gateway's strict schema may reject.
 
-No copiar esa plantilla como configuración final sin validarla. Separar extensiones
-propias en archivos de estado cuando el componente las admita; revisar
-[notas de schema](../tools/SCHEMA_NOTES.md), `runtime_config.py` y los lectores de
-cada integración. La validación ligera `validate_config()` de Tenazas no reemplaza
-la validación del gateway.
+Do not treat that template as a validated final gateway configuration. Store
+extensions separately where supported by their readers. Consult
+[schema notes](../tools/SCHEMA_NOTES.md), `runtime_config.py`, and each integration.
+Tenazas `validate_config()` is a lightweight helper check, not gateway schema validation.
 
-Configurar la allowlist Telegram en `channels.telegram.allowFrom`. El coordinador
-se desactiva por defecto; `USE_AGENT_COORDINATOR` prevalece sobre
-`channels.telegram.useAgentCoordinator` para los helpers de Tenazas. Ese campo
-propio también debe verificarse contra el schema del gateway antes de guardarlo.
+Configure the Telegram allowlist in `channels.telegram.allowFrom`. The coordinator
+is disabled by default. Tenazas reads `USE_AGENT_COORDINATOR` before
+`channels.telegram.useAgentCoordinator`; verify gateway acceptance before writing
+that custom field into gateway configuration.
 
-## Revisar los bind mounts
+## Check bind mounts
 
-| Origen en host | Destino o uso |
+| Host source | Container destination or purpose |
 |---|---|
-| `state/` | `/home/tenazas/.openclaw`, configuración y workspace operativo |
-| `workspace/runtime/` | `/home/tenazas/runtime`, código Python |
-| `tests/`, `tools/` | Suites y utilidades |
-| `himalaya-config/` | Configuración de correo, si se usa |
-| `ssh-keys/` | Claves SSH, montaje de solo lectura |
-| `gcal-token.json` | Archivo OAuth Calendar, montaje de solo lectura |
-| `/volume1/docker/piper/data` | Datos de Piper; adaptar a cada host |
-| `/var/run/docker.sock` | Socket del host |
+| `state/` | `/home/tenazas/.openclaw`, configuration and operational workspace |
+| `workspace/runtime/` | `/home/tenazas/runtime`, Python source |
+| `tests/`, `tools/` | Test suites and utilities |
+| `himalaya-config/` | Email configuration when enabled |
+| `ssh-keys/` | Read-only SSH credentials |
+| `gcal-token.json` | Read-only Calendar OAuth file |
+| `/volume1/docker/piper/data` | Piper data; adapt to your host |
+| `/var/run/docker.sock` | Host Docker socket |
 
-Preparar un archivo real `gcal-token.json` con OAuth si se usa Calendar. Si esa
-integración se omite, quitar su mount en la configuración local de Compose; no
-permitir que Docker cree un directorio con ese nombre por falta del archivo.
-No hay una plantilla `gcal-token.json.example` en el repositorio.
+Provide a real OAuth `gcal-token.json` file for Calendar. If you omit Calendar,
+remove its mount from your local Compose configuration; otherwise Docker may
+create a directory when the expected file is absent. The repository does not
+include a `gcal-token.json.example` template.
 
-El workspace completo no se copia automáticamente a `state/workspace/`: solo
-se monta `workspace/runtime/` en otra ruta. Provisionar personalidad y skills
-operativas según las integraciones elegidas; varios handlers esperan scripts en
-`/home/tenazas/.openclaw/workspace/skills/`. El checkout no es un bootstrap completo
-del estado personal del operador.
+Compose does not automatically copy this repository's workspace into
+`state/workspace/`. Runtime source is mounted separately. Provision personality
+and operational skills for the integrations you use; several handlers expect
+scripts under `/home/tenazas/.openclaw/workspace/skills/`. The checkout alone does
+not bootstrap the operator's complete personal state.
 
-Asegurar que UID 1026 pueda escribir en estado, logs y runtime: algunas tareas
-generan JSON junto al código y `startup.sh` inicializa un sandbox Git.
+Ensure UID 1026 can write required state, logs, and runtime-generated files.
+Some modules write JSON alongside their source, and startup initializes a Git sandbox.
 
-## Arrancar y comprobar
+## Start and verify
 
 ```bash
 docker compose config --quiet
@@ -98,16 +97,15 @@ curl -fsS http://127.0.0.1:18891/health
 curl -fsS http://127.0.0.1:9105/metrics
 ```
 
-Un contenedor `Up` no prueba que todos los procesos secundarios estén sanos.
-Comprobar logs, endpoints y targets de Prometheus. El healthcheck solo verifica
-el gateway; no provoca un reinicio automático al marcar `unhealthy`.
+An `Up` container does not establish that every background process is healthy.
+Check logs, endpoints, and Prometheus targets. The healthcheck covers the gateway;
+it does not automatically restart an `unhealthy` container.
 
-Para n8n seguir el [runbook de cutover](n8n-cutover-runbook.md): requiere el perfil
-`migration`, conectividad al runner y activación manual de cada workflow.
+Follow [n8n cutover](n8n-cutover-runbook.md) before enabling the `migration` profile,
+runner access, or workflow schedules.
 
-## Actualizar y respaldar
+## Updates and backups
 
-Respaldar configuración, tokens, datos operativos y volúmenes antes de cambiar
-versiones. Revisar [backup-state.sh](../backup-state.sh) antes de ejecutarlo y adaptar
-sus rutas al despliegue. Una reconstrucción de imagen no reemplaza los bind mounts
-ni migra automáticamente configuraciones o tareas DSM.
+Back up configuration, credentials, operational data, and named volumes before
+version changes. Review and adapt [backup-state.sh](../backup-state.sh) before use.
+Rebuilding an image does not replace bind mounts, migrate configuration, or install DSM tasks.

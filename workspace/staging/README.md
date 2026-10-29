@@ -1,28 +1,28 @@
-# Staging de mejoras
+# Improvement staging
 
-Este directorio contiene candidatos y borradores. Su presencia no significa que
-estén desplegados ni que hayan sido aprobados.
+This directory holds candidates and drafts. Their presence does not establish
+approval or deployment.
 
-| Directorio previsto | Contenido |
+| Intended directory | Contents |
 |---|---|
-| `prompts/` | Ajustes de prompts |
-| `router_rules/` | Reglas de routing |
-| `runbooks/` | Propuestas de remediación |
-| `tests/` | Casos de prueba |
-| `datasets/` | Material de entrenamiento |
+| `prompts/` | Prompt adjustments |
+| `router_rules/` | Routing rule candidates |
+| `runbooks/` | Remediation proposals |
+| `tests/` | Proposed test cases |
+| `datasets/` | Training material |
 
-Los directorios y artefactos se crean según el flujo que los use. Revisar
-`improvement_candidates.py`, `self_benchmark.py` y los handlers de aprobación
-antes de aplicar un candidato.
+Directories and artifacts are created by their respective workflows. Review
+`improvement_candidates.py`, `self_benchmark.py`, and approval handlers before
+applying a candidate.
 
-El flujo de propuestas del runtime también usa `learning/proposals.json`.
-`proposal_executor.py` selecciona propuestas `accepted`, determina cuáles son
-`deterministic` y cuáles `manual_only`, y puede ejecutar las primeras en una rama
-sandbox con controles, validación y rollback. No todos los archivos de staging
-son entradas directas de ese executor.
+The runtime proposal workflow also uses `learning/proposals.json`.
+`proposal_executor.py` selects `accepted` proposals, distinguishes deterministic
+from manual-only work, and may execute deterministic work on a sandbox branch
+with checks, validation, limits, and rollback. Staging files are not necessarily
+direct inputs to that executor.
 
-La revisión humana debe preceder la aceptación que habilita ejecución. Registrar
-la evidencia, las pruebas y el destino del cambio; no confundir aprobar un
-candidato con verificar su despliegue.
+Human review must precede acceptance that enables execution. Record evidence,
+validation, and the intended destination; candidate approval is separate from
+verification of the resulting deployment.
 
-[Arquitectura](../../docs/architecture.md) · [Desarrollo](../../docs/development.md)
+[Architecture](../../docs/architecture.md) · [Development](../../docs/development.md)

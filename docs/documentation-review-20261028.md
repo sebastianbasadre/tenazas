@@ -1,23 +1,38 @@
-# Revisión documental — 2026-10-28
+# Documentation review — 2026-10-28
 
-Base revisada: `19882c295c0ce4bd543ca2e6c6913ad14c62f14c`.
+Reviewed base: `19882c295c0ce4bd543ca2e6c6913ad14c62f14c`.
 
-Alcance: documentación mantenida en raíz, `docs/`, workspace y n8n. Los reportes
-fechados conservan sus resultados originales con una nota histórica. No se
-reescribieron planes de milestones ni sus verificaciones pasadas.
+## Scope
 
-Se contrastaron Compose, Dockerfile, startup, configuración, catálogos y roles,
-contratos/dispatch, agentes, runner, wrappers, exporters y runner de pruebas.
-Se corrigieron rutas inexistentes, modelos antiguos, salud/reinicio Docker,
-intervalos Prometheus y conectividad entre n8n y el runner en localhost.
+Maintained documentation in the repository root, `docs/`, workspace, and n8n was
+updated and standardized in English. Dated operational reports were translated
+while retaining their original observations. Historical milestone plans and past
+verification results were not rewritten.
 
-Se agregaron índice, instalación, arquitectura y desarrollo. La instalación
-explicita sus dependencias externas y el límite de la plantilla de configuración.
+The former monolithic contributor inventory was replaced with current English
+instructions and links to focused guides. Existing RTK instructions and GSD
+workflow/profile blocks were retained. Original inventory notes remain in Git history.
 
-No se ejecutaron servicios del NAS, workflows, acciones de broker, Telegram,
-training ni despliegues. La documentación requiere verificación operativa en el
-host para confirmar estado, credenciales, modelos y schedules activos.
+## Architecture design
 
-Los prompts GSD del repositorio se inspeccionaron: requieren un engine externo
-que no estaba disponible en las rutas locales/globales consultadas. Esta revisión
-queda registrada aquí sin alterar el estado de milestones históricos.
+Added a compact landing-page overview and separate detailed views of deployment,
+request handling, and scheduled operations. Diagrams use Mermaid for GitHub
+rendering and distinguish optional components, external services, telemetry,
+network boundaries, and persistence.
+
+## Technical review
+
+Compared Compose, Dockerfile, startup, configuration, model catalogs/roles,
+routing APIs, agents, runner, wrappers, exporters, and the test runner.
+Corrected nonexistent paths, stale model chains, Docker health/restart claims,
+Prometheus intervals, and n8n connectivity to a localhost-bound runner.
+
+Validation covers local Markdown links, fenced blocks, whitespace, source-backed
+model-role tables and canonical labels, and Mermaid rendering. No live NAS jobs,
+broker actions, Telegram messages, training, or deployment changes were executed.
+
+## Workflow availability
+
+Repository GSD prompts were inspected, but their external engine was absent from
+the checked local/global locations. This review is recorded separately without
+changing completed historical milestone status.

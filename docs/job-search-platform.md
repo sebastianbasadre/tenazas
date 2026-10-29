@@ -1,19 +1,18 @@
-# Plataforma de búsqueda laboral
+# Job-search platform
 
-Revisión contra el código: **2026-10-28**.
+Reviewed against code on **2026-10-28**.
 
-El agente `job_search` descubre oportunidades con el SearXNG configurado en
-Tenazas, calcula compatibilidad usando `user_profile.json` y mantiene el estado
-de cada postulación en `workspace/runtime/jobs/opportunities.json`.
+The `job_search` agent discovers opportunities using Tenazas's configured SearXNG,
+calculates compatibility from `user_profile.json`, and tracks applications in
+`workspace/runtime/jobs/opportunities.json`.
 
-Además del agente, `startup.sh` inicia `job_search_watcher.py` con watchdog.
-El intervalo es `JOB_SEARCH_INTERVAL_SECONDS` (default 600 s). Puede descubrir
-vacantes, preparar documentos y notificar Telegram; no usarlo como una prueba
-sin efectos sobre el estado del operador.
+`startup.sh` also starts `job_search_watcher.py` with a watchdog. Its interval is
+`JOB_SEARCH_INTERVAL_SECONDS` (default 600 s). It can discover jobs, prepare
+documents, and notify Telegram, so running it is not a side-effect-free test.
 
-## Configuración
+## Configuration
 
-Completar en `workspace/runtime/user_profile.json`:
+Complete `workspace/runtime/user_profile.json`, for example:
 
 ```json
 {
@@ -24,42 +23,44 @@ Completar en `workspace/runtime/user_profile.json`:
 }
 ```
 
-El matching de CV usa `qwen2.5:3b` en `agent_job_search.py`; comprobar que esté
-instalado en el endpoint Ollama configurado. Los resultados de búsqueda y el
-matching dependen de servicios externos y no garantizan elegibilidad ni vigencia.
+CV matching uses `qwen2.5:3b` in `agent_job_search.py`. Check that it is installed
+at the configured Ollama endpoint. Search and matching depend on external services;
+results do not guarantee eligibility or that a posting remains open.
 
-## Datos y documentos
+## Data and documents
 
-- `workspace/runtime/jobs/opportunities.json`: pipeline de oportunidades.
-- `workspace/runtime/jobs/master_cv.txt`: CV maestro.
-- `workspace/runtime/jobs/cv_template.txt` y `cv_template.pdf`: plantilla.
-- `workspace/runtime/jobs/tailored/`: documentos preparados por oportunidad.
-- Estado agregado: `.openclaw/state/agents/job_search_status.json` en contenedor;
-  el fallback local usa `workspace/state/agents/`.
+| Path | Contents |
+|---|---|
+| `workspace/runtime/jobs/opportunities.json` | Opportunity pipeline |
+| `workspace/runtime/jobs/master_cv.txt` | Master CV |
+| `workspace/runtime/jobs/cv_template.txt`, `cv_template.pdf` | CV template |
+| `workspace/runtime/jobs/tailored/` | Documents prepared per opportunity |
+| `.openclaw/state/agents/job_search_status.json` | Container aggregate state; local fallback uses `workspace/state/agents/` |
 
-Las funciones `save_master_cv`, `save_cv_template`, `analyze_matches` y
-`prepare_tailored_cv` dan soporte al flujo de documentos; no son subcomandos de
-la CLI. Revisar contenido y datos personales antes de compartir cualquier CV.
+Functions `save_master_cv`, `save_cv_template`, `analyze_matches`, and
+`prepare_tailored_cv` support document handling; they are not CLI subcommands.
+Review content and personal data before sharing a CV.
 
-## Uso
+## Usage
 
-Desde Telegram o el asistente:
+Supported Telegram examples retain their Spanish wording because they illustrate
+existing user-command matching:
 
 - `buscame trabajo`
 - `buscar oportunidades de Product Manager remoto`
 - `cómo van mis postulaciones`
 - `tengo entrevistas pendientes`
 
-Desde consola:
+CLI:
 
 ```powershell
 python workspace/runtime/agent_job_search.py search "Product Manager remoto"
 python workspace/runtime/agent_job_search.py status
-python workspace/runtime/agent_job_search.py move ID applied --note "CV enviado"
+python workspace/runtime/agent_job_search.py move ID applied --note "CV submitted"
 ```
 
-Estados válidos: `detected`, `interested`, `applied`, `screening`, `interview`,
-`offer`, `rejected`, `withdrawn` y `archived`.
+Valid states: `detected`, `interested`, `applied`, `screening`, `interview`, `offer`,
+`rejected`, `withdrawn`, and `archived`.
 
-La plataforma no envía postulaciones automáticamente. Esa acción requiere
-revisión humana del aviso, la empresa y el CV correspondiente.
+The platform does not submit applications automatically. Submission requires
+human review of the posting, employer, and corresponding CV.

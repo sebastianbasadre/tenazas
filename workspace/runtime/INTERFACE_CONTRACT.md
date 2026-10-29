@@ -1,29 +1,29 @@
-# Contrato de routing
+# Routing interface contract
 
-Revisado el **2026-10-28** contra las APIs del repositorio.
+Reviewed against implemented APIs on **2026-10-28**.
 
-## Alcance y responsabilidades
+## Scope and ownership
 
-Antes de modificar routing, revisar este contrato y `routes_contract.py`.
-Las rutas son relativas a `workspace/runtime/`:
+Read this contract and `routes_contract.py` before changing routing. Paths below
+are relative to `workspace/runtime/`.
 
-| Módulo | Responsabilidad |
+| Module | Responsibility |
 |---|---|
-| `telegram_router.py` | Entrada, interceptores, contexto y selección del camino de respuesta |
-| `orchestrator.py` | Clasificación de alto nivel y ejecución de pipelines/skills |
-| `agent_coordinator.py` | Ownership de agentes y agregación, si está habilitado |
-| `tool_tuning/router.py` | Clasificación de tools, regex y fallback Ollama |
-| `tool_tuning/router_runtime.py` | Dispatch de la ruta a un handler real |
-| `model_router.py` | Selección de modelo/backend por capacidades o rol |
-| `routes_contract.py` | Fuente canónica de labels y normalización |
+| `telegram_router.py` | Ingress, interceptors, context, and response-path selection |
+| `orchestrator.py` | High-level classification and pipeline/skill execution |
+| `agent_coordinator.py` | Domain ownership and aggregation when enabled |
+| `tool_tuning/router.py` | Closed-label tool classification using regex and Ollama fallback |
+| `tool_tuning/router_runtime.py` | Dispatch classified routes to real handlers |
+| `model_router.py` | Model/backend selection by capability or role |
+| `routes_contract.py` | Canonical labels and normalization |
 
-El orquestador contiene ejecución; no es solo un clasificador. El dispatcher
-`dispatch()` invoca al clasificador internamente y luego ejecuta el handler.
-Las skills reciben la intención de su caller; evitar duplicar clasificación general.
+The orchestrator includes execution, not only classification. `dispatch()` invokes
+the classifier internally before running a handler. Skills receive their caller's
+resolved intent; avoid duplicating general intent classification inside them.
 
-## Labels oficiales
+## Canonical labels
 
-`VALID_ROUTES` en [routes_contract.py](routes_contract.py):
+`VALID_ROUTES` in [routes_contract.py](routes_contract.py):
 
 ```python
 {
@@ -32,11 +32,11 @@ Las skills reciben la intención de su caller; evitar duplicar clasificación ge
 }
 ```
 
-No agregar labels copiando este conjunto a otros módulos. Importar el contrato.
-`normalize_route()` reconoce aliases históricos, devuelve un label canónico o
-`none`; `assert_valid_route()` rechaza valores desconocidos.
+Import this contract rather than copying its set into other modules.
+`normalize_route()` accepts historical aliases and returns a canonical label or
+`none`; `assert_valid_route()` rejects unknown values.
 
-| Alias histórico | Canónico |
+| Historical alias | Canonical label |
 |---|---|
 | `network-scanner`, `network_scanner` | `network_scan` |
 | `smart-home-on`, `smart-home-off`, `smart-home` | `lights` |
@@ -44,14 +44,14 @@ No agregar labels copiando este conjunto a otros módulos. Importar el contrato.
 | `arr-monitor` | `arr_monitor` |
 | `chat` | `none` |
 
-Otros routers como `finetuned_router.py` y el parser multitool usan nombres de
-skills/tools que no son este conjunto cerrado. No intercambiar sus outputs sin
-normalización y sin revisar el contrato del consumidor.
+Other classifiers, including `finetuned_router.py` and the multitool parser, use
+skill/tool names outside this closed set. Do not interchange their outputs without
+normalization and consumer-contract review.
 
-## API del clasificador
+## Classifier API
 
-`tool_tuning/router.py` expone `route_intent(user_input, ...)`, que devuelve un
-`RouteResult`, no una cadena ni un objeto con confidence:
+`tool_tuning/router.py` exposes `route_intent(user_input, ...)`, returning a
+`RouteResult`, not a string or an object containing a confidence score:
 
 ```python
 @dataclass
@@ -64,44 +64,44 @@ class RouteResult:
     cached: bool = False
 ```
 
-`to_dict()` serializa esos campos. Un error de clasificación produce ruta `none`,
-`success=False` y método `fallback`. Una clasificación válida `none` no implica
-que haya una tool ejecutable.
+`to_dict()` serializes these fields. Classification errors produce `route="none"`,
+`success=False`, and `method="fallback"`. A valid `none` classification does not
+imply an executable tool.
 
-## API del dispatcher
+## Dispatcher API
 
-`tool_tuning/router_runtime.py` expone:
+`tool_tuning/router_runtime.py` exposes:
 
 ```python
 dispatch(user_input: str, model: str | None = None) -> str | None
 dispatch_json(user_input: str, model: str | None = None) -> dict
 ```
 
-`dispatch()` devuelve output del handler o `None` para continuar al chat.
-`dispatch_json()` incluye `ok`, `route`, `raw_label`, `router_ok`, `router_error`,
+`dispatch()` returns handler output or `None` to continue with chat.
+`dispatch_json()` includes `ok`, `route`, `raw_label`, `router_ok`, `router_error`,
 `handler_ok`, `handler_error`, `output`, `classify_ms`, `handler_ms`, `total_ms`,
-`ollama_host`, `ollama_model` y `fallback_to_chat`.
+`ollama_host`, `ollama_model`, and `fallback_to_chat`.
 
-No exigir a todas las skills un payload uniforme `text/data/error`: sus interfaces
-reales varían. La telemetría anterior corresponde al dispatcher.
+Skill interfaces vary; do not require every skill to implement a uniform
+`text/data/error` payload. The fields above describe dispatcher telemetry.
 
-## Ambigüedades
+## Ambiguities
 
-| Caso | Criterio |
+| Case | Boundary |
 |---|---|
-| `infra` / `network_scan` | Servicios y contenedores / hosts y dispositivos LAN |
-| `infra` / `arr_monitor` | Sistema general / media stack y descargas |
-| `none` / `chat` | El clasificador cerrado usa `none`; `chat` es alias histórico |
-| Escenas y `lights` | Los nombres de escenas de otras capas no agregan labels al contrato |
-| `self-evolve` y otras skills | Pueden tener handlers propios fuera del clasificador cerrado |
+| `infra` / `network_scan` | Services and containers / LAN hosts and devices |
+| `infra` / `arr_monitor` | General system / media stack and downloads |
+| `none` / `chat` | The closed classifier uses `none`; `chat` is a historical alias |
+| Scenes / `lights` | Other layers' scene names do not add canonical labels |
+| `self-evolve` and other skills | May have handlers outside this classifier |
 
-## Cambios del contrato
+## Contract changes
 
-1. Documentar ambigüedades antes de resolverlas.
-2. Cambiar primero `routes_contract.py`.
-3. Revisar regex, validación, dispatch y aliases.
-4. Revisar métricas, exporter y dashboards afectados.
-5. Actualizar pruebas y datasets del caller correspondiente.
-6. No reemplazar `network_scan` por `network-scanner` en el contrato canónico.
+1. Document ambiguities before resolving them.
+2. Update `routes_contract.py` first.
+3. Review regex, validation, dispatch, and aliases.
+4. Review affected metrics, exporters, and dashboards.
+5. Update the relevant caller's tests and datasets.
+6. Keep `network_scan` as the canonical spelling.
 
-Ver [arquitectura](../../docs/architecture.md) y [modelos](../../MODELS.md).
+See [Architecture](../../docs/architecture.md) and [Models](../../MODELS.md).

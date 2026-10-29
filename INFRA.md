@@ -1,83 +1,82 @@
-# Infraestructura Tenazas
+# Tenazas infrastructure
 
-Revisión de configuración: **2026-10-28**. Las direcciones describen el homelab de
-referencia. No se comprobó conectividad ni inventario activo durante esta revisión.
+Configuration reviewed **2026-10-28**. Addresses describe the reference homelab;
+connectivity and live inventory were not checked during this documentation review.
 
-## Hosts de referencia
+## Reference hosts
 
-| Host | Dirección de referencia | Función |
+| Host | Reference address | Role |
 |---|---|---|
-| NAS Synology DS923+ | `192.168.2.2` | Docker y runtime |
-| HomeLab Windows | `192.168.2.6` | Ollama, GPU RTX 3090 de 24 GB y entrenamiento |
-| NAS de backup | `192.168.2.3` | Destino de respaldo del despliegue existente |
-| Router | `192.168.2.1` | Red LAN `192.168.2.0/24` |
+| Synology DS923+ NAS | `192.168.2.2` | Docker host and assistant runtime |
+| Windows HomeLab | `192.168.2.6` | Ollama, RTX 3090 24 GB GPU, and training |
+| Backup NAS | `192.168.2.3` | Existing deployment's backup target |
+| Router | `192.168.2.1` | LAN `192.168.2.0/24` |
 
-Adaptar variables `TENAZAS_*` de [.env.example](.env.example) y
-[runtime_config.py](workspace/runtime/runtime_config.py). Versiones DSM, uso de
-disco, RAM disponible, modelos cargados y cantidad de contenedores requieren un
-relevamiento del host; no se deducen del repositorio.
+Adapt `TENAZAS_*` settings in [.env.example](.env.example) and
+[runtime_config.py](workspace/runtime/runtime_config.py). DSM versions, disk usage,
+available RAM, loaded models, and active container counts require host inspection.
 
-## Servicios declarados en Compose
+## Compose services
 
-| Servicio | Configuración |
+| Service | Repository configuration |
 |---|---|
-| `openclaw` | Build local, Node 24, red host, usuario UID 1026, socket Docker |
-| `prometheus` | Imagen exigida por `.env`, puerto 9090, retención 30 d / 1 GB |
-| `grafana` | Imagen exigida por `.env`, puerto 3000, provisioning y dashboards del repo |
-| `searxng` | Imagen exigida por `.env`, puerto host 8890 a contenedor 8080 |
-| `n8n` | `docker.n8n.io/n8nio/n8n:2.19.5`, puerto 5678, perfil opcional `migration` |
+| `openclaw` | Local build, Node 24, host networking, UID 1026, mounted Docker socket |
+| `prometheus` | Image required through `.env`, port 9090, retention 30 d / 1 GB |
+| `grafana` | Image required through `.env`, port 3000, versioned provisioning and dashboards |
+| `searxng` | Image required through `.env`, host port 8890 → container 8080 |
+| `n8n` | `docker.n8n.io/n8nio/n8n:2.19.5`, port 5678, optional `migration` profile |
 
-Ollama, Piper, ChromaDB, gluetun, media stack, Portainer y Watchtower forman parte
-del entorno referenciado por el código, pero no son creados por este Compose.
-No usar una cifra fija de contenedores como criterio de salud.
+Ollama, Piper, ChromaDB, gluetun, the media stack, Portainer, and Watchtower are
+referenced environment dependencies, not services created by this Compose file.
+A fixed container count is not a reliable health criterion.
 
-## Endpoints y métricas
+## Endpoints and telemetry
 
-| Puerto | Servicio | Fuente |
+| Port | Service | Configuration source |
 |---|---|---|
-| 18789 | Gateway OpenClaw, `/health` | Healthcheck Compose |
-| 18891 | Job runner, `/health` y `/run/<job>` | Localhost por defecto; POST con token |
-| 9101 | Portfolio exporter | `startup.sh`, target Prometheus |
-| 9105 | Métricas runtime | `metrics_server.py` |
-| 9106 | Contador de llamadas API | `api_call_counter.py` |
-| 9107 | Evaluación de tools | `tool_tuning/eval_exporter.py` |
-| 9108 | Exporter de red | `network_exporter.py` |
-| 9109 | Exporter de finanzas | `finance_exporter.py` |
+| 18789 | OpenClaw gateway, `/health` | Compose healthcheck |
+| 18891 | Job runner, `/health` and `/run/<job>` | Localhost by default; POST requires token |
+| 9101 | Portfolio exporter | Startup and Prometheus target |
+| 9105 | Runtime metrics | `metrics_server.py` |
+| 9106 | API call counters | `api_call_counter.py` |
+| 9107 | Tool evaluation exporter | `tool_tuning/eval_exporter.py` |
+| 9108 | Network exporter | `network_exporter.py` |
+| 9109 | Finance exporter | `finance_exporter.py` |
 | 9090 | Prometheus | Compose |
 | 3000 | Grafana | Compose |
 | 8890 | SearXNG | Compose |
-| 5678 | n8n opcional | Perfil `migration` |
-| 11434 | Ollama HomeLab / NAS | Servicio externo |
-| 9182 / 9835 | Exporters Windows / GPU HomeLab | Targets externos de Prometheus |
+| 5678 | Optional n8n | `migration` profile |
+| 11434 | HomeLab / NAS Ollama | External service |
+| 9182 / 9835 | HomeLab Windows / GPU exporters | External Prometheus targets |
 
-Prometheus usa intervalo global de **15 s**, evaluación de reglas cada **30 s**
-y overrides por job: APIs/red/cartera 30 s, finanzas 60 s, evaluación 300 s.
-Ver [prometheus.yml](prometheus.yml) y [alerts.yml](alerts.yml).
+Prometheus defaults to a **15 s** scrape interval and **30 s** rule evaluation.
+Job overrides use 30 s for API calls/network/portfolio, 60 s for finance, and
+300 s for evaluation. See [prometheus.yml](prometheus.yml) and [alerts.yml](alerts.yml).
 
-Los dashboards están en [grafana/dashboards](grafana/dashboards/), no en un archivo
-`grafana-dashboard.json` en la raíz. El provisioning se versiona en
-[grafana/provisioning](grafana/provisioning/).
+Dashboard JSON files live in [grafana/dashboards](grafana/dashboards/).
+Provisioning lives in [grafana/provisioning](grafana/provisioning/); there is no
+root-level `grafana-dashboard.json`.
 
-## Arranque y tareas
+## Lifecycle and scheduling
 
-[startup.sh](startup.sh) inicia varios procesos dentro de `openclaw`. Router Telegram
-y watcher laboral tienen watchdog; los demás procesos no comparten necesariamente
-la misma política de reinicio. El healthcheck observa el gateway y no reinicia
-por sí mismo el contenedor cuando está `unhealthy`.
+[startup.sh](startup.sh) launches several processes inside `openclaw`. The Telegram
+router and job-search watcher have watchdogs; other background processes do not
+necessarily use the same restart strategy. The healthcheck observes the gateway
+and does not itself restart an `unhealthy` container.
 
-El runner escucha en localhost por defecto. Desde un contenedor bridge como n8n,
-`host.docker.internal` apunta al host, no a su loopback; configurar un bind alcanzable
-y limitar acceso según el [runbook](docs/n8n-cutover-runbook.md).
+The runner binds to localhost by default. From n8n's bridge network,
+`host.docker.internal` resolves the host gateway, not host loopback. Set a reachable
+bind and appropriate access restrictions using the [cutover runbook](docs/n8n-cutover-runbook.md).
 
-Las tareas DSM y los workflows deben inventariarse en el host. El perfil de n8n
-está desactivado por defecto en Compose, lo cual no demuestra si ya se activó en
-un despliegue existente. Consultar el [checklist DSM](docs/dsm-task-checklist.md)
-y evitar dos schedulers para el mismo trabajo.
+Inventory DSM tasks and workflow schedules on the host. n8n's profile is disabled
+by default in Compose, which does not establish whether an existing deployment
+has activated it. Follow the [DSM checklist](docs/dsm-task-checklist.md) and keep
+one scheduler per job.
 
-## Credenciales y persistencia
+## Credentials and persistence
 
-`.env`, `state/`, tokens OAuth, configuración de correo y claves SSH son datos
-locales. Los bind mounts requieren permisos compatibles con UID 1026 y el GID real
-del socket. Prometheus y Grafana usan volúmenes nombrados; n8n usa `n8n/data/`.
-Ver [instalación](docs/setup.md), [arquitectura](docs/architecture.md) y
-[modelos](MODELS.md).
+`.env`, `state/`, OAuth tokens, email configuration, and SSH credentials are local
+operator data. Bind mounts need permissions compatible with UID 1026 and the real
+socket GID. Prometheus and Grafana use named volumes; n8n uses `n8n/data/`.
+
+See [Setup](docs/setup.md), [Architecture](docs/architecture.md), and [Models](MODELS.md).

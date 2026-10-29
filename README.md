@@ -1,40 +1,73 @@
 # Tenazas
 
-Asistente personal de Sebastián sobre OpenClaw, con runtime Python, Telegram,
-automatización del homelab, búsqueda laboral, finanzas y dispositivos del hogar.
-Se despliega en un NAS Synology y utiliza Ollama en un HomeLab con GPU.
+A personal assistant built on OpenClaw, combining a Python runtime, Telegram,
+homelab automation, job search, personal finance, and smart home controls.
+Tenazas runs on a Synology NAS and uses a separate Ollama GPU host for local inference.
 
-Documentación revisada el **2026-10-28** contra el código del repositorio. Esto
-no certifica el estado de los equipos ni los servicios actualmente desplegados.
+Documentation reviewed against repository code on **2026-10-28**. Deployment
+status, active schedules, installed models, and service availability require host verification.
 
-## Empezar
+## Documentation
 
-- [Índice de documentación](docs/README.md)
-- [Instalación y configuración](docs/setup.md)
-- [Arquitectura y flujos](docs/architecture.md)
-- [Desarrollo y validación](docs/development.md)
-- [Infraestructura y observabilidad](INFRA.md)
-- [Modelos y routing](MODELS.md)
-
-## Componentes
-
-| Componente | Implementación |
+| Start here | Purpose |
 |---|---|
-| Entrada Telegram | `workspace/runtime/telegram_router.py`, interceptores y watchdog |
-| Orquestación | `orchestrator.py` y coordinador opcional `agent_coordinator.py` |
-| Agentes de dominio | Infraestructura, finanzas, investigación, seguridad, empleo y otros dominios |
-| Modelos | `model_router.py`: roles, backends, límites de VRAM y guardrails |
-| Monitoreo periódico | `worker_supervisor.py`: cinco subprocessos con timeout individual |
-| Memoria y RAG | Módulos de retrieval, memoria compartida y consolidación |
-| Automatización | Wrappers DSM y runner HTTP autenticado; n8n bajo perfil `migration` |
-| Observabilidad | Exporters, Prometheus y dashboards provisionados de Grafana |
-| Búsqueda laboral | Descubrimiento, matching, seguimiento y preparación de CV |
+| [Documentation index](docs/README.md) | All maintained guides and historical references |
+| [Setup](docs/setup.md) | Configuration, mounts, permissions, and startup |
+| [Architecture](docs/architecture.md) | Deployment map, request flow, and operational boundaries |
+| [Development](docs/development.md) | Python environment, checks, and contribution workflow |
+| [Infrastructure](INFRA.md) | Services, ports, exporters, and external dependencies |
+| [Models](MODELS.md) | Model selectors, roles, and fallback configuration |
 
-## Despliegue
+## System overview
 
-El [Compose](docker-compose.yml) define `openclaw`, `prometheus`, `grafana` y
-`searxng`. `n8n` requiere el perfil `migration`. Ollama, ChromaDB, Piper y la
-media stack dependen de infraestructura externa a este Compose.
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Segoe UI, Arial, sans-serif","fontSize":"14px","primaryColor":"#f8fafc","primaryTextColor":"#0f172a","primaryBorderColor":"#64748b","lineColor":"#64748b","secondaryColor":"#f1f5f9","tertiaryColor":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#cbd5e1","edgeLabelBackground":"#ffffff"},"flowchart":{"nodeSpacing":30,"rankSpacing":40,"curve":"basis"}}}%%
+flowchart LR
+    User["User · Telegram"]:::external
+    subgraph NAS["Synology NAS · Docker host"]
+        Assistant["OpenClaw + Python runtime"]:::runtime
+        Search["SearXNG"]:::service
+        Metrics["Prometheus → Grafana"]:::observe
+        Scheduler["n8n · optional migration profile"]:::optional
+    end
+    GPU["HomeLab · Ollama GPU"]:::external
+    APIs["Cloud APIs · integrations · devices"]:::external
+    User <--> Assistant
+    Assistant --> Search
+    Assistant --> GPU
+    Assistant --> APIs
+    Assistant -.->|metrics| Metrics
+    Scheduler -.->|authenticated jobs| Assistant
+    classDef runtime fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef observe fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef optional fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-dasharray:5 5
+    classDef external fill:#f1f5f9,stroke:#64748b,color:#0f172a
+```
+
+Solid arrows show functional dependencies; dotted arrows show telemetry or optional
+scheduling. See the [detailed architecture](docs/architecture.md) for process,
+network, request, and persistence boundaries.
+
+## Capabilities
+
+| Area | Implementation |
+|---|---|
+| Telegram | Deterministic interceptors, conversation context, approval callbacks, watchdog |
+| Orchestration | Existing orchestrator plus an optional domain-agent coordinator |
+| Domain agents | Infrastructure, finance, research, security, job search, and other domains |
+| Inference | Role-based routing, backend detection, VRAM limits, and guardrails |
+| Monitoring | Five isolated workers with individual timeouts |
+| Knowledge | Retrieval, shared memory, and memory consolidation modules |
+| Automation | DSM wrappers and an authenticated HTTP runner; optional n8n scheduling |
+| Observability | Runtime exporters, Prometheus rules, and provisioned Grafana dashboards |
+| Job search | Discovery, matching, application tracking, and tailored CV preparation |
+
+## Getting started
+
+[Compose](docker-compose.yml) defines `openclaw`, `prometheus`, `grafana`, and
+`searxng`. The `n8n` service requires the `migration` profile. Ollama, ChromaDB,
+Piper, and the media stack are external to this Compose deployment.
 
 ```bash
 git clone https://github.com/sebastianbasadre/tenazas.git
@@ -42,52 +75,51 @@ cd tenazas
 cp .env.example .env
 ```
 
-Antes de levantar servicios, completar credenciales, configuración del gateway,
-permisos y archivos montados según la [guía de instalación](docs/setup.md).
-`openclaw.example.json` es una referencia para helpers de Tenazas: requiere
-adaptación al schema del gateway y no garantiza un arranque completo.
+Complete credentials, gateway configuration, permissions, and mounted files using
+[Setup](docs/setup.md) before starting services. `openclaw.example.json` illustrates
+Tenazas helper settings; it needs adaptation to the gateway schema and is not a
+complete deployment configuration.
 
 ```bash
-# Después de completar los pasos de instalación:
+# After completing setup:
 docker compose config --quiet
 docker compose up -d --build
 docker compose ps
 ```
 
-## Validación
+## Validation
 
-Python requiere **3.11 o superior**. La imagen usa Node.js 24 y fija la versión
-de OpenClaw mediante un argumento de build.
+Python requires **3.11+**. The container uses Node.js 24 and a pinned OpenClaw
+build argument.
 
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m pytest --collect-only
-# Runner curado para Linux/contenedor:
+# Curated Linux/container runner:
 bash tests/run_tests.sh
 ```
 
-Hay suites que dependen de rutas Linux, Docker, APIs o dispositivos reales.
-La [guía de desarrollo](docs/development.md) explica cómo seleccionar pruebas.
-Los conteos de tests y métricas de evaluación deben obtenerse de cada ejecución.
+Some suites require Linux paths, Docker, external APIs, or devices. Follow
+[Development](docs/development.md) to select suitable checks. Test counts and model
+evaluation scores should come from each run rather than a fixed documentation total.
 
-## Operación y seguridad
+## Operational boundaries
 
-- El socket Docker da acceso privilegiado al host; el runtime cuenta con wrapper,
-  validación y registros de acciones.
-- `docker_wrapper.py` permite consultas y acciones `restart/start/stop`, y protege
-  `openclaw` y `watchtower` de sus acciones mutantes.
-- El job runner exige un token del operador y escucha en `127.0.0.1:18891` por defecto.
-- Las propuestas aceptadas pueden ser ejecutadas por `proposal_executor.py` con
-  ramas, validaciones y rollback; revisar cada mecanismo antes de habilitarlo.
-- Un healthcheck fallido marca el contenedor como `unhealthy`. La política
-  `unless-stopped` reinicia procesos que salen; el healthcheck por sí solo no reinicia.
-- Configuración, tokens y datos personales deben quedar fuera de los commits.
+- Docker socket access is privileged; the runtime includes action validation and auditing.
+- `docker_wrapper.py` allows reads and `restart/start/stop`, protecting `openclaw`
+  and `watchtower` from its mutating actions.
+- The job runner requires an operator token and defaults to `127.0.0.1:18891`.
+- Accepted proposals may be applied by `proposal_executor.py` through sandbox
+  branches, validation, limits, and rollback.
+- A failed healthcheck marks the container `unhealthy`; it does not itself restart it.
+  The `unless-stopped` policy handles process exits.
+- Keep credentials, tokens, and personal runtime data out of commits.
 
-Ver [migración n8n](docs/n8n-cutover-runbook.md),
-[búsqueda laboral](docs/job-search-platform.md) y
-[contexto del workspace](workspace/TENAZAS-CONTEXT.md).
+See [n8n cutover](docs/n8n-cutover-runbook.md),
+[job search](docs/job-search-platform.md), and
+[workspace context](workspace/TENAZAS-CONTEXT.md).
 
-## Licencia
+## License
 
-El repositorio no incluye un archivo de licencia. Su publicación no otorga por sí
-sola una licencia de uso, modificación o redistribución.
+No license file is included. Public repository visibility does not itself grant
+permission to use, modify, or redistribute the project.

@@ -1,16 +1,14 @@
-# HomeLab Ollama Runbook
+# HomeLab Ollama runbook
 
-Revisión documental: **2026-10-28**. Los comandos describen el script versionado;
-no confirman modelos instalados. Ver [MODELS.md](../MODELS.md) para el `ROLE_MAP`
-del runtime, que usa un conjunto distinto.
+Reviewed **2026-10-28**. Commands describe the versioned startup script, not the
+models currently installed. See [Models](../MODELS.md) for the runtime `ROLE_MAP`,
+which uses a different model set.
 
-Host: `192.168.2.6`
-OS: Windows 11
-Endpoint esperado: `http://192.168.2.6:11434`
+Reference host: `192.168.2.6`, Windows 11, endpoint `http://192.168.2.6:11434`.
 
-## 1. Levantar Ollama
+## Start Ollama
 
-Abrí PowerShell en el HomeLab y corré:
+Run PowerShell on the intended HomeLab:
 
 ```powershell
 $env:OLLAMA_HOST = "0.0.0.0:11434"
@@ -18,23 +16,23 @@ setx OLLAMA_HOST "0.0.0.0:11434"
 ollama serve
 ```
 
-Verificá:
+Check locally:
 
 ```powershell
 ollama list
 ollama ps
-curl http://127.0.0.1:11434/api/tags
+Invoke-RestMethod http://127.0.0.1:11434/api/tags
 ```
 
-Si responde localmente, desde el NAS debería responder:
+Then check from the NAS:
 
 ```bash
-curl http://192.168.2.6:11434/api/tags
+curl -fsS http://192.168.2.6:11434/api/tags
 ```
 
-## 2. Cargar modelos
+A bind on `0.0.0.0` requires network rules restricting access to intended clients.
 
-Para reproducir el conjunto de `scripts/homelab-ollama-startup.ps1`:
+## Load the startup script's model set
 
 ```powershell
 ollama pull gemma3:12b
@@ -43,16 +41,17 @@ ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
 ```
 
-Modelos adicionales mencionados por el runtime (descargar solo los necesarios):
+Additional models referenced by runtime paths should be installed only as needed:
 
 ```powershell
 ollama pull qwen3:4b
 ollama pull qwen2.5-coder:7b
 ollama pull qwen3-vl:4b
 ollama pull phi4-mini
+ollama pull qwen2.5:3b
 ```
 
-Precarga rápida del modelo principal:
+Warm the startup script's primary model:
 
 ```powershell
 $body = @{
@@ -70,49 +69,40 @@ Invoke-RestMethod `
   -Body $body
 ```
 
-## 3. Auto-start al boot/logon
+## Configure logon startup
 
-En este repo quedó un script listo para correr en el HomeLab:
-
-[`scripts/homelab-ollama-startup.ps1`](../scripts/homelab-ollama-startup.ps1)
-
-Ejecutalo una vez en PowerShell:
+Review [scripts/homelab-ollama-startup.ps1](../scripts/homelab-ollama-startup.ps1),
+then run it on the HomeLab:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\homelab-ollama-startup.ps1
 ```
 
-Eso hace:
+The script sets `OLLAMA_HOST`, starts Ollama if unavailable, pulls the first model
+set above, warms `gemma3:12b`, and places a batch launcher in the user's Startup
+folder. This is a logon startup mechanism, not proof of a system service running
+before login.
 
-- configura `OLLAMA_HOST=0.0.0.0:11434`
-- levanta `ollama serve` si no está arriba
-- hace `pull` de `gemma3:12b`, `qwen3:8b`, `qwen2.5:7b`, `nomic-embed-text` si faltan
-- precarga `gemma3:12b`
-- instala `start-ollama.bat` en la carpeta Startup del usuario
+## Check model-name differences
 
-## Verificación final
+`qwen3-fast:4b` and `qwen3-fast:8b` in `ROLE_MAP` are custom models. The startup
+script does not create them; import or recreate their Modelfiles separately.
+Do not assume standard `qwen3:*` tags have identical templates or behavior.
+Verify an inference using the exact configured name before enabling its path.
 
-En HomeLab:
+## Final checks
+
+HomeLab:
 
 ```powershell
 Get-Process ollama -ErrorAction SilentlyContinue
-curl http://127.0.0.1:11434/api/tags
+Invoke-RestMethod http://127.0.0.1:11434/api/tags
 ollama ps
 ```
 
-En NAS:
+NAS:
 
 ```bash
-curl http://192.168.2.6:11434/api/tags
+curl -fsS http://192.168.2.6:11434/api/tags
 docker exec openclaw bash /home/tenazas/ollama-check.sh --json
 ```
-
-## Diferencia con el router Python
-
-`qwen3-fast:4b` y `qwen3-fast:8b` son modelos custom de `ROLE_MAP`.
-El script de startup no los crea: requiere importar o recrear sus Modelfiles.
-No asumir que los tags `qwen3:4b`/`qwen3:8b` son equivalentes. Verificar
-`ollama list` y una inferencia con el nombre exacto antes de habilitar el flujo.
-
-La escucha en `0.0.0.0:11434` requiere reglas de red que permitan únicamente
-los clientes previstos. Estos pasos deben ejecutarse en el HomeLab correspondiente.
