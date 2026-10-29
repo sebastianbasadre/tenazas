@@ -1,6 +1,12 @@
 # OpenClaw Config Schema Notes
 
-Fecha: 2026-05-21
+Fecha de las observaciones: 2026-05-21
+
+Nota de revisión (2026-10-28): este documento conserva hallazgos históricos.
+El checkout actual tiene `openclaw.example.json`, no un `openclaw.json` de raíz
+versionado. Esa plantilla incluye campos para helpers que pueden no ser válidos
+para el gateway. Ver [instalación](../docs/setup.md); validar con la versión
+instalada antes de usar cualquier clave.
 
 ## Resumen
 
@@ -17,7 +23,7 @@ Para extensiones propias de Tenazas, usar archivos separados dentro de
 
 ## Root keys observadas como validas
 
-La configuracion valida actual en `state/openclaw.json` usa estas claves root:
+La configuración observada en `state/openclaw.json` el 2026-05-21 usaba estas claves root:
 
 - `auth`
 - `agents`
@@ -30,7 +36,7 @@ La configuracion valida actual en `state/openclaw.json` usa estas claves root:
 - `plugins`
 - `meta`
 
-El `openclaw.json` de root del repo es mas chico, pero conserva el mismo nucleo:
+El `openclaw.json` de raíz observado en esa revisión era más chico y contenía:
 
 - `auth`
 - `agents`

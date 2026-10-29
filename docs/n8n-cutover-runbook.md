@@ -4,7 +4,8 @@
 
 Move scheduled operational jobs from DSM and in-container loops to `n8n`, while keeping a clean rollback path.
 
-This runbook assumes the current repository state as of 2026-05-10:
+Documentation reviewed against repository code on **2026-10-28**. This runbook
+does not confirm the current NAS deployment or workflow activation state:
 
 - `openclaw` exposes `job_runner.py` on port `18891`
 - `n8n` is behind the Compose profile `migration`
@@ -17,7 +18,7 @@ Confirm the container and runner configuration:
 
 ```bash
 docker compose config --services
-docker compose config | grep -E "TENAZAS_JOB_RUNNER|ENABLE_PORTFOLIO_RECONCILER_WATCH|ENABLE_IOL_REFRESH_LOOP"
+docker compose config --quiet
 curl -sf http://127.0.0.1:18891/health
 ```
 
@@ -26,6 +27,26 @@ Expected runner health keys:
 - `ok`
 - `service=job_runner`
 - `jobs`
+
+## Runner connectivity from n8n
+
+The runner binds to `127.0.0.1:18891` by default. n8n is on a Docker bridge;
+`host.docker.internal` resolves the host gateway and cannot reach a listener bound
+only to host loopback. A successful host-local health check does not prove n8n connectivity.
+
+Before cutover, set `TENAZAS_JOB_RUNNER_HOST` in `.env` to a host address reachable
+from the Docker bridge (or `0.0.0.0` only with host firewall rules restricting access
+to the intended clients). Keep a unique `TENAZAS_JOB_RUNNER_TOKEN`; recreate
+`openclaw` after changing its environment. Do not expose the runner publicly.
+
+After starting n8n, verify the actual container path without running a job:
+
+```bash
+docker exec n8n node -e 'fetch(process.env.TENAZAS_JOB_RUNNER_BASE_URL + "/health").then(async r => { console.log(await r.text()); process.exit(r.ok ? 0 : 1); }).catch(e => { console.error(e.message); process.exit(1); })'
+```
+
+`GET /health` is unauthenticated. It verifies reachability and the allowlist;
+authenticated POST and job side effects require a separate deliberate check.
 
 ## Bring Up n8n
 
@@ -50,7 +71,9 @@ docker exec n8n n8n list:workflow
 
 ## Validate the HTTP Path
 
-Run a safe job through the same endpoint `n8n` uses:
+The following POST runs a real finance job and may notify Telegram. Execute it
+only as part of the planned cutover, after checking its effects and disabling any
+conflicting schedule:
 
 ```bash
 export TENAZAS_JOB_RUNNER_TOKEN="$(grep '^TENAZAS_JOB_RUNNER_TOKEN=' .env | cut -d= -f2-)"
@@ -179,7 +202,7 @@ Check logs after each job activation:
 ```bash
 docker logs n8n --tail 100
 docker logs openclaw --tail 100
-tail -n 50 logs/job_runner.log
+tail -n 50 workspace/runtime/logs/job_runner.log
 ```
 
 Check runner health again:
@@ -194,7 +217,7 @@ If a workflow misbehaves:
 
 1. disable the workflow in `n8n`
 2. re-enable the matching DSM task in `direct` mode
-3. if affected:
+3. persist affected flags in `.env` (an export only lasts for the current shell):
    - set `ENABLE_PORTFOLIO_RECONCILER_WATCH=true`
    - set `ENABLE_IOL_REFRESH_LOOP=true`
 4. restart `openclaw`

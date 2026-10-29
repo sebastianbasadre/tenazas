@@ -1,5 +1,9 @@
 # HomeLab Ollama Runbook
 
+Revisión documental: **2026-10-28**. Los comandos describen el script versionado;
+no confirman modelos instalados. Ver [MODELS.md](../MODELS.md) para el `ROLE_MAP`
+del runtime, que usa un conjunto distinto.
+
 Host: `192.168.2.6`
 OS: Windows 11
 Endpoint esperado: `http://192.168.2.6:11434`
@@ -30,7 +34,7 @@ curl http://192.168.2.6:11434/api/tags
 
 ## 2. Cargar modelos
 
-Para el set local actual:
+Para reproducir el conjunto de `scripts/homelab-ollama-startup.ps1`:
 
 ```powershell
 ollama pull gemma3:12b
@@ -39,7 +43,7 @@ ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
 ```
 
-Set recomendado a futuro:
+Modelos adicionales mencionados por el runtime (descargar solo los necesarios):
 
 ```powershell
 ollama pull qwen3:4b
@@ -70,7 +74,7 @@ Invoke-RestMethod `
 
 En este repo quedó un script listo para correr en el HomeLab:
 
-[`scripts/homelab-ollama-startup.ps1`](Z:\openclaw\scripts\homelab-ollama-startup.ps1)
+[`scripts/homelab-ollama-startup.ps1`](../scripts/homelab-ollama-startup.ps1)
 
 Ejecutalo una vez en PowerShell:
 
@@ -102,3 +106,13 @@ En NAS:
 curl http://192.168.2.6:11434/api/tags
 docker exec openclaw bash /home/tenazas/ollama-check.sh --json
 ```
+
+## Diferencia con el router Python
+
+`qwen3-fast:4b` y `qwen3-fast:8b` son modelos custom de `ROLE_MAP`.
+El script de startup no los crea: requiere importar o recrear sus Modelfiles.
+No asumir que los tags `qwen3:4b`/`qwen3:8b` son equivalentes. Verificar
+`ollama list` y una inferencia con el nombre exacto antes de habilitar el flujo.
+
+La escucha en `0.0.0.0:11434` requiere reglas de red que permitan únicamente
+los clientes previstos. Estos pasos deben ejecutarse en el HomeLab correspondiente.

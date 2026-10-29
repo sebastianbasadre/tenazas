@@ -1,6 +1,20 @@
 # CLAUDE.md — Tenazas / openclaw
 
-Instrucciones completas para Claude Code al trabajar en este proyecto.
+Instrucciones para Claude Code al trabajar en este proyecto.
+
+## Referencia vigente de documentación — 2026-10-28
+
+Consultar [índice](docs/README.md), [instalación](docs/setup.md),
+[arquitectura](docs/architecture.md), [desarrollo](docs/development.md),
+[infraestructura](INFRA.md) y [modelos](MODELS.md).
+Las secciones generadas y el inventario histórico que siguen no prueban el estado
+actual de producción. Para puertos, modelos, APIs y conteos prevalece el código.
+El coordinador sigue controlado por configuración; n8n requiere perfil explícito.
+El healthcheck marca salud, pero por sí solo no reinicia el contenedor.
+
+Los prompts GSD están versionados en `.codex/prompts/`; el engine y workflows
+`.claude/get-shit-done` no están incluidos en este checkout. Verificar instalación
+local/global antes de intentar usar esos comandos.
 
 ## Contexto del proyecto
 

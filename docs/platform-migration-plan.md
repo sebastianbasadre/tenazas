@@ -1,5 +1,11 @@
 # Platform Migration Plan
 
+Documentation reviewed on **2026-10-28** against repository code. Migration states
+and schedules below are operational plans/defaults, not a live NAS inventory.
+The dated [2026-05-21 report](../tools/REPORT_20260521.md) records changes on one
+deployment; confirm current DSM tasks, n8n activation and internal loops before cutover.
+See [runner connectivity](n8n-cutover-runbook.md#runner-connectivity-from-n8n).
+
 ## Goal
 
 Reduce `openclaw` to:
@@ -21,9 +27,9 @@ Move scheduling, recurring ops, and host-level recovery out of the monolith.
 
 ## Execution State
 
-- Phase A is the active production path.
-- Phase B remains prepared in-repo but disabled by default on the NAS.
-- `n8n` stays behind a Compose profile until the host proves stable again.
+- Phase A is the initial deployment plan; confirm the current scheduler on the NAS.
+- Phase B is prepared in-repo; the n8n Compose profile is disabled by default.
+- `n8n` stays behind the `migration` Compose profile for explicit activation.
 - Exact cutover steps live in `docs/n8n-cutover-runbook.md`.
 
 ## Two-Week Cutover

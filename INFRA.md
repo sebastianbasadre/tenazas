@@ -1,188 +1,83 @@
-# Infraestructura Tenazas — Estado actual
+# Infraestructura Tenazas
 
-## Hardware
+Revisión de configuración: **2026-10-28**. Las direcciones describen el homelab de
+referencia. No se comprobó conectividad ni inventario activo durante esta revisión.
 
-### NAS — Synology DS923+ (192.168.2.2)
-- CPU: AMD Ryzen Embedded R1600
-- RAM: 16 GB (15Gi)
-- Storage: 27T volume1 (39% usado) + 1.8T volume2 (1% usado)
-- OS: Synology DSM 7.3.2 (build 86009)
-- Docker: 24.0.2
-- Rol: Docker host principal, Tenazas corre acá
+## Hosts de referencia
 
-### HomeLab (192.168.2.6)
-- Nombre: HOMELAB
-- CPU: Intel Core i7-12700KF (12 cores, 20 threads, 3600MHz)
-- RAM: 16 GB (15.8 GB disponibles)
-- Placa madre: MSI MPG Z690 EDGE WIFI DDR4 (MS-7D31)
-- GPU: NVIDIA RTX 3090 — 24GB VRAM
-- OS: Windows 11 Pro (Build 26200)
-- Ollama: http://192.168.2.6:11434
-- Rol: GPU inference (modelos principales), training
-
-### NAS Backup (192.168.2.3)
-- HyperBackup target
-- Daily 2-3AM
-
----
-
-## Containers Docker (NAS) — 20 activos
-
-| Container | Imagen | Función | Estado típico |
-|---|---|---|---|
-| openclaw | openclaw-openclaw | Tenazas (asistente, network_mode: host) | healthy |
-| gluetun | qmcgaw/gluetun | VPN gateway NordVPN (es247) | healthy |
-| qbittorrent | linuxserver/qbittorrent | Torrent client (via gluetun) | Up |
-| sonarr | linuxserver/sonarr | TV series automation | Up |
-| radarr | linuxserver/radarr | Movies automation | Up |
-| lidarr | linuxserver/lidarr | Music automation | Up |
-| prowlarr | linuxserver/prowlarr | Indexer manager | Up |
-| sabnzbd | linuxserver/sabnzbd | Usenet downloader | Up |
-| seerr | seerr-team/seerr | Media requests UI | Up |
-| requestrr | darkalfx/requestrr | Media request bot (Discord/Telegram) | Up |
-| tautulli | tautulli/tautulli | Plex stats/monitoring | healthy |
-| chromadb | chromadb/chroma | Vector DB para RAG (:8100) | Up |
-| piper | linuxserver/piper | TTS local (es_MX-claude-high) | Up |
-| prometheus | prom/prometheus | Métricas (:9090, network_mode: host) | Up |
-| grafana | grafana/grafana | Dashboards (:3000, credenciales via `.env`) | Up |
-| portainer | portainer/portainer-ee | Docker dashboard web | Up |
-| WATCHTOWER | nickfedor/watchtower | Auto-update de imágenes | healthy |
-| hireswarm-agent-server | dev-agent-pipeline | HireSwarm AI agent server | healthy |
-| hireswarm-inngest | inngest/inngest | HireSwarm event engine | Up |
-| backing-track-generator | backing-track-generator | Generador de backing tracks | Up |
-
-### Arr-stack (10 containers, dependen de gluetun)
-gluetun, qbittorrent, sonarr, radarr, lidarr, prowlarr, sabnzbd, seerr, requestrr, tautulli
-
-### Containers protegidos (no auto-restart)
-openclaw, watchtower
-
----
-
-## Puertos de servicio
-
-| Puerto | Servicio | Notas |
+| Host | Dirección de referencia | Función |
 |---|---|---|
-| :3000 | Grafana | usuario admin + password configurado en `.env` |
-| :8100 | ChromaDB | Vector store RAG |
-| :8888 | Gluetun proxy | VPN HTTP proxy |
-| :9090 | Prometheus | Scrape cada 30s, retención 30d |
-| :9105 | metrics_server.py | Runtime + NAS + Ollama + IOL + OpenRouter |
-| :9106 | api_call_counter | Gemini + IOL call tracking |
-| :9107 | eval_exporter.py | Eval F1/precision/recall per model |
-| :11434 | Ollama NAS (local) | CPU only, fallback |
-| :18789 | OpenClaw gateway | Web canvas |
+| NAS Synology DS923+ | `192.168.2.2` | Docker y runtime |
+| HomeLab Windows | `192.168.2.6` | Ollama, GPU RTX 3090 de 24 GB y entrenamiento |
+| NAS de backup | `192.168.2.3` | Destino de respaldo del despliegue existente |
+| Router | `192.168.2.1` | Red LAN `192.168.2.0/24` |
 
----
+Adaptar variables `TENAZAS_*` de [.env.example](.env.example) y
+[runtime_config.py](workspace/runtime/runtime_config.py). Versiones DSM, uso de
+disco, RAM disponible, modelos cargados y cantidad de contenedores requieren un
+relevamiento del host; no se deducen del repositorio.
 
-## APIs configuradas
+## Servicios declarados en Compose
 
-| Servicio | Auth | Uso |
-|---|---|---|
-| Google Gemini | API Key (env) | LLM cloud fallback |
-| OpenRouter (Kimi K2) | API Key (env) | Cloud fallback + self-evolve |
-| Google Calendar | OAuth token | Eventos próximos |
-| Gmail (himalaya) | App password | Email digest |
-| Telegram Bot | Bot token (config) | Canal principal con Sebas |
-| Philips Hue | API key | 8 luces smart home |
-| Open-Meteo | Sin auth | Clima (gratis) |
-| IOL InvertirOnline | Bearer token (auto-refresh 15min) | Portfolio, cotizaciones |
-
----
-
-## LLM Routing (cascade real)
-
-```
-1. HomeLab GPU (192.168.2.6:11434) — qwen2.5:7b (default), deepseek-r1:14b, qwen2.5:32b
-2. NAS CPU (127.0.0.1:11434) — phi4-mini (solo modelos chicos)
-3. OpenRouter (Kimi K2) — cloud fallback ($0.60/Mtok in)
-4. Gemini Flash — último recurso
-```
-
-Router V2 clasifica por rol (fast/reason/heavy/code/vision/embed) y selecciona modelo óptimo.
-
----
-
-## Training Pipeline
-
-### Estado actual
-- Dataset: 306 ejemplos (245 train / 61 eval)
-- Modelo base: qwen2.5-3b-instruct
-- Fine-tuned: tenazas-multitool (LoRA → merge → GGUF q8_0)
-- Router: tenazas-router-labels (GGUF, labels cerradas)
-
-### Pipeline
-```
-build_multitool_dataset.py → split_dataset.py → train_multitool.py
-→ merge_3b.py → convert_to_gguf.bat → ollama create → eval_runner.py
-```
-
-### Herramientas (HomeLab)
-- Python 3.14 (3.11 bloqueado por WDAC)
-- llama.cpp b4924
-- GGUF outtype: q8_0
-- HF_HOME: D:\hf_cache
-
-### Eval results
-| Métrica | Baseline (qwen2.5:7b) | Finetuned (tenazas-multitool) |
-|---|---|---|
-| F1 | 0.683 | 0.683 |
-| Precision | 0.683 | 0.683 |
-| Recall | 0.697 | 0.697 |
-| Exact match | 0.656 | 0.656 |
-| Hallucination | 0.0 | 0.0 |
-| Over-trigger | 0.098 | 0.098 |
-| Under-trigger | 0.164 | 0.164 |
-
-### Per-tool F1 (baseline)
-| Tool | F1 |
+| Servicio | Configuración |
 |---|---|
-| calendar | 1.0 |
-| email | 1.0 |
-| smart-home-work | 1.0 |
-| infra-monitor | 0.941 |
-| weather | 0.909 |
-| smart-home-on | 0.667 |
-| tts | 0.615 |
-| arr-monitor | 0.5 |
-| network_scan | 0.0 |
-| self-evolve | 0.0 |
-| smart-home-cinema | 0.0 |
-| smart-home-relax | 0.0 |
+| `openclaw` | Build local, Node 24, red host, usuario UID 1026, socket Docker |
+| `prometheus` | Imagen exigida por `.env`, puerto 9090, retención 30 d / 1 GB |
+| `grafana` | Imagen exigida por `.env`, puerto 3000, provisioning y dashboards del repo |
+| `searxng` | Imagen exigida por `.env`, puerto host 8890 a contenedor 8080 |
+| `n8n` | `docker.n8n.io/n8nio/n8n:2.19.5`, puerto 5678, perfil opcional `migration` |
 
----
+Ollama, Piper, ChromaDB, gluetun, media stack, Portainer y Watchtower forman parte
+del entorno referenciado por el código, pero no son creados por este Compose.
+No usar una cifra fija de contenedores como criterio de salud.
 
-## Observabilidad
+## Endpoints y métricas
 
-### Dashboards Grafana
-| Dashboard | UID | Función |
+| Puerto | Servicio | Fuente |
 |---|---|---|
-| Tenazas Runtime | tenazas-runtime | Infra, NAS host, Ollama, Telegram, IOL |
-| Tenazas Agent | tenazas-agent | Routing V1/V2, guardrails, latencia |
-| Portfolio IOL | iol-portfolio-analista | Valor, P&L, freshness, evolución |
-| Tenazas APIs | tenazas-apis | Gemini calls, OpenRouter gasto/balance |
-| Multitool Eval | tenazas-multitool-eval | F1, precision, recall, per-tool, delta |
-| OpenRouter / Kimi-K2 | openrouter-kimi-k2 | Gasto, balance, último check |
+| 18789 | Gateway OpenClaw, `/health` | Healthcheck Compose |
+| 18891 | Job runner, `/health` y `/run/<job>` | Localhost por defecto; POST con token |
+| 9101 | Portfolio exporter | `startup.sh`, target Prometheus |
+| 9105 | Métricas runtime | `metrics_server.py` |
+| 9106 | Contador de llamadas API | `api_call_counter.py` |
+| 9107 | Evaluación de tools | `tool_tuning/eval_exporter.py` |
+| 9108 | Exporter de red | `network_exporter.py` |
+| 9109 | Exporter de finanzas | `finance_exporter.py` |
+| 9090 | Prometheus | Compose |
+| 3000 | Grafana | Compose |
+| 8890 | SearXNG | Compose |
+| 5678 | n8n opcional | Perfil `migration` |
+| 11434 | Ollama HomeLab / NAS | Servicio externo |
+| 9182 / 9835 | Exporters Windows / GPU HomeLab | Targets externos de Prometheus |
 
-### Alertas Prometheus (alerts.yml)
-| Alerta | Expr | Severity |
-|---|---|---|
-| TenazasNetworkScanStale | scan >15min | warning |
-| TenazasIOLTokenExpired | IOL data >10min | warning |
-| TenazasEvalExporterDown | exporter_up==0 | warning |
-| TenazasEvalF1BelowThreshold | F1 finetuned <0.5 | critical |
-| TenazasEvalFinetunedWorseThanBaseline | finetuned < baseline | warning |
-| TenazasEvalFileStale | eval >24h | warning |
+Prometheus usa intervalo global de **15 s**, evaluación de reglas cada **30 s**
+y overrides por job: APIs/red/cartera 30 s, finanzas 60 s, evaluación 300 s.
+Ver [prometheus.yml](prometheus.yml) y [alerts.yml](alerts.yml).
 
----
+Los dashboards están en [grafana/dashboards](grafana/dashboards/), no en un archivo
+`grafana-dashboard.json` en la raíz. El provisioning se versiona en
+[grafana/provisioning](grafana/provisioning/).
 
-## Tests (36 suites)
+## Arranque y tareas
 
-```bash
-docker exec openclaw bash /home/tenazas/tests/run_tests.sh
-```
+[startup.sh](startup.sh) inicia varios procesos dentro de `openclaw`. Router Telegram
+y watcher laboral tienen watchdog; los demás procesos no comparten necesariamente
+la misma política de reinicio. El healthcheck observa el gateway y no reinicia
+por sí mismo el contenedor cuando está `unhealthy`.
 
----
+El runner escucha en localhost por defecto. Desde un contenedor bridge como n8n,
+`host.docker.internal` apunta al host, no a su loopback; configurar un bind alcanzable
+y limitar acceso según el [runbook](docs/n8n-cutover-runbook.md).
 
-## Último relevamiento
-Fecha: 2026-04-09
+Las tareas DSM y los workflows deben inventariarse en el host. El perfil de n8n
+está desactivado por defecto en Compose, lo cual no demuestra si ya se activó en
+un despliegue existente. Consultar el [checklist DSM](docs/dsm-task-checklist.md)
+y evitar dos schedulers para el mismo trabajo.
+
+## Credenciales y persistencia
+
+`.env`, `state/`, tokens OAuth, configuración de correo y claves SSH son datos
+locales. Los bind mounts requieren permisos compatibles con UID 1026 y el GID real
+del socket. Prometheus y Grafana usan volúmenes nombrados; n8n usa `n8n/data/`.
+Ver [instalación](docs/setup.md), [arquitectura](docs/architecture.md) y
+[modelos](MODELS.md).
