@@ -1,180 +1,107 @@
-# INTERFACE CONTRACT — Tenazas routing layers
+# Routing interface contract
 
-## Instrucciones para agentes que trabajan en este repo
+Reviewed against implemented APIs on **2026-10-28**.
 
-Antes de tocar `orchestrator.py`, `router.py`, `router_runtime.py` o cualquier `skill/*`:
+## Scope and ownership
 
-1. Leer este archivo completo
-2. No agregar labels sin actualizar `VALID_ROUTES` en `routes_contract.py`
-3. No duplicar clasificación en una skill que ya tiene route asignado
-4. Si encontrás ambigüedad no listada en la sección de riesgos, documentarla antes de resolver
-5. No usar `network-scanner` — el label oficial es `network_scan`
-6. Labels nuevos requieren update de: router + runtime + exporter + dashboard + tests
+Read this contract and `routes_contract.py` before changing routing. Paths below
+are relative to `workspace/runtime/`.
 
----
+| Module | Responsibility |
+|---|---|
+| `telegram_router.py` | Ingress, interceptors, context, and response-path selection |
+| `orchestrator.py` | High-level classification and pipeline/skill execution |
+| `agent_coordinator.py` | Domain ownership and aggregation when enabled |
+| `tool_tuning/router.py` | Closed-label tool classification using regex and Ollama fallback |
+| `tool_tuning/router_runtime.py` | Dispatch classified routes to real handlers |
+| `model_router.py` | Model/backend selection by capability or role |
+| `routes_contract.py` | Canonical labels and normalization |
 
-## 1. Responsabilidad por capa
+The orchestrator includes execution, not only classification. `dispatch()` invokes
+the classifier internally before running a handler. Skills receive their caller's
+resolved intent; avoid duplicating general intent classification inside them.
 
-### orchestrator.py
-- **Clasifica**: intents de alto nivel via keyword/regex (primera capa, sin LLM)
-- **Deriva al router**: cuando el intent no matchea keyword directa
-- **Ejecuta skill directa**: cuando el intent es inequívoco y no requiere router
-- **NO debe**: duplicar semántica detallada del router, hacer inferencia LLM, reclasificar output del router
+## Canonical labels
 
-### router.py
-- **Clasifica**: queries usando regex fast-path primero, LLM solo si no hay match
-- **Devuelve**: exactamente un label de VALID_ROUTES, nunca texto libre
-- **NO debe**: ejecutar tools, llamar skills, hacer lógica de negocio
-- **Fallback**: si falla o label desconocido → `none`
+`VALID_ROUTES` in [routes_contract.py](routes_contract.py):
 
-### skills/*
-- **Reciben**: intención ya resuelta (route + query + contexto opcional)
-- **Ejecutan**: lógica de la tool, no reclasifican
-- **NO deben**: hacer clasificación de intención general, llamar al router
-- **Output**: texto final o payload estructurado + error controlado
-
----
-
-## 2. Ownership matrix
-
-| Capa | Decide intención | Decide modelo | Ejecuta tool | Re-clasifica | Puede hacer fallback |
-|------|-----------------|---------------|--------------|--------------|---------------------|
-| orchestrator.py | primera capa | no | no | no | si → router |
-| router.py | segunda capa | no | no | no | si → none |
-| model_router.py | no | si | no | no | si → cloud |
-| router_runtime.py | no | no | si dispatch | no | si → none |
-| skills/* | no | no | si | no | si → error |
-
----
-
-## 3. Contratos explícitos
-
-### Contrato A — orchestrator → router
-
-Input:
 ```python
 {
-  "query": str,           # texto del usuario
-  "context": dict | None  # contexto conversacional opcional
+    "weather", "calendar", "weather_calendar", "lights", "network_scan",
+    "infra", "tts", "arr_monitor", "none",
 }
 ```
 
-Output:
-```python
-{
-  "route": str,           # label de VALID_ROUTES
-  "confidence": float | None,
-  "method": str,          # "regex" | "llm" | "fallback"
-  "raw_output": str | None
-}
-```
+Import this contract rather than copying its set into other modules.
+`normalize_route()` accepts historical aliases and returns a canonical label or
+`none`; `assert_valid_route()` rejects unknown values.
 
-### Contrato B — router → runtime
-
-Output válido:
-- Solo labels dentro de `VALID_ROUTES`
-- Si no matchea → `"none"`
-- Nunca `None`, nunca texto libre, nunca lista
-
-### Contrato C — runtime → skill
-
-Input:
-```python
-{
-  "query": str,
-  "route": str,           # ya validado contra VALID_ROUTES
-  "context": dict | None
-}
-```
-
-Output:
-```python
-{
-  "text": str,            # respuesta final para el usuario
-  "data": dict | None,    # payload estructurado opcional
-  "error": str | None     # mensaje de error controlado
-}
-```
-
----
-
-## 4. Labels oficiales (VALID_ROUTES)
-
-```python
-VALID_ROUTES = {
-    "weather",           # clima
-    "calendar",          # agenda y calendario
-    "weather_calendar",  # clima + agenda juntos
-    "lights",            # control luces Hue
-    "network_scan",      # escaneo red LAN  <- CANONICAL (no "network-scanner")
-    "infra",             # estado homelab/containers/descargas
-    "tts",               # text-to-speech
-    "arr_monitor",       # media/downloads stack
-    "none",              # chat sin tool / fallback
-}
-```
-
-### Labels deprecados (NO usar)
-| Label deprecado | Reemplazar por |
-|----------------|----------------|
-| `network-scanner` | `network_scan` |
-| `smart-home-on` | `lights` |
-| `smart-home-off` | `lights` |
-| `infra-monitor` | `infra` |
+| Historical alias | Canonical label |
+|---|---|
+| `network-scanner`, `network_scanner` | `network_scan` |
+| `smart-home-on`, `smart-home-off`, `smart-home` | `lights` |
+| `infra-monitor`, `infra_monitor` | `infra` |
 | `arr-monitor` | `arr_monitor` |
+| `chat` | `none` |
 
----
+Other classifiers, including `finetuned_router.py` and the multitool parser, use
+skill/tool names outside this closed set. Do not interchange their outputs without
+normalization and consumer-contract review.
 
-## 5. Reglas de no superposición
+## Classifier API
 
-- `orchestrator.py` no debe duplicar semántica detallada del router
-- `router.py` no ejecuta tools
-- `skills/*` no hacen clasificación de intención general
-- Labels nuevos deben agregarse primero al contrato y a `routes_contract.py`
-- Cambios de labels requieren update de:
-  1. `routes_contract.py` (VALID_ROUTES)
-  2. `router.py` (regex patterns)
-  3. `router_runtime.py` (dispatch table)
-  4. `eval_exporter.py` (métricas)
-  5. dashboard Grafana (per-tool F1)
-  6. tests del router
+`tool_tuning/router.py` exposes `route_intent(user_input, ...)`, returning a
+`RouteResult`, not a string or an object containing a confidence score:
 
----
-
-## 6. Ambiguedades actuales detectadas
-
-| Ambiguedad | Descripción | Resolución |
-|------------|-------------|------------|
-| `infra` vs `network_scan` | "cómo está la red" puede ser infra o network_scan | `network_scan` = dispositivos/hosts LAN; `infra` = servicios/homelab/containers |
-| `chat` vs `none` | some chat intent is `none` | `none` es el label único para chat sin tool |
-| `self-evolve` vs reminders | referencias a "propuestas" se confunden | self-evolve tiene su propio handler; reminders es skill separada |
-| smart-home escenas | `lights`, `smart-home-cinema`, `smart-home-relax` | hoy solo `lights` es oficial; escenas específicas pendientes de expansión |
-| `arr_monitor` vs `infra` | "descargas" puede ir a cualquiera | `arr_monitor` = sonarr/radarr/qbittorrent; `infra` = containers/sistema |
-
----
-
-## 7. Enforcement mínimo
-
-Sin refactor grande. Solo:
-
-1. Módulo compartido `routes_contract.py` con `VALID_ROUTES` y helpers
-2. `router.py` y `router_runtime.py` importan de ahí
-3. Tests de contrato mínimos
-4. Header en cada archivo que toca routing indicando que debe respetar este contrato
-
----
-
-## 8. Cómo usar este contrato antes de lanzar agentes
-
-Cada prompt de agente debe incluir al inicio:
-
+```python
+@dataclass
+class RouteResult:
+    route: str
+    raw_output: str
+    success: bool
+    method: str = "unknown"  # regex | ollama | fallback
+    error: str | None = None
+    cached: bool = False
 ```
-Antes de modificar cualquier archivo de routing, leer:
-/home/tenazas/runtime/INTERFACE_CONTRACT.md
 
-Reglas no negociables:
-- No agregar labels sin actualizar routes_contract.py
-- No duplicar clasificación entre capas
-- Label oficial: network_scan (no network-scanner)
-- Skills no reclasifican
+`to_dict()` serializes these fields. Classification errors produce `route="none"`,
+`success=False`, and `method="fallback"`. A valid `none` classification does not
+imply an executable tool.
+
+## Dispatcher API
+
+`tool_tuning/router_runtime.py` exposes:
+
+```python
+dispatch(user_input: str, model: str | None = None) -> str | None
+dispatch_json(user_input: str, model: str | None = None) -> dict
 ```
+
+`dispatch()` returns handler output or `None` to continue with chat.
+`dispatch_json()` includes `ok`, `route`, `raw_label`, `router_ok`, `router_error`,
+`handler_ok`, `handler_error`, `output`, `classify_ms`, `handler_ms`, `total_ms`,
+`ollama_host`, `ollama_model`, and `fallback_to_chat`.
+
+Skill interfaces vary; do not require every skill to implement a uniform
+`text/data/error` payload. The fields above describe dispatcher telemetry.
+
+## Ambiguities
+
+| Case | Boundary |
+|---|---|
+| `infra` / `network_scan` | Services and containers / LAN hosts and devices |
+| `infra` / `arr_monitor` | General system / media stack and downloads |
+| `none` / `chat` | The closed classifier uses `none`; `chat` is a historical alias |
+| Scenes / `lights` | Other layers' scene names do not add canonical labels |
+| `self-evolve` and other skills | May have handlers outside this classifier |
+
+## Contract changes
+
+1. Document ambiguities before resolving them.
+2. Update `routes_contract.py` first.
+3. Review regex, validation, dispatch, and aliases.
+4. Review affected metrics, exporters, and dashboards.
+5. Update the relevant caller's tests and datasets.
+6. Keep `network_scan` as the canonical spelling.
+
+See [Architecture](../../docs/architecture.md) and [Models](../../MODELS.md).

@@ -1,5 +1,11 @@
 # n8n Phase 1 Jobs
 
+Documentation reviewed on **2026-10-28** against repository code. Migration states
+and schedules below are operational plans/defaults, not a live NAS inventory.
+The dated [2026-05-21 report](../tools/REPORT_20260521.md) records changes on one
+deployment; confirm current DSM tasks, n8n activation and internal loops before cutover.
+See [runner connectivity](n8n-cutover-runbook.md#runner-connectivity-from-n8n).
+
 ## Purpose
 
 Phase 1 moves operational scheduling out of the `openclaw` container without rewriting the runtime.
@@ -9,7 +15,7 @@ DSM keeps using host-side wrappers during Phase A, but those wrappers can now ta
 
 Current posture:
 
-- Production path: DSM + wrappers
+- Initial migration path: DSM + wrappers
 - `n8n` path: prepared, manual, disabled by default
 - Activation command: `docker compose --profile migration up -d n8n`
 - Full operator sequence: `docs/n8n-cutover-runbook.md`
@@ -52,7 +58,10 @@ Container default:
 TENAZAS_JOB_RUNNER_BASE_URL=http://host.docker.internal:18891
 ```
 
-## Recommended Schedules
+## Reference Schedules
+
+These are proposed initial cadences, not proof of the active workflow schedules.
+Compare the workflow JSON and the dated tuner report before changing the scheduler.
 
 - Health sweep: `0 * * * *`
 - GPU keepalive: `*/4 * * * *`

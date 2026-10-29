@@ -1,171 +1,72 @@
-# Modelos de IA — Tenazas
+# Models and routing
 
-## Modelos en producción
+Code reviewed **2026-10-28**. The catalog is configuration, not proof of installed
+models, provider availability, current pricing, or inference performance.
 
-### HomeLab Ollama (192.168.2.6:11434, RTX 3090 24GB)
+## Python model router
 
-| Modelo | Params | VRAM | Rol | Uso |
-|---|---|---|---|---|
-| qwen2.5:7b | 7B | 4.7 GB | fast | Chat, sistema, tareas rápidas |
-| deepseek-r1:14b | 14B | 9.0 GB | reason | Análisis, debugging, reflexión |
-| qwen2.5:32b | 32B | 20.0 GB | heavy | Tareas críticas, contexto largo |
-| qwen2.5-coder:14b | 14B | 9.0 GB | code | Generación, refactor, review |
-| qwen2.5vl:7b | 7B | 6.0 GB | vision | Input visual, imágenes |
-| qwen3:8b | 8B | 5.2 GB | fast | Alternativa a qwen2.5:7b |
-| nomic-embed-text | 137M | 0.3 GB | embed | Embeddings para RAG |
-| tenazas-router-labels | ~3B | ~2.0 GB | routing | Intent classification (labels cerradas) |
-| tenazas-multitool | ~3B | ~2.0 GB | multitool | Multi-tool selection XML |
+Source: [model_router.py](workspace/runtime/model_router.py). V1 selects by
+capability; V2 selects by role. Both account for backends and constraints.
 
-### NAS Ollama (127.0.0.1:11434, CPU only)
-
-| Modelo | Uso |
+| V2 role | Ordered `ROLE_MAP` chain |
 |---|---|
-| phi4-mini | Fallback liviano (solo si HomeLab offline) |
+| `fast` | `qwen3-fast:8b` → `qwen2.5:7b` → `qwen3-fast:4b` |
+| `reason` | `qwen3-fast:8b` → `qwen3-fast:4b` → `qwen2.5:7b` |
+| `heavy` | `qwen3-fast:8b` → `qwen3-fast:4b` → `qwen2.5:7b` |
+| `code` | `qwen2.5-coder:7b` → `qwen3-fast:8b` → `qwen2.5:7b` |
+| `vision` | `qwen3-vl:4b` → `qwen3-fast:8b` → `qwen2.5:7b` |
+| `embed` | `nomic-embed-text` |
+| `cloud` | `moonshotai/kimi-k2` → `google/gemini-flash-1.5` |
 
-### Cloud (fallback)
+Declared backends are `notebook_gpu` (the internal HomeLab name), `nas_cpu`, and
+`openrouter`, with priorities 1, 2, and 3. Selection considers availability, VRAM,
+cooldown, frequency, and latency. The catalog marks `qwen2.5:3b` and `phi4-mini`
+as legacy. Memory estimates are approximate.
 
-| Modelo | Provider | Costo (per Mtok) | Uso |
-|---|---|---|---|
-| moonshotai/kimi-k2 | OpenRouter | $0.60 in / $2.40 out | General, reasoning, self-evolve |
-| Gemini 2.5 Flash | Google Cloud | Gratis (tier) | Fallback final |
-| Gemini 2.5 Pro | Google Cloud | Variable | Razonamiento cloud (alias: "reasoning") |
+`qwen3-fast:*` names refer to custom models. Do not assume they are registry tags
+that `ollama pull` can download. Import or recreate their Modelfiles and check
+`ollama list`. The local Modelfiles mentioned in historical HomeLab notes are not
+included in this checkout.
 
----
+## Independent selectors
 
-## Modelo de routing: tenazas-router-labels
-
-Modelo GGUF fine-tuned desde qwen2.5-3b para clasificar queries en labels cerradas.
-
-### Labels disponibles
-| Label | Significado | Ejemplo |
-|---|---|---|
-| `weather` | Clima | "cómo está el clima" |
-| `calendar` | Agenda/calendario | "qué tengo hoy" |
-| `weather_calendar` | Clima + agenda | "clima y agenda de hoy" |
-| `lights` | Control de luces Hue | "prendé las luces" |
-| `network_scan` | Escaneo de red LAN | "escanea la red" |
-| `infra` | Estado homelab/containers | "cómo están los containers" |
-| `tts` | Text-to-speech | "mandame un audio" |
-| `arr_monitor` | Media/downloads stack | "cómo están las descargas" |
-| `none` | Chat sin tool | "hola, cómo estás" |
-
-### Arquitectura del router (router.py)
-```
-User query
-    ↓
-[Regex fast-path] → Match? → Return label (0ms)
-    ↓ (no match)
-[Ollama LLM] → tenazas-router-labels → Validate label → Return
-    ↓ (error/offline)
-[Fallback] → "none"
-```
-
-- 30+ regex patterns para network_scan, infra, arr_monitor, weather, etc.
-- Separación semántica: network_scan = dispositivos/hosts, infra = servicios/sistema
-- Cache LRU con TTL (60s, configurable)
-- Logging JSON estructurado → logs/tool_router.log
-- Validación estricta contra VALID_ROUTES (label desconocido → "none")
-
----
-
-## Modelo multitool: tenazas-multitool
-
-Modelo GGUF fine-tuned desde qwen2.5-3b para selección de tools via XML.
-
-### Dataset
-- 306 ejemplos totales (245 train / 61 eval)
-- Categorías: 80 single-tool, 81 multi-tool, 20 no-tool, 20 ambiguos, +95 expansión
-- Tools: weather, calendar, email, smart-home, tts, network-scanner, infra-monitor, arr-monitor, self-evolve
-
-### Pipeline de training
-```
-build_multitool_dataset.py  → 306 ejemplos JSONL
-split_dataset.py            → 80/20 train/eval split
-train_multitool.py          → LoRA/QLoRA (RTX 3090)
-merge_3b.py                 → Merge LoRA + base model
-convert_to_gguf.bat         → HF → GGUF (llama.cpp b4924, q8_0)
-ollama create               → Modelo listo en Ollama
-eval_runner.py              → Evaluar contra eval set
-```
-
-### Herramientas (HomeLab)
-- Python: 3.14 (3.11 bloqueado por WDAC en HomeLab)
-- llama.cpp: b4924
-- GGUF quantization: q8_0 (no q4_k_m)
-- HF_HOME: D:\hf_cache (persistente, setup_hf_cache_machine.ps1)
-
----
-
-## Evaluaciones actuales
-
-### Baseline (qwen2.5:7b + system prompt)
-| Métrica | Valor |
+| Component | Code configuration |
 |---|---|
-| F1 | 0.683 |
-| Precision | 0.683 |
-| Recall | 0.697 |
-| Exact match | 0.656 |
-| Hallucination rate | 0.0 |
-| Over-trigger | 0.098 |
-| Under-trigger | 0.164 |
+| `model_failover.py` | Primary `google/gemini-2.5-flash`; fallback `ollama/qwen2.5:7b` |
+| `telegram_router.py` | `TENAZAS_TELEGRAM_FALLBACK_MODEL`, default `qwen3:8b` |
+| `tool_tuning/router.py` | Default classifier `tenazas-router-labels`, configurable through `OLLAMA_MODEL` |
+| `agent_job_search.py` | CV matching with `qwen2.5:3b` |
+| `scripts/homelab-ollama-startup.ps1` | Pulls `gemma3:12b`, `qwen3:8b`, `qwen2.5:7b`, `nomic-embed-text`; warms `gemma3:12b` |
+| `finetuned_router.py` | Separate skill classifier; inspect its constants and caller before changing routing |
 
-### Finetuned (tenazas-multitool)
-| Métrica | Valor |
-|---|---|
-| F1 | 0.683 |
-| Precision | 0.683 |
-| Recall | 0.697 |
-| Exact match | 0.656 |
-| Hallucination rate | 0.0 |
-| Over-trigger | 0.098 |
-| Under-trigger | 0.164 |
+These settings do not form one global cascade. The gateway failover monitor
+observes rate limits and changes gateway configuration. The Python model router
+selects models for its own callers. HomeLab startup uses a different model set
+from `ROLE_MAP`; see the [Ollama runbook](docs/homelab-ollama-runbook.md).
 
-**Nota**: Baseline y finetuned muestran scores idénticos. Posibles causas:
-- El eval runner usó el mismo modelo para ambos
-- El fine-tuning no mejoró sobre el baseline con system prompt
-- El dataset de 306 ejemplos puede ser insuficiente para un delta significativo
+Cloud identifiers are documented because they exist in source. Verify provider
+availability and pricing before use; this guide does not promise a free tier or
+maintain current price quotations.
 
-### Per-tool F1 (ambos modelos)
-| Tool | F1 | Estado |
-|---|---|---|
-| calendar | 1.0 | OK |
-| email | 1.0 | OK |
-| smart-home-work | 1.0 | OK |
-| infra-monitor | 0.941 | OK |
-| weather | 0.909 | OK |
-| smart-home-on | 0.667 | Mejorable |
-| tts | 0.615 | Mejorable |
-| arr-monitor | 0.5 | Bajo |
-| network_scan | 0.0 | Crítico — label mismatch resuelto en router.py |
-| self-evolve | 0.0 | Crítico — patterns expandidos en orchestrator |
-| smart-home-cinema | 0.0 | Crítico |
-| smart-home-relax | 0.0 | Crítico |
+## Tool classification and training
 
-### Router labels (tenazas-router-labels)
-Test manual: 4/4 correcto (weather_calendar, lights, none, network_scan)
-Router regex: 99 tests automatizados, todos pasan
+Canonical labels are `weather`, `calendar`, `weather_calendar`, `lights`,
+`network_scan`, `infra`, `tts`, `arr_monitor`, and `none`. See the
+[routing contract](workspace/runtime/INTERFACE_CONTRACT.md).
 
----
+[Runtime tool_tuning](workspace/runtime/tool_tuning/) contains dataset builders,
+evaluation, and exporters. [workbench/tenazas-router](workbench/tenazas-router/)
+contains a separate pipeline and training data. Review each pipeline's paths,
+arguments, dependencies, and formats; they are not one fixed-version dataset.
 
-## Observabilidad de modelos
+`tenazas-router-labels` and `tenazas-multitool` need training/import artifacts beyond
+the standard bootstrap. Previously documented April 2026 evaluation results were
+historical and do not establish current accuracy or improvement from fine-tuning.
+Record model, dataset, split, and date with a fresh evaluation before comparing results.
 
-### Prometheus metrics (:9107)
-- `tenazas_eval_f1{model="baseline|finetuned|3b_baseline"}`
-- `tenazas_eval_precision{model="..."}`
-- `tenazas_eval_recall{model="..."}`
-- `tenazas_eval_exact_match{model="..."}`
-- `tenazas_eval_hallucination_rate{model="..."}`
-- `tenazas_eval_over_trigger{model="..."}`
-- `tenazas_eval_under_trigger{model="..."}`
-- `tenazas_eval_f1_per_tool{tool="...", model="..."}`
-- `tenazas_eval_file_mtime_seconds{model="..."}`
-- `tenazas_eval_exporter_up`
+## Evaluation observability
 
-### Dashboard Grafana: tenazas-multitool-eval
-12+ panels: exact match, F1, precision, recall, hallucination, over/under trigger,
-per-tool F1 (bar gauge baseline vs finetuned), delta F1, freshness, exporter status
-
----
-
-## Último relevamiento
-Fecha: 2026-04-09
+The evaluation exporter listens on `:9107`; Prometheus scrapes it every 300 s.
+Check timestamps, exporter health, and result files before interpreting F1,
+precision, recall, or exact match. Dashboard:
+[grafana/dashboards/tenazas-multitool-eval.json](grafana/dashboards/tenazas-multitool-eval.json).

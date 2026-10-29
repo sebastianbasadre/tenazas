@@ -1,317 +1,125 @@
 # Tenazas
 
-Asistente personal de Sebastian, corriendo sobre [OpenClaw](https://github.com/nicholasgasior/openclaw) dentro de un contenedor Docker en un NAS Synology DS923+.
+A personal assistant built on OpenClaw, combining a Python runtime, Telegram,
+homelab automation, job search, personal finance, and smart home controls.
+Tenazas runs on a Synology NAS and uses a separate Ollama GPU host for local inference.
 
-Tenazas monitorea infraestructura, controla dispositivos smart home, gestiona una media stack completa, y se comunica via Telegram — todo de forma autonoma y local-first.
+Documentation reviewed against repository code on **2026-10-28**. Deployment
+status, active schedules, installed models, and service availability require host verification.
 
----
+## Documentation
 
-## Arquitectura
-
-```
-Synology DS923+ (192.168.2.2)
-├── Docker Engine
-│   ├── openclaw         — Tenazas (Node.js 24, network_mode: host)
-│   ├── gluetun          — VPN gateway (NordVPN, servidor España)
-│   ├── arr-stack (10)   — qbittorrent, sonarr, radarr, lidarr, prowlarr,
-│   │                      seerr, requestrr, tautulli, sabnzbd
-│   ├── chromadb         — Vector DB para RAG (:8100)
-│   ├── piper            — TTS local (voz es_MX)
-│   ├── prometheus       — Metricas (:9090), retencion 30d/1GB
-│   ├── grafana          — Dashboard (:3000), credenciales via `.env`
-│   ├── ollama           — LLM fallback CPU
-│   ├── portainer        — Dashboard Docker
-│   └── watchtower       — Auto-update de imagenes
-│
-HomeLab (192.168.2.6) — GPU remota
-└── Ollama (:11434) — RTX 3090, 24GB VRAM
-    ├── qwen2.5:7b        — fast: chat, sistema, default
-    ├── deepseek-r1:14b   — reason: analisis, debugging
-    ├── qwen2.5:32b       — heavy: tareas criticas, sintesis
-    ├── qwen2.5-coder:14b — code: generacion, refactor
-    ├── qwen2.5vl:7b      — vision: input visual
-    ├── qwen3:8b          — fast: alternativa
-    └── nomic-embed-text  — embed: RAG
-
-Smart Home (LAN)
-├── Philips Hue Bridge   — 8 luces
-└── Samsung M8 Monitor   — Control via WebSocket
-```
-
-**20 containers** en operacion normal. Canal de comunicacion principal: **Telegram**.
-
----
-
-## Componentes clave
-
-| Componente | Descripcion |
+| Start here | Purpose |
 |---|---|
-| **Orchestrator** | Clasifica queries y routea al pipeline + modelo optimo (keyword+regex, sin LLM) |
-| **Runtime Layer** | 42 modulos: monitoreo, diagnosticos, razonamiento, aprendizaje, simulacion |
-| **RAG Pipeline** | Query rewrite → hybrid retrieval → rerank → confidence → memory fusion → compress → actions → LLM |
-| **Model Failover** | Detecta Gemini 429, auto-switch a Ollama qwen2.5:7b, retry cada 5min |
-| **Observabilidad** | Prometheus + Grafana, 15 metricas (health, runs, duration, restarts, VPN, RAG, steps, failover) |
-| **Reasoning** | Multi-agent (Qwen+Phi), agent lab, planner, predictive engine |
-| **Learning** | Metrics engine, self-optimizer, idle learning, model distillation, dataset builder |
-| **Safety** | Safety guard, docker wrapper, audit logs. Nunca auto-ejecuta acciones de infra |
-| **Infra Intelligence** | Infra memory (patrones), predictive engine, runbooks, world model, simulation lab |
-| **LLM Routing** | Router V2: role-based (fast/reason/heavy/code/vision/embed) + hardware-aware fallback. Local-first |
-| **Arr-stack** | 10 containers de media gestionados via VPN (gluetun) |
-| **Smart Home** | Control de luces Hue y monitor Samsung M8 |
-| **25 Skills** | Desde clima y email hasta auto-analisis semanal (`self-evolve`) + training pipeline |
-| **Multitool Inference** | Modelo finetuned selecciona multiples tools via XML en una query |
-| **Telegram Router** | Intercepcion deterministica de skills + IOL broker + inline approvals |
-| **Memory Dreaming** | Consolidacion REM: extrae lasting truths de memoria episodica en idle |
-| **Exec Approvals** | Botones inline de Telegram para aprobar/cancelar acciones |
-| **Eval Harness** | Precision, recall, F1, hallucination rate — Prometheus + Grafana |
-| **Knowledge Base** | 251 chunks RAG: infra, finance, personal, smart home + datasets routing/eval |
-| **IOL Auto-refresh** | Token refresh cada 10 min, re-auth automatica, Telegram alert on failure |
+| [Documentation index](docs/README.md) | All maintained guides and historical references |
+| [Setup](docs/setup.md) | Configuration, mounts, permissions, and startup |
+| [Architecture](docs/architecture.md) | Deployment map, request flow, and operational boundaries |
+| [Development](docs/development.md) | Python environment, checks, and contribution workflow |
+| [Infrastructure](INFRA.md) | Services, ports, exporters, and external dependencies |
+| [Models](MODELS.md) | Model selectors, roles, and fallback configuration |
 
----
+## System overview
 
-## Observabilidad
-
-### Prometheus (:9090)
-Scrapea metricas cada 30s de `:9105/metrics`. Retencion 30d/1GB.
-
-### Grafana (:3000)
-5 dashboards Grafana:
-- Health Score (gauge + historia)
-- Ciclos completados, failures, durations
-- Container restarts, VPN disconnects, Ollama failures
-- Freezes, watchdog events
-- Step durations (update_state, detect_events, run_tasks, nmap)
-- RAG queries, low confidence
-- Memoria y CPU del proceso
-- **Tenazas Agent** — routing V1/V2, roles, latencia, guardrails, VRAM, failover
-- **OpenRouter / Kimi-K2** — gasto, balance, ultimo check
-- **Tenazas APIs** — Gemini, IOL, OpenRouter usage
-- **Multitool Eval** — F1, precision, recall, hallucination, per-tool F1, baseline vs finetuned
-
-### Metricas exportadas
-```
-runtime_runs_total              runtime_last_duration_seconds
-runtime_failures_total          runtime_health_score
-container_restarts_total        vpn_disconnects_total
-ollama_failures_total           runtime_freeze_detected
-runtime_watchdog_triggered      rag_queries_total
-rag_low_confidence_total        model_failover_active
-runtime_step_update_state_seconds
-runtime_step_detect_events_seconds
-runtime_step_run_tasks_seconds
-runtime_step_nmap_seconds
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Segoe UI, Arial, sans-serif","fontSize":"14px","primaryColor":"#f8fafc","primaryTextColor":"#0f172a","primaryBorderColor":"#64748b","lineColor":"#64748b","secondaryColor":"#f1f5f9","tertiaryColor":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#cbd5e1","edgeLabelBackground":"#ffffff"},"flowchart":{"nodeSpacing":30,"rankSpacing":40,"curve":"basis"}}}%%
+flowchart LR
+    User["User · Telegram"]:::external
+    subgraph NAS["Synology NAS · Docker host"]
+        Assistant["OpenClaw + Python runtime"]:::runtime
+        Search["SearXNG"]:::service
+        Metrics["Prometheus → Grafana"]:::observe
+        Scheduler["n8n · optional migration profile"]:::optional
+    end
+    GPU["HomeLab · Ollama GPU"]:::external
+    APIs["Cloud APIs · integrations · devices"]:::external
+    User <--> Assistant
+    Assistant --> Search
+    Assistant --> GPU
+    Assistant --> APIs
+    Assistant -.->|metrics| Metrics
+    Scheduler -.->|authenticated jobs| Assistant
+    classDef runtime fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef observe fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef optional fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-dasharray:5 5
+    classDef external fill:#f1f5f9,stroke:#64748b,color:#0f172a
 ```
 
-### Flujo de metricas
-```
-cron (5min) → worker_supervisor.py → workers/* → metrics_state.json → metrics_server.py → :9105 → Prometheus → Grafana
-```
+Solid arrows show functional dependencies; dotted arrows show telemetry or optional
+scheduling. See the [detailed architecture](docs/architecture.md) for process,
+network, request, and persistence boundaries.
 
----
+## Capabilities
 
-## Worker Architecture
+| Area | Implementation |
+|---|---|
+| Telegram | Deterministic interceptors, conversation context, approval callbacks, watchdog |
+| Orchestration | Existing orchestrator plus an optional domain-agent coordinator |
+| Domain agents | Infrastructure, finance, research, security, job search, and other domains |
+| Inference | Role-based routing, backend detection, VRAM limits, and guardrails |
+| Monitoring | Five isolated workers with individual timeouts |
+| Knowledge | Retrieval, shared memory, and memory consolidation modules |
+| Automation | DSM wrappers and an authenticated HTTP runner; optional n8n scheduling |
+| Observability | Runtime exporters, Prometheus rules, and provisioned Grafana dashboards |
+| Job search | Discovery, matching, application tracking, and tailored CV preparation |
 
-El runtime usa **crash isolation** via subprocesses. Cada worker corre aislado:
+## Getting started
 
-```
-worker_supervisor.py (cron cada 5 min)
-├── runtime_worker.py    [60s timeout] — core: state, events, tasks, memory
-├── diagnostics_worker.py [30s timeout] — patterns, infra diagnostics
-├── rag_worker.py        [30s timeout] — retrieval quality
-├── agents_worker.py     [30s timeout] — skill analytics, proposals
-└── learning_worker.py   [30s timeout] — background agents, goals, idle learning
-```
-
-Si un worker se congela → killed. Si crashea → los demás siguen.
-
-Incluye:
-- **Lockfile** con stale detection (10 min)
-- **Log rotation** (5MB max, 5 backups)
-- **Heartbeat** por worker (freeze detection 60s)
-- **Devin-lite** suggestions (análisis de crashes → sugerencias por Telegram)
-
----
-
-## Model Failover
-
-Gemini Flash es el modelo primario (gratis, capaz). Cuando da rate limit (429):
-
-```
-Gemini 429 detectado
-    → model_failover.py cambia config a ollama/phi4-mini
-    → OpenClaw hot-reload (sin restart)
-    → phi4-mini ya pre-cargado en VRAM (sin cold start)
-    → Cada 5 min, prueba si Gemini volvio
-    → Si disponible, switch back automatico
-```
-
-Docker healthcheck reinicia el container si el gateway no responde por 3 minutos.
-
----
-
-## Prerequisitos
-
-- **Synology NAS** con Docker (o cualquier host Linux con Docker)
-- **Node.js 24** (incluido en la imagen Docker)
-- **Python 3** con pip + prometheus_client
-- **Docker socket** accesible (`/var/run/docker.sock`)
-- **API keys** configuradas en `state/openclaw.json`:
-  - Telegram Bot Token
-  - Google API Key (Gemini)
-  - Google Calendar OAuth (`gcal-token.json`)
-  - Gmail App Password (himalaya)
-
----
-
-## Instalacion y ejecucion
+[Compose](docker-compose.yml) defines `openclaw`, `prometheus`, `grafana`, and
+`searxng`. The `n8n` service requires the `migration` profile. Ollama, ChromaDB,
+Piper, and the media stack are external to this Compose deployment.
 
 ```bash
-# Clonar el repo
-git clone <repo-url> && cd openclaw
-
-# Configurar secrets
-cp openclaw.json.example state/openclaw.json   # editar con tus keys
-cp gcal-token.json.example gcal-token.json      # OAuth token de Calendar
-
-# Levantar
-docker compose up -d
-
-# Verificar
-docker ps --format "table {{.Names}}\t{{.Status}}" | head -20
+git clone https://github.com/sebastianbasadre/tenazas.git
+cd tenazas
+cp .env.example .env
 ```
 
-El container `openclaw` arranca con `startup.sh`, que inicia:
-1. OpenClaw gateway (bot Telegram)
-2. Metrics server (Prometheus :9105)
-3. Model failover monitor (auto-switch Gemini/Ollama)
-4. Notificacion Telegram de startup
-
-### Cron jobs (DSM Task Scheduler)
-
-| Frecuencia | Comando |
-|---|---|
-| Cada 5 min | `docker exec openclaw python3 /home/tenazas/runtime/worker_supervisor.py` |
-| Domingos 21:00 | `python3 self-evolve.py` |
-| Semanal | `python3 learn.py` |
-
----
-
-## Tests
+Complete credentials, gateway configuration, permissions, and mounted files using
+[Setup](docs/setup.md) before starting services. `openclaw.example.json` illustrates
+Tenazas helper settings; it needs adaptation to the gateway schema and is not a
+complete deployment configuration.
 
 ```bash
-# Todas las suites
-docker exec openclaw bash /home/tenazas/tests/run_tests.sh
+# After completing setup:
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
 ```
 
-### Test suites (1435+ tests, 36 suites)
+## Validation
 
-| Suite | Tests | Cobertura |
-|---|---|---|
-| test_runtime.py | 54 | Docker wrapper, eventos, tareas, patterns, VPN, cooldown |
-| test_safety_guard.py | 62 | Blocked actions, protected containers, sanitizacion, file ops |
-| test_orchestrator.py | 43 | Clasificacion, model selection, pipeline, escalation |
-| test_self_debugger.py | 41 | Log analysis, error classification, scan_all_logs |
-| test_confidence.py | 40 | Scoring, source classification, action mapping, diagnostics |
-| test_advanced.py | 41 | Metrics, infra memory, runbooks, multi-agent, optimizer |
-| test_world_model.py | 38 | Entities, status, topology, state loading, data integrity |
-| test_shared_memory.py | 39 | 4 memory types, persistence, ingestion, queries |
-| test_planner.py | 35 | Templates, context substitution, approval, event mapping |
-| test_query.py | 34 | RAG reranking, compression, memory fusion, scoring |
-| test_skill_generator.py | 34 | Workflow analysis, proposals, approve/reject lifecycle |
-| test_intelligence.py | 33 | Context, trace, conflict, retrieval, knowledge graph |
-| test_model_router.py | 31 | GPU/CPU routing, VRAM constraints, fallback, catalog |
-| test_goal_engine.py | 30 | 3 goals evaluation, metrics counting, state persistence |
-| test_self_dev_engine.py | 28 | Debug/metrics/idle analysis, proposals, dedup |
-| test_idle_learning.py | 27 | Confidence/escalation/latency/imbalance, log patterns |
-| test_background_agents.py | 27 | Infra watcher, scheduling, execution, status |
-| test_observability.py | 25 | Freeze detection, metrics export, health score |
-| test_supervisor.py | 22 | Lock lifecycle, timeout, terminate fallback |
-| test_stability.py | 17 | Lockfile, nmap cache, crash capture |
-| test_compact.py | 11 | Context compaction |
-| test_cognitive.py | varies | Intent, decomposition, reasoning |
-| test_model_router.py | 93 | V1/V2 routing, classify, guardrails, backends, catalog |
-| test_idle_learning_v2.py | 69 | Idle learning collaborative analysis |
-| test_finance.py | 65 | Finanzas personales, parsing, alertas |
-| test_expenses.py | 68 | Gastos rapidos, montos informales, alertas |
-| test_jobs.py | 75 | Pipeline laboral, analisis JD, match scoring |
-| test_iol_broker.py | 62 | IOL portfolio, cotizaciones, ordenes |
-| test_multitool.py | 38 | Parser XML, registry, policy, orchestrator integration |
-| test_eval_harness.py | 32 | Eval metrics, split dataset, aggregate metrics |
-| test_ollama_check.sh | bash | Routing, cache, JSON |
+Python requires **3.11+**. The container uses Node.js 24 and a pinned OpenClaw
+build argument.
 
----
-
-## Estructura del proyecto
-
-```
-openclaw/
-├── docker-compose.yml       — Servicios (openclaw + prometheus + grafana)
-├── Dockerfile               — Imagen base (node:24-bookworm + python3)
-├── startup.sh               — Arranque: gateway + metrics + failover + telegram
-├── prometheus.yml            — Config de Prometheus scraping
-├── grafana-dashboard.json    — Dashboard Grafana (14 paneles)
-├── ollama-check.sh          — Routing de modelos Ollama con cache
-├── learn.py                 — Aprendizaje multi-source semanal
-├── self-evolve.py           — Auto-analisis y propuestas de mejora
-│
-├── state/                   — Config y estado (gitignored)
-│   ├── openclaw.json        — Config principal + secrets
-│   └── workspace/
-│       ├── SOUL.md          — Personalidad e instrucciones del bot
-│       └── skills/          — 22 skills con SKILL.md cada una
-│
-├── workspace/runtime/         — Runtime layer (55+ modulos)
-│   ├── runtime.py             — Loop principal event-driven (cada 5 min)
-│   ├── runtime_supervisor.py  — Wrapper legacy con timeout protection
-│   ├── worker_supervisor.py   — Worker orchestrator (5 isolated subprocesses)
-│   ├── workers/               — Isolated worker subprocesses
-│   │   ├── runtime_worker.py, diagnostics_worker.py, rag_worker.py
-│   │   ├── agents_worker.py, learning_worker.py
-│   ├── log_rotation.py        — Log rotation (5MB, 5 backups)
-│   ├── worker_heartbeat.py    — Per-worker freeze detection
-│   ├── network_cache.py       — Nmap cache (30min TTL)
-│   ├── orchestrator.py        — Central AI routing
-│   ├── safety_guard.py        — Validacion central de seguridad
-│   ├── docker_wrapper.py      — Capa segura para Docker
-│   ├── model_failover.py      — Auto-switch Gemini/Ollama en 429
-│   ├── model_router.py        — Hardware-aware model selection
-│   ├── metrics_exporter.py    — Recording API + cross-process sync
-│   ├── metrics_server.py      — Prometheus HTTP server (:9105)
-│   ├── planner.py             — Rule-based recovery plans
-│   ├── world_model.py         — Infrastructure state representation
-│   ├── shared_memory.py       — Multi-type memory system
-│   ├── skill_generator.py     — Detects recurring workflows
-│   ├── goal_engine.py         — 3 permanent goals tracking
-│   ├── self_debugger.py       — Log error analysis
-│   ├── self_dev_engine.py     — Improvement proposals
-│   ├── idle_learning_engine.py — Idle-time optimization
-│   ├── background_agents.py   — Persistent background tasks
-│   ├── dreaming.py            — REM memory consolidation
-│   ├── exec_approvals.py      — Telegram inline keyboard approvals
-│   ├── multitool_parser.py    — XML parser + tool registry + policy
-│   ├── telegram_router.py     — Telegram polling bot (skill interception)
-│   ├── tool_tuning/           — Multitool finetuning + eval harness
-│   └── ... (30+ mas)
-│
-├── tests/                     — 1435+ tests (unittest + bash, 36 suites)
-└── CLAUDE.md                — Documentacion completa para Claude Code
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest --collect-only
+# Curated Linux/container runner:
+bash tests/run_tests.sh
 ```
 
----
+Some suites require Linux paths, Docker, external APIs, or devices. Follow
+[Development](docs/development.md) to select suitable checks. Test counts and model
+evaluation scores should come from each run rather than a fixed documentation total.
 
-## Seguridad
+## Operational boundaries
 
-- **docker_wrapper.py** es la unica via para ejecutar comandos Docker desde el runtime
-- Whitelist de acciones: `ps`, `restart`, `start`, `stop` (no `exec`, `rm`, `build`)
-- Containers protegidos: `openclaw` y `watchtower` no pueden ser reiniciados automaticamente
-- **safety_guard.py** valida todas las acciones antes de ejecutar (62 tests)
-- Sanitizacion de nombres via regex + blocklist
-- Audit log en JSON (`logs/docker_actions.log`)
-- Secrets nunca hardcodeados — viven en `openclaw.json`, env vars, o `credentials/`
-- Docker healthcheck con auto-restart si gateway no responde (3 min)
+- Docker socket access is privileged; the runtime includes action validation and auditing.
+- `docker_wrapper.py` allows reads and `restart/start/stop`, protecting `openclaw`
+  and `watchtower` from its mutating actions.
+- The job runner requires an operator token and defaults to `127.0.0.1:18891`.
+- Accepted proposals may be applied by `proposal_executor.py` through sandbox
+  branches, validation, limits, and rollback.
+- A failed healthcheck marks the container `unhealthy`; it does not itself restart it.
+  The `unless-stopped` policy handles process exits.
+- Keep credentials, tokens, and personal runtime data out of commits.
 
----
+See [n8n cutover](docs/n8n-cutover-runbook.md),
+[job search](docs/job-search-platform.md), and
+[workspace context](workspace/TENAZAS-CONTEXT.md).
 
-## Licencia
+## License
 
-Proyecto privado de uso personal.
+No license file is included. Public repository visibility does not itself grant
+permission to use, modify, or redistribute the project.

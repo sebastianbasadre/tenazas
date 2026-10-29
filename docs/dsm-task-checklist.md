@@ -1,5 +1,11 @@
 # DSM Task Checklist
 
+Documentation reviewed on **2026-10-28** against repository code. Migration states
+and schedules below are operational plans/defaults, not a live NAS inventory.
+The dated [2026-05-21 report](../tools/REPORT_20260521.md) records changes on one
+deployment; confirm current DSM tasks, n8n activation and internal loops before cutover.
+See [runner connectivity](n8n-cutover-runbook.md#runner-connectivity-from-n8n).
+
 ## Purpose
 
 This is the operator checklist for Synology DSM Task Scheduler during the `n8n` migration.
@@ -13,7 +19,7 @@ Use this together with:
 
 Recommended task type:
 
-- `Triggered Task`
+- `Scheduled Task` for recurring jobs (use a triggered task only for boot/event jobs)
 - `User-defined script`
 - run as the same user that already owns the current Docker tasks
 
@@ -230,7 +236,7 @@ For each job:
 1. execute the workflow manually in `n8n`
 2. verify logs and Telegram behavior
 3. if clean, disable the matching DSM schedule
-4. never leave both DSM and `n8n` scheduling the same job longer than the observation window
+4. keep a single scheduler for each job; use manual executions during observation
 
 ## Rollback Rules
 
