@@ -20,7 +20,16 @@ import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
 from runtime_utils import now
+try:
+    from .private_json import save_json as _save_private_json
+except ImportError:
+    from private_json import save_json as _save_private_json
 
 # Allow running as script or module.
 if __name__ == "__main__":
@@ -46,7 +55,7 @@ if hasattr(signal, "SIGALRM"):
 # ── Paths ─────────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
-STATE_FILE = BASE_DIR / "state.json"
+STATE_FILE = private_state_path(BASE_DIR)
 EVENTS_FILE = BASE_DIR / "events.json"
 TASKS_FILE = BASE_DIR / "tasks.json"
 MEMORY_FILE = BASE_DIR / "memory_log.json"
@@ -86,6 +95,8 @@ def load_json(path: Path, default=None):
 
 
 def save_json(path: Path, data):
+    if Path(path) == STATE_FILE:
+        return _save_private_json(path, data, uid=1026, gid=1026)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(data, f, indent=2, default=str)

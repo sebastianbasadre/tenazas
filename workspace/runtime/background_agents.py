@@ -17,6 +17,11 @@ Log: workspace/runtime/logs/background_agents.log
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
 from runtime_utils import now
 try:
     from .runtime_utils import load_json, save_json
@@ -24,7 +29,7 @@ except ImportError:
     from runtime_utils import load_json, save_json
 
 BASE_DIR = Path(__file__).parent
-STATE_FILE = BASE_DIR / "state.json"
+STATE_FILE = private_state_path(BASE_DIR)
 AGENTS_STATE_FILE = BASE_DIR / "agents_state.json"
 TELEMETRY_LOG = BASE_DIR / "logs" / "background_agents.log"
 

@@ -30,7 +30,8 @@ def run():
 
     try:
         from runtime import infra_diagnostics
-        state_file = BASE_DIR / "state.json"
+        from runtime.state_paths import private_state_path
+        state_file = private_state_path(BASE_DIR)
         try:
             with open(state_file) as f:
                 state = json.load(f)

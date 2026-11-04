@@ -1,0 +1,402 @@
+{
+  "task_files": [
+    {
+      "task_id": 1,
+      "sha256": "6fcb91794f7ff7ceac41df9edfef737d6e682a34abf4965f210c7fcebf602570",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 2,
+      "sha256": "b0f5df49812f708e0e449791b0e89ab4c678d9867ffab7c1faed6c8686d6475f",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 3,
+      "sha256": "1e5e2abec4e41e5d9b47e1e9ff44c633e30643474c6f083dcf2a100d2b4c7345",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 4,
+      "sha256": "9d75d7a2447e5e20d7ee6bce1c3e321de97a01619f527baaf609936cbfc0769b",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 6,
+      "sha256": "0f7042b8e411cbc19936dccb64a0957bb27b0e1702da289a4564cfee93f176ff",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 7,
+      "sha256": "a0d0015b3855f0f6f8fd62a55225a1542e2257272f410d4d37be0a2caf5a671a",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 8,
+      "sha256": "55596b879b0a62166ede202043d097ac4c2b293d3133f44e42fc76d64d66e978",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 10,
+      "sha256": "a038def15ed5a49fbeb46c3065cb429f23380719af9a11cd2a443e6707922a31",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "iol_handler_cli.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 11,
+      "sha256": "727c6b996d575e123aedd6e8da0cc4f2a009de82db621940bd644cd81259cf96",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "self-evolve.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 12,
+      "sha256": "a5b40a9e22bfa423884280f3d031ff233cd22dd18328641bc3f5fffbb7f733e2",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "runtime.py"
+      ],
+      "runtime_entrypoint": true,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 13,
+      "sha256": "25d26fcde4b99e7507b447718bc94706662cf003a9b345afa6609183cc25b8e9",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "daily_data_report.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 14,
+      "sha256": "d6f88816dd866ac6c2fa0358e663566fb53c45da01cf62fe88e0de8b961d3f77",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 15,
+      "sha256": "8229fc819ee481420bcd5a06fa3660e40a76e8e232f5a2a8eb08115c847cebbb",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 16,
+      "sha256": "b49620d64ed607acc2ff665aa31fbce2b44bd3a586d591a429f82b41ee2348cb",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "auto_training_pipeline.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 17,
+      "sha256": "09c023edf0215d2ab793998492d4e245c81b9a6340c2721dd13f30c29049edc1",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "notification_poller.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 18,
+      "sha256": "a61f6e6b5ce9582f276a9747cce5424581bfc67875c52a5bc6724f9a115128e8",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "notification_poller.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 19,
+      "sha256": "912834654cceeb5587fe89eb149cd803f22619a56631bebd4ce496a589477ea1",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "finance_daily.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 20,
+      "sha256": "3fd138e76544e3a22cd7b47b0474e112f77cb35061f517d269e81119aa14a71c",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "gpu_keepalive_cron.sh"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 21,
+      "sha256": "5e2a6d5c77f576a7817e777315b2c5231019fce69ed25f6d7a1128affdc5eb60",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "gpu_scheduler.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 22,
+      "sha256": "96f40b74867395bd585aa5090eef6ac4ab23740ac6dbed30ecca72df89ad246d",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "proactive_planner.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 23,
+      "sha256": "b3d334b7ecade7e1e5f176c6ba300e7c5d6c572555440446f83e4fbc384b16b8",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "roi_tracker.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 24,
+      "sha256": "ff12a9b42079dbd7a4912e5448cd797e985bf36f8513c5a1a6ef7893673843e8",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "unified_briefing.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 25,
+      "sha256": "7997d78102acc09c7ae2fc53d609c2681b37d532b67b131a8b54c40c08251c82",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "trading_observer.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 26,
+      "sha256": "01ed75ac58f6b4baca9248347cf5fe21021326d7c157c31b77271925daa96fec",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "trading_journal.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 27,
+      "sha256": "f54e163c7a9aed75d5e2d866a8f05b43ca101fb17f0ef4dbe1f421501e766131",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "trading_scorer.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 28,
+      "sha256": "a6af2f202509b6b1e23caca3fb693a6c8152d5bd3eb9c43caec684c99c434401",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "benchmark_continuous.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 29,
+      "sha256": "fb3753a9d5e5bc88ab60f8c34d0b6589b77909a4706a314cea3e00a2139e4a3f",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "roi_report.py"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 30,
+      "sha256": "52f1b92d88f5424e974e3362ba95823bfa601eb7ebffe23b032a749338cf5a84",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "health_sweep_cron.sh"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 31,
+      "sha256": "ebadf7140de5d49c40e708511863b0e7ac64f82a60c02f0ce15311245a2f80a0",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "autofix_agent_cron.sh"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 32,
+      "sha256": "9875dfca95887271a215537cdcd0ed806ae746f6621a23c3a28fc7505767b36d",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": true,
+      "script_basenames": [
+        "proposal_executor_cron.sh"
+      ],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 33,
+      "sha256": "22010ec59975dcfc58da05b3ec7fb670f119f515bcbf4be93457744d53f0abe8",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    },
+    {
+      "task_id": 34,
+      "sha256": "8545ec57f5c0138700414d7a38589352e6aee90067f8da21f93255c7f1ac39c8",
+      "state_enum": "enabled",
+      "literal_state_reference": false,
+      "openclaw_reference": false,
+      "script_basenames": [],
+      "runtime_entrypoint": false,
+      "worker_supervisor": false
+    }
+  ],
+  "readonly": true,
+  "raw_commands_disclosed": false,
+  "crontab_active_task_ids": [
+    1,
+    2,
+    3,
+    4,
+    6,
+    7,
+    8,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34
+  ]
+}

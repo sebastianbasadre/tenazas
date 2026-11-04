@@ -26,6 +26,11 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
 from runtime_utils import now
 try:
     from .runtime_utils import load_json
@@ -42,7 +47,7 @@ STATE_DIR = Path("/home/tenazas/.openclaw/state") if Path("/home/tenazas").exist
 RESULTS_FILE = STATE_DIR / "benchmark_continuous.json"
 METRICS_STATE = BASE_DIR / "logs" / "metrics_state.json"
 LOG_FILE = BASE_DIR / "logs" / "benchmark_continuous.log"
-STATE_FILE = BASE_DIR / "state.json"
+STATE_FILE = private_state_path(BASE_DIR)
 ORCHESTRATOR_LOG = BASE_DIR / "logs" / "orchestrator.log"
 
 EXPECTED_CONTAINERS = 20

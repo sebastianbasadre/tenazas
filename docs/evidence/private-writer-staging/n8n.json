@@ -1,0 +1,62 @@
+{
+  "workflow_count": 9,
+  "active_count": 0,
+  "workflows": [
+    {
+      "id_sha256": "739b60ca78c0ae56dc5c2d1bed519d2d6b4880fc560bcba00b63f03d4fcf1559",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "0f37eaac6decee20b72222814b15b5dafc0af854b1c1d95e0436e44141acd7c5",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "085917f8578276391877170281e717c62f424fdfa0c0cc2b6a740c61388c53cb",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "a952ed2e9e44a043a4628c2baecb941c6d6f6e76c222817a6eafb0a2b958b7c1",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "b851e53231def60e9722e1f8bc4715fbf2ea805b26922151fe60e8f7444bae39",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "a82d93b0b2643b106f63df7f6285f66c51f24c05b532629d395d2ef45705cabd",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "1a7ab314be379bc9d462118a0a12684b495488f1b014d71518332888231eb2e8",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "790fcabf07cde5e9314b0b182b168cb95261f33d56b853e049252573e5fb84c0",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    },
+    {
+      "id_sha256": "d1b58fe75deb56e2dbd2f3978832c42b091be1ceba41136faad477656d92c55e",
+      "active": false,
+      "literal_state_reference": false,
+      "raw_runtime_reference": false
+    }
+  ],
+  "readonly": true,
+  "node_parameters_disclosed": false
+}

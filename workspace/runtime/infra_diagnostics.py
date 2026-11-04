@@ -17,6 +17,11 @@ SAFETY: Read-only analysis. Never modifies infrastructure.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
 from runtime_utils import now
 try:
     from .runtime_utils import load_json
@@ -26,7 +31,7 @@ except ImportError:
 # ── Config ───────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
-STATE_FILE = BASE_DIR / "state.json"
+STATE_FILE = private_state_path(BASE_DIR)
 MEMORY_FILE = BASE_DIR / "memory_log.json"
 EVENTS_FILE = BASE_DIR / "events.json"
 DIAGNOSTICS_LOG = BASE_DIR / "logs" / "diagnostics.log"

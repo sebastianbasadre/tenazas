@@ -30,6 +30,11 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+
+try:
+    from .state_paths import private_state_path
+except ImportError:
+    from state_paths import private_state_path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -660,8 +665,10 @@ def _probe_memory_stores() -> dict:
     bloat_warn = []
     for name in ["memory_log.json", "shared_memory.json", "patterns.json",
                  "events.json", "state.json"]:
-        p = memory_dir / name
-        if not p.exists():
+        p = private_state_path(BASE_DIR) if name == "state.json" else memory_dir / name
+        if name == "state.json" and not p.is_file():
+            raise RuntimeError("Private runtime state unavailable")
+        if name != "state.json" and not p.exists():
             p = BASE_DIR / name
         if p.exists():
             sz = p.stat().st_size

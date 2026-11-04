@@ -1,0 +1,902 @@
+{
+  "source_sha256": {
+    "runtime.py": "f94f98bc5d9f6d532deebf4a851bf434e0f7ac370860d2d23ac9a8df724d343a",
+    "runtime_utils.py": "e48a536ee6c2301826d609df0e7f52bd767a594c5b4039686ecddd163ea502cf",
+    "worker_supervisor.py": "4792f4ab546d686dcda75c0e0054e8d9144434803ee41a0907ee6e0290cc9b44",
+    "service_supervisor.py": "4c2c75ce5d9dbcad26548573ef3d77187cee099d0ff4734346fc19d229e8f586",
+    "process_lock.py": "1be3edbfbc420ed4b432d9a6034262849b25e66badb20d53bb4155f3cc44e9c3",
+    "runtime_worker.py": "ff93cbd2f43ae9c0a7521626bcc3e116d26fdfd54a1c7ea96ef968405114857d"
+  },
+  "host_acl_preflight": [
+    {
+      "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+      "result": "(synoacltool.c, 596)It's Linux mode"
+    },
+    {
+      "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+      "result": "(synoacltool.c, 596)It's Linux mode"
+    },
+    {
+      "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/evidence",
+      "result": "(synoacltool.c, 596)It's Linux mode"
+    }
+  ],
+  "cycles": [
+    {
+      "cycle": 1,
+      "route": "service",
+      "route_result": "{\"route\": \"service_supervisor.start -> worker_supervisor.main -> runtime_worker.run\", \"ok\": true, \"worker_result\": {\"ok\": true, \"events\": 0, \"tasks\": 0, \"results\": 0, \"elapsed\": 0.4, \"health\": 100}}",
+      "after_route": {
+        "inode": 30884842,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:38:05.923124+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884847
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884850
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884849
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "route": "dsm-exec-emulation",
+      "route_result": "",
+      "after_route": {
+        "inode": 30884871,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:38:14.846026+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884879
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884881
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884880
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "route": "service",
+      "route_result": "{\"route\": \"service_supervisor.start -> worker_supervisor.main -> runtime_worker.run\", \"ok\": true, \"worker_result\": {\"ok\": true, \"events\": 0, \"tasks\": 0, \"results\": 0, \"elapsed\": 0.41, \"health\": 100}}",
+      "after_route": {
+        "inode": 30884914,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:38:29.147195+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884915
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884921
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884916
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "route": "dsm-exec-emulation",
+      "route_result": "",
+      "after_route": {
+        "inode": 30884941,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:38:40.248778+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884950
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884956
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884951
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 5,
+      "route": "service",
+      "route_result": "{\"route\": \"service_supervisor.start -> worker_supervisor.main -> runtime_worker.run\", \"ok\": true, \"worker_result\": {\"ok\": true, \"events\": 0, \"tasks\": 0, \"results\": 0, \"elapsed\": 0.22, \"health\": 100}}",
+      "after_route": {
+        "inode": 30884973,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:38:49.294481+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884974
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884982
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884979
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 6,
+      "route": "dsm-exec-emulation",
+      "route_result": "",
+      "after_route": {
+        "inode": 30885002,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:38:55.644562+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885009
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885011
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885010
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 7,
+      "route": "service",
+      "route_result": "{\"route\": \"service_supervisor.start -> worker_supervisor.main -> runtime_worker.run\", \"ok\": true, \"worker_result\": {\"ok\": true, \"events\": 0, \"tasks\": 0, \"results\": 0, \"elapsed\": 0.32, \"health\": 100}}",
+      "after_route": {
+        "inode": 30885025,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:39:03.714659+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885027
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885033
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885032
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 8,
+      "route": "dsm-exec-emulation",
+      "route_result": "",
+      "after_route": {
+        "inode": 30885071,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:39:13.134936+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885075
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885081
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885076
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 9,
+      "route": "service",
+      "route_result": "{\"route\": \"service_supervisor.start -> worker_supervisor.main -> runtime_worker.run\", \"ok\": true, \"worker_result\": {\"ok\": true, \"events\": 0, \"tasks\": 0, \"results\": 0, \"elapsed\": 0.23, \"health\": 100}}",
+      "after_route": {
+        "inode": 30885096,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:39:20.957356+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885097
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885099
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885098
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    },
+    {
+      "cycle": 10,
+      "route": "dsm-exec-emulation",
+      "route_result": "",
+      "after_route": {
+        "inode": 30885121,
+        "uid": 1026,
+        "gid": 1026,
+        "mode": "0o600",
+        "timestamp": "2026-10-04T01:39:29.204582+00:00"
+      },
+      "verification": {
+        "valid_json": true,
+        "same_uid_read_write": true,
+        "zero_synthetic_secret_matches": true,
+        "metadata": [
+          {
+            "path": "/private-state/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885126
+          },
+          {
+            "path": "/mcp-cache",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884812
+          },
+          {
+            "path": "/mcp-cache/incidents",
+            "mode": "0o700",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30884848
+          },
+          {
+            "path": "/mcp-cache/infra.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885132
+          },
+          {
+            "path": "/mcp-cache/state.json",
+            "mode": "0o600",
+            "uid": 1026,
+            "gid": 1026,
+            "inode": 30885131
+          }
+        ]
+      },
+      "host_acl": [
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/incidents",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/state.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        },
+        {
+          "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache/infra.json",
+          "result": "(synoacltool.c, 596)It's Linux mode"
+        }
+      ]
+    }
+  ],
+  "prepare": {
+    "prepared": true,
+    "source_sha256": {
+      "runtime.py": "f94f98bc5d9f6d532deebf4a851bf434e0f7ac370860d2d23ac9a8df724d343a",
+      "runtime_utils.py": "e48a536ee6c2301826d609df0e7f52bd767a594c5b4039686ecddd163ea502cf",
+      "worker_supervisor.py": "4792f4ab546d686dcda75c0e0054e8d9144434803ee41a0907ee6e0290cc9b44",
+      "service_supervisor.py": "4c2c75ce5d9dbcad26548573ef3d77187cee099d0ff4734346fc19d229e8f586",
+      "process_lock.py": "1be3edbfbc420ed4b432d9a6034262849b25e66badb20d53bb4155f3cc44e9c3",
+      "runtime_worker.py": "ff93cbd2f43ae9c0a7521626bcc3e116d26fdfd54a1c7ea96ef968405114857d"
+    }
+  },
+  "access_tests": [
+    {
+      "authorized_uid": 1026,
+      "six_read_operations": 6,
+      "mount_ro": true,
+      "zero_secret_matches": true
+    },
+    {
+      "unauthorized_uid": 1027,
+      "read_denied": true
+    }
+  ],
+  "container_isolation": {
+    "image": "sha256:415fc5cf5d04fb521d2ad26d053f70b6fd3af3725e8a911746aa9b5cc065723c",
+    "user": "1026:1026",
+    "network": "none",
+    "readonly_rootfs": true,
+    "port_bindings": {},
+    "mounts": [
+      {
+        "source": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/entrypoints",
+        "destination": "/entrypoints",
+        "rw": false
+      },
+      {
+        "source": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/private-state",
+        "destination": "/private-state",
+        "rw": true
+      },
+      {
+        "source": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/mcp-cache",
+        "destination": "/mcp-cache",
+        "rw": true
+      },
+      {
+        "source": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/source",
+        "destination": "/code",
+        "rw": false
+      }
+    ]
+  },
+  "production_readonly_postcheck": {
+    "raw_state": {
+      "mode": "0o777",
+      "uid": 1034,
+      "gid": 100,
+      "inode": 5703155
+    },
+    "openclaw_running_started_at": "true \"2026-10-03T21:17:19.082215409Z\"",
+    "unchanged_source_sha256": {
+      "runtime.py": "f94f98bc5d9f6d532deebf4a851bf434e0f7ac370860d2d23ac9a8df724d343a",
+      "runtime_utils.py": "e48a536ee6c2301826d609df0e7f52bd767a594c5b4039686ecddd163ea502cf",
+      "worker_supervisor.py": "4792f4ab546d686dcda75c0e0054e8d9144434803ee41a0907ee6e0290cc9b44",
+      "service_supervisor.py": "4c2c75ce5d9dbcad26548573ef3d77187cee099d0ff4734346fc19d229e8f586",
+      "process_lock.py": "1be3edbfbc420ed4b432d9a6034262849b25e66badb20d53bb4155f3cc44e9c3",
+      "runtime_worker.py": "ff93cbd2f43ae9c0a7521626bcc3e116d26fdfd54a1c7ea96ef968405114857d"
+    }
+  },
+  "staging_boundaries": {
+    "real_DSM_Task12_executed": false,
+    "production_probes_executed": false,
+    "production_changed": false,
+    "merged": false,
+    "deployed": false
+  }
+}

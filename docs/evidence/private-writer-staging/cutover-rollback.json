@@ -1,0 +1,116 @@
+[
+  {
+    "step": "synthetic-legacy",
+    "metadata": [
+      {
+        "path": "/staging/legacy-migration",
+        "mode": "0o777",
+        "uid": 1034,
+        "gid": 100,
+        "inode": 30885908
+      },
+      {
+        "path": "/staging/legacy-migration/state.json",
+        "mode": "0o777",
+        "uid": 1034,
+        "gid": 100,
+        "inode": 30885909
+      }
+    ],
+    "legacy_acl": "ACL version: 1 \nArchive: is_inherit,is_support_ACL \nOwner: [sbasadre(user)] \n--------------------- \n\t [0] user::allow:rwxpdDaARWc--:---- (level:4)\n\t [1] user:ContainerManager:allow:rwxpdDaARWc--:---- (level:4)\n\t [2] user:sbasadre:allow:rwxpdDaARWc--:---- (level:4)\n\t [3] user:fbasadre:allow:rwxpdDaARWc--:---- (level:4)\n\t [4] everyone::allow:r-x---a-R-c--:---- (level:4)\n\t [5] user::allow:rwxpdDaARWc--:---- (level:4)\n\t [6] group:administrators:allow:rwxpdDaARWc--:---- (level:4)\n\t [7] everyone::allow:rwxpdDaARWc--:---- (level:4)\n\t [8] user:arr:allow:rwxpdDaARWc--:---- (level:4)\n\t [9] user::allow:rwxpdDaARWc--:---- (level:4)\n\t [10] user::allow:rwxpdDaARWc--:---- (level:4)\n\t [11] user:tenazas:allow:rwxpdDaARWc--:---- (level:4)\n\t [12] everyone::allow:r-x---a-R-c--:---- (level:4)\n"
+  },
+  {
+    "step": "protected-parent",
+    "metadata": [
+      {
+        "path": "/staging/legacy-migration",
+        "mode": "0o700",
+        "uid": 1026,
+        "gid": 1026,
+        "inode": 30885908
+      },
+      {
+        "path": "/staging/legacy-migration/state.json",
+        "mode": "0o0",
+        "uid": 1034,
+        "gid": 100,
+        "inode": 30885909
+      }
+    ],
+    "acl": [
+      {
+        "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/legacy-migration",
+        "result": "(synoacltool.c, 596)It's Linux mode"
+      }
+    ]
+  },
+  {
+    "step": "private-cutover",
+    "metadata": [
+      {
+        "path": "/staging/legacy-migration",
+        "mode": "0o700",
+        "uid": 1026,
+        "gid": 1026,
+        "inode": 30885908
+      },
+      {
+        "path": "/staging/legacy-migration/state.json",
+        "mode": "0o600",
+        "uid": 1026,
+        "gid": 1026,
+        "inode": 30885962
+      }
+    ],
+    "schema_preserved": true,
+    "acl": [
+      {
+        "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/legacy-migration",
+        "result": "(synoacltool.c, 596)It's Linux mode"
+      },
+      {
+        "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/legacy-migration/state.json",
+        "result": "(synoacltool.c, 596)It's Linux mode"
+      }
+    ]
+  },
+  {
+    "step": "compatibility-rollback",
+    "metadata": [
+      {
+        "path": "/staging/legacy-migration",
+        "mode": "0o700",
+        "uid": 1026,
+        "gid": 1026,
+        "inode": 30885908
+      },
+      {
+        "path": "/staging/legacy-migration/state.json",
+        "mode": "0o600",
+        "uid": 1026,
+        "gid": 1026,
+        "inode": 30885962
+      }
+    ],
+    "never_restore_777": true,
+    "legacy_atomicity": false,
+    "acl": [
+      {
+        "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/legacy-migration",
+        "result": "(synoacltool.c, 596)It's Linux mode"
+      },
+      {
+        "path": "/volume1/docker/tenazas-mcp-review-d5d1a45/private-writer-staging-v3/legacy-migration/state.json",
+        "result": "(synoacltool.c, 596)It's Linux mode"
+      }
+    ]
+  },
+  {
+    "unauthorized_uid": 1027,
+    "read_denied": true
+  },
+  {
+    "unauthorized_uid": 1035,
+    "read_denied": true
+  }
+]
