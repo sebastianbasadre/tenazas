@@ -51,3 +51,17 @@ def test_bad_snapshot_rejected(tmp_path, monkeypatch):
     monkeypatch.setattr(adapter, "STATE_FILE", path)
     with pytest.raises(ValueError):
         adapter._state()
+
+
+def test_models_distinguish_infrastructure_hosts():
+    data = snapshot()
+    result = adapter._result("get_models", data, NOW)
+    assert result["homelab"]["role"] == "model_host"
+    assert result["homelab"]["ollama"] == data["ollama_notebook"]
+    assert result["nas"] == {"name": "NAS", "role": "tenazas_host"}
+    assert "ollama_notebook" not in result
+    assert "ollama_nas" not in result
+    status = adapter._result("get_status", data, NOW)
+    assert status["hosts"]["nas"]["role"] == "tenazas_host"
+    assert status["hosts"]["homelab"]["role"] == "model_host"
+    assert status["models"] == result

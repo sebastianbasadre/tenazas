@@ -136,6 +136,10 @@ def _result(name, state, now):
             )
         }
         result["timestamp"] = state["generated_at"]
+        result["hosts"] = {
+            "nas": {"name": "NAS", "role": "tenazas_host"},
+            "homelab": {"name": "HomeLab", "role": "model_host"},
+        }
     elif name == "get_containers":
         items = state["containers"]
         result = {
@@ -146,7 +150,14 @@ def _result(name, state, now):
         }
         source = "containers"
     elif name == "get_models":
-        result = {k: state[k] for k in ("ollama_notebook", "ollama_nas", "model")}
+        result = {
+            "homelab": {
+                "name": "HomeLab",
+                "role": "model_host",
+                "ollama": state["ollama_notebook"],
+            },
+            "nas": {"name": "NAS", "role": "tenazas_host"},
+        }
         source = "models"
     elif name == "get_storage":
         result = {"disk": state["disk"], "infra_disk": {}}
